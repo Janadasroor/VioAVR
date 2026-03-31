@@ -1,0 +1,38 @@
+#pragma once
+
+#include "vioavr/core/device.hpp"
+#include "vioavr/core/io_peripheral.hpp"
+#include <array>
+
+namespace vioavr::core {
+
+class Uart0 final : public IoPeripheral {
+public:
+    explicit Uart0(std::string_view name, const DeviceDescriptor& device) noexcept;
+
+    [[nodiscard]] std::string_view name() const noexcept override;
+    [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
+
+    void reset() noexcept override;
+    void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] u8 read(u16 address) noexcept override;
+    void write(u16 address, u8 value) noexcept override;
+    [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
+    [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+
+    void inject_received_byte(u8 data) noexcept;
+    bool consume_transmitted_byte(u8& data) noexcept;
+
+private:
+    std::string_view name_;
+    Uart0Descriptor desc_;
+    std::array<AddressRange, 4> ranges_;
+
+    u8 udr_rx_ {};
+    u8 udr_tx_ {};
+    u8 ucsra_ {};
+    u8 ucsrb_ {};
+    u8 ucsrc_ {};
+};
+
+}  // namespace vioavr::core
