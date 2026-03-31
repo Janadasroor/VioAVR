@@ -1,0 +1,53 @@
+# Build artifacts
+build/
+bin/
+out/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# Tooling and Caches
+.cache/
+.clangd/
+compile_commands.json
+.ninja_deps
+.ninja_log
+CMakeCache.txt
+CMakeFiles/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.project
+.settings/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Project specific
+docs/datasheets/
+/tmp/
+
+# ATmega DFP Pruning 
+/atmega/simulator/
+/atmega/xc8/
+/atmega/gcc/
+/atmega/avrasm/
+/atmega/hwtools/
+/atmega/edc/
+/atmega/templates/
+
+# Keep atdf and include as they are needed for the generator
+!/atmega/atdf/
+!/atmega/include/
+!/atmega/LICENSE.txt
+!/atmega/OVERVIEW.md
+!/atmega/package.content
+!/atmega/Microchip.ATmega_DFP.pdsc

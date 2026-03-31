@@ -1,0 +1,56 @@
+/* Interface Specification for VioAVR XSPICE Code Model */
+
+NAME_TABLE:
+C_Function_Name:       cm_d_vioavr
+Spec_File_Name:        ifspec.ifs
+Spice_Model_Name:      d_vioavr
+Description:           "VioAVR Instruction Set Simulator Bridge"
+
+PORT_TABLE:
+Port_Name:             avr_pins
+Description:           "AVR I/O Pins (mapped to Port B, C, D)"
+Direction:             inout
+Default_Type:          d
+Allowed_Types:         [d]
+Vector:                yes
+Vector_Bounds:         [24 24]
+
+PARAMETER_TABLE:
+Parameter_Name:        hex_file
+Description:           "Path to firmware HEX file"
+Data_Type:             string
+Default_Value:         "firmware.hex"
+Limits:                -
+Vector:                no
+Vector_Bounds:         -
+Null_Allowed:          no
+
+PARAMETER_TABLE:
+Parameter_Name:        mcu_type
+Description:           "Target MCU (atmega328, atmega328pb, atmega8)"
+Data_Type:             string
+Default_Value:         "atmega328"
+Limits:                -
+Vector:                no
+Vector_Bounds:         -
+Null_Allowed:          no
+
+PARAMETER_TABLE:
+Parameter_Name:        frequency
+Description:           "CPU Clock Frequency in Hz"
+Data_Type:             real
+Default_Value:         16e6
+Limits:                [1e3 100e6]
+Vector:                no
+Vector_Bounds:         -
+Null_Allowed:          no
+
+PARAMETER_TABLE:
+Parameter_Name:        quantum_cycles
+Description:           "Synchronization quantum in CPU cycles"
+Data_Type:             int
+Default_Value:         1000
+Limits:                [1 1000000]
+Vector:                no
+Vector_Bounds:         -
+Null_Allowed:          no
