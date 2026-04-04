@@ -29,6 +29,8 @@ constexpr vioavr::core::u16 encode_sts(const vioavr::core::u8 source)
     return static_cast<vioavr::core::u16>(0x9200U | (static_cast<vioavr::core::u16>(source) << 4U));
 }
 
+using namespace vioavr::core;
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 }  // namespace
 
 TEST_CASE("UART0 Firmware Test")

@@ -48,6 +48,7 @@ public:
     std::size_t count {};
 };
 
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 } // namespace
 
 TEST_CASE("CPU and GPIO Synchronization via SyncEngine Test")

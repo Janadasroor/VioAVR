@@ -23,8 +23,10 @@ constexpr u16 kSei = 0x9478U;
 constexpr u16 kReti = 0x9518U;
 constexpr u16 kNop = 0x0000U;
 
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 } // namespace
 
+using namespace vioavr::core;
 TEST_CASE("Analog Comparator Firmware Interrupt Test")
 {
     using namespace vioavr::core;
@@ -64,7 +66,7 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
     cpu.reset();
 
     SUBCASE("Interrupt Trigger and ISR Execution") {
-        cpu.run(4); // Run until SEI (instruction 13)
+        step_to(cpu, 4U);
         auto s = cpu.snapshot();
         CHECK(s.program_counter == 14U);
         CHECK((s.sreg & (1U << static_cast<u8>(SregFlag::interrupt))) != 0U);

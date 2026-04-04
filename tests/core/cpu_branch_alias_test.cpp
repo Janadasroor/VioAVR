@@ -30,6 +30,7 @@ constexpr u16 encode_branch_clear(const SregFlag flag_bit, const int displacemen
     return static_cast<u16>(0xF400U | ((displacement & 0x7FU) << 3U) | static_cast<u16>(flag_bit));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 } // namespace
 
 TEST_CASE("CPU Branch Alias and Explicit SREG Bit Instructions Test")

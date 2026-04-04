@@ -1,9 +1,13 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/device.hpp"
+#include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+
+using namespace vioavr::core;
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 
 TEST_CASE("External Interrupt Logic Test")
 {

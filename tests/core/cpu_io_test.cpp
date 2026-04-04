@@ -23,6 +23,7 @@ constexpr u16 encode_out(const u8 io_offset, const u8 source) {
     return static_cast<u16>(0xB800U | ((static_cast<u16>(source) & 0x1FU) << 4U) | ((static_cast<u16>(io_offset) & 0x30U) << 5U) | (io_offset & 0x0FU));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 } // namespace
 
 TEST_CASE("CPU I/O Instruction and PIN Toggling Test")

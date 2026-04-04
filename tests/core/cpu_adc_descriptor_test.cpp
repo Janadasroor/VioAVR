@@ -2,8 +2,11 @@
 #include "doctest.h"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/device.hpp"
+#include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
+using namespace vioavr::core;
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 TEST_CASE("ADC Descriptor and Trigger Logic Test")
 {
     using vioavr::core::Adc;
