@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor atmega3209 {
     .name = "ATmega3209",
-    .flash_words = 16384U, .sram_bytes = 4096U, .eeprom_bytes = 256U,
+    .flash_words = 0U, .sram_bytes = 4096U, .eeprom_bytes = 256U,
     .interrupt_vector_count = 40U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x0U, .adch_address = 0x0U, .adcsra_address = 0x0U, .adcsrb_address = 0x0U, .admux_address = 0x0U, .vector_index = 0U },
     .timer0 = { .tcnt_address = 0x0U, .ocra_address = 0x0U, .ocrb_address = 0x0U, .tifr_address = 0x0U, .timsk_address = 0x0U, .tccra_address = 0x0U, .tccrb_address = 0x0U, .compare_a_vector_index = 0U, .compare_b_vector_index = 0U, .overflow_vector_index = 0U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },

@@ -118,6 +118,12 @@ void AvrCpu::step()
         return;
     }
 
+    // Halt if PC is beyond the loaded program boundary
+    if (program_counter_ >= bus_->loaded_program_words()) {
+        state_ = CpuState::halted;
+        return;
+    }
+
     if (state_ == CpuState::paused) {
         return;
     }

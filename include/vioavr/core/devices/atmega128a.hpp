@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor atmega128a {
     .name = "ATmega128A",
-    .flash_words = 4096U, .sram_bytes = 61184U, .eeprom_bytes = 4096U,
+    .flash_words = 65536U, .sram_bytes = 4096U, .eeprom_bytes = 4096U,
     .interrupt_vector_count = 35U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x24U, .adch_address = 0x25U, .adcsra_address = 0x26U, .adcsrb_address = 0x0U, .admux_address = 0x27U, .vector_index = 21U },
     .timer0 = { .tcnt_address = 0x52U, .ocra_address = 0x51U, .ocrb_address = 0x0U, .tifr_address = 0x56U, .timsk_address = 0x57U, .tccra_address = 0x53U, .tccrb_address = 0x0U, .compare_a_vector_index = 15U, .compare_b_vector_index = 0U, .overflow_vector_index = 16U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },

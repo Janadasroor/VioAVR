@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor at90usb162 {
     .name = "AT90USB162",
-    .flash_words = 2048U, .sram_bytes = 512U, .eeprom_bytes = 512U,
+    .flash_words = 8192U, .sram_bytes = 512U, .eeprom_bytes = 512U,
     .interrupt_vector_count = 29U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x0U, .adch_address = 0x0U, .adcsra_address = 0x0U, .adcsrb_address = 0x0U, .admux_address = 0x0U, .vector_index = 0U },
     .timer0 = { .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .compare_a_vector_index = 19U, .compare_b_vector_index = 20U, .overflow_vector_index = 21U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },
