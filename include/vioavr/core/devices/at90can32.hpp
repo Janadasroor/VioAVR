@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor at90can32 {
     .name = "AT90CAN32",
-    .flash_words = 4096U, .sram_bytes = 63232U, .eeprom_bytes = 1024U,
+    .flash_words = 16384U, .sram_bytes = 2048U, .eeprom_bytes = 1024U,
     .interrupt_vector_count = 37U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU, .vector_index = 25U },
     .timer0 = { .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x0U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x0U, .compare_a_vector_index = 16U, .compare_b_vector_index = 0U, .overflow_vector_index = 17U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },

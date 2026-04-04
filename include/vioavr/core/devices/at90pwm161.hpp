@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor at90pwm161 {
     .name = "AT90PWM161",
-    .flash_words = 1024U, .sram_bytes = 1024U, .eeprom_bytes = 512U,
+    .flash_words = 8192U, .sram_bytes = 1024U, .eeprom_bytes = 512U,
     .interrupt_vector_count = 20U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x4CU, .adch_address = 0x4DU, .adcsra_address = 0x26U, .adcsrb_address = 0x27U, .admux_address = 0x28U, .vector_index = 13U },
     .timer0 = { .tcnt_address = 0x0U, .ocra_address = 0x0U, .ocrb_address = 0x0U, .tifr_address = 0x0U, .timsk_address = 0x0U, .tccra_address = 0x0U, .tccrb_address = 0x0U, .compare_a_vector_index = 0U, .compare_b_vector_index = 0U, .overflow_vector_index = 0U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },

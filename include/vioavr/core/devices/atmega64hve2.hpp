@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor atmega64hve2 {
     .name = "ATmega64HVE2",
-    .flash_words = 4096U, .sram_bytes = 4096U, .eeprom_bytes = 1024U,
+    .flash_words = 32768U, .sram_bytes = 4096U, .eeprom_bytes = 1024U,
     .interrupt_vector_count = 25U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x0U, .adch_address = 0x0U, .adcsra_address = 0x0U, .adcsrb_address = 0x0U, .admux_address = 0x0U, .vector_index = 17U },
     .timer0 = { .tcnt_address = 0x46U, .ocra_address = 0x48U, .ocrb_address = 0x49U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .compare_a_vector_index = 11U, .compare_b_vector_index = 12U, .overflow_vector_index = 13U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },

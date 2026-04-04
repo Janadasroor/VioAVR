@@ -10,8 +10,12 @@ def parse_atdf(file_path):
     
     for mem in root.findall(".//memory-segment"):
         m, s = mem.attrib.get('type'), int(mem.attrib.get('size', '0x0'), 16)
-        if m == 'flash': device_info['flash_words'] = s // 2
-        elif m == 'ram': device_info['sram_bytes'] = s
+        name = mem.attrib.get('name', '')
+        external = mem.attrib.get('external', 'false')
+        if m == 'flash' and name == 'FLASH': 
+            device_info['flash_words'] = s // 2
+        elif m == 'ram' and external == 'false': 
+            device_info['sram_bytes'] = s
         elif m == 'eeprom': device_info['eeprom_bytes'] = s
     
     v = root.findall(".//interrupt")

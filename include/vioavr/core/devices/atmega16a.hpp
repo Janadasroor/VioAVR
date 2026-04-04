@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor atmega16a {
     .name = "ATmega16A",
-    .flash_words = 1024U, .sram_bytes = 1024U, .eeprom_bytes = 512U,
+    .flash_words = 8192U, .sram_bytes = 1024U, .eeprom_bytes = 512U,
     .interrupt_vector_count = 21U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x24U, .adch_address = 0x25U, .adcsra_address = 0x26U, .adcsrb_address = 0x0U, .admux_address = 0x27U, .vector_index = 14U },
     .timer0 = { .tcnt_address = 0x52U, .ocra_address = 0x5CU, .ocrb_address = 0x0U, .tifr_address = 0x58U, .timsk_address = 0x59U, .tccra_address = 0x53U, .tccrb_address = 0x0U, .compare_a_vector_index = 19U, .compare_b_vector_index = 0U, .overflow_vector_index = 9U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },

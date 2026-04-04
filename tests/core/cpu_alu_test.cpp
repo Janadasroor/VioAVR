@@ -102,6 +102,12 @@ bool flag_is_set(const u8 sreg, const SregFlag bit) {
     return (sreg & (1U << static_cast<u8>(bit))) != 0U;
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU ALU and Flow Control Test")
@@ -183,7 +189,7 @@ TEST_CASE("CPU ALU and Flow Control Test")
     }
 
     SUBCASE("Multiplication") {
-        cpu.run(100); // Reach MUL
+        step_to(cpu, 5); // Reach MUL
         cpu.step(); // MUL r16, r17
         auto s = cpu.snapshot();
         CHECK(s.gpr[0] == 0x10U); // r0 = 0x10 * 0x01 = 0x10
@@ -205,7 +211,7 @@ TEST_CASE("CPU ALU and Flow Control Test")
     }
 
     SUBCASE("Immediate operations and ADC") {
-        cpu.run(100); // Reach SUBI
+        step_to(cpu, 12); // Reach SUBI
         cpu.step(); // SUBI r18, 0x0F (r18 was 0x0F)
         auto s = cpu.snapshot();
         CHECK(s.gpr[18] == 0x00U);
@@ -225,13 +231,13 @@ TEST_CASE("CPU ALU and Flow Control Test")
     }
 
     SUBCASE("Logical operations and Flow Control") {
-        cpu.run(100); // Reach ADD overflow test
+        step_to(cpu, 19); // Reach ADD overflow test
         cpu.step(); // ADD r20, r17 (0x7F + 0x01 = 0x80, Overflow=1)
         auto s = cpu.snapshot();
         CHECK(s.gpr[20] == 0x80U);
         CHECK(flag_is_set(s.sreg, SregFlag::overflow));
 
-        cpu.run(100); // Reach EOR r24, r24
+        step_to(cpu, 23); // Reach EOR r24, r24
         cpu.step(); // EOR r24, r24 -> result 0, Zero=1
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::zero));
 
@@ -246,7 +252,7 @@ TEST_CASE("CPU ALU and Flow Control Test")
     }
 
     SUBCASE("Comparisons and Branches") {
-        cpu.run(100); // Reach ANDI
+        step_to(cpu, 33); // Reach ANDI
         cpu.step(); // ANDI r28, 0x0F
         cpu.step(); // ORI r28, 0x05
         cpu.step(); // CPI r28, 0x06 (Result 5 - 6 = -1, Carry=1)

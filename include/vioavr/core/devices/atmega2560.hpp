@@ -3,7 +3,7 @@
 namespace vioavr::core::devices {
 inline constexpr DeviceDescriptor atmega2560 {
     .name = "ATmega2560",
-    .flash_words = 4096U, .sram_bytes = 56832U, .eeprom_bytes = 4096U,
+    .flash_words = 131072U, .sram_bytes = 8192U, .eeprom_bytes = 4096U,
     .interrupt_vector_count = 57U, .interrupt_vector_size = 2U,
     .adc = { .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU, .vector_index = 29U },
     .timer0 = { .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .compare_a_vector_index = 21U, .compare_b_vector_index = 22U, .overflow_vector_index = 23U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },
