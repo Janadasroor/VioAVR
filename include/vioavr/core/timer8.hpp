@@ -92,6 +92,7 @@ private:
     std::optional<BoundPin> pin_a_;
     std::optional<BoundPin> pin_b_;
     u8 last_clk_pin_state_ {};
+    u64 cycle_accumulator_ {};
     class Adc* adc_compare_trigger_ {};
     class Adc* adc_overflow_trigger_ {};
 };
