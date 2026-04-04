@@ -151,23 +151,23 @@ TEST_CASE("CPU Small Operations and Shifts Test")
     }
 
     SUBCASE("Logical and bit manipulation") {
-        step_to(cpu, 6U); // Reach TST
+        step_to(cpu, 7U); // Reach TST
         cpu.step(); // TST r19 (0)
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::zero));
 
-        step_to(cpu, 1U); cpu.step(); // SER, CLR
+        step_to(cpu, 9U); cpu.step(); // Execute through SER, CLR
         CHECK(cpu.snapshot().gpr[20] == 0x00U);
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::zero));
 
-        step_to(cpu, 2U); // LDI, COM (0x55 -> 0xAA)
+        step_to(cpu, 11U); cpu.step(); // Execute through LDI, COM
         CHECK(cpu.snapshot().gpr[22] == 0xAAU);
 
-        step_to(cpu, 2U); // LDI, NEG (1 -> -1 = 0xFF)
+        step_to(cpu, 13U); cpu.step(); // Execute through LDI, NEG
         CHECK(cpu.snapshot().gpr[23] == 0xFFU);
     }
 
     SUBCASE("Shifts and Rotates") {
-        step_to(cpu, 15U); cpu.step(); // LSR r24 (3 -> 1, Carry=1)
+        step_to(cpu, 16U); cpu.step(); // LSR r24 (3 -> 1, Carry=1)
         auto s = cpu.snapshot();
         CHECK(s.gpr[24] == 0x01U);
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
@@ -177,7 +177,7 @@ TEST_CASE("CPU Small Operations and Shifts Test")
         CHECK(s.gpr[24] == 0x80U);
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
 
-        cpu.run(2); // LDI, ASR (0x81 -> 0xC0, Carry=1)
+        step_to(cpu, 19U); cpu.step(); // Execute through LDI, ASR
         s = cpu.snapshot();
         CHECK(s.gpr[25] == 0xC0U);
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
@@ -188,10 +188,10 @@ TEST_CASE("CPU Small Operations and Shifts Test")
         cpu.step();
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::transfer));
 
-        step_to(cpu, 2U); // LDI, BLD r26, 4
+        step_to(cpu, 22U); cpu.step(); // Execute through LDI, BLD
         CHECK(cpu.snapshot().gpr[26] == 0x10U);
 
-        cpu.run(31); // Run through BSET/BCLR
+        step_to(cpu, 45U); // Run through BSET/BCLR
         auto final_sreg = cpu.snapshot().sreg;
         CHECK(final_sreg == 0U);
     }
