@@ -33,6 +33,8 @@ private:
     u8 ucsra_ {};
     u8 ucsrb_ {};
     u8 ucsrc_ {};
+    bool tx_in_progress_ {};
+    u64 tx_cycles_elapsed_ {};
 };
 
 }  // namespace vioavr::core

@@ -42,14 +42,25 @@ void Uart0::reset() noexcept
 {
     udr_rx_ = 0U;
     udr_tx_ = 0U;
-    ucsra_ = 0x20U; // UDRE initially set
+    ucsra_ = 0x60U; // UDRE (bit 5) and TXC (bit 6) initially set
     ucsrb_ = 0U;
     ucsrc_ = 0x06U; // default format
+    tx_in_progress_ = false;
+    tx_cycles_elapsed_ = 0;
 }
+
+static constexpr u64 kUartTxDuration = 4; // Cycles for one byte transmission (simulated)
 
 void Uart0::tick(const u64 elapsed_cycles) noexcept
 {
-    (void)elapsed_cycles;
+    if (tx_in_progress_) {
+        tx_cycles_elapsed_ += elapsed_cycles;
+        if (tx_cycles_elapsed_ >= kUartTxDuration) {
+            // Transmission complete
+            tx_in_progress_ = false;
+            ucsra_ |= 0x60U; // Set UDRE and TXC
+        }
+    }
 }
 
 u8 Uart0::read(const u16 address) noexcept
@@ -68,10 +79,9 @@ void Uart0::write(const u16 address, const u8 value) noexcept
 {
     if (address == desc_.udr_address) {
         udr_tx_ = value;
-        ucsra_ &= 0xDFU; // Clear UDRE (bit 5)
-        // TXC (bit 6) logic: usually stays set until transmission starts?
-        // Let's say it clears when you write a new byte and starts.
-        ucsra_ &= 0xBFU; 
+        ucsra_ &= 0x9FU; // Clear UDRE (bit 5) and TXC (bit 6), keep RXC (bit 7)
+        tx_in_progress_ = true;
+        tx_cycles_elapsed_ = 0;
     } else if (address == desc_.ucsra_address) {
         // Most bits read-only, TXC can be cleared by writing 1
         if (value & 0x40U) ucsra_ &= 0xBFU;
@@ -101,11 +111,18 @@ bool Uart0::pending_interrupt_request(InterruptRequest& request) const noexcept
 
 bool Uart0::consume_interrupt_request(InterruptRequest& request) noexcept
 {
-    if (pending_interrupt_request(request)) {
-        if (request.vector_index == desc_.tx_vector_index) ucsra_ &= 0xBFU;
-        return true;
+    if (!pending_interrupt_request(request)) {
+        return false;
     }
-    return false;
+    
+    if (request.vector_index == desc_.rx_vector_index) {
+        ucsra_ &= 0x7FU; // Clear RXC
+    } else if (request.vector_index == desc_.tx_vector_index) {
+        ucsra_ &= 0xBFU; // Clear TXC
+    } else if (request.vector_index == desc_.udre_vector_index) {
+        ucsra_ &= 0xDFU; // Clear UDRE
+    }
+    return true;
 }
 
 void Uart0::inject_received_byte(const u8 data) noexcept
@@ -116,14 +133,9 @@ void Uart0::inject_received_byte(const u8 data) noexcept
 
 bool Uart0::consume_transmitted_byte(u8& data) noexcept
 {
-    if (!(ucsra_ & 0x20U) || (ucsra_ & 0x40U)) { // If we have something in TX buffer (UDRE=0) or just finished (TXC=1)
-        // This is a bit simplified. If UDRE=0, it means we have data pending to be sent.
-        // If the test calls this, it expects to see the byte we just wrote.
-        if (!(ucsra_ & 0x20U)) {
-            data = udr_tx_;
-            ucsra_ |= 0x60U; // Set UDRE and TXC back
-            return true;
-        }
+    if (ucsra_ & 0x40U) { // TXC is set, transmission complete
+        data = udr_tx_;
+        return true;
     }
     return false;
 }
