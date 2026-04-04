@@ -30,6 +30,7 @@ constexpr vioavr::core::u16 encode_sts(const vioavr::core::u8 source)
 }
 
 }  // namespace
+void step_to(vioavr::core::AvrCpu& cpu, vioavr::core::u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != vioavr::core::CpuState::halted) { cpu.step(); } }
 
 TEST_CASE("ADC Firmware Integration Test")
 {
@@ -72,7 +73,7 @@ TEST_CASE("ADC Firmware Integration Test")
     SUBCASE("Program execution flow") {
         // Run until LDI/STS for ADMUX and LDI/STS for ADCSRA (4 instructions)
         // LDI (1), STS (2), LDI (1), STS (2) = 6 cycles
-        cpu.run(6);
+        step_to(cpu, 6U);
         CHECK(cpu.cycles() == 6U);
         CHECK(cpu.program_counter() == 4U); // PC in words (LDI+STS=2 words x 2 = 4 blocks, but STS is 2 words)
         // Wait, STS is 2 words. 

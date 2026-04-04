@@ -105,7 +105,7 @@ TEST_CASE("Watchdog Timer: Interrupt Mode") {
     cpu.reset();
 
     // Run past timeout with interrupts DISABLED
-    cpu.run(300000);
+    cpu.run(300000U);
     
     // WDIF should be set (bit 7)
     CHECK((wdt.read(0x60) & 0x80) != 0);

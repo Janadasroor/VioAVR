@@ -37,6 +37,12 @@ bool flag_is_set(const u8 sreg, const SregFlag bit) {
     return (sreg & (1U << static_cast<u8>(bit))) != 0U;
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU Multi-byte Comparison and Subtraction Test")
@@ -95,7 +101,7 @@ TEST_CASE("CPU Multi-byte Comparison and Subtraction Test")
         CHECK(flag_is_set(s.sreg, SregFlag::zero));
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::carry));
 
-        cpu.run(3); // Branch and next LDI
+        step_to(cpu, 3U); // Branch and next LDI
         CHECK(cpu.snapshot().gpr[19] == 0x11U);
         
         cpu.run(5); // Next Comparison (0x1233 vs 0x1234)
@@ -103,17 +109,17 @@ TEST_CASE("CPU Multi-byte Comparison and Subtraction Test")
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::zero));
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
         
-        cpu.run(3); // Branch and next LDI
+        step_to(cpu, 3U); // Branch and next LDI
         CHECK(cpu.snapshot().gpr[23] == 0x22U);
     }
 
     SUBCASE("Multi-byte Subtraction (SUBI, SBCI)") {
-        cpu.run(20); // Reach PC=19
+        step_to(cpu, 20U); // Reach PC=19
         auto s = cpu.snapshot();
         CHECK(flag_is_set(s.sreg, SregFlag::zero));
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::carry));
         
-        cpu.run(3); // Branch and next LDI
+        step_to(cpu, 3U); // Branch and next LDI
         CHECK(cpu.snapshot().gpr[26] == 0x44U);
         
         cpu.run(4); // Next Subtraction (underflow)
@@ -121,7 +127,7 @@ TEST_CASE("CPU Multi-byte Comparison and Subtraction Test")
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::zero));
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
         
-        cpu.run(3); // Branch and next LDI
+        step_to(cpu, 3U); // Branch and next LDI
         CHECK(cpu.snapshot().gpr[30] == 0x55U);
     }
 }

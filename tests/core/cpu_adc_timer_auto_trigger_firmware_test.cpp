@@ -40,7 +40,10 @@ constexpr vioavr::core::u16 encode_out(const vioavr::core::u8 io_offset, const v
     );
 }
 
+
+
 }  // namespace
+void step_to(vioavr::core::AvrCpu& cpu, vioavr::core::u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != vioavr::core::CpuState::halted) { cpu.step(); } }
 
 TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
 {
@@ -99,7 +102,7 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
         // LDI (6), OUT (7) -> Cycles 2, Next PC 8
         // LDI (8), OUT (9) -> Cycles 2, Next PC 10 (Timer starts here)
         // LDI (10), STS (11,12) -> Cycles 3, Next PC 13
-        cpu.run(13);
+        step_to(cpu, 0U);
         CHECK(cpu.cycles() == 13U);
         CHECK(cpu.program_counter() == 13U);
 

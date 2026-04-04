@@ -47,6 +47,12 @@ constexpr u16 encode_sbrs(const u8 destination, const u8 bit) {
     return static_cast<u16>(0xFE00U | (static_cast<u16>(destination) << 4U) | (bit & 0x07U));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU Bit and I/O Instruction Test")
@@ -94,7 +100,7 @@ TEST_CASE("CPU Bit and I/O Instruction Test")
     port_b.set_input_levels(0x08U); // External PB3 is HIGH
 
     SUBCASE("Execution and Verification") {
-        cpu.run(100); // Run until halt
+        step_to(cpu, 100U); // Run until halt
         
         auto s = cpu.snapshot();
         // DDRB should be 0x01 (bit 0 output)

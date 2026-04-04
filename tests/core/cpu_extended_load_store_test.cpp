@@ -41,6 +41,12 @@ u16 pair_value(const CpuSnapshot& snapshot, const u8 low_register) {
     return static_cast<u16>(snapshot.gpr[low_register] | (static_cast<u16>(snapshot.gpr[low_register + 1U]) << 8U));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU Extended Load and Store Instructions Test")
@@ -98,7 +104,7 @@ TEST_CASE("CPU Extended Load and Store Instructions Test")
     bus.write_data(static_cast<u16>(sram_base + 0x20U), 0xE3U);
 
     SUBCASE("Execution and Indirect Register Behavior") {
-        cpu.run(100); // Run to halt
+        step_to(cpu, 100U); // Run to halt
         auto s = cpu.snapshot();
         
         // X

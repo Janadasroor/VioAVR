@@ -30,7 +30,10 @@ constexpr vioavr::core::u16 encode_sts(const vioavr::core::u8 source)
     return static_cast<vioavr::core::u16>(0x9200U | (static_cast<vioavr::core::u16>(source) << 4U));
 }
 
+
+
 }  // namespace
+void step_to(vioavr::core::AvrCpu& cpu, vioavr::core::u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != vioavr::core::CpuState::halted) { cpu.step(); } }
 
 TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
 {
@@ -86,7 +89,7 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
     SUBCASE("Triggering conversion via comparator edge") {
         // Run setup (6 instructions: LDI, STS, LDI, STS, LDI, STS)
         // Cycles: 1 + 2 + 1 + 2 + 1 + 2 = 9
-        cpu.run(9);
+        step_to(cpu, 0U);
         CHECK(cpu.cycles() == 9U);
         CHECK(cpu.program_counter() == 9U);
         
