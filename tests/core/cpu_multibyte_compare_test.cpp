@@ -96,38 +96,42 @@ TEST_CASE("CPU Multi-byte Comparison and Subtraction Test")
     cpu.reset();
 
     SUBCASE("Multi-byte Comparison (CPI, CPC)") {
-        cpu.run(5); // Up to PC=4
+        step_to(cpu, 2U); cpu.step(); // Execute CPI at PC=2 (0x34 vs 0x34)
         auto s = cpu.snapshot();
         CHECK(flag_is_set(s.sreg, SregFlag::zero));
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::carry));
 
-        step_to(cpu, 3U); // Branch and next LDI
+        step_to(cpu, 5U); cpu.step(); // Execute CPC at PC=4
+        step_to(cpu, 8U); // Execute BREQ+LDI at PC=7 (branches to PC=7)
         CHECK(cpu.snapshot().gpr[19] == 0x11U);
         
-        cpu.run(5); // Next Comparison (0x1233 vs 0x1234)
+        step_to(cpu, 10U); cpu.step(); // Execute CPI at PC=10 (0x33 vs 0x34)
+        step_to(cpu, 12U); cpu.step(); // Execute CPC at PC=12
         s = cpu.snapshot();
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::zero));
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
         
-        step_to(cpu, 3U); // Branch and next LDI
+        step_to(cpu, 16U); // Execute BRCs+LDI at PC=15 (branches to PC=15)
         CHECK(cpu.snapshot().gpr[23] == 0x22U);
     }
 
     SUBCASE("Multi-byte Subtraction (SUBI, SBCI)") {
-        step_to(cpu, 20U); // Reach PC=19
+        step_to(cpu, 18U); cpu.step(); // Execute SUBI at PC=18
+        cpu.step(); // Execute SBCI at PC=19
         auto s = cpu.snapshot();
         CHECK(flag_is_set(s.sreg, SregFlag::zero));
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::carry));
         
-        step_to(cpu, 3U); // Branch and next LDI
+        step_to(cpu, 23U); // Execute BRCC+LDI at PC=22 (branches to PC=22)
         CHECK(cpu.snapshot().gpr[26] == 0x44U);
         
-        cpu.run(4); // Next Subtraction (underflow)
+        step_to(cpu, 25U); cpu.step(); // Execute SUBI at PC=25
+        cpu.step(); // Execute SBCI at PC=26 (underflow)
         s = cpu.snapshot();
         CHECK_FALSE(flag_is_set(s.sreg, SregFlag::zero));
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
         
-        step_to(cpu, 3U); // Branch and next LDI
+        step_to(cpu, 30U); // Execute BRCs+LDI at PC=29 (branches to PC=29)
         CHECK(cpu.snapshot().gpr[30] == 0x55U);
     }
 }

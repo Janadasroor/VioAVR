@@ -103,23 +103,23 @@ TEST_CASE("CPU Comparison and Conditional Skip Test")
     }
 
     SUBCASE("Multi-byte Arithmetic (CPC, SBC)") {
-        cpu.run(11); // Pre-load registers and run CP 20, 21
+        step_to(cpu, 12U); // Execute through CP at PC=11
         auto s = cpu.snapshot();
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
         CHECK(flag_is_set(s.sreg, SregFlag::negative));
 
-        cpu.run(3); // LDI x2, CPC
+        step_to(cpu, 15U); // Execute through LDI x2, CPC
         s = cpu.snapshot();
         CHECK(s.gpr[22] == 0x00U); // CPC doesn't write back
         CHECK(flag_is_set(s.sreg, SregFlag::carry)); // 0 - 0 - 1 = -1
         CHECK(flag_is_set(s.sreg, SregFlag::negative));
 
-        cpu.run(3); // LDI x2, SBC
+        step_to(cpu, 18U); // Execute through LDI x2, SBC
         s = cpu.snapshot();
         CHECK(s.gpr[24] == 0xFEU); // 0 - 1 - 1 = 0xFE
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
         
-        cpu.run(2); // LDI, SBCI
+        step_to(cpu, 20U); // Execute through LDI, SBCI
         s = cpu.snapshot();
         CHECK(s.gpr[26] == 0xFFU); // 0 - 0 - 1 = 0xFF
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
