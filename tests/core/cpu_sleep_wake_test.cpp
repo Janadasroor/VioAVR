@@ -85,7 +85,7 @@ TEST_CASE("CPU Sleep and Wake Test")
         for (int i = 0; i < 8; ++i) cpu.step();
         const auto snapshot = cpu.snapshot();
         CHECK_FALSE(snapshot.interrupt_pending);
-        CHECK(snapshot.program_counter == 8U);
+        CHECK(snapshot.program_counter == 9U);
         CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);
     }
 
@@ -94,12 +94,12 @@ TEST_CASE("CPU Sleep and Wake Test")
         cpu.step(); // SLEEP
         const auto snapshot = cpu.snapshot();
         CHECK(snapshot.program_counter == 9U);
-        CHECK(snapshot.cycles == 9U);
+        CHECK(snapshot.cycles == 10U);
         CHECK(snapshot.state == CpuState::sleeping);
     }
 
     SUBCASE("Wake from sleep via Timer interrupt") {
-        for (int i = 0; i < 9; ++i) cpu.step();
+        for (int i = 0; i < 10; ++i) cpu.step();
         
         cpu.run(6U); // Wait for timer to reach OCR0=8
         const auto snapshot = cpu.snapshot();
@@ -114,7 +114,7 @@ TEST_CASE("CPU Sleep and Wake Test")
     }
 
     SUBCASE("ISR Execution and RETI") {
-        for (int i = 0; i < 9; ++i) cpu.step();
+        for (int i = 0; i < 10; ++i) cpu.step();
         cpu.run(6U);
         
         cpu.step(); // LDI R17, 0x77

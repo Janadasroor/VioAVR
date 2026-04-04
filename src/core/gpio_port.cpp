@@ -73,10 +73,7 @@ void GpioPort::write(const u16 address, const u8 value) noexcept
     }
 
     if (address == ddr_addr_) {
-        const u8 changed = static_cast<u8>(ddr_ ^ value);
         ddr_ = value;
-        // Any pin that became an output needs to publish its current port state
-        pending_changes_mask_ |= (changed & ddr_);
         update_pin_latched();
         return;
     }
