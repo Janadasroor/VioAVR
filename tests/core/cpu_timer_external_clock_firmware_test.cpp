@@ -68,7 +68,7 @@ TEST_CASE("Timer0 External Clock Firmware Test")
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x02U),
-            encode_out(0x13U, 16U),  // OCR0
+            encode_out(0x27U, 16U),  // OCR0
             encode_ldi(17U, 0x07U),
             encode_out(0x25U, 17U),  // TCCR0B rising-edge external clock (0x45 -> 0x25)
             encode_in(18U, 0x12U),   // TCNT0 initial (0x32 -> 0x12)
