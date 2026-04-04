@@ -1,0 +1,104 @@
+
+alu_bare.elf:     file format elf32-avr
+
+
+Disassembly of section .text:
+
+00000000 <__vectors>:
+   0:	0c 94 34 00 	jmp	0x68	; 0x68 <__ctors_end>
+   4:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+   8:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+   c:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  10:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  14:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  18:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  1c:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  20:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  24:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  28:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  2c:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  30:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  34:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  38:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  3c:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  40:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  44:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  48:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  4c:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  50:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  54:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  58:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  5c:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  60:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+  64:	0c 94 3e 00 	jmp	0x7c	; 0x7c <__bad_interrupt>
+
+00000068 <__ctors_end>:
+  68:	11 24       	eor	r1, r1
+  6a:	1f be       	out	0x3f, r1	; 63
+  6c:	cf ef       	ldi	r28, 0xFF	; 255
+  6e:	d8 e0       	ldi	r29, 0x08	; 8
+  70:	de bf       	out	0x3e, r29	; 62
+  72:	cd bf       	out	0x3d, r28	; 61
+  74:	0e 94 40 00 	call	0x80	; 0x80 <main>
+  78:	0c 94 72 00 	jmp	0xe4	; 0xe4 <_exit>
+
+0000007c <__bad_interrupt>:
+  7c:	0c 94 00 00 	jmp	0	; 0x0 <__vectors>
+
+00000080 <main>:
+  80:	0f e0       	ldi	r16, 0x0F	; 15
+  82:	11 e0       	ldi	r17, 0x01	; 1
+  84:	01 0f       	add	r16, r17
+  86:	20 2f       	mov	r18, r16
+  88:	21 1b       	sub	r18, r17
+  8a:	01 9f       	mul	r16, r17
+  8c:	4e ef       	ldi	r20, 0xFE	; 254
+  8e:	52 e0       	ldi	r21, 0x02	; 2
+  90:	45 02       	muls	r20, r21
+  92:	6e ef       	ldi	r22, 0xFE	; 254
+  94:	73 e0       	ldi	r23, 0x03	; 3
+  96:	67 03       	mulsu	r22, r23
+  98:	2f e0       	ldi	r18, 0x0F	; 15
+  9a:	2f 50       	subi	r18, 0x0F	; 15
+  9c:	50 e0       	ldi	r21, 0x00	; 0
+  9e:	51 50       	subi	r21, 0x01	; 1
+  a0:	61 e0       	ldi	r22, 0x01	; 1
+  a2:	71 e0       	ldi	r23, 0x01	; 1
+  a4:	08 94       	sec
+  a6:	67 1f       	adc	r22, r23
+  a8:	4f e7       	ldi	r20, 0x7F	; 127
+  aa:	11 e0       	ldi	r17, 0x01	; 1
+  ac:	41 0f       	add	r20, r17
+  ae:	8a ea       	ldi	r24, 0xAA	; 170
+  b0:	86 23       	and	r24, r22
+  b2:	85 2b       	or	r24, r21
+  b4:	88 27       	eor	r24, r24
+  b6:	09 f0       	breq	.+2      	; 0xba <main+0x3a>
+  b8:	97 e7       	ldi	r25, 0x77	; 119
+  ba:	09 f4       	brne	.+2      	; 0xbe <main+0x3e>
+  bc:	a5 e5       	ldi	r26, 0x55	; 85
+  be:	86 2b       	or	r24, r22
+  c0:	09 f4       	brne	.+2      	; 0xc4 <main+0x44>
+  c2:	b6 e6       	ldi	r27, 0x66	; 102
+  c4:	01 c0       	rjmp	.+2      	; 0xc8 <main+0x48>
+  c6:	c0 ef       	ldi	r28, 0xF0	; 240
+  c8:	cf 70       	andi	r28, 0x0F	; 15
+  ca:	c5 60       	ori	r28, 0x05	; 5
+  cc:	c6 30       	cpi	r28, 0x06	; 6
+  ce:	08 f0       	brcs	.+2      	; 0xd2 <main+0x52>
+  d0:	d1 e1       	ldi	r29, 0x11	; 17
+  d2:	e0 e8       	ldi	r30, 0x80	; 128
+  d4:	e0 60       	ori	r30, 0x00	; 0
+  d6:	0a f0       	brmi	.+2      	; 0xda <main+0x5a>
+  d8:	f2 e2       	ldi	r31, 0x22	; 34
+  da:	0a f4       	brpl	.+2      	; 0xde <main+0x5e>
+  dc:	f6 2f       	mov	r31, r22
+  de:	08 f4       	brcc	.+2      	; 0xe2 <main+0x62>
+  e0:	d3 e3       	ldi	r29, 0x33	; 51
+  e2:	ff cf       	rjmp	.-2      	; 0xe2 <main+0x62>
+
+000000e4 <_exit>:
+  e4:	f8 94       	cli
+
+000000e6 <__stop_program>:
+  e6:	ff cf       	rjmp	.-2      	; 0xe6 <__stop_program>

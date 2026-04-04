@@ -36,6 +36,12 @@ bool flag_is_set(const u8 sreg, const SregFlag bit) {
     return (sreg & (1U << static_cast<u8>(bit))) != 0U;
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU Word Operations Test")
@@ -75,13 +81,13 @@ TEST_CASE("CPU Word Operations Test")
     cpu.reset();
 
     SUBCASE("ADIW Operations") {
-        cpu.run(3); // Up to PC=2
+        step_to(cpu, 3U);
         auto s = cpu.snapshot();
         CHECK(pair_value(s, 24) == 0x8000U);
         CHECK(flag_is_set(s.sreg, SregFlag::negative));
         CHECK(flag_is_set(s.sreg, SregFlag::overflow));
 
-        cpu.run(3); // PC=4, 5
+        step_to(cpu, 6U);
         s = cpu.snapshot();
         CHECK(pair_value(s, 26) == 0x0000U);
         CHECK(flag_is_set(s.sreg, SregFlag::zero));
@@ -89,20 +95,20 @@ TEST_CASE("CPU Word Operations Test")
     }
 
     SUBCASE("SBIW Operations") {
-        cpu.run(9); // Setup r28, r29 and SBIW
+        step_to(cpu, 9U);
         auto s = cpu.snapshot();
         CHECK(pair_value(s, 28) == 0xFFFFU);
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
         CHECK(flag_is_set(s.sreg, SregFlag::negative));
 
-        cpu.run(3); // Setup r30, r31 and SBIW
+        step_to(cpu, 12U);
         s = cpu.snapshot();
         CHECK(pair_value(s, 30) == 0x8000U);
         CHECK(flag_is_set(s.sreg, SregFlag::negative));
     }
 
     SUBCASE("MOVW Operations") {
-        cpu.run(15); // Setup r20, r21 and MOVW
+        step_to(cpu, 15U);
         auto s = cpu.snapshot();
         CHECK(pair_value(s, 16) == 0x1234U);
         CHECK(pair_value(s, 20) == 0x1234U);
