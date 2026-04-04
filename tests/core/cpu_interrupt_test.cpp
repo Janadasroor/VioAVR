@@ -58,9 +58,9 @@ TEST_CASE("CPU Interrupt Handling Test")
 
     bus.load_image(HexImage {
         .flash_words = {
-            encode_ldi(16U, 0x03U),   // 0 OCR0 threshold
-            encode_out(0x13U, 16U),   // 1 OCR0 (0x33 -> 0x13)
-            encode_ldi(19U, 0x02U),   // 2 OCIE0A
+            encode_ldi(16U, 0x01U),   // 0 OCR0A compare threshold
+            encode_out(0x27U, 16U),   // 1 OCR0A (I/O 0x27 = mem 0x47)
+            encode_ldi(19U, 0x02U),   // 2 OCIE0A (bit 1)
             encode_sts(19U), atmega328.timer0.timsk_address,  // 3,4 TIMSK0
             encode_ldi(20U, 0x01U),   // 5 CS00
             encode_out(0x25U, 20U),   // 6 TCCR0B (0x45 -> 0x25)
@@ -95,7 +95,7 @@ TEST_CASE("CPU Interrupt Handling Test")
         const auto snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
         
-        CHECK(snapshot.program_counter == 14U); // Jumped to ISR
+        CHECK(snapshot.program_counter == 15U); // Jumped to ISR and executed LDI
         CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
         CHECK(snapshot.cycles == 13U); // 9 + 4 cycles for interrupt entry
         CHECK_FALSE(snapshot.interrupt_pending);
@@ -108,8 +108,11 @@ TEST_CASE("CPU Interrupt Handling Test")
     }
 
     SUBCASE("ISR and Return") {
-        for (int i = 0; i < 9; ++i) cpu.step(); // To ISR start
-        cpu.step(); // LDI R17, 0x77
+        for (int i = 0; i < 8; ++i) cpu.step(); // To just before interrupt service
+        cpu.step(); // Service interrupt, PC -> 14
+        CHECK(cpu.snapshot().program_counter == 14U);
+
+        cpu.step(); // Execute LDI R17, 0x77
         auto snapshot = cpu.snapshot();
         CHECK(snapshot.gpr[17] == 0x77U);
         CHECK(snapshot.program_counter == 15U);
@@ -117,7 +120,7 @@ TEST_CASE("CPU Interrupt Handling Test")
         cpu.step(); // RETI
         snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
-        CHECK(snapshot.program_counter == 9U); // Returned to mainline
+        CHECK(snapshot.program_counter == 9U);
         CHECK(snapshot.stack_pointer == ramend);
         CHECK_FALSE(snapshot.in_interrupt_handler);
         CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);

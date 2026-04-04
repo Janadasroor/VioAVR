@@ -80,7 +80,7 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
             encode_ldi(17U, 0x03U),                     // 3 (ADTS=3)
             encode_sts(17U), atmega328.adc.adcsrb_address, // 4, 5
             encode_ldi(18U, 0x0CU),                     // 6 (Value 12)
-            encode_out(0x13U, 18U),                     // 7 (OCR0A)
+            encode_out(0x27U, 18U),                     // 7 (OCR0A)
             encode_ldi(18U, 0x01U),                     // 8 (Start Timer)
             encode_out(0x15U, 18U),                     // 9 (TCCRB)
             encode_ldi(18U, 0xA0U),                     // 10 (ADEN | ADATE)
