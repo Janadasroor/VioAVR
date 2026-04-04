@@ -26,6 +26,8 @@ constexpr u16 encode_fmulsu(const u8 destination, const u8 source) {
     return static_cast<u16>(0x0388U | ((static_cast<u16>(destination - 16U) & 0x07U) << 4U) | ((source - 16U) & 0x07U));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
+
 bool flag_is_set(const u8 sreg, const SregFlag bit) {
     return (sreg & (1U << static_cast<u8>(bit))) != 0U;
 }
@@ -65,7 +67,7 @@ TEST_CASE("CPU Fractional Multiplication (FMUL) Test")
     cpu.reset();
 
     SUBCASE("FMUL Unsigned") {
-        cpu.run(3);
+        step_to(cpu, 3U);
         auto s = cpu.snapshot();
         CHECK(s.gpr[0] == 0x00U);
         CHECK(s.gpr[1] == 0x20U); // 0x2000
@@ -74,7 +76,7 @@ TEST_CASE("CPU Fractional Multiplication (FMUL) Test")
     }
 
     SUBCASE("FMULS Signed") {
-        cpu.run(6);
+        step_to(cpu, 6U);
         auto s = cpu.snapshot();
         CHECK(s.gpr[0] == 0x00U);
         CHECK(s.gpr[1] == 0xC0U); // 0xC000
@@ -84,7 +86,7 @@ TEST_CASE("CPU Fractional Multiplication (FMUL) Test")
     }
 
     SUBCASE("FMULSU Signed/Unsigned") {
-        cpu.run(9);
+        step_to(cpu, 9U);
         auto s = cpu.snapshot();
         CHECK(s.gpr[0] == 0x00U);
         CHECK(s.gpr[1] == 0xC0U); // 0xC000
@@ -92,7 +94,7 @@ TEST_CASE("CPU Fractional Multiplication (FMUL) Test")
     }
 
     SUBCASE("FMUL Zero") {
-        cpu.run(12);
+        step_to(cpu, 12U);
         auto s = cpu.snapshot();
         CHECK(s.gpr[0] == 0x00U);
         CHECK(s.gpr[1] == 0x00U);

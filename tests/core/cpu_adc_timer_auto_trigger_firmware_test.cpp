@@ -43,7 +43,9 @@ constexpr vioavr::core::u16 encode_out(const vioavr::core::u8 io_offset, const v
 
 
 }  // namespace
-void step_to(vioavr::core::AvrCpu& cpu, vioavr::core::u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != vioavr::core::CpuState::halted) { cpu.step(); } }
+
+using namespace vioavr::core;
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 
 TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
 {

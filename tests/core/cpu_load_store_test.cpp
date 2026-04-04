@@ -32,6 +32,7 @@ u16 pair_value(const CpuSnapshot& snapshot, const u8 low_register) {
     return static_cast<u16>(snapshot.gpr[low_register] | (static_cast<u16>(snapshot.gpr[low_register + 1U]) << 8U));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 } // namespace
 
 TEST_CASE("CPU Load and Store Instructions Test")
@@ -90,7 +91,7 @@ TEST_CASE("CPU Load and Store Instructions Test")
     bus.write_data(static_cast<u16>(sram_base + 0x21U), 0xC3U);
 
     SUBCASE("X-register Address Space (SRAM base)") {
-        cpu.run(14); // Setup X, ST, LD, LDI, ST+, LD, LD+
+        step_to(cpu, 14U);
         auto s = cpu.snapshot();
         CHECK(bus.read_data(sram_base) == 0x22U);
         CHECK(s.gpr[17] == 0x11U);
@@ -100,7 +101,7 @@ TEST_CASE("CPU Load and Store Instructions Test")
     }
 
     SUBCASE("Y-register Address Space (SRAM base + 0x10)") {
-        cpu.run(28); // Run including X and Y tests
+        step_to(cpu, 28U);
         auto s = cpu.snapshot();
         CHECK(bus.read_data(sram_base + 0x10U) == 0x44U);
         CHECK(s.gpr[21] == 0x33U);
@@ -110,7 +111,7 @@ TEST_CASE("CPU Load and Store Instructions Test")
     }
 
     SUBCASE("Z-register Address Space (SRAM base + 0x20)") {
-        cpu.run(42); // Run total (X, Y, Z)
+        step_to(cpu, 42U);
         auto s = cpu.snapshot();
         CHECK(bus.read_data(sram_base + 0x20U) == 0x66U);
         CHECK(s.gpr[25] == 0x55U);

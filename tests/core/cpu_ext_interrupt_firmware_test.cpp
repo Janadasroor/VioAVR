@@ -23,6 +23,7 @@ constexpr u16 kSei = 0x9478U;
 constexpr u16 kReti = 0x9518U;
 constexpr u16 kNop = 0x0000U;
 
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 } // namespace
 
 TEST_CASE("External Interrupt (INT0) Firmware Test")
@@ -58,7 +59,7 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
     cpu.reset();
 
     SUBCASE("INT0 Falling Edge Trigger and ISR") {
-        cpu.run(5); // Run through initialization until PC=12 (kNop after SEI)
+        step_to(cpu, 5U);
         auto s = cpu.snapshot();
         CHECK(s.program_counter == 12U);
         CHECK((s.sreg & (1U << static_cast<u8>(SregFlag::interrupt))) != 0U);

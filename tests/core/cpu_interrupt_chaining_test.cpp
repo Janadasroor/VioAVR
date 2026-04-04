@@ -28,6 +28,8 @@ constexpr vioavr::core::u16 kSei = 0x9478U;
 constexpr vioavr::core::u16 kReti = 0x9518U;
 constexpr vioavr::core::u16 kNop = 0x0000U;
 
+using namespace vioavr::core;
+void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
 }  // namespace
 
 TEST_CASE("CPU Interrupt Priority and Chaining Test")
