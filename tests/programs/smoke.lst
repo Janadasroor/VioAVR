@@ -1,0 +1,9 @@
+
+smoke.elf:     file format elf32-avr
+
+
+Disassembly of section .text:
+
+00000000 <_start>:
+	...
+   8:	ff cf       	rjmp	.-2      	; 0x8 <__zero_reg__+0x7>
