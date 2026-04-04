@@ -59,6 +59,12 @@ bool flag_is_set(const u8 sreg, const SregFlag bit) {
     return (sreg & (1U << static_cast<u8>(bit))) != 0U;
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU Small Operations and Shifts Test")
@@ -145,24 +151,23 @@ TEST_CASE("CPU Small Operations and Shifts Test")
     }
 
     SUBCASE("Logical and bit manipulation") {
-        cpu.run(6); // Reach TST
+        step_to(cpu, 6U); // Reach TST
         cpu.step(); // TST r19 (0)
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::zero));
 
-        cpu.run(1); cpu.step(); // SER, CLR
+        step_to(cpu, 1U); cpu.step(); // SER, CLR
         CHECK(cpu.snapshot().gpr[20] == 0x00U);
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::zero));
 
-        cpu.run(2); // LDI, COM (0x55 -> 0xAA)
+        step_to(cpu, 2U); // LDI, COM (0x55 -> 0xAA)
         CHECK(cpu.snapshot().gpr[22] == 0xAAU);
 
-        cpu.run(2); // LDI, NEG (1 -> -1 = 0xFF)
+        step_to(cpu, 2U); // LDI, NEG (1 -> -1 = 0xFF)
         CHECK(cpu.snapshot().gpr[23] == 0xFFU);
     }
 
     SUBCASE("Shifts and Rotates") {
-        cpu.run(15); 
-        cpu.step(); // LSR r24 (3 -> 1, Carry=1)
+        step_to(cpu, 15U); cpu.step(); // LSR r24 (3 -> 1, Carry=1)
         auto s = cpu.snapshot();
         CHECK(s.gpr[24] == 0x01U);
         CHECK(flag_is_set(s.sreg, SregFlag::carry));
@@ -179,11 +184,11 @@ TEST_CASE("CPU Small Operations and Shifts Test")
     }
 
     SUBCASE("BST, BLD and SREG manipulation") {
-        cpu.run(20); // BST r22, 1 (r22=0xAA (binary ...1010), bit 1 is 1)
+        step_to(cpu, 20U); // BST r22, 1 (r22=0xAA (binary ...1010), bit 1 is 1)
         cpu.step();
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::transfer));
 
-        cpu.run(2); // LDI, BLD r26, 4
+        step_to(cpu, 2U); // LDI, BLD r26, 4
         CHECK(cpu.snapshot().gpr[26] == 0x10U);
 
         cpu.run(31); // Run through BSET/BCLR

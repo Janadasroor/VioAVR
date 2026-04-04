@@ -23,6 +23,12 @@ constexpr u16 encode_sts(const u8 source) {
     return static_cast<u16>(0x9200U | (static_cast<u16>(source) << 4U));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU GPR Data-Space Mapping Test")
@@ -57,7 +63,7 @@ TEST_CASE("CPU GPR Data-Space Mapping Test")
     }
 
     SUBCASE("Write register via data-space address") {
-        cpu.run(2); // Skip LDI R16, LDS R18
+        step_to(cpu, 2U); // Skip LDI R16, LDS R18
         cpu.step(); // LDI R19, 0x55
         cpu.step(); // STS 0x11, R19 (2 words, 2 cycles)
         

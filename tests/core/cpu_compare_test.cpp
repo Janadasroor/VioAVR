@@ -39,6 +39,12 @@ bool flag_is_set(const u8 sreg, const SregFlag bit) {
     return (sreg & (1U << static_cast<u8>(bit))) != 0U;
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU Comparison and Conditional Skip Test")
@@ -81,7 +87,7 @@ TEST_CASE("CPU Comparison and Conditional Skip Test")
     cpu.reset();
 
     SUBCASE("Comparison and Skip instructions") {
-        cpu.run(3); // Up to instruction at PC=2
+        step_to(cpu, 3U); // Up to instruction at PC=2
         CHECK(flag_is_set(cpu.snapshot().sreg, SregFlag::zero));
         CHECK_FALSE(flag_is_set(cpu.snapshot().sreg, SregFlag::carry));
 
@@ -120,7 +126,7 @@ TEST_CASE("CPU Comparison and Conditional Skip Test")
     }
 
     SUBCASE("Logical Aliases (SBR, CBR)") {
-        cpu.run(20); // Reach LDI r27, 0xFF
+        step_to(cpu, 20U); // Reach LDI r27, 0xFF
         cpu.step(); // LDI
         cpu.step(); // ORI (SBR)
         cpu.step(); // ANDI (CBR 0x0F)

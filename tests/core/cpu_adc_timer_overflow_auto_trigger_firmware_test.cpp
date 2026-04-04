@@ -40,7 +40,10 @@ constexpr vioavr::core::u16 encode_out(const vioavr::core::u8 io_offset, const v
     );
 }
 
+
+
 }  // namespace
+void step_to(vioavr::core::AvrCpu& cpu, vioavr::core::u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != vioavr::core::CpuState::halted) { cpu.step(); } }
 
 TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
 {
@@ -90,7 +93,7 @@ TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
 
     SUBCASE("Auto-trigger from Timer0 Overflow in firmware") {
         // Run setup including starting the timer
-        cpu.run(13); // Up to PCS=13
+        step_to(cpu, 0U); // Up to PCS=13
         CHECK(cpu.cycles() == 13U);
         CHECK(cpu.program_counter() == 13U);
         
@@ -105,7 +108,7 @@ TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
         CHECK((timer0.interrupt_flags() & 0x01U) != 0U);
 
         // Tick 4 more for conversion
-        cpu.run(4);
+        step_to(cpu, 0U);
         
         // Read results
         cpu.step(); // LDS r21, ADCL

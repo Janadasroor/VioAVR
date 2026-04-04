@@ -29,6 +29,12 @@ constexpr u16 encode_rjmp(const int displacement) {
     return static_cast<u16>(0xC000U | (displacement & 0x0FFF));
 }
 
+void step_to(AvrCpu& cpu, u32 target_pc) {
+    while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) {
+        cpu.step();
+    }
+}
+
 } // namespace
 
 TEST_CASE("CPU Stack Operations Test")
@@ -72,7 +78,7 @@ TEST_CASE("CPU Stack Operations Test")
     }
 
     SUBCASE("CALL and RET") {
-        cpu.run(4); // Run until CALL
+        step_to(cpu, 4U); // Run until CALL
         CHECK(cpu.program_counter() == 4U);
         
         cpu.step(); // CALL
