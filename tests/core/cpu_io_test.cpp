@@ -61,7 +61,7 @@ TEST_CASE("CPU I/O Instruction and PIN Toggling Test")
     port_b.set_input_levels(0xA0U); // Inputs are 0xA0
 
     SUBCASE("I/O operations and PIN toggle logic") {
-        cpu.run(100);
+        step_to(cpu, 10U);
         auto s = cpu.snapshot();
         
         CHECK(port_b.ddr_register() == 0x0FU);

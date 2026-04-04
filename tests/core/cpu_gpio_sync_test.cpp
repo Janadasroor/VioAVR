@@ -85,7 +85,7 @@ TEST_CASE("CPU and GPIO Synchronization via SyncEngine Test")
     port_b.set_input_levels(0xA0U);
 
     SUBCASE("Execution and Pin Event Recording") {
-        cpu.run(100);
+        step_to(cpu, 8U);
         
         auto s = cpu.snapshot();
         // PINB reflects (Inputs & ~DDR) | (PORT & DDR)
