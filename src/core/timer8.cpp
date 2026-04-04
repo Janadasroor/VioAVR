@@ -78,6 +78,7 @@ void Timer8::reset() noexcept
     tifr_ = 0U;
     mode_ = Mode::normal;
     counting_up_ = true;
+    cycle_accumulator_ = 0U;
     last_clk_pin_state_ = 0U;
 }
 
@@ -89,7 +90,15 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
     if (cs <= 5) {
         static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
         const u16 divisor = prescalers[cs];
-        for (u64 i = 0; i < (elapsed_cycles / divisor); ++i) {
+        
+        // Accumulate cycles from this tick call
+        cycle_accumulator_ += elapsed_cycles;
+        
+        // Process full prescaled ticks
+        const u64 ticks = cycle_accumulator_ / divisor;
+        cycle_accumulator_ %= divisor;
+        
+        for (u64 i = 0; i < ticks; ++i) {
             perform_tick();
         }
     } else {
@@ -183,6 +192,7 @@ void Timer8::perform_tick() noexcept
 {
     const u8 top = get_top();
     const bool is_phase_correct = (mode_ == Mode::pc_pwm_ff || mode_ == Mode::pc_pwm_ocra);
+    const bool is_ctc = (mode_ == Mode::ctc_ocra);
 
     if (is_phase_correct) {
         if (counting_up_) {
@@ -203,15 +213,23 @@ void Timer8::perform_tick() noexcept
         }
     } else {
         if (tcnt_ >= top) {
+            if (is_ctc) {
+                // In CTC mode, reaching OCRA triggers compare match, not overflow
+                handle_compare_match_a();
+            } else {
+                handle_overflow();
+            }
             tcnt_ = 0;
-            handle_overflow();
         } else {
             tcnt_++;
         }
     }
 
-    if (tcnt_ == ocra_) handle_compare_match_a();
-    if (tcnt_ == ocrb_) handle_compare_match_b();
+    // Check compare matches (for non-CTC modes, or when not at top)
+    if (!is_ctc) {
+        if (tcnt_ == ocra_) handle_compare_match_a();
+        if (tcnt_ == ocrb_) handle_compare_match_b();
+    }
 }
 
 u8 Timer8::get_top() const noexcept
