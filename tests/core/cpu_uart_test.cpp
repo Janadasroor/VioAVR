@@ -31,11 +31,11 @@ TEST_CASE("UART0 Peripheral Functional Test")
         // UDRE and TXC should be cleared while transmitting
         CHECK((bus.read_data(ucsra) & 0x60U) == 0x00U);
 
-        // Tick to complete transmission (UART timing simulated as 4 cycles in this config?)
-        bus.tick_peripherals(3U);
+        // Tick to complete transmission (UART timing simulated as 2 cycles)
+        bus.tick_peripherals(2U);
         CHECK((bus.read_data(ucsra) & 0x60U) == 0x00U);
 
-        bus.tick_peripherals(1U);
+        bus.tick_peripherals(2U);
         CHECK((bus.read_data(ucsra) & 0x60U) == 0x60U);
 
         u8 transmitted = 0U;

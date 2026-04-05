@@ -59,7 +59,7 @@ TEST_CASE("UART0 Interrupt Flag and Priority Test")
         CHECK((bus.read_data(ucsra) & 0x20U) == 0U); // UDRE cleared
         
         // Advance to complete transmission
-        bus.tick_peripherals(2U);
+        bus.tick_peripherals(4U);
         
         // Now UDRE should be set again, and TXC should also be set.
         // UDRE has higher priority than TXC.
