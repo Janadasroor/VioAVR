@@ -41,10 +41,10 @@ Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc) noexcept
     : name_(name), desc_(desc)
 {
     std::vector<u16> addrs = {
-        desc_.tcnt_address, desc_.tcnt_address + 1,
-        desc_.ocra_address, desc_.ocra_address + 1,
-        desc_.ocrb_address, desc_.ocrb_address + 1,
-        desc_.icr_address, desc_.icr_address + 1,
+        desc_.tcnt_address, static_cast<u16>(desc_.tcnt_address + 1),
+        desc_.ocra_address, static_cast<u16>(desc_.ocra_address + 1),
+        desc_.ocrb_address, static_cast<u16>(desc_.ocrb_address + 1),
+        desc_.icr_address, static_cast<u16>(desc_.icr_address + 1),
         desc_.tifr_address, desc_.timsk_address,
         desc_.tccra_address, desc_.tccrb_address, desc_.tccrc_address
     };

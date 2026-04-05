@@ -81,6 +81,8 @@ void Timer8::reset() noexcept
     tcnt_ = 0U;
     ocra_ = 0U;
     ocrb_ = 0U;
+    ocra_buffer_ = 0U;
+    ocrb_buffer_ = 0U;
     tccra_ = 0U;
     tccrb_ = 0U;
     assr_ = 0U;
@@ -174,11 +176,21 @@ void Timer8::write(const u16 address, const u8 value) noexcept
         mark_async_busy(address);
     }
     else if (address == desc_.ocra_address) {
-        ocra_ = value;
+        ocra_buffer_ = value;
+        bool is_pwm = (mode_ != Mode::normal && mode_ != Mode::ctc_ocra);
+        const bool is_stopped = (tccrb_ & 0x07U) == 0U;
+        if (!is_pwm || is_stopped) {
+            ocra_ = value;
+        }
         mark_async_busy(address);
     }
     else if (address == desc_.ocrb_address) {
-        ocrb_ = value;
+        ocrb_buffer_ = value;
+        bool is_pwm = (mode_ != Mode::normal && mode_ != Mode::ctc_ocra);
+        const bool is_stopped = (tccrb_ & 0x07U) == 0U;
+        if (!is_pwm || is_stopped) {
+            ocrb_ = value;
+        }
         mark_async_busy(address);
     }
     else if (address == desc_.tccra_address) {
@@ -251,15 +263,23 @@ void Timer8::perform_tick() noexcept
 {
     const u8 top = get_top();
     const bool is_phase_correct = (mode_ == Mode::pc_pwm_ff || mode_ == Mode::pc_pwm_ocra);
+    const bool is_fast_pwm = (mode_ == Mode::fast_pwm_ff || mode_ == Mode::fast_pwm_ocra);
     const bool is_ctc = (mode_ == Mode::ctc_ocra);
 
+    bool wrapped = false;
+    
     if (is_phase_correct) {
         if (counting_up_) {
             if (tcnt_ >= top) {
                 counting_up_ = false;
-                tcnt_--;
+                if (tcnt_ > 0) tcnt_--;
             } else {
                 tcnt_++;
+                if (tcnt_ == top) {
+                    counting_up_ = false;
+                    ocra_ = ocra_buffer_;
+                    ocrb_ = ocrb_buffer_;
+                }
             }
         } else {
             if (tcnt_ == 0) {
@@ -268,26 +288,38 @@ void Timer8::perform_tick() noexcept
                 tcnt_++;
             } else {
                 tcnt_--;
+                if (tcnt_ == 0) {
+                    counting_up_ = true;
+                    handle_overflow();
+                }
             }
         }
-    } else {
+        if (tcnt_ == ocra_) handle_compare_match_a();
+        if (tcnt_ == ocrb_) handle_compare_match_b();
+    } else if (is_fast_pwm) {
         if (tcnt_ >= top) {
-            if (is_ctc) {
-                // In CTC mode, reaching OCRA triggers compare match, not overflow
-                handle_compare_match_a();
-            } else {
-                handle_overflow();
-            }
+            handle_overflow();
+            ocra_ = ocra_buffer_;
+            ocrb_ = ocrb_buffer_;
             tcnt_ = 0;
+            wrapped = true;
+            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
+            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
         } else {
             tcnt_++;
         }
-    }
-
-    // Check compare matches (for non-CTC modes, or when not at top)
-    if (!is_ctc) {
         if (tcnt_ == ocra_) handle_compare_match_a();
         if (tcnt_ == ocrb_) handle_compare_match_b();
+    } else {
+        if (tcnt_ >= top) {
+            if (!is_ctc) handle_overflow();
+            tcnt_ = 0;
+            wrapped = true;
+        } else {
+            tcnt_++;
+        }
+        if (tcnt_ == ocra_ || (wrapped && top == ocra_)) handle_compare_match_a();
+        if (tcnt_ == ocrb_ || (wrapped && top == ocrb_)) handle_compare_match_b();
     }
 }
 
@@ -311,7 +343,19 @@ u8 Timer8::get_top() const noexcept
 void Timer8::handle_compare_match_a() noexcept
 {
     tifr_ |= desc_.compare_a_enable_mask;
-    apply_pin_action(pin_a_, get_pin_action_a());
+    
+    PinAction action = get_pin_action_a();
+    if (mode_ == Mode::pc_pwm_ff || mode_ == Mode::pc_pwm_ocra) {
+        if (action == PinAction::clear) { // Non-inverting
+            action = counting_up_ ? PinAction::clear : PinAction::set;
+        } else if (action == PinAction::set) { // Inverting
+            action = counting_up_ ? PinAction::set : PinAction::clear;
+        }
+    }
+    
+    // printf("[TIMER8] Match A at TCNT=%d, mode=%d, up=%d, wgm=%d\n", (int)tcnt_, (int)mode_, (int)counting_up_, (int)(tccra_ & 0x03));
+    apply_pin_action(pin_a_, action);
+
     if (adc_compare_trigger_) {
         adc_compare_trigger_->notify_auto_trigger(Adc::AutoTriggerSource::timer_compare);
     }

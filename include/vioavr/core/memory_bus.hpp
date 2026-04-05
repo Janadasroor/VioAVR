@@ -41,6 +41,11 @@ public:
         return data_;
     }
 
+    [[nodiscard]] constexpr u32 flash_size_words() const noexcept
+    {
+        return static_cast<u32>(flash_.size());
+    }
+
     [[nodiscard]] constexpr std::span<const u8> data_space() const noexcept
     {
         return data_;
@@ -60,6 +65,8 @@ public:
         const u16 word = flash_[word_address];
         return static_cast<u8>(((byte_address & 0x01U) == 0U) ? (word & 0x00FFU) : (word >> 8U));
     }
+
+    void write_program_word(u32 word_address, u16 value) noexcept;
 
     [[nodiscard]] constexpr u32 loaded_program_words() const noexcept
     {

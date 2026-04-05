@@ -33,8 +33,11 @@ private:
     u8 ucsra_ {};
     u8 ucsrb_ {};
     u8 ucsrc_ {};
+    u8 ubrrh_ {};
+    u8 ubrrl_ {};
     bool tx_in_progress_ {};
     u64 tx_cycles_elapsed_ {};
+    u64 tx_duration_ {1000}; // Default bit-time in cycles
 };
 
 }  // namespace vioavr::core

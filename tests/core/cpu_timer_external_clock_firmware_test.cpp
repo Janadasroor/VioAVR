@@ -71,14 +71,14 @@ TEST_CASE("Timer0 External Clock Firmware Test")
             encode_out(0x27U, 16U),  // OCR0
             encode_ldi(17U, 0x07U),
             encode_out(0x25U, 17U),  // TCCR0B rising-edge external clock (0x45 -> 0x25)
-            encode_in(18U, 0x12U),   // TCNT0 initial (0x32 -> 0x12)
-            encode_in(19U, 0x12U),   // TCNT0 after first rising edge
+            encode_in(18U, 0x26U),   // TCNT0 initial (0x46 -> 0x26)
+            encode_in(19U, 0x26U),   // TCNT0 after first rising edge
             encode_in(20U, 0x15U),   // TIFR after second rising edge / compare (0x35 -> 0x15)
             encode_ldi(21U, 0x02U),
             encode_out(0x15U, 21U),  // clear OCF0A (clear on write-1)
             encode_ldi(22U, 0x06U),
             encode_out(0x25U, 22U),  // TCCR0B falling-edge external clock
-            encode_in(23U, 0x12U),   // TCNT0 after falling edge
+            encode_in(23U, 0x26U),   // TCNT0 after falling edge
             0x0000U
         },
         .entry_word = 0U

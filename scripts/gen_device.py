@@ -75,6 +75,14 @@ def parse_atdf(file_path):
             if p.search(i.attrib.get('name', '')): return int(i.attrib.get('index', '0'))
         return 0
 
+    def fm(r):
+        for m in root.findall(".//memory-segment"):
+            if re.search(r, m.attrib.get('name', ''), re.I):
+                return int(m.attrib.get('pagesize', '0'), 0)
+        return 0
+
+    device_info['flash_page_size'] = fm(r'FLASH')
+
     def parse_pad(pad):
         m = re.fullmatch(r'P([A-H])(\d)', pad or '')
         if not m: return (0, 0)
@@ -151,6 +159,7 @@ def parse_atdf(file_path):
     
     device_info['uart0'] = { 
         'udr': fr(r'UDR0|UDR')['addr'], 'ucsra': fr(r'UCSR0A|UCSRA')['addr'], 'ucsrb': fr(r'UCSR0B|UCSRB')['addr'], 'ucsrc': fr(r'UCSR0C|UCSRC')['addr'], 
+        'ubrrl': fr(r'UBRR0L|UBRR')['addr'], 'ubrrh': fr(r'UBRR0H|UBRRH')['addr'],
         'ucsra_reset': fr(r'UCSR0A|UCSRA')['init'], 'ucsrb_reset': fr(r'UCSR0B|UCSRB')['init'], 'ucsrc_reset': fr(r'UCSR0C|UCSRC')['init'],
         'v_rx': fv(r'USART0?_RX'), 'v_tx': fv(r'USART0?_TX'), 'v_udre': fv(r'USART0?_UDRE') 
     }
@@ -175,6 +184,7 @@ def parse_atdf(file_path):
         'sph_addr': d_sph['addr'], 'sph_reset': d_sph['init'],
         'sreg_addr': d_sreg['addr'], 'sreg_reset': d_sreg['init']
     }
+    device_info['spmcsr_addr'] = fr(r'SPMCSR|SPMCR')['addr']
 
     for p in "ABCDEFGH":
         p_info = {'name': f"PORT{p}", 'pin': fr(f"PIN{p}")['addr'], 'ddr': fr(f"DDR{p}")['addr'], 'port': fr(f"PORT{p}")['addr']}
@@ -198,15 +208,15 @@ namespace vioavr::core::devices {{
 inline constexpr DeviceDescriptor {name} {{
     .name = "{d['name']}",
     .flash_words = {d['flash_words']}U, .sram_bytes = {d['sram_bytes']}U, .eeprom_bytes = {d['eeprom_bytes']}U,
-    .interrupt_vector_count = {d['vectors']}U, .interrupt_vector_size = {d['vector_size']}U,
-    .spl_address = {hx(d['core_regs']['spl_addr'])}, .sph_address = {hx(d['core_regs']['sph_addr'])}, .sreg_address = {hx(d['core_regs']['sreg_addr'])},
+    .interrupt_vector_count = {d['vectors']}U, .interrupt_vector_size = {d['vector_size']}U, .flash_page_size = {hx(d['flash_page_size'])},
+    .spl_address = {hx(d['core_regs']['spl_addr'])}, .sph_address = {hx(d['core_regs']['sph_addr'])}, .sreg_address = {hx(d['core_regs']['sreg_addr'])}, .spmcsr_address = {hx(d['spmcsr_addr'])},
     .spl_reset = {hx(d['core_regs']['spl_reset'])}, .sph_reset = {hx(d['core_regs']['sph_reset'])}, .sreg_reset = {hx(d['core_regs']['sreg_reset'])},
     .adc = {{ .adcl_address = {hx(d['adc']['adcl'])}, .adch_address = {hx(d['adc']['adch'])}, .adcsra_address = {hx(d['adc']['adcsra'])}, .adcsrb_address = {hx(d['adc']['adcsrb'])}, .admux_address = {hx(d['adc']['admux'])}, .vector_index = {d['adc']['vector']}U, .adcsra_reset = {hx(d['adc']['adcsra_reset'])}, .adcsrb_reset = {hx(d['adc']['adcsrb_reset'])}, .admux_reset = {hx(d['adc']['admux_reset'])} }},
     .timer0 = {{ .tcnt_address = {hx(d['timer0']['tcnt'])}, .ocra_address = {hx(d['timer0']['ocra'])}, .ocrb_address = {hx(d['timer0']['ocrb'])}, .tifr_address = {hx(d['timer0']['tifr'])}, .timsk_address = {hx(d['timer0']['timsk'])}, .tccra_address = {hx(d['timer0']['tccra'])}, .tccrb_address = {hx(d['timer0']['tccrb'])}, .assr_address = {hx(d['timer0']['assr'])}, .tccra_reset = {hx(d['timer0']['tccra_reset'])}, .tccrb_reset = {hx(d['timer0']['tccrb_reset'])}, .assr_reset = {hx(d['timer0']['assr_reset'])}, .compare_a_vector_index = {d['timer0']['v_compa']}U, .compare_b_vector_index = {d['timer0']['v_compb']}U, .overflow_vector_index = {d['timer0']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(d['timer0']['t_pin_addr'])}, .t0_pin_bit = {d['timer0']['t_pin_bit']}U, .ocra_pin_address = {hx(d['timer0']['ocra_pin_addr'])}, .ocra_pin_bit = {d['timer0']['ocra_pin_bit']}U, .ocrb_pin_address = {hx(d['timer0']['ocrb_pin_addr'])}, .ocrb_pin_bit = {d['timer0']['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(d['timer0']['tosc1_pin_addr'])}, .tosc1_pin_bit = {d['timer0']['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(d['timer0']['tosc2_pin_addr'])}, .tosc2_pin_bit = {d['timer0']['tosc2_pin_bit']}U }},
     .timer2 = {{ .tcnt_address = {hx(d['timer2']['tcnt'])}, .ocra_address = {hx(d['timer2']['ocra'])}, .ocrb_address = {hx(d['timer2']['ocrb'])}, .tifr_address = {hx(d['timer2']['tifr'])}, .timsk_address = {hx(d['timer2']['timsk'])}, .tccra_address = {hx(d['timer2']['tccra'])}, .tccrb_address = {hx(d['timer2']['tccrb'])}, .assr_address = {hx(d['timer2']['assr'])}, .tccra_reset = {hx(d['timer2']['tccra_reset'])}, .tccrb_reset = {hx(d['timer2']['tccrb_reset'])}, .assr_reset = {hx(d['timer2']['assr_reset'])}, .compare_a_vector_index = {d['timer2']['v_compa']}U, .compare_b_vector_index = {d['timer2']['v_compb']}U, .overflow_vector_index = {d['timer2']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(d['timer2']['t_pin_addr'])}, .t0_pin_bit = {d['timer2']['t_pin_bit']}U, .ocra_pin_address = {hx(d['timer2']['ocra_pin_addr'])}, .ocra_pin_bit = {d['timer2']['ocra_pin_bit']}U, .ocrb_pin_address = {hx(d['timer2']['ocrb_pin_addr'])}, .ocrb_pin_bit = {d['timer2']['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(d['timer2']['tosc1_pin_addr'])}, .tosc1_pin_bit = {d['timer2']['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(d['timer2']['tosc2_pin_addr'])}, .tosc2_pin_bit = {d['timer2']['tosc2_pin_bit']}U }},
     .timer1 = {{ .tcnt_address = {hx(d['timer1']['tcnt'])}, .ocra_address = {hx(d['timer1']['ocra'])}, .ocrb_address = {hx(d['timer1']['ocrb'])}, .icr_address = {hx(d['timer1']['icr'])}, .tifr_address = {hx(d['timer1']['tifr'])}, .timsk_address = {hx(d['timer1']['timsk'])}, .tccra_address = {hx(d['timer1']['tccra'])}, .tccrb_address = {hx(d['timer1']['tccrb'])}, .tccrc_address = {hx(d['timer1']['tccrc'])}, .tccra_reset = {hx(d['timer1']['tccra_reset'])}, .tccrb_reset = {hx(d['timer1']['tccrb_reset'])}, .tccrc_reset = {hx(d['timer1']['tccrc_reset'])}, .capture_vector_index = {d['timer1']['v_capt']}U, .compare_a_vector_index = {d['timer1']['v_compa']}U, .compare_b_vector_index = {d['timer1']['v_compb']}U, .overflow_vector_index = {d['timer1']['v_ovf']}U, .capture_enable_mask = 0x20U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U }},
     .ext_interrupt = {{ .eicra_address = {hx(d['ext_interrupt']['eicra'])}, .eimsk_address = {hx(d['ext_interrupt']['eimsk'])}, .eifr_address = {hx(d['ext_interrupt']['eifr'])}, .int0_vector_index = {d['ext_interrupt']['vector']}U }},
-    .uart0 = {{ .udr_address = {hx(d['uart0']['udr'])}, .ucsra_address = {hx(d['uart0']['ucsra'])}, .ucsrb_address = {hx(d['uart0']['ucsrb'])}, .ucsrc_address = {hx(d['uart0']['ucsrc'])}, .ucsra_reset = {hx(d['uart0']['ucsra_reset'])}, .ucsrb_reset = {hx(d['uart0']['ucsrb_reset'])}, .ucsrc_reset = {hx(d['uart0']['ucsrc_reset'])}, .rx_vector_index = {d['uart0']['v_rx']}U, .udre_vector_index = {d['uart0']['v_udre']}U, .tx_vector_index = {d['uart0']['v_tx']}U }},
+    .uart0 = {{ .udr_address = {hx(d['uart0']['udr'])}, .ucsra_address = {hx(d['uart0']['ucsra'])}, .ucsrb_address = {hx(d['uart0']['ucsrb'])}, .ucsrc_address = {hx(d['uart0']['ucsrc'])}, .ubrrl_address = {hx(d['uart0']['ubrrl'])}, .ubrrh_address = {hx(d['uart0']['ubrrh'])}, .ucsra_reset = {hx(d['uart0']['ucsra_reset'])}, .ucsrb_reset = {hx(d['uart0']['ucsrb_reset'])}, .ucsrc_reset = {hx(d['uart0']['ucsrc_reset'])}, .rx_vector_index = {d['uart0']['v_rx']}U, .udre_vector_index = {d['uart0']['v_udre']}U, .tx_vector_index = {d['uart0']['v_tx']}U }},
     .pin_change_interrupt_0 = {{ .pcicr_address = {hx(d['pin_change_interrupt_0']['pcicr'])}, .pcifr_address = {hx(d['pin_change_interrupt_0']['pcifr'])}, .pcmsk_address = {hx(d['pin_change_interrupt_0']['pcmsk'])}, .pcicr_enable_mask = {hx(d['pin_change_interrupt_0']['enable_mask'])}, .pcifr_flag_mask = {hx(d['pin_change_interrupt_0']['flag_mask'])}, .vector_index = {d['pin_change_interrupt_0']['vector']}U }},
     .pin_change_interrupt_1 = {{ .pcicr_address = {hx(d['pin_change_interrupt_1']['pcicr'])}, .pcifr_address = {hx(d['pin_change_interrupt_1']['pcifr'])}, .pcmsk_address = {hx(d['pin_change_interrupt_1']['pcmsk'])}, .pcicr_enable_mask = {hx(d['pin_change_interrupt_1']['enable_mask'])}, .pcifr_flag_mask = {hx(d['pin_change_interrupt_1']['flag_mask'])}, .vector_index = {d['pin_change_interrupt_1']['vector']}U }},
     .pin_change_interrupt_2 = {{ .pcicr_address = {hx(d['pin_change_interrupt_2']['pcicr'])}, .pcifr_address = {hx(d['pin_change_interrupt_2']['pcifr'])}, .pcmsk_address = {hx(d['pin_change_interrupt_2']['pcmsk'])}, .pcicr_enable_mask = {hx(d['pin_change_interrupt_2']['enable_mask'])}, .pcifr_flag_mask = {hx(d['pin_change_interrupt_2']['flag_mask'])}, .vector_index = {d['pin_change_interrupt_2']['vector']}U }},

@@ -74,6 +74,8 @@ struct Uart0Descriptor {
     u16 ucsra_address {};
     u16 ucsrb_address {};
     u16 ucsrc_address {};
+    u16 ubrrl_address {};
+    u16 ubrrh_address {};
     u8 ucsra_reset {0x00U};
     u8 ucsrb_reset {0x00U};
     u8 ucsrc_reset {0x00U};
@@ -164,12 +166,14 @@ struct DeviceDescriptor {
     u16 eeprom_bytes {};
     u8 interrupt_vector_count {};
     u8 interrupt_vector_size {2U};
+    u16 flash_page_size {0x80U};
     AddressRange register_file_range {0x0000, 0x001F};
     AddressRange io_range {0x0020, 0x005F};
     AddressRange extended_io_range {0x0060, 0x00FF};
     u16 spl_address {0x005DU};
     u16 sph_address {0x005EU};
     u16 sreg_address {0x005FU};
+    u16 spmcsr_address {};
     u8 spl_reset {0x00U};
     u8 sph_reset {0x00U};
     u8 sreg_reset {0x00U};

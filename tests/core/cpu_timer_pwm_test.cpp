@@ -65,7 +65,7 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
     std::vector<u16> program = {
         0xE005, // LDI r16, 5
         0x9300, 0x0047, // STS OCR0A, r16
-        0xE085, // LDI r16, 0x85 (Fast PWM, clear on match)
+        0xE803, // LDI r16, 0x83 (Fast PWM Mode 3, clear on match)
         0x9300, 0x0044, // STS TCCR0A, r16
         0xE001, // LDI r16, 0x01
         0x9300, 0x0045, // STS TCCR0B, r16
@@ -135,7 +135,7 @@ TEST_CASE("Timer8: Phase Correct PWM Precise") {
     CHECK(timer0.counter() == 3);
     
     cpu.step();
-    // C11: tcnt was 3. counting_up is true. 3 >= 3. counting_up = false. tcnt = 2.
+    // C11: tcnt was 3. counting_up was false (from previous step). 3 -> 2.
     CHECK(timer0.counter() == 2);
     
     cpu.step(); // C12: 1

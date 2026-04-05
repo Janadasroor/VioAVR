@@ -288,6 +288,7 @@ void Adc::update_auto_trigger_source_from_register() noexcept
 
 void Adc::start_conversion() noexcept
 {
+    if (converting_) return;
     converting_ = true;
     cycles_remaining_ = conversion_cycles_;
     adcsra_ |= kAdscMask;

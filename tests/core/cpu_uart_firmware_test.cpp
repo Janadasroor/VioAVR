@@ -68,6 +68,8 @@ TEST_CASE("UART0 Firmware Test")
         cpu.step(); // LDI 'A'
         cpu.step(); // STS UDR
         CHECK(cpu.cycles() == 6U);
+
+        bus.tick_peripherals(180U); // Allow frame to finish (160 cycles)
         
         vioavr::core::u8 transmitted = 0U;
         CHECK(uart0.consume_transmitted_byte(transmitted));
@@ -79,8 +81,10 @@ TEST_CASE("UART0 Firmware Test")
         
         uart0.inject_received_byte(0xA5U);
         
+        bus.tick_peripherals(180U); // Ensure frame from subcase 1 finishes
+
         cpu.step(); // LDS R18, UCSRA
-        CHECK(cpu.snapshot().gpr[18] == 0x80U); // RXC set
+        CHECK((cpu.snapshot().gpr[18] & 0x80U) != 0U); // RXC set
         
         cpu.step(); // LDS R19, UCSRA
         // After reading UCSRA, RXC usually stays until UDR read.

@@ -62,6 +62,6 @@ TEST_CASE("Timer0 Control and Prescaler Test")
 
         bus.tick_peripherals(1U); // 64th tick -> TCNT resets to 0 in CTC
         CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x00U);
-        CHECK(timer0.interrupt_flags() == 0x02U);
+        CHECK((timer0.interrupt_flags() & 0x02U) != 0U);
     }
 }

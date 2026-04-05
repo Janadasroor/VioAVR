@@ -287,6 +287,8 @@ private:
     double cycle_accumulator_ {0.0};
     bool interrupt_pending_ {};
     u8 interrupt_depth_ {};
+    u8 interrupt_delay_ {};
+    std::vector<u16> temp_flash_page_buffer_;
     CpuState state_ {CpuState::halted};
 };
 

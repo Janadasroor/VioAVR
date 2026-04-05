@@ -90,6 +90,8 @@ private:
     u8 tcnt_ {};
     u8 ocra_ {};
     u8 ocrb_ {};
+    u8 ocra_buffer_ {};
+    u8 ocrb_buffer_ {};
     u8 tccra_ {};
     u8 tccrb_ {};
     u8 assr_ {};
