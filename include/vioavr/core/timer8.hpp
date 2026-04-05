@@ -38,6 +38,7 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    void tick_async(u64 elapsed_ticks) noexcept;
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
@@ -53,17 +54,24 @@ public:
     [[nodiscard]] constexpr u8 counter() const noexcept { return tcnt_; }
     [[nodiscard]] constexpr u8 control_a() const noexcept { return tccra_; }
     [[nodiscard]] constexpr u8 control_b() const noexcept { return tccrb_; }
+    [[nodiscard]] constexpr u8 async_status() const noexcept { return assr_; }
     [[nodiscard]] constexpr u8 compare_a() const noexcept { return ocra_; }
     [[nodiscard]] constexpr u8 compare_b() const noexcept { return ocrb_; }
     [[nodiscard]] constexpr bool running() const noexcept { return (tccrb_ & 0x07U) != 0U; }
 
 private:
+    [[nodiscard]] bool has_async_status_register() const noexcept;
+    [[nodiscard]] bool async_mode_enabled() const noexcept;
+    void mark_async_busy(u16 address) noexcept;
+    void retire_async_busy() noexcept;
+
     struct BoundPin {
         GpioPort* port;
         u8 bit;
     };
 
     void perform_tick() noexcept;
+    void perform_ticks(u64 ticks) noexcept;
     void update_mode() noexcept;
     void handle_compare_match_a() noexcept;
     void handle_compare_match_b() noexcept;
@@ -84,6 +92,7 @@ private:
     u8 ocrb_ {};
     u8 tccra_ {};
     u8 tccrb_ {};
+    u8 assr_ {};
     u8 timsk_ {};
     u8 tifr_ {};
 

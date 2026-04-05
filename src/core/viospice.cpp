@@ -20,6 +20,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     // In a production version, this would be factory-driven from metadata
     auto eeprom = std::make_unique<Eeprom>("EEPROM", bus_.device());
     auto timer0 = std::make_unique<Timer8>("TIMER0", bus_.device().timer0);
+    auto timer2 = std::make_unique<Timer8>("TIMER2", bus_.device().timer2);
     auto timer1 = std::make_unique<Timer16>("TIMER1", bus_.device().timer1);
     
     auto adc = std::make_unique<Adc>("ADC", bus_.device(), 0, 13);
@@ -28,9 +29,13 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     auto uart0 = std::make_unique<Uart0>("UART0", bus_.device());
     auto exint = std::make_unique<ExtInterrupt>("EXINT", bus_.device(), 0);
 
+    timer0->set_bus(bus_);
+    timer2->set_bus(bus_);
+
     // Attach peripherals
     bus_.attach_peripheral(*eeprom.release());
     bus_.attach_peripheral(*timer0.release());
+    bus_.attach_peripheral(*timer2.release());
     bus_.attach_peripheral(*timer1.release());
     bus_.attach_peripheral(*adc.release());
     bus_.attach_peripheral(*uart0.release());
@@ -54,6 +59,26 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             bus_.attach_peripheral(*port.release());
         }
     }
+
+    auto bind_timer8_outputs = [](Timer8& timer, const Timer8Descriptor& desc,
+                                  GpioPort* port_b, GpioPort* port_c, GpioPort* port_d) {
+        auto resolve_port = [&](const u16 pin_address) -> GpioPort* {
+            if (port_b != nullptr && pin_address == port_b->pin_address()) return port_b;
+            if (port_c != nullptr && pin_address == port_c->pin_address()) return port_c;
+            if (port_d != nullptr && pin_address == port_d->pin_address()) return port_d;
+            return nullptr;
+        };
+
+        if (auto* port = resolve_port(desc.ocra_pin_address); port != nullptr) {
+            timer.connect_compare_output_a(*port, desc.ocra_pin_bit);
+        }
+        if (auto* port = resolve_port(desc.ocrb_pin_address); port != nullptr) {
+            timer.connect_compare_output_b(*port, desc.ocrb_pin_bit);
+        }
+    };
+
+    bind_timer8_outputs(*timer0, bus_.device().timer0, port_b, port_c, port_d);
+    bind_timer8_outputs(*timer2, bus_.device().timer2, port_b, port_c, port_d);
 
     if (port_b != nullptr && bus_.device().pin_change_interrupt_0.pcmsk_address != 0U) {
         auto pci0 = std::make_unique<PinChangeInterrupt>(

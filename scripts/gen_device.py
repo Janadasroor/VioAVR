@@ -22,6 +22,7 @@ def parse_atdf(file_path):
     if v: device_info['vectors'] = max(int(x.attrib.get('index', '0')) for x in v) + 1
     
     reg_map = {}
+    signal_map = {}
     for group in root.iter('register-group'):
         g_off = int(group.attrib.get('offset', '0x0'), 16)
         bias = 0x20 if group.attrib.get('address-space') == 'io' else 0
@@ -55,9 +56,29 @@ def parse_atdf(file_path):
             if p.search(i.attrib.get('name', '')): return int(i.attrib.get('index', '0'))
         return 0
 
+    def parse_pad(pad):
+        m = re.fullmatch(r'P([A-H])(\d)', pad or '')
+        if not m:
+            return (0, 0)
+        bit = int(m.group(2))
+        pin = fr(rf'PIN{m.group(1)}')
+        return (pin, bit) if pin else (0, bit)
+
+    for instance in root.findall(".//instance"):
+        instance_name = instance.attrib.get('name', '')
+        instance_signals = {}
+        for signal in instance.findall("./signals/signal"):
+            group = signal.attrib.get('group', '')
+            index = signal.attrib.get('index')
+            key = f"{group}{index}" if index is not None else group
+            instance_signals[key] = parse_pad(signal.attrib.get('pad', ''))
+        signal_map[instance_name] = instance_signals
+
     device_info['adc'] = { 'adcl': fr(r'ADCL'), 'adch': fr(r'ADCH'), 'adcsra': fr(r'ADCSRA|ADCSR'), 'adcsrb': fr(r'ADCSRB'), 'admux': fr(r'ADMUX'), 'vector': fv(r'ADC') }
-    device_info['timer0'] = { 'tcnt': fr(r'TCNT0'), 'ocra': fr(r'OCR0A|OCR0'), 'ocrb': fr(r'OCR0B'), 'tccra': fr(r'TCCR0A|TCCR0'), 'tccrb': fr(r'TCCR0B'), 'assr': 0, 'timsk': fr(r'TIMSK0|TIMSK'), 'tifr': fr(r'TIFR0|TIFR'), 'v_ovf': fv(r'TIMER0_OVF'), 'v_compa': fv(r'TIMER0_COMPA?'), 'v_compb': fv(r'TIMER0_COMPB') }
-    device_info['timer2'] = { 'tcnt': fr(r'TCNT2'), 'ocra': fr(r'OCR2A|OCR2'), 'ocrb': fr(r'OCR2B'), 'tccra': fr(r'TCCR2A|TCCR2'), 'tccrb': fr(r'TCCR2B'), 'assr': fr(r'ASSR'), 'timsk': fr(r'TIMSK2'), 'tifr': fr(r'TIFR2'), 'v_ovf': fv(r'TIMER2_OVF'), 'v_compa': fv(r'TIMER2_COMPA?'), 'v_compb': fv(r'TIMER2_COMPB') }
+    tc0 = signal_map.get('TC0', {})
+    tc2 = signal_map.get('TC2', {})
+    device_info['timer0'] = { 'tcnt': fr(r'TCNT0'), 'ocra': fr(r'OCR0A|OCR0'), 'ocrb': fr(r'OCR0B'), 'tccra': fr(r'TCCR0A|TCCR0'), 'tccrb': fr(r'TCCR0B'), 'assr': 0, 'timsk': fr(r'TIMSK0|TIMSK'), 'tifr': fr(r'TIFR0|TIFR'), 'v_ovf': fv(r'TIMER0_OVF'), 'v_compa': fv(r'TIMER0_COMPA?'), 'v_compb': fv(r'TIMER0_COMPB'), 't_pin_addr': tc0.get('T', (0, 0))[0], 't_pin_bit': tc0.get('T', (0, 0))[1], 'ocra_pin_addr': tc0.get('OCA', (0, 0))[0], 'ocra_pin_bit': tc0.get('OCA', (0, 0))[1], 'ocrb_pin_addr': tc0.get('OCB', (0, 0))[0], 'ocrb_pin_bit': tc0.get('OCB', (0, 0))[1], 'tosc1_pin_addr': 0, 'tosc1_pin_bit': 0, 'tosc2_pin_addr': 0, 'tosc2_pin_bit': 0 }
+    device_info['timer2'] = { 'tcnt': fr(r'TCNT2'), 'ocra': fr(r'OCR2A|OCR2'), 'ocrb': fr(r'OCR2B'), 'tccra': fr(r'TCCR2A|TCCR2'), 'tccrb': fr(r'TCCR2B'), 'assr': fr(r'ASSR'), 'timsk': fr(r'TIMSK2'), 'tifr': fr(r'TIFR2'), 'v_ovf': fv(r'TIMER2_OVF'), 'v_compa': fv(r'TIMER2_COMPA?'), 'v_compb': fv(r'TIMER2_COMPB'), 't_pin_addr': 0, 't_pin_bit': 0, 'ocra_pin_addr': tc2.get('OCA', (0, 0))[0], 'ocra_pin_bit': tc2.get('OCA', (0, 0))[1], 'ocrb_pin_addr': tc2.get('OCB', (0, 0))[0], 'ocrb_pin_bit': tc2.get('OCB', (0, 0))[1], 'tosc1_pin_addr': tc2.get('TOSC1', (0, 0))[0], 'tosc1_pin_bit': tc2.get('TOSC1', (0, 0))[1], 'tosc2_pin_addr': tc2.get('TOSC2', (0, 0))[0], 'tosc2_pin_bit': tc2.get('TOSC2', (0, 0))[1] }
     device_info['timer1'] = { 'tcnt': fr(r'TCNT1|TCNT1L'), 'ocra': fr(r'OCR1A|OCR1AL'), 'ocrb': fr(r'OCR1B|OCR1BL'), 'icr': fr(r'ICR1|ICR1L'), 'tccra': fr(r'TCCR1A'), 'tccrb': fr(r'TCCR1B'), 'tccrc': fr(r'TCCR1C'), 'timsk': fr(r'TIMSK1|TIMSK'), 'tifr': fr(r'TIFR1|TIFR'), 'v_ovf': fv(r'TIMER1_OVF'), 'v_compa': fv(r'TIMER1_COMPA?'), 'v_compb': fv(r'TIMER1_COMPB'), 'v_capt': fv(r'TIMER1_CAPT') }
     device_info['uart0'] = { 'udr': fr(r'UDR0|UDR'), 'ucsra': fr(r'UCSR0A|UCSRA'), 'ucsrb': fr(r'UCSR0B|UCSRB'), 'ucsrc': fr(r'UCSR0C|UCSRC'), 'v_rx': fv(r'USART0?_RX'), 'v_tx': fv(r'USART0?_TX'), 'v_udre': fv(r'USART0?_UDRE') }
     device_info['spi'] = { 'spcr': fr(r'SPCR'), 'spsr': fr(r'SPSR'), 'spdr': fr(r'SPDR'), 'vector': fv(r'SPI_STC') }
@@ -93,8 +114,8 @@ inline constexpr DeviceDescriptor {name} {{
     .flash_words = {d['flash_words']}U, .sram_bytes = {d['sram_bytes']}U, .eeprom_bytes = {d['eeprom_bytes']}U,
     .interrupt_vector_count = {d['vectors']}U, .interrupt_vector_size = {d['vector_size']}U,
     .adc = {{ .adcl_address = {hx(d['adc']['adcl'])}, .adch_address = {hx(d['adc']['adch'])}, .adcsra_address = {hx(d['adc']['adcsra'])}, .adcsrb_address = {hx(d['adc']['adcsrb'])}, .admux_address = {hx(d['adc']['admux'])}, .vector_index = {d['adc']['vector']}U }},
-    .timer0 = {{ .tcnt_address = {hx(d['timer0']['tcnt'])}, .ocra_address = {hx(d['timer0']['ocra'])}, .ocrb_address = {hx(d['timer0']['ocrb'])}, .tifr_address = {hx(d['timer0']['tifr'])}, .timsk_address = {hx(d['timer0']['timsk'])}, .tccra_address = {hx(d['timer0']['tccra'])}, .tccrb_address = {hx(d['timer0']['tccrb'])}, .assr_address = {hx(d['timer0']['assr'])}, .compare_a_vector_index = {d['timer0']['v_compa']}U, .compare_b_vector_index = {d['timer0']['v_compb']}U, .overflow_vector_index = {d['timer0']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U }},
-    .timer2 = {{ .tcnt_address = {hx(d['timer2']['tcnt'])}, .ocra_address = {hx(d['timer2']['ocra'])}, .ocrb_address = {hx(d['timer2']['ocrb'])}, .tifr_address = {hx(d['timer2']['tifr'])}, .timsk_address = {hx(d['timer2']['timsk'])}, .tccra_address = {hx(d['timer2']['tccra'])}, .tccrb_address = {hx(d['timer2']['tccrb'])}, .assr_address = {hx(d['timer2']['assr'])}, .compare_a_vector_index = {d['timer2']['v_compa']}U, .compare_b_vector_index = {d['timer2']['v_compb']}U, .overflow_vector_index = {d['timer2']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U }},
+    .timer0 = {{ .tcnt_address = {hx(d['timer0']['tcnt'])}, .ocra_address = {hx(d['timer0']['ocra'])}, .ocrb_address = {hx(d['timer0']['ocrb'])}, .tifr_address = {hx(d['timer0']['tifr'])}, .timsk_address = {hx(d['timer0']['timsk'])}, .tccra_address = {hx(d['timer0']['tccra'])}, .tccrb_address = {hx(d['timer0']['tccrb'])}, .assr_address = {hx(d['timer0']['assr'])}, .compare_a_vector_index = {d['timer0']['v_compa']}U, .compare_b_vector_index = {d['timer0']['v_compb']}U, .overflow_vector_index = {d['timer0']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(d['timer0']['t_pin_addr'])}, .t0_pin_bit = {d['timer0']['t_pin_bit']}U, .ocra_pin_address = {hx(d['timer0']['ocra_pin_addr'])}, .ocra_pin_bit = {d['timer0']['ocra_pin_bit']}U, .ocrb_pin_address = {hx(d['timer0']['ocrb_pin_addr'])}, .ocrb_pin_bit = {d['timer0']['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(d['timer0']['tosc1_pin_addr'])}, .tosc1_pin_bit = {d['timer0']['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(d['timer0']['tosc2_pin_addr'])}, .tosc2_pin_bit = {d['timer0']['tosc2_pin_bit']}U }},
+    .timer2 = {{ .tcnt_address = {hx(d['timer2']['tcnt'])}, .ocra_address = {hx(d['timer2']['ocra'])}, .ocrb_address = {hx(d['timer2']['ocrb'])}, .tifr_address = {hx(d['timer2']['tifr'])}, .timsk_address = {hx(d['timer2']['timsk'])}, .tccra_address = {hx(d['timer2']['tccra'])}, .tccrb_address = {hx(d['timer2']['tccrb'])}, .assr_address = {hx(d['timer2']['assr'])}, .compare_a_vector_index = {d['timer2']['v_compa']}U, .compare_b_vector_index = {d['timer2']['v_compb']}U, .overflow_vector_index = {d['timer2']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(d['timer2']['t_pin_addr'])}, .t0_pin_bit = {d['timer2']['t_pin_bit']}U, .ocra_pin_address = {hx(d['timer2']['ocra_pin_addr'])}, .ocra_pin_bit = {d['timer2']['ocra_pin_bit']}U, .ocrb_pin_address = {hx(d['timer2']['ocrb_pin_addr'])}, .ocrb_pin_bit = {d['timer2']['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(d['timer2']['tosc1_pin_addr'])}, .tosc1_pin_bit = {d['timer2']['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(d['timer2']['tosc2_pin_addr'])}, .tosc2_pin_bit = {d['timer2']['tosc2_pin_bit']}U }},
     .timer1 = {{ .tcnt_address = {hx(d['timer1']['tcnt'])}, .ocra_address = {hx(d['timer1']['ocra'])}, .ocrb_address = {hx(d['timer1']['ocrb'])}, .icr_address = {hx(d['timer1']['icr'])}, .tifr_address = {hx(d['timer1']['tifr'])}, .timsk_address = {hx(d['timer1']['timsk'])}, .tccra_address = {hx(d['timer1']['tccra'])}, .tccrb_address = {hx(d['timer1']['tccrb'])}, .tccrc_address = {hx(d['timer1']['tccrc'])}, .capture_vector_index = {d['timer1']['v_capt']}U, .compare_a_vector_index = {d['timer1']['v_compa']}U, .compare_b_vector_index = {d['timer1']['v_compb']}U, .overflow_vector_index = {d['timer1']['v_ovf']}U, .capture_enable_mask = 0x20U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U }},
     .ext_interrupt = {{ .eicra_address = {hx(d['ext_interrupt']['eicra'])}, .eimsk_address = {hx(d['ext_interrupt']['eimsk'])}, .eifr_address = {hx(d['ext_interrupt']['eifr'])}, .int0_vector_index = {d['ext_interrupt']['vector']}U }},
     .uart0 = {{ .udr_address = {hx(d['uart0']['udr'])}, .ucsra_address = {hx(d['uart0']['ucsra'])}, .ucsrb_address = {hx(d['uart0']['ucsrb'])}, .ucsrc_address = {hx(d['uart0']['ucsrc'])}, .rx_vector_index = {d['uart0']['v_rx']}U, .udre_vector_index = {d['uart0']['v_udre']}U, .tx_vector_index = {d['uart0']['v_tx']}U }},

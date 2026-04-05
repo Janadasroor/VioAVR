@@ -12,6 +12,13 @@ constexpr u8 kWgm00 = 0x01U;
 constexpr u8 kWgm01 = 0x02U;
 constexpr u8 kWgm02 = 0x08U;
 constexpr u8 kCsMask = 0x07U;
+constexpr u8 kAssrTcr2bub = 0x01U;
+constexpr u8 kAssrTcr2aub = 0x02U;
+constexpr u8 kAssrOcr2bub = 0x04U;
+constexpr u8 kAssrOcr2aub = 0x08U;
+constexpr u8 kAssrTcn2ub = 0x10U;
+constexpr u8 kAssrAs2 = 0x20U;
+constexpr u8 kAssrExclk = 0x40U;
 }
 
 Timer8::Timer8(std::string_view name, const DeviceDescriptor& device) noexcept
@@ -19,7 +26,8 @@ Timer8::Timer8(std::string_view name, const DeviceDescriptor& device) noexcept
 {
     std::vector<u16> addrs = {
         desc_.tcnt_address, desc_.ocra_address, desc_.ocrb_address,
-        desc_.tifr_address, desc_.timsk_address, desc_.tccra_address, desc_.tccrb_address
+        desc_.tifr_address, desc_.timsk_address, desc_.tccra_address, desc_.tccrb_address,
+        desc_.assr_address
     };
     std::sort(addrs.begin(), addrs.end());
     
@@ -40,7 +48,8 @@ Timer8::Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept
 {
     std::vector<u16> addrs = {
         desc_.tcnt_address, desc_.ocra_address, desc_.ocrb_address,
-        desc_.tifr_address, desc_.timsk_address, desc_.tccra_address, desc_.tccrb_address
+        desc_.tifr_address, desc_.timsk_address, desc_.tccra_address, desc_.tccrb_address,
+        desc_.assr_address
     };
     std::sort(addrs.begin(), addrs.end());
     size_t ri = 0;
@@ -74,6 +83,7 @@ void Timer8::reset() noexcept
     ocrb_ = 0U;
     tccra_ = 0U;
     tccrb_ = 0U;
+    assr_ = 0U;
     timsk_ = 0U;
     tifr_ = 0U;
     mode_ = Mode::normal;
@@ -84,6 +94,14 @@ void Timer8::reset() noexcept
 
 void Timer8::tick(const u64 elapsed_cycles) noexcept
 {
+    if (elapsed_cycles > 0U) {
+        retire_async_busy();
+    }
+
+    if (async_mode_enabled()) {
+        return;
+    }
+
     const u8 cs = tccrb_ & kCsMask;
     if (cs == 0) return;
 
@@ -97,10 +115,8 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
         // Process full prescaled ticks
         const u64 ticks = cycle_accumulator_ / divisor;
         cycle_accumulator_ %= divisor;
-        
-        for (u64 i = 0; i < ticks; ++i) {
-            perform_tick();
-        }
+
+        perform_ticks(ticks);
     } else {
         // External clock via T0 pin
         if (bus_) {
@@ -114,6 +130,30 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
     }
 }
 
+void Timer8::tick_async(const u64 elapsed_ticks) noexcept
+{
+    if (elapsed_ticks > 0U) {
+        retire_async_busy();
+    }
+    if (!async_mode_enabled()) {
+        return;
+    }
+
+    const u8 cs = tccrb_ & kCsMask;
+    if (cs == 0) {
+        return;
+    }
+
+    if (cs <= 5) {
+        static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
+        const u16 divisor = prescalers[cs];
+        cycle_accumulator_ += elapsed_ticks;
+        const u64 ticks = cycle_accumulator_ / divisor;
+        cycle_accumulator_ %= divisor;
+        perform_ticks(ticks);
+    }
+}
+
 u8 Timer8::read(const u16 address) noexcept
 {
     if (address == desc_.tcnt_address) return tcnt_;
@@ -121,6 +161,7 @@ u8 Timer8::read(const u16 address) noexcept
     if (address == desc_.ocrb_address) return ocrb_;
     if (address == desc_.tccra_address) return tccra_;
     if (address == desc_.tccrb_address) return tccrb_;
+    if (address == desc_.assr_address) return assr_;
     if (address == desc_.timsk_address) return timsk_;
     if (address == desc_.tifr_address) return tifr_;
     return 0U;
@@ -128,11 +169,29 @@ u8 Timer8::read(const u16 address) noexcept
 
 void Timer8::write(const u16 address, const u8 value) noexcept
 {
-    if (address == desc_.tcnt_address) tcnt_ = value;
-    else if (address == desc_.ocra_address) ocra_ = value;
-    else if (address == desc_.ocrb_address) ocrb_ = value;
-    else if (address == desc_.tccra_address) { tccra_ = value; update_mode(); }
-    else if (address == desc_.tccrb_address) { tccrb_ = value; update_mode(); }
+    if (address == desc_.tcnt_address) {
+        tcnt_ = value;
+        mark_async_busy(address);
+    }
+    else if (address == desc_.ocra_address) {
+        ocra_ = value;
+        mark_async_busy(address);
+    }
+    else if (address == desc_.ocrb_address) {
+        ocrb_ = value;
+        mark_async_busy(address);
+    }
+    else if (address == desc_.tccra_address) {
+        tccra_ = value;
+        update_mode();
+        mark_async_busy(address);
+    }
+    else if (address == desc_.tccrb_address) {
+        tccrb_ = value;
+        update_mode();
+        mark_async_busy(address);
+    }
+    else if (address == desc_.assr_address) assr_ = static_cast<u8>((assr_ & 0x1FU) | (value & (kAssrAs2 | kAssrExclk)));
     else if (address == desc_.timsk_address) timsk_ = value;
     else if (address == desc_.tifr_address) tifr_ &= static_cast<u8>(~value);
 }
@@ -232,6 +291,13 @@ void Timer8::perform_tick() noexcept
     }
 }
 
+void Timer8::perform_ticks(const u64 ticks) noexcept
+{
+    for (u64 i = 0; i < ticks; ++i) {
+        perform_tick();
+    }
+}
+
 u8 Timer8::get_top() const noexcept
 {
     switch (mode_) {
@@ -286,6 +352,37 @@ Timer8::PinAction Timer8::get_pin_action_a() const noexcept
 Timer8::PinAction Timer8::get_pin_action_b() const noexcept
 {
     return static_cast<PinAction>((tccra_ >> 4U) & 0x03U);
+}
+
+bool Timer8::has_async_status_register() const noexcept
+{
+    return desc_.assr_address != 0U;
+}
+
+bool Timer8::async_mode_enabled() const noexcept
+{
+    return has_async_status_register() && (assr_ & kAssrAs2) != 0U;
+}
+
+void Timer8::mark_async_busy(const u16 address) noexcept
+{
+    if (!async_mode_enabled()) {
+        return;
+    }
+
+    if (address == desc_.tcnt_address) assr_ |= kAssrTcn2ub;
+    else if (address == desc_.ocra_address) assr_ |= kAssrOcr2aub;
+    else if (address == desc_.ocrb_address) assr_ |= kAssrOcr2bub;
+    else if (address == desc_.tccra_address) assr_ |= kAssrTcr2aub;
+    else if (address == desc_.tccrb_address) assr_ |= kAssrTcr2bub;
+}
+
+void Timer8::retire_async_busy() noexcept
+{
+    if (!has_async_status_register()) {
+        return;
+    }
+    assr_ &= static_cast<u8>(kAssrAs2 | kAssrExclk);
 }
 
 }  // namespace vioavr::core
