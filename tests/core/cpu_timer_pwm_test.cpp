@@ -65,7 +65,7 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
     std::vector<u16> program = {
         0xE005, // LDI r16, 5
         0x9300, 0x0047, // STS OCR0A, r16
-        0xE083, // LDI r16, 0x83
+        0xE085, // LDI r16, 0x85 (Fast PWM, clear on match)
         0x9300, 0x0044, // STS TCCR0A, r16
         0xE001, // LDI r16, 0x01
         0x9300, 0x0045, // STS TCCR0B, r16
