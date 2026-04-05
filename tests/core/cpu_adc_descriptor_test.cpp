@@ -3,6 +3,7 @@
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/avr_cpu.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 using namespace vioavr::core;
@@ -12,7 +13,8 @@ TEST_CASE("ADC Descriptor and Trigger Logic Test")
     using vioavr::core::Adc;
     using vioavr::core::devices::atmega328;
 
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
+    PinMux pin_mux(8);
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
     adc0.reset();
 
     SUBCASE("Trigger Select Register") {

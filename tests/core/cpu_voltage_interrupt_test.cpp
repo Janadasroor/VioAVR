@@ -6,6 +6,7 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 using namespace vioavr::core;
@@ -24,9 +25,10 @@ TEST_CASE("CPU Voltage and Ext/PinChange Interrupt Test")
     constexpr auto ddrb = static_cast<vioavr::core::u16>(0x24U);
     constexpr auto portb = static_cast<vioavr::core::u16>(0x25U);
     
+    PinMux pin_mux {8};
     MemoryBus bus {atmega328};
     GpioPort port_b {"PORTB", pinb, ddrb, portb};
-    ExtInterrupt exti {"EXTINT", atmega328, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
     
     // PCICR=0x68, PCIFR=0x3B, PCMSK0=0x6B (from ATmega328P datasheet)
     PinChangeInterruptDescriptor pci0_desc {

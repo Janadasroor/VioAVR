@@ -17,13 +17,6 @@ public:
                      u8 source_id,
                      double hysteresis = 0.02) noexcept;
 
-    // Legacy constructor for simple tests
-    AnalogComparator(std::string_view name,
-                     u16 acsr_address,
-                     u8 vector_index,
-                     u8 source_id,
-                     double hysteresis = 0.02) noexcept;
-
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 

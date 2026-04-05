@@ -6,7 +6,10 @@
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+
+using namespace vioavr::core;
 
 namespace {
 
@@ -46,9 +49,10 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
     using vioavr::core::MemoryBus;
     using vioavr::core::devices::atmega328;
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
-    ExtInterrupt exti {"EXTINT", atmega328, 4U};
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
     
     adc0.connect_external_interrupt_0_auto_trigger(exti);
     adc0.set_channel_voltage(0U, 0.42); // Expected result: 430

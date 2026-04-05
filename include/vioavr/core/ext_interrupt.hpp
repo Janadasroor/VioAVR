@@ -9,17 +9,14 @@
 namespace vioavr::core {
 
 class Adc;
+class PinMux;
 
 class ExtInterrupt final : public IoPeripheral {
 public:
     ExtInterrupt(std::string_view name,
-                 u16 eicra_address,
-                 u16 eimsk_address,
-                 u16 eifr_address,
-                 u8 int0_vector_index,
+                 const ExtInterruptDescriptor& descriptor,
+                 PinMux& pin_mux,
                  u8 source_id) noexcept;
-
-    explicit ExtInterrupt(std::string_view name, const DeviceDescriptor& device, u8 source_id) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -43,11 +40,9 @@ private:
     void raise_int0() noexcept;
 
     std::string_view name_;
+    ExtInterruptDescriptor desc_;
+    PinMux* pin_mux_ {};
     std::array<AddressRange, 3> ranges_;
-    u16 eicra_address_;
-    u16 eimsk_address_;
-    u16 eifr_address_;
-    u8 int0_vector_index_;
     u8 source_id_;
 
     const AnalogSignalBank* signal_bank_ {};
@@ -59,7 +54,9 @@ private:
     u8 eimsk_ {};
     u8 eifr_ {};
     bool int0_level_ {true};
+    bool int1_level_ {true};
     bool int0_pending_ {};
+    bool int1_pending_ {};
 };
 
 }  // namespace vioavr::core

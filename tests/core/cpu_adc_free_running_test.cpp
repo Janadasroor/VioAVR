@@ -3,7 +3,10 @@
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+
+using namespace vioavr::core;
 
 TEST_CASE("ADC Free Running Mode Test")
 {
@@ -11,8 +14,9 @@ TEST_CASE("ADC Free Running Mode Test")
     using vioavr::core::MemoryBus;
     using vioavr::core::devices::atmega328;
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
     bus.attach_peripheral(adc0);
     bus.reset();
 

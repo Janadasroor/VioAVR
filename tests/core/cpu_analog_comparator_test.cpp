@@ -3,6 +3,7 @@
 #include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 TEST_CASE("Analog Comparator Functional Test")
@@ -10,11 +11,12 @@ TEST_CASE("Analog Comparator Functional Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    constexpr u16 acsr_addr = 0x50U;
-    constexpr u8 comparator_vector = 8U;
+    const u16 acsr_addr = atmega328.ac.acsr_address;
+    const u8 comparator_vector = atmega328.ac.vector_index;
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    AnalogComparator comparator {"AC", acsr_addr, comparator_vector, 9U, 0.01};
+    AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 0.01};
     bus.attach_peripheral(comparator);
     bus.reset();
 

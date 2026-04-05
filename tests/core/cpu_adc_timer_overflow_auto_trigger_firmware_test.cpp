@@ -6,7 +6,10 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+
+using namespace vioavr::core;
 
 namespace {
 
@@ -52,8 +55,9 @@ TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
     Timer8 timer0 {"TIMER0", atmega328};
 
     adc0.connect_timer_overflow_auto_trigger(timer0);

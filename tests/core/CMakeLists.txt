@@ -39,6 +39,7 @@ set(TEST_SOURCES
     cpu_interrupt_test.cpp
     cpu_interrupt_priority_test.cpp
     cpu_interrupt_chaining_test.cpp
+    cpu_reset_state_test.cpp
     cpu_io_test.cpp
     cpu_load_store_test.cpp
     cpu_lpm_test.cpp
@@ -72,6 +73,7 @@ set(TEST_SOURCES
     hex_loader_test.cpp
     sync_engine_test.cpp
     viospice_timer2_async_test.cpp
+    cpu_trace_util.cpp
     cpu_trace_util_test.cpp
 )
 

@@ -4,6 +4,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 using namespace vioavr::core;
@@ -18,8 +19,9 @@ TEST_CASE("External Interrupt Logic Test")
 
     constexpr auto int0_vector = static_cast<vioavr::core::u8>(1U);
 
+    PinMux pin_mux {8};
     MemoryBus bus {atmega328};
-    ExtInterrupt exti {"EXTINT", atmega328, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
     bus.attach_peripheral(exti);
     bus.reset();
 

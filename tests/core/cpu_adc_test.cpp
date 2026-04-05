@@ -3,7 +3,10 @@
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+
+using namespace vioavr::core;
 
 TEST_CASE("ADC Basic Functionality Test")
 {
@@ -12,8 +15,9 @@ TEST_CASE("ADC Basic Functionality Test")
 
     const auto adc_vector = atmega328.adc.vector_index;
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U}; // Source ID 6, 4 cycles
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U}; // Source ID 6, 4 cycles
     bus.attach_peripheral(adc0);
     bus.reset();
 

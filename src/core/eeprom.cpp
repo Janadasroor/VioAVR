@@ -186,7 +186,9 @@ void Eeprom::complete_write() noexcept
 
 bool Eeprom::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
-    if (interrupt_pending_ && (eecr_ & kEerie) != 0U) {
+    // EERIE triggers if EEPE is zero AND EERIE is set.
+    // In our simulation, write_cycles_left_ is 0 when EEPE is 0.
+    if (write_cycles_left_ == 0U && (eecr_ & kEerie) != 0U) {
         request = {desc_.vector_index, 0U};
         return true;
     }

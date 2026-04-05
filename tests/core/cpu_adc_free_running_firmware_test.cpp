@@ -5,7 +5,10 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+
+using namespace vioavr::core;
 
 namespace {
 
@@ -44,8 +47,9 @@ TEST_CASE("ADC Free Running Firmware Integration Test")
     using vioavr::core::MemoryBus;
     using vioavr::core::devices::atmega328;
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
     adc0.set_channel_voltage(0U, 0.25);
     bus.attach_peripheral(adc0);
     AvrCpu cpu {bus};

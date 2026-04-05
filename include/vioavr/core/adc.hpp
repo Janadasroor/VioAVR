@@ -33,12 +33,6 @@ public:
         u8 source_id,
         u16 conversion_cycles = 13U) noexcept;
 
-    // Legacy constructor for backward compatibility in simple tests
-    Adc(std::string_view name,
-        const DeviceDescriptor& device,
-        u8 source_id,
-        u16 conversion_cycles = 13U) noexcept;
-
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 

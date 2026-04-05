@@ -31,7 +31,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     ac->bind_signal_bank(analog_signal_bank_, 0, 1);
     
     auto uart0 = std::make_unique<Uart0>("UART0", bus_.device());
-    auto exint = std::make_unique<ExtInterrupt>("EXINT", bus_.device(), 0);
+    auto exint = std::make_unique<ExtInterrupt>("EXINT", bus_.device().ext_interrupt, pin_mux_, 0);
 
     timer0->set_bus(bus_);
     timer2->set_bus(bus_);

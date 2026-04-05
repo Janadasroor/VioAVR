@@ -5,6 +5,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 using namespace vioavr::core;
@@ -17,8 +18,9 @@ TEST_CASE("ADC Timer Auto-Trigger Test")
     using vioavr::core::Timer8;
     using vioavr::core::devices::atmega328;
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
     Timer8 timer0 {"TIMER0", atmega328};
     
     adc0.connect_timer_compare_auto_trigger(timer0);
