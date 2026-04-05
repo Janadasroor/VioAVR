@@ -164,6 +164,11 @@ void AnalogComparator::evaluate_output() noexcept
         output_high_ = false;
     }
 
+    // Notify ADC of rising edge trigger for auto-trigger
+    if (auto_trigger_adc_ && !previous && output_high_) {
+        auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::comparator);
+    }
+
     if (output_high_) {
         acsr_ |= kAcoMask;
     } else {
