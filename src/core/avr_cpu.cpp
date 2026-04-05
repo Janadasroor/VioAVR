@@ -417,6 +417,9 @@ void AvrCpu::advance_cycles(const u64 delta_cycles)
         bus_->tick_peripherals(delta_cycles);
         publish_pending_pin_changes();
     }
+    if (spm_lock_timeout_ > 0U) {
+        spm_lock_timeout_ = (delta_cycles >= spm_lock_timeout_) ? 0U : static_cast<u8>(spm_lock_timeout_ - delta_cycles);
+    }
     if (sync_engine_ != nullptr) {
         sync_engine_->on_cycles_advanced(cycles_, delta_cycles);
     }
@@ -593,7 +596,7 @@ void AvrCpu::push_byte(const u8 value) noexcept
         return;
     }
 
-    bus_->write_data(stack_pointer_, value);
+    write_data_bus(stack_pointer_, value);
     --stack_pointer_;
 }
 
@@ -649,7 +652,7 @@ void AvrCpu::execute_store_indirect(const u16 address,
         return;
     }
 
-    bus_->write_data(address, gpr_[source]);
+    write_data_bus(address, gpr_[source]);
     if (post_increment) {
         write_register_pair(pointer_low_register, static_cast<u16>(address + 1U));
     }
@@ -1232,7 +1235,7 @@ void AvrCpu::execute_sbi(const DecodedInstruction& instruction)
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     const u16 address = MemoryBus::low_io_address(io_offset);
     const u8 value = static_cast<u8>(bus_->read_data(address) | static_cast<u8>(1U << bit_index));
-    bus_->write_data(address, value);
+    write_data_bus(address, value);
     ++program_counter_;
     advance_cycles(2U);
 }
@@ -1283,7 +1286,7 @@ void AvrCpu::execute_out(const DecodedInstruction& instruction)
 
     const u8 source = static_cast<u8>(((instruction.opcode >> 4U) & 0x1FU));
     const u8 io_offset = static_cast<u8>(((instruction.opcode >> 5U) & 0x30U) | (instruction.opcode & 0x0FU));
-    bus_->write_data(MemoryBus::low_io_address(io_offset), gpr_[source]);
+    write_data_bus(MemoryBus::low_io_address(io_offset), gpr_[source]);
     ++program_counter_;
     advance_cycles(1U);
 }
@@ -1401,7 +1404,7 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     const u8 spmcsr = bus_->read_data(spmcsr_addr);
     const bool spmen = (spmcsr & 0x01U) != 0U;
     
-    if (!spmen) {
+    if (!spmen || spm_lock_timeout_ == 0U) {
         advance_cycles(1U);
         return;
     }
@@ -1420,11 +1423,22 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
         for (u32 i = 0U; i < page_size_words; ++i) {
             bus_->write_program_word(page_start_word + i, 0xFFFFU);
         }
+        if (page_start_word <= bus_->device().flash_rww_end_word) {
+            rww_section_busy_ = true;
+            bus_->set_flash_rww_busy(true);
+        }
     } else if ((spmcsr & 0x04U) != 0U) { // Page Write (PGWRT)
         const u32 page_start_word = z >> 1U & ~(static_cast<u32>(page_size_words) - 1U);
         for (u32 i = 0U; i < page_size_words; ++i) {
             bus_->write_program_word(page_start_word + i, temp_flash_page_buffer_[i]);
         }
+        if (page_start_word <= bus_->device().flash_rww_end_word) {
+            rww_section_busy_ = true;
+            bus_->set_flash_rww_busy(true);
+        }
+    } else if ((spmcsr & 0x10U) != 0U) { // RWWSRE
+        rww_section_busy_ = false;
+        bus_->set_flash_rww_busy(false);
     } else if ((spmcsr & 0x08U) != 0U) { // Boot Lock Bit Set (BLBSET)
         // TODO: Implement Lock Bit support if needed
     } else { // Fill Temporary Page Buffer
@@ -1435,7 +1449,9 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     }
 
     // Always clear SPMEN after instruction execution (simulating hardware behavior)
-    bus_->write_data(spmcsr_addr, spmcsr & ~0x0FU); // Clear SPMEN, PGERS, PGWRT, BLBSET
+    write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xFEU));
+    spm_lock_timeout_ = 0;
+    
     ++program_counter_;
     advance_cycles(1U); // Standard SPM is 1 cycle, but busy bit handles long ops
 }
@@ -1718,6 +1734,26 @@ void AvrCpu::execute_breq(const DecodedInstruction& instruction)
 void AvrCpu::execute_brne(const DecodedInstruction& instruction)
 {
     execute_brbc(instruction);
+}
+
+void AvrCpu::write_data_bus(const u16 address, const u8 value) noexcept
+{
+    if (bus_ == nullptr) return;
+
+    if (address == bus_->device().spmcsr_address) {
+        // Intercept SPMCSR writes for 4-cycle lockout
+        if ((value & 0x01U) != 0U) { // SPMEN set
+            spm_lock_timeout_ = 4U;
+        }
+        // Update the RWWSB bit if needed (read-only from hardware)
+        u8 val = value;
+        if (rww_section_busy_) val |= 0x40U;
+        else val &= 0xBFU;
+        bus_->write_data(address, val);
+        return;
+    }
+
+    bus_->write_data(address, value);
 }
 
 }  // namespace vioavr::core

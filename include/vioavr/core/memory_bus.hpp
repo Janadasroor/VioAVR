@@ -53,12 +53,18 @@ public:
 
     [[nodiscard]] constexpr u16 read_program_word(u32 word_address) const noexcept
     {
+        if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
+            return 0xFFFFU;
+        }
         return word_address < flash_.size() ? flash_[word_address] : 0U;
     }
 
     [[nodiscard]] constexpr u8 read_program_byte(u32 byte_address) const noexcept
     {
         const u32 word_address = byte_address >> 1U;
+        if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
+            return 0xFFU;
+        }
         if (word_address >= flash_.size()) {
             return 0U;
         }
@@ -95,6 +101,8 @@ public:
     void propagate_external_pin_change(u32 external_id, PinLevel level) noexcept;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept;
+    void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
+    [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
 
 private:
     [[nodiscard]] IoPeripheral* find_peripheral(u16 address) noexcept;
@@ -105,6 +113,7 @@ private:
     PinMap* pin_map_ {};
     std::vector<u16> flash_;
     std::vector<u8> data_;
+    bool flash_rww_busy_ {false};
     std::vector<IoPeripheral*> peripherals_ {};
     std::vector<IoPeripheral*> dispatch_table_ {};
     u32 loaded_program_words_ {};
