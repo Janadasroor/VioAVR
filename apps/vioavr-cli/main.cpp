@@ -78,13 +78,18 @@ int main(int argc, char** argv)
     // Peripherals
     Eeprom eeprom {"EEPROM", bus.device()};
     Timer8 timer0 {"TIMER0", bus.device().timer0};
+    Timer8 timer2 {"TIMER2", bus.device().timer2};
     Timer16 timer1 {"TIMER1", bus.device().timer1};
     Adc adc {"ADC", bus.device(), 0, 13};
     Uart0 uart0 {"UART0", bus.device()};
 
+    timer0.set_bus(bus);
+    timer2.set_bus(bus);
+
     // Attach all to bus
     bus.attach_peripheral(eeprom);
     bus.attach_peripheral(timer0);
+    bus.attach_peripheral(timer2);
     bus.attach_peripheral(timer1);
     bus.attach_peripheral(adc);
     bus.attach_peripheral(uart0);
@@ -97,6 +102,26 @@ int main(int argc, char** argv)
     PinChangeInterrupt pcint0 {"PCINT0", bus.device().pin_change_interrupt_0, portb, pcint_shared, true};
     PinChangeInterrupt pcint1 {"PCINT1", bus.device().pin_change_interrupt_1, portc, pcint_shared, false};
     PinChangeInterrupt pcint2 {"PCINT2", bus.device().pin_change_interrupt_2, portd, pcint_shared, false};
+
+    auto bind_timer8_outputs = [](Timer8& timer, const Timer8Descriptor& desc,
+                                  GpioPort& portb, GpioPort& portc, GpioPort& portd) {
+        auto resolve_port = [&](const u16 pin_address) -> GpioPort* {
+            if (pin_address == portb.pin_address()) return &portb;
+            if (pin_address == portc.pin_address()) return &portc;
+            if (pin_address == portd.pin_address()) return &portd;
+            return nullptr;
+        };
+
+        if (auto* port = resolve_port(desc.ocra_pin_address); port != nullptr) {
+            timer.connect_compare_output_a(*port, desc.ocra_pin_bit);
+        }
+        if (auto* port = resolve_port(desc.ocrb_pin_address); port != nullptr) {
+            timer.connect_compare_output_b(*port, desc.ocrb_pin_bit);
+        }
+    };
+
+    bind_timer8_outputs(timer0, bus.device().timer0, portb, portc, portd);
+    bind_timer8_outputs(timer2, bus.device().timer2, portb, portc, portd);
     
     bus.attach_peripheral(portb);
     bus.attach_peripheral(portc);

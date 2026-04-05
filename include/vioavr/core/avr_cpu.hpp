@@ -137,7 +137,8 @@ private:
     [[nodiscard]] bool service_interrupt_if_needed();
     [[nodiscard]] constexpr u16 interrupt_vector_word_address(u8 vector_index) const noexcept
     {
-        return static_cast<u16>(vector_index * bus_->device().interrupt_vector_size);
+        // interrupt_vector_size is in bytes, convert to words
+        return static_cast<u16>(vector_index * (bus_->device().interrupt_vector_size / 2U));
     }
     [[nodiscard]] constexpr bool flag(SregFlag flag_bit) const noexcept
     {

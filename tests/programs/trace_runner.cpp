@@ -78,27 +78,27 @@ int main(int argc, char** argv) {
     bus.load_image(image);
     cpu.reset();
     
-    // Output CSV header
-    std::cout << "step,pc,cycles";
+    // Output CSV header (matching SimAVR format: step,pc,sreg,sp,r0,...,r31)
+    std::cout << "step,pc,sreg,sp";
     for (int i = 0; i < 32; ++i) std::cout << ",r" << i;
-    std::cout << ",sreg,sp" << std::endl;
-    
+    std::cout << std::endl;
+
     // Dump initial state
     auto snap = cpu.snapshot();
-    std::cout << "0," << snap.program_counter << "," << snap.cycles;
+    std::cout << "0," << snap.program_counter << "," << static_cast<int>(snap.sreg) << "," << snap.stack_pointer;
     for (int i = 0; i < 32; ++i) std::cout << "," << static_cast<int>(snap.gpr[i]);
-    std::cout << "," << static_cast<int>(snap.sreg) << "," << snap.stack_pointer << std::endl;
-    
+    std::cout << std::endl;
+
     // Step through and dump
     for (int step = 1; step <= max_steps; ++step) {
         if (cpu.state() == CpuState::halted) break;
-        
+
         cpu.step();
         snap = cpu.snapshot();
-        
-        std::cout << step << "," << snap.program_counter << "," << snap.cycles;
+
+        std::cout << step << "," << snap.program_counter << "," << static_cast<int>(snap.sreg) << "," << snap.stack_pointer;
         for (int i = 0; i < 32; ++i) std::cout << "," << static_cast<int>(snap.gpr[i]);
-        std::cout << "," << static_cast<int>(snap.sreg) << "," << snap.stack_pointer << std::endl;
+        std::cout << std::endl;
     }
     
     return 0;

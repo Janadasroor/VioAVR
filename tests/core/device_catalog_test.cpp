@@ -66,4 +66,20 @@ TEST_CASE("ATmega328P descriptor exposes Timer2 and all PCINT groups") {
     CHECK(atmega328p->pin_change_interrupt_2.pcicr_enable_mask == 0x04U);
     CHECK(atmega328p->pin_change_interrupt_2.pcifr_flag_mask == 0x04U);
     CHECK(atmega328p->pin_change_interrupt_2.vector_index == 5U);
+
+    CHECK(atmega328p->timer0.t0_pin_address == 0x29U);
+    CHECK(atmega328p->timer0.t0_pin_bit == 4U);
+    CHECK(atmega328p->timer0.ocra_pin_address == 0x29U);
+    CHECK(atmega328p->timer0.ocra_pin_bit == 6U);
+    CHECK(atmega328p->timer0.ocrb_pin_address == 0x29U);
+    CHECK(atmega328p->timer0.ocrb_pin_bit == 5U);
+
+    CHECK(atmega328p->timer2.ocra_pin_address == 0x23U);
+    CHECK(atmega328p->timer2.ocra_pin_bit == 3U);
+    CHECK(atmega328p->timer2.ocrb_pin_address == 0x29U);
+    CHECK(atmega328p->timer2.ocrb_pin_bit == 3U);
+    CHECK(atmega328p->timer2.tosc1_pin_address == 0x23U);
+    CHECK(atmega328p->timer2.tosc1_pin_bit == 6U);
+    CHECK(atmega328p->timer2.tosc2_pin_address == 0x23U);
+    CHECK(atmega328p->timer2.tosc2_pin_bit == 7U);
 }

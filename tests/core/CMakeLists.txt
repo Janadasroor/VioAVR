@@ -11,6 +11,8 @@ set(TEST_SOURCES
     cpu_adc_firmware_test.cpp
     cpu_adc_descriptor_test.cpp
     cpu_timer_descriptor_test.cpp
+    cpu_timer2_descriptor_test.cpp
+    cpu_timer2_assr_test.cpp
     cpu_adc_free_running_test.cpp
     cpu_adc_free_running_firmware_test.cpp
     cpu_adc_auto_trigger_test.cpp
@@ -41,6 +43,7 @@ set(TEST_SOURCES
     cpu_lpm_test.cpp
     cpu_multibyte_compare_test.cpp
     cpu_pin_change_interrupt_test.cpp
+    cpu_pin_change_interrupt_groups_test.cpp
     cpu_pin_change_interrupt_firmware_test.cpp
     cpu_sleep_wake_test.cpp
     cpu_small_ops_test.cpp
@@ -50,6 +53,7 @@ set(TEST_SOURCES
     cpu_timer_pwm_test.cpp
     cpu_timer_control_test.cpp
     cpu_timer_gpio_test.cpp
+    cpu_timer2_gpio_test.cpp
     cpu_timer_dual_interrupt_test.cpp
     cpu_timer_external_clock_test.cpp
     cpu_timer_external_clock_firmware_test.cpp

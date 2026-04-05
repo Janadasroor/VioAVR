@@ -31,9 +31,11 @@ def compare_traces(simavr: list[dict], vioavr: list[dict]) -> list[str]:
         
         step_diffs = []
         
-        # Compare PC
-        if sa.get('pc', -1) != va.get('pc', -2):
-            step_diffs.append(f"  PC: SimAVR={sa.get('pc')} VioAVR={va.get('pc')}")
+        # Compare PC (both SimAVR and VioAVR use word addresses)
+        sa_pc = sa.get('pc', -1)
+        va_pc = va.get('pc', -2)
+        if sa_pc != va_pc:
+            step_diffs.append(f"  PC: SimAVR={sa_pc} VioAVR={va_pc}")
         
         # Compare SREG
         if sa.get('sreg', -1) != va.get('sreg', -2):

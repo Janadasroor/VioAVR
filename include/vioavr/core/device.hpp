@@ -46,6 +46,14 @@ struct Timer8Descriptor {
     u8 overflow_enable_mask {};
     u16 t0_pin_address {};
     u8 t0_pin_bit {};
+    u16 ocra_pin_address {};
+    u8 ocra_pin_bit {};
+    u16 ocrb_pin_address {};
+    u8 ocrb_pin_bit {};
+    u16 tosc1_pin_address {};
+    u8 tosc1_pin_bit {};
+    u16 tosc2_pin_address {};
+    u8 tosc2_pin_bit {};
 };
 
 struct ExtInterruptDescriptor {
