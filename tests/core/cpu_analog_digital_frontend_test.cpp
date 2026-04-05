@@ -31,7 +31,8 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
     ExtInterrupt exti {"EXTINT", atmega328, 4U};
     exti.bind_int0_signal(signals, 1U); // INT0 bound to signal 1 (0.80V)
     
-    PinChangeInterrupt pci0 {"PCINT0", atmega328.pin_change_interrupt_0, port_b};
+    PinChangeInterruptDescriptor pci0_desc { .pcicr_address = 0x68U, .pcifr_address = 0x3BU, .pcmsk_address = 0x6BU, .pcicr_enable_mask = 0x01U, .pcifr_flag_mask = 0x01U, .vector_index = 3U };
+    PinChangeInterrupt pci0 {"PCINT0", pci0_desc, port_b};
 
     bus.attach_peripheral(port_b);
     bus.attach_peripheral(exti);
