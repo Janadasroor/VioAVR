@@ -31,6 +31,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     timer0->set_bus(bus_);
     timer2->set_bus(bus_);
+    timer2_ = timer2.get();
 
     // Attach peripherals
     bus_.attach_peripheral(*eeprom.release());
@@ -140,6 +141,13 @@ void VioSpice::reset()
 void VioSpice::step_duration(double seconds)
 {
     cpu_.run_duration(seconds);
+}
+
+void VioSpice::tick_timer2_async(const u64 ticks)
+{
+    if (timer2_ != nullptr) {
+        timer2_->tick_async(ticks);
+    }
 }
 
 void VioSpice::set_external_pin(u32 external_id, PinLevel level)
