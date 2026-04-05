@@ -33,15 +33,6 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     timer2->set_bus(bus_);
     timer2_ = timer2.get();
 
-    // Attach peripherals
-    bus_.attach_peripheral(*eeprom.release());
-    bus_.attach_peripheral(*timer0.release());
-    bus_.attach_peripheral(*timer2.release());
-    bus_.attach_peripheral(*timer1.release());
-    bus_.attach_peripheral(*adc.release());
-    bus_.attach_peripheral(*uart0.release());
-    bus_.attach_peripheral(*exint.release());
-
     // Dynamic GPIO Port initialization from DeviceDescriptor
     GpioPort* port_b = nullptr;
     GpioPort* port_c = nullptr;
@@ -80,6 +71,15 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     bind_timer8_outputs(*timer0, bus_.device().timer0, port_b, port_c, port_d);
     bind_timer8_outputs(*timer2, bus_.device().timer2, port_b, port_c, port_d);
+
+    // Attach peripherals after descriptor-driven wiring is complete.
+    bus_.attach_peripheral(*eeprom.release());
+    bus_.attach_peripheral(*timer0.release());
+    bus_.attach_peripheral(*timer2.release());
+    bus_.attach_peripheral(*timer1.release());
+    bus_.attach_peripheral(*adc.release());
+    bus_.attach_peripheral(*uart0.release());
+    bus_.attach_peripheral(*exint.release());
 
     if (port_b != nullptr && bus_.device().pin_change_interrupt_0.pcmsk_address != 0U) {
         auto pci0 = std::make_unique<PinChangeInterrupt>(

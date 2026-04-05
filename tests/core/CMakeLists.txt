@@ -71,6 +71,7 @@ set(TEST_SOURCES
     fetch_metadata_test.cpp
     hex_loader_test.cpp
     sync_engine_test.cpp
+    viospice_timer2_async_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

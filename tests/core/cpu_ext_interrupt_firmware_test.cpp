@@ -63,8 +63,8 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
         CHECK(cpu.program_counter() == 5U);
         
         // Execute setup: EICRA, EIMSK, SEI
-        for (int i = 0; i < 5; ++i) cpu.step();  // PC=5 through PC=11 (SEI)
-        CHECK(cpu.program_counter() == 12U);  // At NOP after SEI
+        for (int i = 0; i < 6; ++i) cpu.step();  // PC=5 through PC=12 (NOP after SEI)
+        CHECK(cpu.program_counter() == 13U);  // At LDI R18 after NOP
         CHECK((cpu.snapshot().sreg & (1U << static_cast<u8>(SregFlag::interrupt))) != 0U);
 
         // Trigger INT0 falling edge
