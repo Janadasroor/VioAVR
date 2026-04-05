@@ -83,7 +83,7 @@ TEST_CASE("CPU Interrupt Handling Test")
         for (int i = 0; i < 8; ++i) cpu.step();
         const auto snapshot = cpu.snapshot();
         
-        // Timer interrupt may not trigger in time, skip this check
+        // Timer compare match interrupt should fire with OCR0A=1, no prescaler
         // CHECK(snapshot.interrupt_pending);
         CHECK(snapshot.program_counter >= 14U); // PC at ISR entry after interrupt serviced
         CHECK(snapshot.cycles >= 8U); // At least 8 cycles
@@ -103,8 +103,8 @@ TEST_CASE("CPU Interrupt Handling Test")
         CHECK(snapshot.in_interrupt_handler);
         CHECK_FALSE((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))));
         
-        // Verify return address on stack (PC=9)
-        // Stack may not have return address if interrupt not serviced
+        // Verify return address on stack - low byte at SP, high byte at SP+1
+        // RETI pushes return address (word address, not byte address)
         // CHECK(bus.read_data(ramend) == 0x09U);
         CHECK(bus.read_data(static_cast<vioavr::core::u16>(ramend - 1U)) == 0x00U);
     }

@@ -55,6 +55,6 @@ TEST_CASE("Analog Signal to Timer0 External Clock Transition Test")
         // If it were implemented, tcnt would be 1.
         // For now, we're just verifying the test compiles and runs with the new API.
         // The actual logic pass might require implementing the clock connection in Timer8.
-        // CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x01U);
+        CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x01U);
     }
 }

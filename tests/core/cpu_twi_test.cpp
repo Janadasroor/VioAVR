@@ -66,10 +66,10 @@ TEST_CASE("TWI (I2C) Peripheral Master Mode Test")
         // 1. Send START
         cpu.step(); // LDI
         cpu.step(); // STS TWCR
-        // CHECK(twi.busy());
+        CHECK(twi.busy());
         bus.tick_peripherals(200); // Increased from 100
         CHECK_FALSE(twi.busy());
-        // CHECK((twi.read(atmega328.twi.twsr_address) & 0xF8U) == 0x08U); // START status
+        CHECK((twi.read(atmega328.twi.twsr_address) & 0xF8U) == 0x08U); // START status
 
         // 2. Send SLA+W
         cpu.step(); // LDI

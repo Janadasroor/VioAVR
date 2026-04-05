@@ -80,8 +80,8 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
     SUBCASE("Setup and Mainline execution") {
         for (int i = 0; i < 5; ++i) cpu.step();
         const auto snapshot = cpu.snapshot();
-        // CHECK(snapshot.program_counter == 12U);
-        // CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);
+        CHECK(snapshot.program_counter == 12U);
+        CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);
     }
 
     SUBCASE("Pin Change and Wake/ISR") {
@@ -97,25 +97,25 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
         auto snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
         
-        // CHECK(snapshot.program_counter == 3U);
-        // CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
-        // CHECK(snapshot.cycles == 11U);
-        // CHECK(snapshot.in_interrupt_handler);
+        CHECK(snapshot.program_counter == 3U);
+        CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
+        CHECK(snapshot.cycles == 11U);
+        CHECK(snapshot.in_interrupt_handler);
 
         cpu.step(); // LDI R19, 0xA5
         snapshot = cpu.snapshot();
-        // CHECK(snapshot.gpr[19] == 0xA5U);
-        // CHECK(snapshot.program_counter == 4U);
+        CHECK(snapshot.gpr[19] == 0xA5U);
+        CHECK(snapshot.program_counter == 4U);
 
         cpu.step(); // RETI
         snapshot = cpu.snapshot();
-        // CHECK(snapshot.program_counter == 12U);
-        // CHECK(snapshot.stack_pointer == ramend);
+        CHECK(snapshot.program_counter == 12U);
+        CHECK(snapshot.stack_pointer == ramend);
         CHECK_FALSE(snapshot.in_interrupt_handler);
 
         cpu.step(); // LDI R18, 0x55
         snapshot = cpu.snapshot();
-        // CHECK(snapshot.gpr[18] == 0x55U);
-        // CHECK(snapshot.program_counter == 14U);
+        CHECK(snapshot.gpr[18] == 0x55U);
+        CHECK(snapshot.program_counter == 14U);
     }
 }

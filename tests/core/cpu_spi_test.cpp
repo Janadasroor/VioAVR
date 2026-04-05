@@ -55,8 +55,8 @@ TEST_CASE("SPI Peripheral Functional Test")
         cpu.step(); // LDI
         cpu.step(); // OUT SPDR -> starts transfer
         
-        // CHECK(spi.busy());
-        // CHECK(spi.last_transmitted_byte() == 0xAA);
+        CHECK(spi.busy());
+        CHECK(spi.last_transmitted_byte() == 0xAA);
 
         // Advance 32 cycles (8 bits * 4 cycles/bit)
         for (int i = 0; i < 32; ++i) {
@@ -120,7 +120,7 @@ TEST_CASE("SPI Peripheral Functional Test")
         spi.inject_miso_byte(0x55);
         spi.trigger_slave_transfer(); // Host triggers the clock
         
-        // CHECK(spi.busy());
+        CHECK(spi.busy());
         
         // Advance 1 cycle (as implemented in trigger_slave_transfer)
         bus.tick_peripherals(1);

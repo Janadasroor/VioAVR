@@ -44,6 +44,7 @@ void GpioPort::reset() noexcept
 void GpioPort::tick(const u64 elapsed_cycles) noexcept
 {
     (void)elapsed_cycles;
+    sample_levels();
 }
 
 u8 GpioPort::read(const u16 address) noexcept
