@@ -110,14 +110,14 @@ TEST_CASE("Watchdog Timer: Interrupt Mode") {
     // WDIF should be set (bit 7)
     CHECK((wdt.read(0x60) & 0x80) != 0);
     // PC should still be in the loop (not vector 25)
-    CHECK(cpu.program_counter() != 25);
+    CHECK(cpu.program_counter() != 6U);
 
     // Now enable interrupts and step once to trigger ISR
     cpu.write_sreg(0x80); // SEI
     cpu.step();
 
-    // PC should be at vector 25 (0x19)
-    CHECK(cpu.program_counter() == 25);
+    // PC should be at vector 6 (WDT)
+    CHECK(cpu.program_counter() == 12U);
     // WDIF should be cleared now by hardware entry
     CHECK((wdt.read(0x60) & 0x80) == 0);
 }
