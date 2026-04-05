@@ -26,6 +26,9 @@ struct AdcDescriptor {
     u16 adcsrb_address {};
     u16 admux_address {};
     u8 vector_index {};
+    u8 adcsra_reset {0x00U};
+    u8 adcsrb_reset {0x00U};
+    u8 admux_reset {0x00U};
     std::array<AdcAutoTriggerSource, 8> auto_trigger_map {};
 };
 
@@ -38,6 +41,9 @@ struct Timer8Descriptor {
     u16 tccra_address {};
     u16 tccrb_address {};
     u16 assr_address {};
+    u8 tccra_reset {0x00U};
+    u8 tccrb_reset {0x00U};
+    u8 assr_reset {0x00U};
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
     u8 overflow_vector_index {};
@@ -68,6 +74,9 @@ struct Uart0Descriptor {
     u16 ucsra_address {};
     u16 ucsrb_address {};
     u16 ucsrc_address {};
+    u8 ucsra_reset {0x00U};
+    u8 ucsrb_reset {0x00U};
+    u8 ucsrc_reset {0x00U};
     u8 rx_vector_index {};
     u8 udre_vector_index {};
     u8 tx_vector_index {};
@@ -86,6 +95,8 @@ struct SpiDescriptor {
     u16 spcr_address {};
     u16 spsr_address {};
     u16 spdr_address {};
+    u8 spcr_reset {0x00U};
+    u8 spsr_reset {0x00U};
     u8 vector_index {};
 };
 
@@ -122,6 +133,9 @@ struct Timer16Descriptor {
     u16 tccra_address {};
     u16 tccrb_address {};
     u16 tccrc_address {};
+    u8 tccra_reset {0x00U};
+    u8 tccrb_reset {0x00U};
+    u8 tccrc_reset {0x00U};
     u8 capture_vector_index {};
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
@@ -156,6 +170,9 @@ struct DeviceDescriptor {
     u16 spl_address {0x005DU};
     u16 sph_address {0x005EU};
     u16 sreg_address {0x005FU};
+    u8 spl_reset {0x00U};
+    u8 sph_reset {0x00U};
+    u8 sreg_reset {0x00U};
     u64 cpu_frequency_hz {16'000'000U};
     AdcDescriptor adc {};
     Timer8Descriptor timer0 {};
@@ -170,6 +187,9 @@ struct DeviceDescriptor {
     TwiDescriptor twi {};
     EepromDescriptor eeprom {};
     WdtDescriptor wdt {};
+    u16 fuse_address {0x0000U};
+    u16 lockbit_address {0x0000U};
+    u16 signature_address {0x0000U};
     std::array<PortDescriptor, 8> ports {}; // Max 8 ports (A..H)
 
     [[nodiscard]] constexpr u16 data_end_address() const noexcept
