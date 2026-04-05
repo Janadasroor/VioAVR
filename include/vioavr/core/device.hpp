@@ -29,7 +29,20 @@ struct AdcDescriptor {
     u8 adcsra_reset {0x00U};
     u8 adcsrb_reset {0x00U};
     u8 admux_reset {0x00U};
+    u16 didr0_address {};
+    std::array<u16, 8> adc_pin_address {};
+    std::array<u8, 8> adc_pin_bit {};
     std::array<AdcAutoTriggerSource, 8> auto_trigger_map {};
+};
+
+struct AnalogComparatorDescriptor {
+    u16 acsr_address {};
+    u16 didr1_address {};
+    u8 vector_index {};
+    u16 ain0_pin_address {};
+    u8 ain0_pin_bit {};
+    u16 ain1_pin_address {};
+    u8 ain1_pin_bit {};
 };
 
 struct Timer8Descriptor {
@@ -179,6 +192,7 @@ struct DeviceDescriptor {
     u8 sreg_reset {0x00U};
     u64 cpu_frequency_hz {16'000'000U};
     AdcDescriptor adc {};
+    AnalogComparatorDescriptor ac {};
     Timer8Descriptor timer0 {};
     Timer8Descriptor timer2 {};
     Timer16Descriptor timer1 {};
