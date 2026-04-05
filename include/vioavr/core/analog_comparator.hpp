@@ -2,6 +2,8 @@
 
 #include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/io_peripheral.hpp"
+#include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/device.hpp"
 
 namespace vioavr::core {
 
@@ -9,6 +11,13 @@ class Adc;
 
 class AnalogComparator final : public IoPeripheral {
 public:
+    AnalogComparator(std::string_view name,
+                     const AnalogComparatorDescriptor& descriptor,
+                     PinMux& pin_mux,
+                     u8 source_id,
+                     double hysteresis = 0.02) noexcept;
+
+    // Legacy constructor for simple tests
     AnalogComparator(std::string_view name,
                      u16 acsr_address,
                      u8 vector_index,
@@ -38,11 +47,12 @@ private:
     void evaluate_output() noexcept;
     void raise_interrupt_flag() noexcept;
     [[nodiscard]] u8 interrupt_mode() const noexcept;
+    void update_pin_ownership() noexcept;
 
     std::string_view name_;
+    AnalogComparatorDescriptor desc_;
+    PinMux* pin_mux_ {};
     AddressRange range_;
-    u16 acsr_address_;
-    u8 vector_index_;
     u8 source_id_;
     double hysteresis_;
     const AnalogSignalBank* signal_bank_ {};
@@ -52,6 +62,7 @@ private:
     double positive_input_ {};
     double negative_input_ {};
     u8 acsr_ {};
+    u8 didr1_ {};
     bool output_high_ {};
     bool pending_ {};
 };

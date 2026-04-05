@@ -14,7 +14,7 @@ TEST_CASE("Analog Comparator Functional Test")
     constexpr u8 comparator_vector = 8U;
 
     MemoryBus bus {atmega328};
-    AnalogComparator comparator {"AC", acsr_addr, comparator_vector, 9U, 0.04};
+    AnalogComparator comparator {"AC", acsr_addr, comparator_vector, 9U, 0.01};
     bus.attach_peripheral(comparator);
     bus.reset();
 

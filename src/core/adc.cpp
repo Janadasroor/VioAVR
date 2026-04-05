@@ -1,8 +1,8 @@
 #include "vioavr/core/adc.hpp"
-
 #include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/timer8.hpp"
+#include "vioavr/core/logger.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -19,26 +19,21 @@ constexpr u8 kAdieMask = 0x08U;
 constexpr u8 kAdlarMask = 0x20U;
 }
 
-Adc::Adc(const std::string_view name,
-         const u16 adcl_address,
-         const u16 adch_address,
-         const u16 adcsra_address,
-         const u16 admux_address,
-         const u16 trigger_select_address,
-         const u8 vector_index,
-         const u8 source_id,
-         const u16 conversion_cycles) noexcept
+Adc::Adc(std::string_view name,
+         const AdcDescriptor& descriptor,
+         PinMux& pin_mux,
+         u8 source_id,
+         u16 conversion_cycles) noexcept
     : name_(name),
-      adcl_address_(adcl_address),
-      adch_address_(adch_address),
-      adcsra_address_(adcsra_address),
-      admux_address_(admux_address),
-      trigger_select_address_(trigger_select_address),
-      vector_index_(vector_index),
+      desc_(descriptor),
+      pin_mux_(&pin_mux),
       source_id_(source_id),
       conversion_cycles_(conversion_cycles)
 {
-    std::vector<u16> addrs = {adcl_address, adch_address, adcsra_address, admux_address, trigger_select_address};
+    std::vector<u16> addrs = { 
+        desc_.adcl_address, desc_.adch_address, desc_.adcsra_address, 
+        desc_.adcsrb_address, desc_.admux_address, desc_.didr0_address
+    };
     std::sort(addrs.begin(), addrs.end());
     
     size_t ri = 0;
@@ -51,277 +46,223 @@ Adc::Adc(const std::string_view name,
              ranges_[ri++] = AddressRange{addrs[i], addrs[i]};
         }
     }
+    trigger_select_register_ = (desc_.adcsrb_address != 0U) ? 1U : 0U;
 }
 
-Adc::Adc(const std::string_view name, const DeviceDescriptor& device, const u8 source_id, const u16 conversion_cycles) noexcept
-    : Adc(
-          name,
-          device.adc.adcl_address,
-          device.adc.adch_address,
-          device.adc.adcsra_address,
-          device.adc.admux_address,
-          device.adc.adcsrb_address,
-          device.adc.vector_index,
-          source_id,
-          conversion_cycles
-      )
+Adc::Adc(std::string_view name, const DeviceDescriptor& device, u8 source_id, u16 conversion_cycles) noexcept
+    : Adc(name, device.adc, *new PinMux(8), source_id, conversion_cycles) 
 {
-    device_ = &device;
+    // WARNING: This leak is intentional for dummy tests that don't pass a PinMux.
+    // Real VioSpice provides the PinMux.
 }
 
-std::string_view Adc::name() const noexcept
-{
-    return "adc";
-}
+std::string_view Adc::name() const noexcept { return name_; }
 
-std::span<const AddressRange> Adc::mapped_ranges() const noexcept
-{
+std::span<const AddressRange> Adc::mapped_ranges() const noexcept {
     size_t count = 0;
     while (count < ranges_.size() && ranges_[count].begin != 0) count++;
     return {ranges_.data(), count};
 }
 
-void Adc::reset() noexcept
-{
-    adcsra_ = 0U;
-    admux_ = 0U;
-    trigger_select_register_ = 0U;
-    result_ = 0U;
-    cycles_remaining_ = 0U;
-    update_auto_trigger_source_from_register();
+void Adc::reset() noexcept {
+    adcsra_ = desc_.adcsra_reset;
+    adcsrb_ = desc_.adcsrb_reset;
+    admux_ = desc_.admux_reset;
+    didr0_ = 0x00U;
+    result_ = 0x00U;
     converting_ = false;
     pending_ = false;
+    cycles_remaining_ = 0;
+    update_pin_ownership();
 }
 
-void Adc::tick(u64 elapsed_cycles) noexcept
-{
-    if (!converting_) {
-        return;
-    }
+void Adc::tick(u64 elapsed_cycles) noexcept {
+    if (!converting_ || (adcsra_ & kAdenMask) == 0U) return;
 
-    while (elapsed_cycles > 0U && converting_) {
-        if (elapsed_cycles >= cycles_remaining_) {
-            elapsed_cycles -= cycles_remaining_;
-            cycles_remaining_ = 0U;
-            complete_conversion();
-        } else {
-            cycles_remaining_ = static_cast<u16>(cycles_remaining_ - elapsed_cycles);
-            elapsed_cycles = 0U;
-        }
+    if (elapsed_cycles >= cycles_remaining_) {
+        complete_conversion();
+    } else {
+        cycles_remaining_ -= static_cast<u16>(elapsed_cycles);
     }
 }
 
-u8 Adc::read(const u16 address) noexcept
-{
-    if (address == adcl_address_) {
-        return static_cast<u8>(result_ & 0x00FFU);
-    }
-    if (address == adch_address_) {
-        if ((admux_ & kAdlarMask) != 0U) {
-            return static_cast<u8>((result_ >> 2U) & 0x00FFU);
-        }
-        return static_cast<u8>((result_ >> 8U) & 0x03U);
-    }
-    if (address == adcsra_address_) {
-        return adcsra_;
-    }
-    if (address == admux_address_) {
-        return admux_;
-    }
-    if (address == trigger_select_address_) {
-        return trigger_select_register_;
-    }
-    return 0U;
+u8 Adc::read(u16 address) noexcept {
+    if (address == desc_.adcl_address) return static_cast<u8>(result_ & 0xFFU);
+    if (address == desc_.adch_address) return static_cast<u8>((result_ >> 8U) & 0xFFU);
+    if (address == desc_.adcsra_address) return adcsra_;
+    if (address == desc_.adcsrb_address) return adcsrb_;
+    if (address == desc_.admux_address) return admux_;
+    if (address == desc_.didr0_address) return didr0_;
+    return 0x00U;
 }
 
-void Adc::write(const u16 address, const u8 value) noexcept
-{
-    if (address == adcl_address_ || address == adch_address_) {
-        return;
-    }
-    if (address == admux_address_) {
-        admux_ = value;
-        return;
-    }
-    if (address == trigger_select_address_) {
-        trigger_select_register_ = value;
-        update_auto_trigger_source_from_register();
-        return;
-    }
-    if (address == adcsra_address_) {
-        const bool start_requested = (value & kAdscMask) != 0U;
-        const bool was_running = converting_;
-
-        adcsra_ = static_cast<u8>((adcsra_ & kAdifMask) | (value & static_cast<u8>(~kAdifMask)));
-        if ((value & kAdifMask) != 0U) {
-            adcsra_ &= static_cast<u8>(~kAdifMask);
-            pending_ = false;
+void Adc::write(u16 address, u8 value) noexcept {
+    if (address == desc_.adcsra_address) {
+        const bool was_enabled = (adcsra_ & kAdenMask);
+        const bool next_enabled = (value & kAdenMask);
+        
+        // ADIF is cleared by writing 1
+        if (value & kAdifMask) {
+            adcsra_ &= ~kAdifMask;
         }
-        if (start_requested && !was_running && (adcsra_ & kAdenMask) != 0U) {
+        
+        // Update components of ADCSRA except ADIF which was handled above
+        adcsra_ = (adcsra_ & kAdifMask) | (value & ~kAdifMask);
+        
+        if (!was_enabled && next_enabled) {
+            update_pin_ownership();
+        } else if (was_enabled && !next_enabled) {
+            update_pin_ownership();
+            converting_ = false;
+        }
+
+        if (next_enabled && (value & kAdscMask)) {
             start_conversion();
         }
+    } else if (address == desc_.admux_address) {
+        admux_ = value;
+    } else if (address == desc_.adcsrb_address) {
+        adcsrb_ = value;
+        update_auto_trigger_source_from_register();
+    } else if (address == desc_.didr0_address) {
+        didr0_ = value;
+        update_pin_ownership();
     }
 }
 
-bool Adc::pending_interrupt_request(InterruptRequest& request) const noexcept
-{
-    if (pending_ && (adcsra_ & kAdieMask) != 0U) {
-        request = {.vector_index = vector_index_, .source_id = source_id_};
+bool Adc::pending_interrupt_request(InterruptRequest& request) const noexcept {
+    if ((adcsra_ & kAdieMask) && (adcsra_ & kAdifMask)) {
+        request.vector_index = desc_.vector_index;
         return true;
     }
     return false;
 }
 
-bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept
-{
-    if (!pending_interrupt_request(request)) {
-        return false;
-    }
-
-    if (request.vector_index == vector_index_) {
-        pending_ = false;
-        adcsra_ &= static_cast<u8>(~kAdifMask);
+bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
+    if (pending_interrupt_request(request)) {
+        adcsra_ &= ~kAdifMask; // Clear flag on entry
         return true;
     }
     return false;
 }
 
-void Adc::bind_signal_bank(const AnalogSignalBank& signal_bank) noexcept
-{
-    signal_bank_ = &signal_bank;
+void Adc::start_conversion() noexcept {
+    if (!(adcsra_ & kAdenMask)) return;
+    
+    converting_ = true;
+    cycles_remaining_ = conversion_cycles_;
+    adcsra_ |= kAdscMask;
 }
 
-void Adc::select_auto_trigger_source(const AutoTriggerSource source) noexcept
-{
-    trigger_select_register_ = static_cast<u8>(
-        (trigger_select_register_ & static_cast<u8>(~0x07U)) | (static_cast<u8>(source) & 0x07U)
-    );
-    update_auto_trigger_source_from_register();
-}
-
-void Adc::connect_comparator_auto_trigger(AnalogComparator& comparator) noexcept
-{
-    select_auto_trigger_source(AutoTriggerSource::comparator);
-    comparator.connect_adc_auto_trigger(*this);
-}
-
-void Adc::connect_external_interrupt_0_auto_trigger(ExtInterrupt& ext_interrupt) noexcept
-{
-    select_auto_trigger_source(AutoTriggerSource::external_interrupt_0);
-    ext_interrupt.connect_adc_auto_trigger(*this);
-}
-
-void Adc::connect_timer_compare_auto_trigger(Timer8& timer) noexcept
-{
-    select_auto_trigger_source(AutoTriggerSource::timer_compare);
-    timer.connect_adc_auto_trigger(*this);
-}
-
-void Adc::connect_timer_overflow_auto_trigger(Timer8& timer) noexcept
-{
-    select_auto_trigger_source(AutoTriggerSource::timer_overflow);
-    timer.connect_adc_overflow_auto_trigger(*this);
-}
-
-void Adc::set_channel_voltage(const u8 channel, const double normalized_voltage) noexcept
-{
-    if (channel >= local_channel_voltage_.size()) {
-        return;
+void Adc::complete_conversion() noexcept {
+    const u8 channel = selected_channel();
+    double voltage = 0.0;
+    if (signal_bank_) {
+        voltage = signal_bank_->voltage(channel);
+    } else if (channel < local_channel_voltage_.size()) {
+        voltage = local_channel_voltage_[channel];
     }
 
-    local_channel_voltage_[channel] = std::clamp(normalized_voltage, 0.0, 1.0);
-}
+    result_ = static_cast<u16>(std::clamp(voltage * 1024.0, 0.0, 1023.0));
+    
+    adcsra_ &= ~kAdscMask;
+    adcsra_ |= kAdifMask;
+    converting_ = false;
 
-void Adc::notify_auto_trigger(const AutoTriggerSource source) noexcept
-{
-    if (source == auto_trigger_source_ && auto_trigger_enabled() && !converting_) {
+    // Check for free-running mode restart
+    if (free_running_enabled()) {
         start_conversion();
     }
 }
 
-bool Adc::auto_trigger_enabled() const noexcept
-{
-    return (adcsra_ & static_cast<u8>(kAdenMask | kAdateMask)) == static_cast<u8>(kAdenMask | kAdateMask);
+u8 Adc::selected_channel() const noexcept {
+    return admux_ & 0x07U; // Simplified 3-bit channel select
 }
 
-bool Adc::free_running_enabled() const noexcept
-{
-    return auto_trigger_enabled() && auto_trigger_source_ == AutoTriggerSource::free_running;
-}
+void Adc::update_pin_ownership() noexcept {
+    if (!pin_mux_) return;
 
-Adc::AutoTriggerSource Adc::resolve_auto_trigger_source(const u8 selector) const noexcept
-{
-    // Use device auto_trigger_map if available and non-empty, otherwise use defaults
-    const bool has_valid_map = device_ != nullptr && device_->adc.auto_trigger_map[1] != AdcAutoTriggerSource{};
-    const auto map = has_valid_map ? device_->adc.auto_trigger_map
-                                        : std::array<AdcAutoTriggerSource, 8> {
-                                              AdcAutoTriggerSource::free_running,
-                                              AdcAutoTriggerSource::analog_comparator,
-                                              AdcAutoTriggerSource::external_interrupt_0,
-                                              AdcAutoTriggerSource::timer0_compare,
-                                              AdcAutoTriggerSource::timer0_overflow,
-                                              AdcAutoTriggerSource::timer1_compare_b,
-                                              AdcAutoTriggerSource::timer1_overflow,
-                                              AdcAutoTriggerSource::timer1_capture
-                                          };
+    const bool enabled = (adcsra_ & kAdenMask);
+    for (u8 i = 0; i < 8; ++i) {
+        const u16 pin_addr = desc_.adc_pin_address[i];
+        const u8 pin_bit = desc_.adc_pin_bit[i];
+        if (pin_addr == 0) continue;
 
-    switch (map[selector & 0x07U]) {
-    case AdcAutoTriggerSource::free_running:
-        return AutoTriggerSource::free_running;
-    case AdcAutoTriggerSource::analog_comparator:
-        return AutoTriggerSource::comparator;
-    case AdcAutoTriggerSource::external_interrupt_0:
-        return AutoTriggerSource::external_interrupt_0;
-    case AdcAutoTriggerSource::timer0_compare:
-        return AutoTriggerSource::timer_compare;
-    case AdcAutoTriggerSource::timer0_overflow:
-        return AutoTriggerSource::timer_overflow;
-    default:
-        return AutoTriggerSource::none;
+        const bool disabled_digitally = (didr0_ & (1U << i));
+        if (enabled && disabled_digitally) {
+            pin_mux_->claim_pin_by_address(pin_addr, pin_bit, PinOwner::adc);
+        } else {
+            pin_mux_->release_pin_by_address(pin_addr, pin_bit, PinOwner::adc);
+        }
     }
 }
 
-void Adc::update_auto_trigger_source_from_register() noexcept
-{
-    auto_trigger_source_ = resolve_auto_trigger_source(trigger_select_register_);
+void Adc::bind_signal_bank(const AnalogSignalBank& signal_bank) noexcept {
+    signal_bank_ = &signal_bank;
 }
 
-void Adc::start_conversion() noexcept
-{
-    if (converting_) return;
-    converting_ = true;
-    cycles_remaining_ = conversion_cycles_;
-    adcsra_ |= kAdscMask;
-    adcsra_ &= static_cast<u8>(~kAdifMask);
-    pending_ = false;
+void Adc::select_auto_trigger_source(AutoTriggerSource source) noexcept {
+    auto_trigger_source_ = source;
 }
 
-void Adc::restart_free_running_conversion() noexcept
-{
-    converting_ = true;
-    cycles_remaining_ = conversion_cycles_;
-    adcsra_ |= kAdscMask;
+void Adc::connect_comparator_auto_trigger(AnalogComparator& comparator) noexcept {
+    comparator.connect_adc_auto_trigger(*this);
 }
 
-void Adc::complete_conversion() noexcept
-{
-    converting_ = false;
-    adcsra_ &= static_cast<u8>(~kAdscMask);
-    adcsra_ |= kAdifMask;
-    pending_ = true;
+void Adc::connect_external_interrupt_0_auto_trigger(ExtInterrupt& ext_interrupt) noexcept {
+    ext_interrupt.connect_adc_auto_trigger(*this);
+}
 
-    const u8 channel = selected_channel();
-    const double voltage = signal_bank_ != nullptr ? signal_bank_->voltage(channel) : local_channel_voltage_[channel];
-    result_ = static_cast<u16>(std::lround(voltage * 1023.0));
+void Adc::connect_timer_compare_auto_trigger(Timer8& timer) noexcept {
+    timer.connect_adc_auto_trigger(*this);
+}
 
+void Adc::connect_timer_overflow_auto_trigger(Timer8& timer) noexcept {
+    timer.connect_adc_overflow_auto_trigger(*this);
+}
+
+void Adc::set_channel_voltage(u8 channel, double normalized_voltage) noexcept {
+    if (channel < local_channel_voltage_.size()) {
+        local_channel_voltage_[channel] = normalized_voltage;
+    }
+}
+
+bool Adc::auto_trigger_enabled() const noexcept {
+    return (adcsra_ & 0x20U) != 0;
+}
+
+bool Adc::free_running_enabled() const noexcept {
+    return auto_trigger_enabled() && (auto_trigger_source_ == AutoTriggerSource::free_running);
+}
+
+Adc::AutoTriggerSource Adc::resolve_auto_trigger_source(u8 selector) const noexcept {
+    static const AutoTriggerSource sources[] = {
+        AutoTriggerSource::free_running,
+        AutoTriggerSource::comparator,
+        AutoTriggerSource::external_interrupt_0,
+        AutoTriggerSource::timer_compare,
+        AutoTriggerSource::timer_overflow,
+        AutoTriggerSource::timer1_compare_b,
+        AutoTriggerSource::timer1_overflow,
+        AutoTriggerSource::timer1_capture
+    };
+    return sources[selector & 0x07U];
+}
+
+void Adc::update_auto_trigger_source_from_register() noexcept {
+    auto_trigger_source_ = resolve_auto_trigger_source(adcsrb_ & 0x07U);
+}
+
+void Adc::restart_free_running_conversion() noexcept {
     if (free_running_enabled()) {
-        restart_free_running_conversion();
+        start_conversion();
     }
 }
 
-u8 Adc::selected_channel() const noexcept
-{
-    return static_cast<u8>(admux_ & 0x07U);
+void Adc::notify_auto_trigger(AutoTriggerSource source) noexcept {
+    if (auto_trigger_enabled() && source == auto_trigger_source_) {
+        start_conversion();
+    }
 }
 
-}  // namespace vioavr::core
+} // namespace vioavr::core

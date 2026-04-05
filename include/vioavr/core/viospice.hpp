@@ -5,6 +5,7 @@
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/sync_engine.hpp"
 #include "vioavr/core/pin_map.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/timer8.hpp"
 
@@ -49,10 +50,12 @@ public:
     [[nodiscard]] AvrCpu& cpu() noexcept { return cpu_; }
     [[nodiscard]] MemoryBus& bus() noexcept { return bus_; }
     [[nodiscard]] AnalogSignalBank& analog_signal_bank() noexcept { return analog_signal_bank_; }
+    [[nodiscard]] PinMux& pin_mux() noexcept { return pin_mux_; }
 
 private:
     [[nodiscard]] bool is_timer2_async_input(std::string_view port_name, u8 bit_index) const noexcept;
 
+    PinMux pin_mux_;
     MemoryBus bus_;
     AvrCpu cpu_;
     AnalogSignalBank analog_signal_bank_;

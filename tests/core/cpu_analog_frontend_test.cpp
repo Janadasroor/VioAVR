@@ -27,10 +27,11 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     signals.set_voltage(1U, 0.70);
 
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
+    PinMux pin_mux {8};
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
     adc0.bind_signal_bank(signals);
     
-    AnalogComparator comparator {"AC", acsr, comparator_vector, 9U, 1.1}; // Refactored bandgap
+    AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 0.0}; // Disable hysteresis for deterministic test
     comparator.bind_signal_bank(signals, 0U, 1U);
     
     bus.attach_peripheral(adc0);

@@ -36,7 +36,7 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
     constexpr u8 comparator_vector = 8U;
 
     MemoryBus bus {atmega328};
-    AnalogComparator comparator {"AC", acsr_addr, comparator_vector, 9U, 0.04};
+    AnalogComparator comparator {"AC", acsr_addr, comparator_vector, 9U, 0.01};
     comparator.set_negative_input_voltage(0.80);
     comparator.set_positive_input_voltage(0.20);
     bus.attach_peripheral(comparator);

@@ -481,6 +481,7 @@ bool AvrCpu::service_interrupt_if_needed()
     set_flag(SregFlag::interrupt, false);
     program_counter_ = interrupt_vector_word_address(request.vector_index);
     interrupt_pending_ = false;
+    state_ = CpuState::running;
     ++interrupt_depth_;
     advance_cycles(4U);
     return true;
