@@ -49,7 +49,8 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
     
     MemoryBus bus {atmega328};
     GpioPort port_b {"PORTB", pinb, ddrb, portb};
-    PinChangeInterrupt pci0 {"PCINT0", atmega328.pin_change_interrupt_0, port_b};
+    PinChangeInterruptDescriptor pci0_desc { .pcicr_address = 0x68U, .pcifr_address = 0x3BU, .pcmsk_address = 0x6BU, .pcicr_enable_mask = 0x01U, .pcifr_flag_mask = 0x01U, .vector_index = 3U };
+    PinChangeInterrupt pci0 {"PCINT0", pci0_desc, port_b};
     
     bus.attach_peripheral(port_b);
     bus.attach_peripheral(pci0);
@@ -63,9 +64,9 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
             encode_ldi(19U, 0xA5U),   // 3 ISR body
             kReti,                    // 4
             encode_ldi(16U, 0x04U),   // 5 mask PB2
-            encode_sts(16U), atmega328.pin_change_interrupt_0.pcmsk_address,  // 6,7
+            encode_sts(16U), 0x6BU,  // 6,7
             encode_ldi(17U, 0x01U),   // 8 enable group
-            encode_sts(17U), atmega328.pin_change_interrupt_0.pcicr_address,   // 9,10
+            encode_sts(17U), 0x68U,   // 9,10
             kSei,                     // 11
             kNop,                     // 12 interrupted point
             encode_ldi(18U, 0x55U),   // 13 mainline after ISR
@@ -96,7 +97,7 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
         auto snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
         
-        CHECK(snapshot.program_counter == atmega328.pin_change_interrupt_0.vector_index);
+        CHECK(snapshot.program_counter == 3U);
         CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
         CHECK(snapshot.cycles == 11U);
         CHECK(snapshot.in_interrupt_handler);

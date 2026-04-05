@@ -24,7 +24,8 @@ TEST_CASE("Pin Change Interrupt Logic Test")
     
     MemoryBus bus {atmega328};
     GpioPort port_b {"PORTB", pinb, ddrb, portb};
-    PinChangeInterrupt pci0 {"PCINT0", atmega328.pin_change_interrupt_0, port_b};
+    PinChangeInterruptDescriptor pci0_desc { .pcicr_address = 0x68U, .pcifr_address = 0x3BU, .pcmsk_address = 0x6BU, .pcicr_enable_mask = 0x01U, .pcifr_flag_mask = 0x01U, .vector_index = 3U };
+    PinChangeInterrupt pci0 {"PCINT0", pci0_desc, port_b};
     
     bus.attach_peripheral(port_b);
     bus.attach_peripheral(pci0);
@@ -33,8 +34,8 @@ TEST_CASE("Pin Change Interrupt Logic Test")
     InterruptRequest request {};
 
     SUBCASE("Toggle pin and check interrupt") {
-        bus.write_data(atmega328.pin_change_interrupt_0.pcmsk_address, 0x04U); // PB2
-        bus.write_data(atmega328.pin_change_interrupt_0.pcicr_address, 0x01U); // PCIE0
+        bus.write_data(0x6BU, 0x04U); // PB2
+        bus.write_data(0x68U, 0x01U); // PCIE0
         
         port_b.set_input_levels(0x00U);
         bus.tick_peripherals(1U);
@@ -42,33 +43,35 @@ TEST_CASE("Pin Change Interrupt Logic Test")
         bus.tick_peripherals(1U);
         
         CHECK(bus.pending_interrupt_request(request));
-        CHECK(request.vector_index == atmega328.pin_change_interrupt_0.vector_index);
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x01U);
+        CHECK(request.vector_index == 3U);
+        CHECK(bus.read_data(0x3BU) == 0x01U);
 
         CHECK(bus.consume_interrupt_request(request));
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x00U);
+        CHECK(bus.read_data(0x3BU) == 0x00U);
     }
 
     SUBCASE("Clear flag by writing 1") {
-        bus.write_data(atmega328.pin_change_interrupt_0.pcmsk_address, 0x04U);
-        bus.write_data(atmega328.pin_change_interrupt_0.pcicr_address, 0x01U);
+        bus.write_data(0x6BU, 0x04U);
+        bus.write_data(0x68U, 0x01U);
         
+        port_b.set_input_levels(0xFFU);
+        bus.tick_peripherals(1U);
         port_b.set_input_levels(0x00U);
         bus.tick_peripherals(1U);
         
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x01U);
-        bus.write_data(atmega328.pin_change_interrupt_0.pcifr_address, 0x01U);
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x00U);
+        CHECK(bus.read_data(0x3BU) == 0x01U);
+        bus.write_data(0x3BU, 0x01U);
+        CHECK(bus.read_data(0x3BU) == 0x00U);
         CHECK_FALSE(bus.pending_interrupt_request(request));
     }
 
     SUBCASE("Disable mask then toggle") {
-        bus.write_data(atmega328.pin_change_interrupt_0.pcmsk_address, 0x00U);
+        bus.write_data(0x6BU, 0x00U);
         
         port_b.set_input_levels(0x04U);
         bus.tick_peripherals(1U);
         
         CHECK_FALSE(bus.pending_interrupt_request(request));
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x00U);
+        CHECK(bus.read_data(0x3BU) == 0x00U);
     }
 }

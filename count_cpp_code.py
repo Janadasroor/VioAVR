@@ -137,62 +137,48 @@ def count_cpp_code(root_dir, exclude_comments=False):
         'comment_lines': 0,
         'blank_lines': 0,
         'auto_generated_excluded': 0,
-        'device_header_files': 0,
-        'device_header_lines': 0,
-        'device_header_code': 0,
-        'device_header_comments': 0,
-        'device_header_blanks': 0,
         'files': []
     }
 
     for scan_root in scan_dirs:
         for dirpath, dirnames, filenames in os.walk(scan_root):
-        # Exclude directories
-        dirnames[:] = [
-            d for d in dirnames 
-            if d not in EXCLUDE_DIRS and not d.startswith('.')
-        ]
+            # Exclude directories
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in EXCLUDE_DIRS and not d.startswith('.')
+            ]
 
-        for filename in sorted(filenames):
-            filepath = os.path.join(dirpath, filename)
-            ext = os.path.splitext(filename)[1]
+            for filename in sorted(filenames):
+                filepath = os.path.join(dirpath, filename)
+                ext = os.path.splitext(filename)[1]
 
-            if ext not in CPP_EXTENSIONS:
-                continue
+                if ext not in CPP_EXTENSIONS:
+                    continue
 
-            if should_exclude_file(filepath):
-                continue
+                if should_exclude_file(filepath):
+                    continue
 
-            if is_auto_generated(filepath):
-                stats['auto_generated_excluded'] += 1
-                continue
+                if is_auto_generated(filepath):
+                    stats['auto_generated_excluded'] += 1
+                    continue
 
-            file_stats = count_lines_in_file(filepath, exclude_comments)
-            if file_stats['total'] > 0:
-                rel_path = os.path.relpath(filepath, root_dir)
-                is_device_header = rel_path.startswith('atmega/')
+                file_stats = count_lines_in_file(filepath, exclude_comments)
+                if file_stats['total'] > 0:
+                    rel_path = os.path.relpath(filepath, root_dir)
 
-                stats['total_files'] += 1
-                stats['total_lines'] += file_stats['total']
-                stats['code_lines'] += file_stats['code']
-                stats['comment_lines'] += file_stats['comments']
-                stats['blank_lines'] += file_stats['blanks']
+                    stats['total_files'] += 1
+                    stats['total_lines'] += file_stats['total']
+                    stats['code_lines'] += file_stats['code']
+                    stats['comment_lines'] += file_stats['comments']
+                    stats['blank_lines'] += file_stats['blanks']
 
-                if is_device_header:
-                    stats['device_header_files'] += 1
-                    stats['device_header_lines'] += file_stats['total']
-                    stats['device_header_code'] += file_stats['code']
-                    stats['device_header_comments'] += file_stats['comments']
-                    stats['device_header_blanks'] += file_stats['blanks']
-
-                stats['files'].append({
-                    'path': rel_path,
-                    'code': file_stats['code'],
-                    'comments': file_stats['comments'],
-                    'blanks': file_stats['blanks'],
-                    'total': file_stats['total'],
-                    'is_device_header': is_device_header
-                })
+                    stats['files'].append({
+                        'path': rel_path,
+                        'code': file_stats['code'],
+                        'comments': file_stats['comments'],
+                        'blanks': file_stats['blanks'],
+                        'total': file_stats['total']
+                    })
 
     return stats
 
@@ -210,36 +196,12 @@ def print_stats(stats, exclude_comments=False):
     print("-" * 90)
 
     for file_info in sorted_files:
-        marker = " [DEV]" if file_info['is_device_header'] else ""
-        print(f"{file_info['path']:<60} {file_info['code']:>6} {file_info['comments']:>9} {file_info['blanks']:>7} {file_info['total']:>6}{marker}")
+        print(f"{file_info['path']:<60} {file_info['code']:>6} {file_info['comments']:>9} {file_info['blanks']:>7} {file_info['total']:>6}")
 
     print("-" * 90)
 
-    # Device header files summary
-    print(f"\nDevice Header Files (atmega/):")
-    print(f"  Files:                   {stats['device_header_files']}")
-    print(f"  Total lines:             {stats['device_header_lines']}")
-    print(f"  Code lines:              {stats['device_header_code']}")
-    print(f"  Comment lines:           {stats['device_header_comments']}")
-    print(f"  Blank lines:             {stats['device_header_blanks']}")
-
-    # Hand-written code (excluding device headers)
-    handwritten_files = stats['total_files'] - stats['device_header_files']
-    handwritten_lines = stats['total_lines'] - stats['device_header_lines']
-    handwritten_code = stats['code_lines'] - stats['device_header_code']
-    handwritten_comments = stats['comment_lines'] - stats['device_header_comments']
-    handwritten_blanks = stats['blank_lines'] - stats['device_header_blanks']
-
-    print(f"\nHand-written Code (excluding device headers):")
-    print(f"  Files:                   {handwritten_files}")
-    print(f"  Total lines:             {handwritten_lines}")
-    print(f"  Code lines:              {handwritten_code}")
-    print(f"  Comment lines:           {handwritten_comments}")
-    print(f"  Blank lines:             {handwritten_blanks}")
-
-    print(f"\nOverall Summary:")
-    print(f"  Total files analyzed:    {stats['total_files']}")
-    print(f"  Auto-generated excluded: {stats['auto_generated_excluded']}")
+    print(f"\nHand-written C++ Code (src/ + include/):")
+    print(f"  Files:                   {stats['total_files']}")
     print(f"  Total lines:             {stats['total_lines']}")
     print(f"  Code lines:              {stats['code_lines']}")
     print(f"  Comment lines:           {stats['comment_lines']}")
@@ -248,10 +210,6 @@ def print_stats(stats, exclude_comments=False):
     if stats['total_lines'] > 0:
         print(f"\n  Code percentage:         {stats['code_lines']/stats['total_lines']*100:.1f}%")
         print(f"  Comment percentage:      {stats['comment_lines']/stats['total_lines']*100:.1f}%")
-
-    if handwritten_lines > 0:
-        print(f"\n  Hand-written code %:     {handwritten_code/handwritten_lines*100:.1f}%")
-        print(f"  Hand-written comment %:  {handwritten_comments/handwritten_lines*100:.1f}%")
 
     print("=" * 80 + "\n")
 
@@ -283,15 +241,9 @@ def main():
 
     if stats:
         if args.summary_only:
-            handwritten_code = stats['code_lines'] - stats['device_header_code']
-            handwritten_files = stats['total_files'] - stats['device_header_files']
-            print(f"\nTotal C++ code lines (all):      {stats['code_lines']}")
-            print(f"Device header code lines:        {stats['device_header_code']}")
-            print(f"Hand-written code lines:         {handwritten_code}")
-            print(f"Total comment lines:             {stats['comment_lines']}")
-            print(f"Total files:                     {stats['total_files']}")
-            print(f"Device header files:             {stats['device_header_files']}")
-            print(f"Hand-written files:              {handwritten_files}\n")
+            print(f"\nHand-written C++ code lines:     {stats['code_lines']}")
+            print(f"Comment lines:                   {stats['comment_lines']}")
+            print(f"Total files:                     {stats['total_files']}\n")
         else:
             print_stats(stats, args.exclude_comments)
 

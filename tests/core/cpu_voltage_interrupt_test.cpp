@@ -27,7 +27,17 @@ TEST_CASE("CPU Voltage and Ext/PinChange Interrupt Test")
     MemoryBus bus {atmega328};
     GpioPort port_b {"PORTB", pinb, ddrb, portb};
     ExtInterrupt exti {"EXTINT", atmega328, 4U};
-    PinChangeInterrupt pci0 {"PCINT0", atmega328.pin_change_interrupt_0, port_b};
+    
+    // PCICR=0x68, PCIFR=0x3B, PCMSK0=0x6B (from ATmega328P datasheet)
+    PinChangeInterruptDescriptor pci0_desc {
+        .pcicr_address = 0x68U,
+        .pcifr_address = 0x3BU,
+        .pcmsk_address = 0x6BU,
+        .pcicr_enable_mask = 0x01U,
+        .pcifr_flag_mask = 0x01U,
+        .vector_index = 3U
+    };
+    PinChangeInterrupt pci0 {"PCINT0", pci0_desc, port_b};
     
     bus.attach_peripheral(port_b);
     bus.attach_peripheral(exti);
@@ -52,20 +62,21 @@ TEST_CASE("CPU Voltage and Ext/PinChange Interrupt Test")
     }
 
     SUBCASE("Pin Change Interrupt via Voltage") {
-        bus.write_data(atmega328.pin_change_interrupt_0.pcmsk_address, 0x04U); // PB2
-        bus.write_data(atmega328.pin_change_interrupt_0.pcicr_address, 0x01U); // PCIE0
+        // PCICR=0x68, PCIFR=0x3B, PCMSK0=0x6B (from ATmega328P datasheet)
+        bus.write_data(0x6BU, 0x04U); // PCMSK0: PB2
+        bus.write_data(0x68U, 0x01U); // PCICR: PCIE0
         
         port_b.set_input_voltage(2U, 0.2); // Start LOW
         bus.tick_peripherals(1U);
-        port_b.set_input_voltage(2U, 0.4); // Still LOW (assuming 0.5 threshold)
+        port_b.set_input_voltage(2U, 0.4); // Still LOW (hysteresis)
         bus.tick_peripherals(1U);
         
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x00U);
+        CHECK(bus.read_data(0x3BU) == 0x00U); // PCIFR should be clear
 
         port_b.set_input_voltage(2U, 0.8); // Transition to HIGH
         bus.tick_peripherals(1U);
         
         // PCIF0 should be set
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x01U);
+        CHECK(bus.read_data(0x3BU) == 0x01U);
     }
 }
