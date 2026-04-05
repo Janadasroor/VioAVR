@@ -18,6 +18,7 @@ target_sources(vioavr_core
         io_peripheral.cpp
         memory_bus.cpp
         pin_change_interrupt.cpp
+        pin_mux.cpp
         register_file.cpp
         spi.cpp
 

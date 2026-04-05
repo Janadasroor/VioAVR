@@ -4,6 +4,7 @@
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/uart0.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
@@ -12,19 +13,22 @@
 namespace vioavr::core {
 
 VioSpice::VioSpice(const DeviceDescriptor& device)
-    : bus_(device), cpu_(bus_)
+    : pin_mux_(8), bus_(device), cpu_(bus_)
 {
     pin_map_ = std::make_unique<PinMap>();
     bus_.set_pin_map(pin_map_.get());
 
-    // In a production version, this would be factory-driven from metadata
     auto eeprom = std::make_unique<Eeprom>("EEPROM", bus_.device());
     auto timer0 = std::make_unique<Timer8>("TIMER0", bus_.device().timer0);
     auto timer2 = std::make_unique<Timer8>("TIMER2", bus_.device().timer2);
     auto timer1 = std::make_unique<Timer16>("TIMER1", bus_.device().timer1);
     
-    auto adc = std::make_unique<Adc>("ADC", bus_.device(), 0, 13);
-    adc->bind_signal_bank(analog_signal_bank_); // BIND THE BANK
+    // Pass pin_mux_ to Adc and AnalogComparator
+    auto adc = std::make_unique<Adc>("ADC", bus_.device().adc, pin_mux_, 0, 13);
+    adc->bind_signal_bank(analog_signal_bank_);
+    
+    auto ac = std::make_unique<AnalogComparator>("AC", bus_.device().ac, pin_mux_, 0);
+    ac->bind_signal_bank(analog_signal_bank_, 0, 1);
     
     auto uart0 = std::make_unique<Uart0>("UART0", bus_.device());
     auto exint = std::make_unique<ExtInterrupt>("EXINT", bus_.device(), 0);
@@ -33,7 +37,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     timer2->set_bus(bus_);
     timer2_ = timer2.get();
 
-    // Dynamic GPIO Port initialization from DeviceDescriptor
+    // Port/Pin wiring
     GpioPort* port_b = nullptr;
     GpioPort* port_c = nullptr;
     GpioPort* port_d = nullptr;
@@ -48,12 +52,18 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             if (port_desc.name == "PORTB") port_b = port.get();
             if (port_desc.name == "PORTC") port_c = port.get();
             if (port_desc.name == "PORTD") port_d = port.get();
+            
+            // Port index is assumed from sequence (A=0, B=1...)
+            // In a better version we'd use a more robust mapping.
+            static u8 next_port_idx = 0;
+            pin_mux_.register_port(port->pin_address(), next_port_idx++);
+            
             bus_.attach_peripheral(*port.release());
         }
     }
 
     auto bind_timer8_outputs = [](Timer8& timer, const Timer8Descriptor& desc,
-                                  GpioPort* port_b, GpioPort* port_c, GpioPort* port_d) {
+                                   GpioPort* port_b, GpioPort* port_c, GpioPort* port_d) {
         auto resolve_port = [&](const u16 pin_address) -> GpioPort* {
             if (port_b != nullptr && pin_address == port_b->pin_address()) return port_b;
             if (port_c != nullptr && pin_address == port_c->pin_address()) return port_c;
@@ -72,12 +82,12 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     bind_timer8_outputs(*timer0, bus_.device().timer0, port_b, port_c, port_d);
     bind_timer8_outputs(*timer2, bus_.device().timer2, port_b, port_c, port_d);
 
-    // Attach peripherals after descriptor-driven wiring is complete.
     bus_.attach_peripheral(*eeprom.release());
     bus_.attach_peripheral(*timer0.release());
     bus_.attach_peripheral(*timer2.release());
     bus_.attach_peripheral(*timer1.release());
     bus_.attach_peripheral(*adc.release());
+    bus_.attach_peripheral(*ac.release());
     bus_.attach_peripheral(*uart0.release());
     bus_.attach_peripheral(*exint.release());
 
