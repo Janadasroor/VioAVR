@@ -6,6 +6,7 @@ inline constexpr DeviceDescriptor atmega6490a {
     .flash_words = 32768U, .sram_bytes = 4096U, .eeprom_bytes = 2048U,
     .interrupt_vector_count = 25U, .interrupt_vector_size = 4U, .flash_page_size = 0x100U,
     .spl_address = 0x5DU, .sph_address = 0x5EU, .sreg_address = 0x5FU, .spmcsr_address = 0x57U,
+    .flash_rww_end_word = 28672U,
     .spl_reset = 0x0U, .sph_reset = 0x0U, .sreg_reset = 0x0U,
     .adc = { 
         .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU, .vector_index = 19U, .adcsra_reset = 0x0U, .adcsrb_reset = 0x0U, .admux_reset = 0x0U,

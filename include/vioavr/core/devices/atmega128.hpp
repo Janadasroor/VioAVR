@@ -6,6 +6,7 @@ inline constexpr DeviceDescriptor atmega128 {
     .flash_words = 65536U, .sram_bytes = 4096U, .eeprom_bytes = 4096U,
     .interrupt_vector_count = 35U, .interrupt_vector_size = 4U, .flash_page_size = 0x100U,
     .spl_address = 0x5DU, .sph_address = 0x5EU, .sreg_address = 0x5FU, .spmcsr_address = 0x68U,
+    .flash_rww_end_word = 61440U,
     .spl_reset = 0x0U, .sph_reset = 0x0U, .sreg_reset = 0x0U,
     .adc = { 
         .adcl_address = 0x24U, .adch_address = 0x25U, .adcsra_address = 0x26U, .adcsrb_address = 0x0U, .admux_address = 0x27U, .vector_index = 21U, .adcsra_reset = 0x0U, .adcsrb_reset = 0x0U, .admux_reset = 0x0U,

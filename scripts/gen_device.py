@@ -12,7 +12,8 @@ def parse_atdf(file_path):
         'timer1': {}, 'uart0': {}, 'ext_interrupt': {}, 
         'pin_change_interrupt_0': {}, 'pin_change_interrupt_1': {}, 'pin_change_interrupt_2': {}, 
         'spi': {}, 'twi': {}, 'eeprom_io': {}, 'wdt': {}, 'ports': [],
-        'fuse_addr': 0, 'lockbit_addr': 0, 'sig_addr': 0
+        'fuse_addr': 0, 'lockbit_addr': 0, 'sig_addr': 0,
+        'flash_rww_end_word': 0
     }
     
     for mem in root.findall(".//memory-segment"):
@@ -32,6 +33,26 @@ def parse_atdf(file_path):
     v = root.findall(".//interrupt")
     if v: device_info['vectors'] = max(int(x.attrib.get('index', '0')) for x in v) + 1
     
+    # RWW end calculation
+    # Some ATDFs use 'prog', others use 'flash' for the address space name
+    for aspace in root.findall(".//address-space"):
+        as_name = aspace.attrib.get('name', '')
+        if as_name in ('prog', 'flash'):
+            for segment in aspace.findall("memory-segment"):
+                s_name = segment.attrib.get('name', '')
+                s_type = segment.attrib.get('type', '')
+                if s_name == 'RWW':
+                    device_info['flash_rww_end_word'] = (int(segment.attrib.get('start'), 0) + int(segment.attrib.get('size'), 0)) // 2
+                elif 'BOOT' in s_name and s_type == 'flash':
+                    # RWW ends where the first BOOT section starts
+                    start = int(segment.attrib.get('start'), 0) // 2
+                    if device_info['flash_rww_end_word'] == 0 or start < device_info['flash_rww_end_word']:
+                        device_info['flash_rww_end_word'] = start
+    
+    # Default if no RWW/BOOT split found (assume everything is RWW or NRWW)
+    if device_info['flash_rww_end_word'] == 0 and device_info['flash_words'] > 0:
+        # Most megaAVRs follow this pattern: flash_words-1 if no dedicated NRWW
+        pass
     reg_map = {}
     signal_map = {}
 
@@ -232,6 +253,7 @@ inline constexpr DeviceDescriptor {name} {{
     .flash_words = {d['flash_words']}U, .sram_bytes = {d['sram_bytes']}U, .eeprom_bytes = {d['eeprom_bytes']}U,
     .interrupt_vector_count = {d['vectors']}U, .interrupt_vector_size = {d['vector_size']}U, .flash_page_size = {hx(d['flash_page_size'])},
     .spl_address = {hx(d['core_regs']['spl_addr'])}, .sph_address = {hx(d['core_regs']['sph_addr'])}, .sreg_address = {hx(d['core_regs']['sreg_addr'])}, .spmcsr_address = {hx(d['spmcsr_addr'])},
+    .flash_rww_end_word = {d['flash_rww_end_word']}U,
     .spl_reset = {hx(d['core_regs']['spl_reset'])}, .sph_reset = {hx(d['core_regs']['sph_reset'])}, .sreg_reset = {hx(d['core_regs']['sreg_reset'])},
     .adc = {{ 
         .adcl_address = {hx(d['adc']['adcl'])}, .adch_address = {hx(d['adc']['adch'])}, .adcsra_address = {hx(d['adc']['adcsra'])}, .adcsrb_address = {hx(d['adc']['adcsrb'])}, .admux_address = {hx(d['adc']['admux'])}, .vector_index = {d['adc']['vector']}U, .adcsra_reset = {hx(d['adc']['adcsra_reset'])}, .adcsrb_reset = {hx(d['adc']['adcsrb_reset'])}, .admux_reset = {hx(d['adc']['admux_reset'])},
