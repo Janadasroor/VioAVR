@@ -20,7 +20,7 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     using vioavr::core::devices::atmega328;
 
     constexpr auto acsr = static_cast<vioavr::core::u16>(0x50U);
-    constexpr auto comparator_vector = static_cast<vioavr::core::u8>(8U);
+    constexpr auto comparator_vector = atmega328.ac.vector_index;
 
     AnalogSignalBank signals;
     signals.set_voltage(0U, 0.25);
