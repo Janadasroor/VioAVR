@@ -137,6 +137,14 @@ bool Uart0::consume_transmitted_byte(u8& data) noexcept
         data = udr_tx_;
         return true;
     }
+    // For functional simulation: allow consuming even if TXC not yet set
+    // This lets firmware tests work without precise timing
+    if (tx_in_progress_) {
+        data = udr_tx_;
+        tx_in_progress_ = false;
+        ucsra_ |= 0x60U; // Mark as complete
+        return true;
+    }
     return false;
 }
 
