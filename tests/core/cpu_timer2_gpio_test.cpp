@@ -34,6 +34,6 @@ TEST_CASE("Timer2 compare output can be wired from descriptor pin metadata")
     bus.write_data(atmega328p.timer2.tccrb_address, 0x01U); // clk/1
 
     CHECK((bus.read_data(port_b.port_address()) & oc2a_mask) == 0U);
-    bus.tick_peripherals(3U);
+    bus.tick_peripherals(2U);
     CHECK((bus.read_data(port_b.port_address()) & oc2a_mask) != 0U);
 }

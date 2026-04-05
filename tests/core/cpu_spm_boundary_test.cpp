@@ -40,28 +40,29 @@ TEST_CASE("CPU SPM Boundary and Halt Test")
     });
     cpu.reset();
 
-    SUBCASE("SPM causes halt (current implementation)") {
-        const auto original_word0 = bus.read_program_word(0U);
+    SUBCASE("SPM executes without halt") {
+        const auto spmcsr_addr = bus.device().spmcsr_address;
+        
+        // Setup SPMCSR to enable SPM (SPMEN = 1)
+        bus.write_data(spmcsr_addr, 0x01U);
 
-        // Run until right before SPM
+        // Run until right before SPM (4 instructions already ran)
         cpu.run(4);
         CHECK(cpu.program_counter() == 4U);
         CHECK(cpu.state() == CpuState::running);
 
-        // Execute SPM
+        // Execute SPM (Should NOT halt anymore)
         cpu.step();
         
-        // SPM is currently a halt instruction in this simulator version
-        CHECK(cpu.state() == CpuState::halted);
-        CHECK(cpu.program_counter() == 4U);
+        CHECK(cpu.state() == CpuState::running);
+        CHECK(cpu.program_counter() == 5U);
         
-        // Ensure flash was NOT modified (SPM usually writes flash, but here it shouldn't have)
-        CHECK(bus.read_program_word(0U) == original_word0);
-        
-        // Further runs should do nothing
-        cpu.run(10);
-        CHECK(cpu.state() == CpuState::halted);
-        CHECK(cpu.program_counter() == 4U);
-        CHECK(cpu.registers()[18] == 0x00U); // Instruction 5 never ran
+        // SPMCSR SPMEN bit should be cleared by hardware
+        CHECK((bus.read_data(spmcsr_addr) & 0x01U) == 0U);
+
+        // Further runs should complete the next LDI
+        cpu.run(1);
+        CHECK(cpu.registers()[18] == 0x55U);
+        CHECK(cpu.program_counter() == 6U);
     }
 }

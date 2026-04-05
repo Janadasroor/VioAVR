@@ -211,4 +211,11 @@ const IoPeripheral* MemoryBus::find_peripheral(const u16 address) const noexcept
     return address < dispatch_table_.size() ? dispatch_table_[address] : nullptr;
 }
 
+void MemoryBus::write_program_word(const u32 word_address, const u16 value) noexcept
+{
+    if (word_address < flash_.size()) {
+        flash_[word_address] = value;
+    }
+}
+
 }  // namespace vioavr::core

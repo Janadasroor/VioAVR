@@ -21,9 +21,8 @@ TEST_CASE("UART0 Peripheral Functional Test")
     const auto udr = atmega328.uart0.udr_address;
 
     SUBCASE("Default status and transmission") {
-        // UDRE (bit 5) and TXC (bit 6) should be set on reset?
-        // Actually UDRE is set when UDR is empty.
-        CHECK((bus.read_data(ucsra) & 0x60U) == 0x60U);
+        // UDRE (bit 5) should be set on reset. TXC (bit 6) is cleared on reset.
+        CHECK((bus.read_data(ucsra) & 0x60U) == 0x20U);
 
         bus.write_data(ucsrb, 0x18U); // TXEN, RXEN
         bus.write_data(udr, 0x5AU);
@@ -31,12 +30,13 @@ TEST_CASE("UART0 Peripheral Functional Test")
         // UDRE and TXC should be cleared while transmitting
         CHECK((bus.read_data(ucsra) & 0x60U) == 0x00U);
 
-        // Tick to complete transmission (UART timing simulated as 2 cycles)
-        bus.tick_peripherals(2U);
-        CHECK((bus.read_data(ucsra) & 0x60U) == 0x00U);
+        // Tick to complete transmission 
+        // With default UBRR=0, duration is 160 cycles (10 bits * 16 cycles/bit)
+        bus.tick_peripherals(80U);
+        CHECK((bus.read_data(ucsra) & 0x40U) == 0x00U); // TXC still clear
 
-        bus.tick_peripherals(2U);
-        CHECK((bus.read_data(ucsra) & 0x60U) == 0x60U);
+        bus.tick_peripherals(81U);
+        CHECK((bus.read_data(ucsra) & 0x40U) == 0x40U); // TXC set
 
         u8 transmitted = 0U;
         CHECK(uart0.consume_transmitted_byte(transmitted));

@@ -56,6 +56,7 @@ void AvrCpu::reset() noexcept
     if (bus_ != nullptr) {
         bus_->reset();
     }
+    interrupt_delay_ = 0U;
     if (sync_engine_ != nullptr) {
         sync_engine_->on_reset();
     }
@@ -143,7 +144,9 @@ void AvrCpu::step()
         return;
     }
 
-    if (service_interrupt_if_needed()) {
+    if (interrupt_delay_ > 0U) {
+        --interrupt_delay_;
+    } else if (service_interrupt_if_needed()) {
         synchronize_if_needed();
         return;
     }
@@ -1388,7 +1391,52 @@ void AvrCpu::execute_lpm_z_postinc(const DecodedInstruction& instruction)
 void AvrCpu::execute_spm(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    state_ = CpuState::halted;
+    const u16 spmcsr_addr = bus_->device().spmcsr_address;
+    if (spmcsr_addr == 0U) {
+        advance_cycles(1U);
+        return;
+    }
+
+    const u8 spmcsr = bus_->read_data(spmcsr_addr);
+    const bool spmen = (spmcsr & 0x01U) != 0U;
+    
+    if (!spmen) {
+        advance_cycles(1U);
+        return;
+    }
+
+    const u32 z = z_pointer();
+    const u16 data = static_cast<u16>(gpr_[0] | (static_cast<u16>(gpr_[1]) << 8U));
+    const u16 page_size_words = bus_->device().flash_page_size / 2U;
+
+    // Ensure buffer is sized correctly
+    if (temp_flash_page_buffer_.size() < page_size_words) {
+        temp_flash_page_buffer_.resize(page_size_words, 0xFFFFU);
+    }
+
+    if ((spmcsr & 0x02U) != 0U) { // Page Erase (PGERS)
+        const u32 page_start_word = z >> 1U & ~(static_cast<u32>(page_size_words) - 1U);
+        for (u32 i = 0U; i < page_size_words; ++i) {
+            bus_->write_program_word(page_start_word + i, 0xFFFFU);
+        }
+    } else if ((spmcsr & 0x04U) != 0U) { // Page Write (PGWRT)
+        const u32 page_start_word = z >> 1U & ~(static_cast<u32>(page_size_words) - 1U);
+        for (u32 i = 0U; i < page_size_words; ++i) {
+            bus_->write_program_word(page_start_word + i, temp_flash_page_buffer_[i]);
+        }
+    } else if ((spmcsr & 0x08U) != 0U) { // Boot Lock Bit Set (BLBSET)
+        // TODO: Implement Lock Bit support if needed
+    } else { // Fill Temporary Page Buffer
+        const u32 word_offset = (z >> 1U) & (static_cast<u32>(page_size_words) - 1U);
+        if (word_offset < temp_flash_page_buffer_.size()) {
+            temp_flash_page_buffer_[word_offset] = data;
+        }
+    }
+
+    // Always clear SPMEN after instruction execution (simulating hardware behavior)
+    bus_->write_data(spmcsr_addr, spmcsr & ~0x0FU); // Clear SPMEN, PGERS, PGWRT, BLBSET
+    ++program_counter_;
+    advance_cycles(1U); // Standard SPM is 1 cycle, but busy bit handles long ops
 }
 
 void AvrCpu::execute_lds(const DecodedInstruction& instruction)
@@ -1552,6 +1600,7 @@ void AvrCpu::execute_reti(const DecodedInstruction& instruction)
     if (interrupt_depth_ != 0U) {
         --interrupt_depth_;
     }
+    interrupt_delay_ = 1U;
     advance_cycles(4U);
 }
 
@@ -1608,6 +1657,7 @@ void AvrCpu::execute_sei(const DecodedInstruction& instruction)
     (void)instruction;
     set_flag(SregFlag::interrupt, true);
     ++program_counter_;
+    interrupt_delay_ = 1U;
     advance_cycles(1U);
 }
 

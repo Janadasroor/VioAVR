@@ -10,10 +10,14 @@ constexpr u8 kEerie = 0x08U; // EEPROM Ready Interrupt Enable
 constexpr u8 kEempe = 0x04U; // EEPROM Master Write Enable
 constexpr u8 kEepe  = 0x02U; // EEPROM Write Enable
 constexpr u8 kEere  = 0x01U; // EEPROM Read Enable
+constexpr u8 kEepm1 = 0x20U; // Programming Mode Bit 1
+constexpr u8 kEepm0 = 0x10U; // Programming Mode Bit 0
 
-// 3.4ms at 16MHz is ~54,400 cycles. 
-// We'll use a slightly lower but realistic value for simulation.
-constexpr u32 kEepromWriteCycles = 50000U;
+// 3.4ms at 16MHz is ~54,400 cycles.
+// 1.8ms at 16MHz is ~28,800 cycles.
+constexpr u32 kEepromAtomicCycles = 54400U;
+constexpr u32 kEepromEraseOnlyCycles = 28800U;
+constexpr u32 kEepromWriteOnlyCycles = 28800U;
 constexpr u8 kMasterWriteTimeout = 4U; 
 }
 
@@ -145,19 +149,38 @@ void Eeprom::update_eecr(const u8 value) noexcept
     } else {
         eecr_ &= static_cast<u8>(~kEerie);
     }
+
+    // EEPM: Programming Mode
+    eecr_ = static_cast<u8>((eecr_ & 0xCFU) | (value & 0x30U));
 }
 
 void Eeprom::start_write() noexcept
 {
     eecr_ &= static_cast<u8>(~kEempe);
     master_write_enable_timeout_ = 0;
-    write_cycles_left_ = kEepromWriteCycles;
+    
+    const u8 mode = (eecr_ >> 4U) & 0x03U;
+    switch (mode) {
+        case 0x00U: write_cycles_left_ = kEepromAtomicCycles; break;
+        case 0x01U: write_cycles_left_ = kEepromEraseOnlyCycles; break;
+        case 0x02U: write_cycles_left_ = kEepromWriteOnlyCycles; break;
+        default:    write_cycles_left_ = kEepromAtomicCycles; break;
+    }
 }
 
 void Eeprom::complete_write() noexcept
 {
     const u16 addr = static_cast<u16>(eear_ % size_);
-    storage_[addr] = eedr_;
+    const u8 mode = (eecr_ >> 4U) & 0x03U;
+    
+    if (mode == 0x01U) { // Erase Only
+        storage_[addr] = 0xFFU;
+    } else if (mode == 0x02U) { // Write Only
+        storage_[addr] &= eedr_;
+    } else { // Atomic (Erase + Write)
+        storage_[addr] = eedr_;
+    }
+    
     interrupt_pending_ = true;
 }
 

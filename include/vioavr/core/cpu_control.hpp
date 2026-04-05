@@ -1,7 +1,7 @@
 #pragma once
 
 #include "vioavr/core/io_peripheral.hpp"
-#include <array>
+#include <vector>
 
 namespace vioavr::core {
 
@@ -25,8 +25,9 @@ public:
     void write(u16 address, u8 value) noexcept override;
 
 private:
+    u8 spmcsr_ {};
     AvrCpu& cpu_;
-    std::array<AddressRange, 1> ranges_;
+    std::vector<AddressRange> ranges_;
 };
 
 }  // namespace vioavr::core
