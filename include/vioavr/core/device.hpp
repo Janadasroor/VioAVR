@@ -37,6 +37,7 @@ struct Timer8Descriptor {
     u16 timsk_address {};
     u16 tccra_address {};
     u16 tccrb_address {};
+    u16 assr_address {};
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
     u8 overflow_vector_index {};
@@ -150,10 +151,13 @@ struct DeviceDescriptor {
     u64 cpu_frequency_hz {16'000'000U};
     AdcDescriptor adc {};
     Timer8Descriptor timer0 {};
+    Timer8Descriptor timer2 {};
     Timer16Descriptor timer1 {};
     ExtInterruptDescriptor ext_interrupt {};
     Uart0Descriptor uart0 {};
     PinChangeInterruptDescriptor pin_change_interrupt_0 {};
+    PinChangeInterruptDescriptor pin_change_interrupt_1 {};
+    PinChangeInterruptDescriptor pin_change_interrupt_2 {};
     SpiDescriptor spi {};
     TwiDescriptor twi {};
     EepromDescriptor eeprom {};

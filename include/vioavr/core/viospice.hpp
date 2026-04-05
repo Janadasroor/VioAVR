@@ -2,6 +2,7 @@
 
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/sync_engine.hpp"
 #include "vioavr/core/pin_map.hpp"
 #include "vioavr/core/analog_signal_bank.hpp"
@@ -51,6 +52,7 @@ private:
     MemoryBus bus_;
     AvrCpu cpu_;
     AnalogSignalBank analog_signal_bank_;
+    PinChangeInterruptSharedState pcint_shared_state_ {};
     std::unique_ptr<PinMap> pin_map_;
     std::unique_ptr<SyncEngine> sync_;
     u64 quantum_ {1000};

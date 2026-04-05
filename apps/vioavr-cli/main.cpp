@@ -9,6 +9,7 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/tracing.hpp"
 
 #include <chrono>
@@ -92,10 +93,17 @@ int main(int argc, char** argv)
     GpioPort portb {"PORTB", 0x23U, 0x24U, 0x25U}; // PINB, DDRB, PORTB
     GpioPort portc {"PORTC", 0x26U, 0x27U, 0x28U}; // PINC, DDRC, PORTC
     GpioPort portd {"PORTD", 0x29U, 0x2AU, 0x2BU}; // PIND, DDRD, PORTD
+    PinChangeInterruptSharedState pcint_shared {};
+    PinChangeInterrupt pcint0 {"PCINT0", bus.device().pin_change_interrupt_0, portb, pcint_shared, true};
+    PinChangeInterrupt pcint1 {"PCINT1", bus.device().pin_change_interrupt_1, portc, pcint_shared, false};
+    PinChangeInterrupt pcint2 {"PCINT2", bus.device().pin_change_interrupt_2, portd, pcint_shared, false};
     
     bus.attach_peripheral(portb);
     bus.attach_peripheral(portc);
     bus.attach_peripheral(portd);
+    bus.attach_peripheral(pcint0);
+    bus.attach_peripheral(pcint1);
+    bus.attach_peripheral(pcint2);
 
     bool benchmark = false;
     bool trace = false;
