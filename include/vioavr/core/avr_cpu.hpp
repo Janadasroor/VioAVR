@@ -131,6 +131,7 @@ private:
     [[nodiscard]] static std::span<const InstructionDescriptor> instruction_table() noexcept;
     void decode_and_execute(const DecodedInstruction& instruction);
     void advance_cycles(u64 delta_cycles);
+    void write_data_bus(u16 address, u8 value) noexcept;
     void synchronize_if_needed();
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();
@@ -289,6 +290,8 @@ private:
     u8 interrupt_depth_ {};
     u8 interrupt_delay_ {};
     std::vector<u16> temp_flash_page_buffer_;
+    u8 spm_lock_timeout_ {};
+    bool rww_section_busy_ {};
     CpuState state_ {CpuState::halted};
 };
 
