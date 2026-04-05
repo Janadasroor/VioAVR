@@ -8,9 +8,19 @@ namespace vioavr::core {
 
 class GpioPort;
 
+struct PinChangeInterruptSharedState {
+    u8 pcicr {};
+    u8 pcifr {};
+};
+
 class PinChangeInterrupt final : public IoPeripheral {
 public:
     PinChangeInterrupt(std::string_view name, const PinChangeInterruptDescriptor& desc, GpioPort& port) noexcept;
+    PinChangeInterrupt(std::string_view name,
+                       const PinChangeInterruptDescriptor& desc,
+                       GpioPort& port,
+                       PinChangeInterruptSharedState& shared_state,
+                       bool map_shared_registers) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -29,9 +39,10 @@ private:
     PinChangeInterruptDescriptor desc_;
     std::array<AddressRange, 3> ranges_;
     GpioPort& port_;
+    PinChangeInterruptSharedState shared_state_ {};
+    PinChangeInterruptSharedState* shared_state_ptr_ {&shared_state_};
+    bool map_shared_registers_ {true};
 
-    u8 pcicr_ {};
-    u8 pcifr_ {};
     u8 pcmsk_ {};
     bool interrupt_pending_ {};
     u8 last_pin_state_ {};

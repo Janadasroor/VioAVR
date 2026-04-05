@@ -7,6 +7,7 @@
 #include "vioavr/core/uart0.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
+#include "vioavr/core/pin_change_interrupt.hpp"
 
 namespace vioavr::core {
 
@@ -36,6 +37,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     bus_.attach_peripheral(*exint.release());
 
     // Dynamic GPIO Port initialization from DeviceDescriptor
+    GpioPort* port_b = nullptr;
+    GpioPort* port_c = nullptr;
+    GpioPort* port_d = nullptr;
     for (const auto& port_desc : bus_.device().ports) {
         if (!port_desc.name.empty()) {
             auto port = std::make_unique<GpioPort>(
@@ -44,8 +48,27 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
                 port_desc.ddr_address, 
                 port_desc.port_address
             );
+            if (port_desc.name == "PORTB") port_b = port.get();
+            if (port_desc.name == "PORTC") port_c = port.get();
+            if (port_desc.name == "PORTD") port_d = port.get();
             bus_.attach_peripheral(*port.release());
         }
+    }
+
+    if (port_b != nullptr && bus_.device().pin_change_interrupt_0.pcmsk_address != 0U) {
+        auto pci0 = std::make_unique<PinChangeInterrupt>(
+            "PCINT0", bus_.device().pin_change_interrupt_0, *port_b, pcint_shared_state_, true);
+        bus_.attach_peripheral(*pci0.release());
+    }
+    if (port_c != nullptr && bus_.device().pin_change_interrupt_1.pcmsk_address != 0U) {
+        auto pci1 = std::make_unique<PinChangeInterrupt>(
+            "PCINT1", bus_.device().pin_change_interrupt_1, *port_c, pcint_shared_state_, false);
+        bus_.attach_peripheral(*pci1.release());
+    }
+    if (port_d != nullptr && bus_.device().pin_change_interrupt_2.pcmsk_address != 0U) {
+        auto pci2 = std::make_unique<PinChangeInterrupt>(
+            "PCINT2", bus_.device().pin_change_interrupt_2, *port_d, pcint_shared_state_, false);
+        bus_.attach_peripheral(*pci2.release());
     }
 
     set_quantum(1000);
