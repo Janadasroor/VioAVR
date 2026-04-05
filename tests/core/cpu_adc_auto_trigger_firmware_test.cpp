@@ -6,7 +6,10 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+
+using namespace vioavr::core;
 
 namespace {
 
@@ -48,9 +51,10 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
 
     constexpr auto acsr_addr = static_cast<vioavr::core::u16>(0x50U);
 
+    PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328, 6U, 4U};
-    AnalogComparator comparator {"AC", acsr_addr, 8U, 9U, 1.1};
+    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 1.1};
     
     adc0.connect_comparator_auto_trigger(comparator);
     adc0.set_channel_voltage(0U, 0.75); // Target value: 768

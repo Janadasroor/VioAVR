@@ -7,6 +7,8 @@
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
+#include <vector>
+
 namespace {
 
 constexpr vioavr::core::u16 encode_ldi(const vioavr::core::u8 destination, const vioavr::core::u8 immediate)
@@ -56,24 +58,33 @@ TEST_CASE("CPU Interrupt Handling Test")
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 
+    // Timer0 compare match A vector index is 14, word address = 14 * 2 = 28
+    // Flash layout: mainline at 0-13, padding 14-27, ISR at 28-29
+    constexpr u16 isr_word_address = atmega328.timer0.compare_a_vector_index * 2U;
+    std::vector<u16> flash_words(30, kNop);
+
+    // Mainline code at word addresses 0-13
+    flash_words[0] = encode_ldi(16U, 0x01U);   // 0 OCR0A compare threshold
+    flash_words[1] = encode_out(0x27U, 16U);   // 1 OCR0A (I/O 0x27 = mem 0x47)
+    flash_words[2] = encode_ldi(19U, 0x02U);   // 2 OCIE0A (bit 1)
+    flash_words[3] = encode_sts(19U);           // 3 STS address low byte
+    flash_words[4] = atmega328.timer0.timsk_address; // 4 TIMSK0 address
+    flash_words[5] = encode_ldi(20U, 0x01U);   // 5 CS00
+    flash_words[6] = encode_out(0x25U, 20U);   // 6 TCCR0B (0x45 -> 0x25)
+    flash_words[7] = kSei;                      // 7
+    flash_words[8] = kNop;                      // 8
+    flash_words[9] = encode_ldi(18U, 0x55U);   // 9 mainline execution
+    flash_words[10] = kNop;                     // 10
+    flash_words[11] = kNop;                     // 11
+    flash_words[12] = kNop;                     // 12
+    flash_words[13] = kNop;                     // 13
+
+    // ISR at vector address (words 28-29)
+    flash_words[static_cast<size_t>(isr_word_address)] = encode_ldi(17U, 0x77U);   // 28 ISR body
+    flash_words[static_cast<size_t>(isr_word_address) + 1] = kReti;                 // 29 RETI
+
     bus.load_image(HexImage {
-        .flash_words = {
-            encode_ldi(16U, 0x01U),   // 0 OCR0A compare threshold
-            encode_out(0x27U, 16U),   // 1 OCR0A (I/O 0x27 = mem 0x47)
-            encode_ldi(19U, 0x02U),   // 2 OCIE0A (bit 1)
-            encode_sts(19U), atmega328.timer0.timsk_address,  // 3,4 TIMSK0
-            encode_ldi(20U, 0x01U),   // 5 CS00
-            encode_out(0x25U, 20U),   // 6 TCCR0B (0x45 -> 0x25)
-            kSei,                     // 7
-            kNop,                     // 8
-            encode_ldi(18U, 0x55U),   // 9 mainline execution
-            kNop,                     // 10
-            kNop,                     // 11
-            kNop,                     // 12
-            kNop,                     // 13
-            encode_ldi(17U, 0x77U),   // 14 ISR body (Vector 14)
-            kReti                     // 15
-        },
+        .flash_words = std::move(flash_words),
         .entry_word = 0U
     });
 
@@ -82,27 +93,27 @@ TEST_CASE("CPU Interrupt Handling Test")
     SUBCASE("Setup and Trigger") {
         for (int i = 0; i < 8; ++i) cpu.step();
         const auto snapshot = cpu.snapshot();
-        
+
         // Timer compare match interrupt should fire with OCR0A=1, no prescaler
         // CHECK(snapshot.interrupt_pending);
-        CHECK(snapshot.program_counter >= 14U); // PC at ISR entry after interrupt serviced
+        CHECK(snapshot.program_counter >= isr_word_address); // PC at ISR entry after interrupt serviced
         CHECK(snapshot.cycles >= 8U); // At least 8 cycles
         // I-bit cleared on ISR entry - CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);
     }
 
     SUBCASE("Service Interrupt") {
         for (int i = 0; i < 9; ++i) cpu.step(); // Steps through trigger point
-        
+
         const auto snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
-        
-        CHECK(snapshot.program_counter == 15U); // PC after LDI in ISR // Jumped to ISR and executed LDI
+
+        CHECK(snapshot.program_counter == static_cast<u16>(isr_word_address + 1U)); // PC after LDI in ISR
         CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
         CHECK(snapshot.cycles >= 12U); // At least 12 cycles // 9 + 4 cycles for interrupt entry
         CHECK_FALSE(snapshot.interrupt_pending);
         CHECK(snapshot.in_interrupt_handler);
         CHECK_FALSE((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))));
-        
+
         // Verify return address on stack - low byte at SP, high byte at SP+1
         // RETI pushes return address (word address, not byte address)
         // CHECK(bus.read_data(ramend) == 0x09U);
@@ -111,13 +122,13 @@ TEST_CASE("CPU Interrupt Handling Test")
 
     SUBCASE("ISR and Return") {
         for (int i = 0; i < 7; ++i) cpu.step(); // To just before interrupt service
-        cpu.step(); // Service interrupt, PC -> 14
-        CHECK(cpu.snapshot().program_counter == 14U);
+        cpu.step(); // Service interrupt, PC -> isr_word_address
+        CHECK(cpu.snapshot().program_counter == isr_word_address);
 
         cpu.step(); // Execute LDI R17, 0x77
         auto snapshot = cpu.snapshot();
         CHECK(snapshot.gpr[17] == 0x77U);
-        CHECK(snapshot.program_counter == 15U); // PC after LDI in ISR
+        CHECK(snapshot.program_counter == static_cast<u16>(isr_word_address + 1U)); // PC after LDI in ISR
 
         cpu.step(); // RETI
         cpu.step(); // NOP at PC=8

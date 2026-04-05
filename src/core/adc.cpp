@@ -49,13 +49,6 @@ Adc::Adc(std::string_view name,
     trigger_select_register_ = (desc_.adcsrb_address != 0U) ? 1U : 0U;
 }
 
-Adc::Adc(std::string_view name, const DeviceDescriptor& device, u8 source_id, u16 conversion_cycles) noexcept
-    : Adc(name, device.adc, *new PinMux(8), source_id, conversion_cycles) 
-{
-    // WARNING: This leak is intentional for dummy tests that don't pass a PinMux.
-    // Real VioSpice provides the PinMux.
-}
-
 std::string_view Adc::name() const noexcept { return name_; }
 
 std::span<const AddressRange> Adc::mapped_ranges() const noexcept {

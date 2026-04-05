@@ -31,20 +31,6 @@ AnalogComparator::AnalogComparator(std::string_view name,
 {
 }
 
-AnalogComparator::AnalogComparator(std::string_view name,
-                                   u16 acsr_address,
-                                   u8 vector_index,
-                                   u8 source_id,
-                                   double hysteresis) noexcept
-    : name_(name),
-      desc_({acsr_address, 0U, vector_index}),
-      pin_mux_(new PinMux(8)),
-      range_({acsr_address, acsr_address}),
-      source_id_(source_id),
-      hysteresis_(hysteresis)
-{
-}
-
 std::string_view AnalogComparator::name() const noexcept { return name_; }
 
 std::span<const AddressRange> AnalogComparator::mapped_ranges() const noexcept {

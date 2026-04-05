@@ -3,7 +3,10 @@
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/analog_comparator.hpp"
+#include "vioavr/core/watchdog_timer.hpp"
+#include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/hex_image.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 #include <iostream>
 #include <iomanip>
@@ -24,18 +27,25 @@ int main(int argc, char** argv) {
     MemoryBus bus {devices::atmega328};
     
     // Attach peripherals for "new features"
-    Adc adc {"ADC", devices::atmega328, 6U};
+    PinMux pin_mux {8};
+    Adc adc {"ADC", devices::atmega328.adc, pin_mux, 6U};
     Timer8 timer0 {"TIMER0", devices::atmega328};
-    AnalogComparator ac {"AC", devices::atmega328.ac, *(new PinMux(8)), 7U}; // Placeholder PinMux
+    AnalogComparator ac {"AC", devices::atmega328.ac, pin_mux, 7U}; 
+    AvrCpu cpu_for_wdt {bus}; // Used to pass to WDT for reset
 
     // Connect auto-triggers
     adc.connect_timer_overflow_auto_trigger(timer0);
     adc.connect_timer_compare_auto_trigger(timer0);
     adc.connect_comparator_auto_trigger(ac);
 
+    WatchdogTimer wdt {"WDT", devices::atmega328, cpu_for_wdt};
+    Eeprom eeprom {"EEPROM", devices::atmega328};
+
     bus.attach_peripheral(adc);
     bus.attach_peripheral(timer0);
     bus.attach_peripheral(ac);
+    bus.attach_peripheral(wdt);
+    bus.attach_peripheral(eeprom);
 
     try {
         HexImage image = HexImageLoader::load_file(hex_file, devices::atmega328);
@@ -51,7 +61,7 @@ int main(int argc, char** argv) {
     // Print Header
     std::cout << "Cycle,PC,SREG,SP";
     for (int i = 0; i < 32; ++i) std::cout << ",R" << i;
-    std::cout << ",TCNT0,ADCSRA,ACSR" << std::endl;
+    std::cout << ",TCNT0,ADCSRA,ACSR,SPMCSR,WDTCSR,EECR" << std::endl;
 
     for (u64 cycle = 0; cycle < cycle_limit; ++cycle) {
         auto snap = cpu.snapshot();
@@ -70,6 +80,9 @@ int main(int argc, char** argv) {
         std::cout << "," << (int)bus.read_data(devices::atmega328.timer0.tcnt_address)
                   << "," << (int)bus.read_data(devices::atmega328.adc.adcsra_address)
                   << "," << (int)bus.read_data(devices::atmega328.ac.acsr_address)
+                  << "," << (int)bus.read_data(devices::atmega328.spmcsr_address)
+                  << "," << (int)bus.read_data(devices::atmega328.wdt.wdtcsr_address)
+                  << "," << (int)bus.read_data(devices::atmega328.eeprom.eecr_address)
                   << std::endl;
 
         cpu.step();

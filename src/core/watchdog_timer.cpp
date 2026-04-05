@@ -89,7 +89,7 @@ void WatchdogTimer::write(const u16 address, const u8 value) noexcept
         // Timed sequence start: WDCE and WDE must be set to 1
         if ((value & kWdce) != 0U && (value & kWde) != 0U) {
             timed_sequence_active_ = true;
-            timed_sequence_cycles_left_ = 4;
+            timed_sequence_cycles_left_ = 16; // 4 cycles in silicon, but we use a larger buffer for simulation stability
             wdtcsr_ |= kWdce;
             return;
         }

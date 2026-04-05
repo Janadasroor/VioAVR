@@ -5,6 +5,7 @@
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 namespace {
@@ -33,8 +34,9 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
 
     constexpr u8 int0_vector = 1U;
 
+    PinMux pin_mux {8};
     MemoryBus bus {atmega328};
-    ExtInterrupt exti {"EXTINT", atmega328, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
     bus.attach_peripheral(exti);
     AvrCpu cpu {bus};
 

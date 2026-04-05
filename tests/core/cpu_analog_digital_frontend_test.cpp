@@ -7,6 +7,7 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 using namespace vioavr::core;
@@ -24,11 +25,12 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
     signals.set_voltage(0U, 0.20); // LOW
     signals.set_voltage(1U, 0.80); // HIGH
 
+    PinMux pin_mux {8};
     MemoryBus bus {atmega328};
     GpioPort port_b {"PORTB", pinb, ddrb, portb};
     port_b.bind_input_signal(2U, signals, 0U); // PB2 bound to signal 0 (0.20V)
     
-    ExtInterrupt exti {"EXTINT", atmega328, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
     exti.bind_int0_signal(signals, 1U); // INT0 bound to signal 1 (0.80V)
     
     PinChangeInterruptDescriptor pci0_desc { .pcicr_address = 0x68U, .pcifr_address = 0x3BU, .pcmsk_address = 0x6BU, .pcicr_enable_mask = 0x01U, .pcifr_flag_mask = 0x01U, .vector_index = 3U };

@@ -11,20 +11,16 @@ namespace {
 constexpr u8 kInt0Mask = 0x01U;
 }
 
-ExtInterrupt::ExtInterrupt(const std::string_view name,
-                           const u16 eicra_address,
-                           const u16 eimsk_address,
-                           const u16 eifr_address,
-                           const u8 int0_vector_index,
-                           const u8 source_id) noexcept
+ExtInterrupt::ExtInterrupt(std::string_view name,
+                           const ExtInterruptDescriptor& descriptor,
+                           PinMux& pin_mux,
+                           u8 source_id) noexcept
     : name_(name),
-      eicra_address_(eicra_address),
-      eimsk_address_(eimsk_address),
-      eifr_address_(eifr_address),
-      int0_vector_index_(int0_vector_index),
+      desc_(descriptor),
+      pin_mux_(&pin_mux),
       source_id_(source_id)
 {
-    std::vector<u16> addrs = {eicra_address, eimsk_address, eifr_address};
+    std::vector<u16> addrs = {desc_.eicra_address, desc_.eimsk_address, desc_.eifr_address};
     std::sort(addrs.begin(), addrs.end());
     
     size_t ri = 0;
@@ -38,17 +34,6 @@ ExtInterrupt::ExtInterrupt(const std::string_view name,
         }
     }
 }
-
-ExtInterrupt::ExtInterrupt(const std::string_view name, const DeviceDescriptor& device, const u8 source_id) noexcept
-    : ExtInterrupt(
-          name,
-          device.ext_interrupt.eicra_address,
-          device.ext_interrupt.eimsk_address,
-          device.ext_interrupt.eifr_address,
-          device.ext_interrupt.int0_vector_index,
-          source_id
-      )
-{}
 
 std::string_view ExtInterrupt::name() const noexcept
 {
@@ -68,7 +53,9 @@ void ExtInterrupt::reset() noexcept
     eimsk_ = 0U;
     eifr_ = 0U;
     int0_level_ = true;
+    int1_level_ = true;
     int0_pending_ = false;
+    int1_pending_ = false;
 }
 
 void ExtInterrupt::tick(const u64 elapsed_cycles) noexcept
@@ -83,13 +70,13 @@ void ExtInterrupt::tick(const u64 elapsed_cycles) noexcept
 u8 ExtInterrupt::read(const u16 address) noexcept
 {
     refresh_bound_input();
-    if (address == eicra_address_) {
+    if (address == desc_.eicra_address) {
         return eicra_;
     }
-    if (address == eimsk_address_) {
+    if (address == desc_.eimsk_address) {
         return eimsk_;
     }
-    if (address == eifr_address_) {
+    if (address == desc_.eifr_address) {
         return eifr_;
     }
     return 0U;
@@ -97,15 +84,15 @@ u8 ExtInterrupt::read(const u16 address) noexcept
 
 void ExtInterrupt::write(const u16 address, const u8 value) noexcept
 {
-    if (address == eicra_address_) {
+    if (address == desc_.eicra_address) {
         eicra_ = value;
         return;
     }
-    if (address == eimsk_address_) {
+    if (address == desc_.eimsk_address) {
         eimsk_ = value;
         return;
     }
-    if (address == eifr_address_) {
+    if (address == desc_.eifr_address) {
         eifr_ = static_cast<u8>(eifr_ & static_cast<u8>(~value));
         if ((value & kInt0Mask) != 0U) {
             int0_pending_ = false;
@@ -128,7 +115,11 @@ bool ExtInterrupt::pending_interrupt_request(InterruptRequest& request) const no
 {
     const_cast<ExtInterrupt*>(this)->refresh_bound_input();
     if (int0_pending_ && (eimsk_ & kInt0Mask) != 0U) {
-        request = {.vector_index = int0_vector_index_, .source_id = source_id_};
+        request = {.vector_index = desc_.int0_vector_index, .source_id = source_id_};
+        return true;
+    }
+    if (int1_pending_ && (eimsk_ & 0x02U) != 0U) {
+        request = {.vector_index = desc_.int1_vector_index, .source_id = source_id_};
         return true;
     }
     return false;
@@ -141,9 +132,14 @@ bool ExtInterrupt::consume_interrupt_request(InterruptRequest& request) noexcept
         return false;
     }
 
-    if (request.vector_index == int0_vector_index_) {
+    if (request.vector_index == desc_.int0_vector_index) {
         int0_pending_ = false;
         eifr_ &= static_cast<u8>(~kInt0Mask);
+        return true;
+    }
+    if (request.vector_index == desc_.int1_vector_index) {
+        int1_pending_ = false;
+        eifr_ &= static_cast<u8>(~0x02U);
         return true;
     }
     return false;
