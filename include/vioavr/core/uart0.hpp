@@ -20,6 +20,8 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    [[nodiscard]] ClockDomain clock_domain() const noexcept override;
+
     void inject_received_byte(u8 data) noexcept;
     bool consume_transmitted_byte(u8& data) noexcept;
 

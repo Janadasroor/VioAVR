@@ -59,6 +59,7 @@ set(TEST_SOURCES
     cpu_timer_external_clock_test.cpp
     cpu_timer_external_clock_firmware_test.cpp
     cpu_timer16_test.cpp
+    cpu_timer_waveform_test.cpp
     cpu_spi_test.cpp
     cpu_twi_test.cpp
     cpu_uart_test.cpp
@@ -74,6 +75,7 @@ set(TEST_SOURCES
     viospice_timer2_async_test.cpp
     cpu_trace_util.cpp
     cpu_trace_util_test.cpp
+    cpu_timer_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

@@ -10,6 +10,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/tracing.hpp"
 
 #include <chrono>
@@ -75,12 +76,15 @@ int main(int argc, char** argv)
     MemoryBus bus {*device};
     AvrCpu cpu {bus};
     
+    // Pin Mux
+    PinMux pin_mux {3};
+
     // Peripherals
     Eeprom eeprom {"EEPROM", bus.device()};
     Timer8 timer0 {"TIMER0", bus.device().timer0};
     Timer8 timer2 {"TIMER2", bus.device().timer2};
     Timer16 timer1 {"TIMER1", bus.device().timer1};
-    Adc adc {"ADC", bus.device(), 0, 13};
+    Adc adc {"ADC", bus.device().adc, pin_mux, 0, 13};
     Uart0 uart0 {"UART0", bus.device()};
 
     timer0.set_bus(bus);
@@ -102,6 +106,11 @@ int main(int argc, char** argv)
     PinChangeInterrupt pcint0 {"PCINT0", bus.device().pin_change_interrupt_0, portb, pcint_shared, true};
     PinChangeInterrupt pcint1 {"PCINT1", bus.device().pin_change_interrupt_1, portc, pcint_shared, false};
     PinChangeInterrupt pcint2 {"PCINT2", bus.device().pin_change_interrupt_2, portd, pcint_shared, false};
+
+    // Register ports with pin mux for address-based lookups
+    pin_mux.register_port(portb.pin_address(), 0);
+    pin_mux.register_port(portc.pin_address(), 1);
+    pin_mux.register_port(portd.pin_address(), 2);
 
     auto bind_timer8_outputs = [](Timer8& timer, const Timer8Descriptor& desc,
                                   GpioPort& portb, GpioPort& portc, GpioPort& portd) {

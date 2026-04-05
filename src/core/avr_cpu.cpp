@@ -132,6 +132,7 @@ void AvrCpu::step()
     if (state_ == CpuState::sleeping) {
         if (service_interrupt_if_needed()) {
             state_ = CpuState::running;
+            cpu_control().exit_sleep();
             synchronize_if_needed();
             return;
         }
@@ -139,6 +140,7 @@ void AvrCpu::step()
         advance_cycles(1U);
         if (service_interrupt_if_needed()) {
             state_ = CpuState::running;
+            cpu_control().exit_sleep();
             synchronize_if_needed();
         }
         return;
@@ -414,7 +416,7 @@ void AvrCpu::advance_cycles(const u64 delta_cycles)
 {
     cycles_ += delta_cycles;
     if (bus_ != nullptr) {
-        bus_->tick_peripherals(delta_cycles);
+        bus_->tick_peripherals(delta_cycles, active_clock_domains());
         publish_pending_pin_changes();
     }
     if (spm_lock_timeout_ > 0U) {
@@ -424,6 +426,53 @@ void AvrCpu::advance_cycles(const u64 delta_cycles)
         sync_engine_->on_cycles_advanced(cycles_, delta_cycles);
     }
     refresh_interrupt_pending();
+}
+
+u8 AvrCpu::active_clock_domains() const noexcept
+{
+    if (state_ == CpuState::running) {
+        return 0xFFU; // All domains active
+    }
+
+    if (state_ == CpuState::sleeping) {
+        const SleepMode mode = control_regs_->current_sleep_mode();
+        u8 domains = static_cast<u8>(ClockDomain::watchdog); // Watchdog always active
+
+        switch (mode) {
+        case SleepMode::idle:
+            // All clocks active except CPU clock
+            domains |= static_cast<u8>(ClockDomain::io) | 
+                       static_cast<u8>(ClockDomain::adc) | 
+                       static_cast<u8>(ClockDomain::async_timer);
+            break;
+        case SleepMode::adc_noise_reduction:
+            // ADC, TWI, Timer2, Watchdog, and I/O can be active
+            domains |= static_cast<u8>(ClockDomain::adc) | 
+                       static_cast<u8>(ClockDomain::io) | 
+                       static_cast<u8>(ClockDomain::async_timer);
+            break;
+        case SleepMode::power_down:
+            // Only Watchdog and TWI (Address Match) / INT / Pin Change can wake.
+            // Clock-based peripherals except Async Timer stop.
+            break;
+        case SleepMode::power_save:
+            // Same as Power Down but Async Timer (Timer 2) keeps running
+            domains |= static_cast<u8>(ClockDomain::async_timer);
+            break;
+        case SleepMode::standby:
+        case SleepMode::extended_standby:
+            // Oscillator runs, but clocks to peripherals gated similarly to Power Down/Save
+            if (mode == SleepMode::extended_standby) {
+                domains |= static_cast<u8>(ClockDomain::async_timer);
+            }
+            break;
+        default:
+            break;
+        }
+        return domains;
+    }
+
+    return 0U; // Halted or unknown state
 }
 
 void AvrCpu::synchronize_if_needed()
@@ -1652,7 +1701,52 @@ void AvrCpu::execute_sleep(const DecodedInstruction& instruction)
     (void)instruction;
     ++program_counter_;
     advance_cycles(1U);
-    state_ = CpuState::sleeping;
+
+    // Check if sleep is enabled via SMCR.SE bit
+    if (cpu_control().sleep_enabled()) {
+        cpu_control().enter_sleep();
+        const SleepMode mode = cpu_control().current_sleep_mode();
+
+        switch (mode) {
+        case SleepMode::idle:
+            // CPU clock stopped, all peripherals run, all interrupts can wake
+            Logger::debug("Entering Idle mode");
+            state_ = CpuState::sleeping;
+            break;
+        case SleepMode::adc_noise_reduction:
+            // Same as Idle but only ADC/Timer2/TWI/WDT interrupts can wake
+            Logger::debug("Entering ADC Noise Reduction mode");
+            state_ = CpuState::sleeping;
+            break;
+        case SleepMode::power_down:
+            // External oscillator stopped, only INTx/PCINT/TWI/Timer2/ADC/WDT can wake
+            Logger::debug("Entering Power Down mode");
+            state_ = CpuState::sleeping;
+            break;
+        case SleepMode::power_save:
+            // Same as Power Down but Timer2 runs async (requires TOSC1/TOSC2)
+            Logger::debug("Entering Power Save mode");
+            state_ = CpuState::sleeping;
+            break;
+        case SleepMode::standby:
+            // Same as Power Down but oscillator keeps running (1-cycle wake)
+            Logger::debug("Entering Standby mode");
+            state_ = CpuState::sleeping;
+            break;
+        case SleepMode::extended_standby:
+            // Same as Power Save but oscillator keeps running (1-cycle wake)
+            Logger::debug("Entering Extended Standby mode");
+            state_ = CpuState::sleeping;
+            break;
+        default:
+            // Reserved modes - treat as Idle
+            state_ = CpuState::sleeping;
+            break;
+        }
+    } else {
+        // Sleep not enabled - instruction executes but no sleep occurs
+        Logger::debug("SLEEP executed but SE bit not set");
+    }
 }
 
 void AvrCpu::execute_break(const DecodedInstruction& instruction)

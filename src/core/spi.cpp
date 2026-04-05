@@ -32,6 +32,11 @@ std::span<const AddressRange> Spi::mapped_ranges() const noexcept
     return ranges_;
 }
 
+ClockDomain Spi::clock_domain() const noexcept
+{
+    return ClockDomain::io;
+}
+
 void Spi::reset() noexcept
 {
     spcr_ = 0U;

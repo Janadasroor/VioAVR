@@ -108,11 +108,14 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
     }
 }
 
-void MemoryBus::tick_peripherals(const u64 elapsed_cycles) noexcept
+void MemoryBus::tick_peripherals(const u64 elapsed_cycles, const u8 active_domains) noexcept
 {
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
-            peripheral->tick(elapsed_cycles);
+            const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
+            if ((domain_mask & active_domains) != 0 || domain_mask == 0) {
+                peripheral->tick(elapsed_cycles);
+            }
         }
     }
 }

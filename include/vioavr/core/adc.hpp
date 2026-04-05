@@ -43,6 +43,8 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    [[nodiscard]] ClockDomain clock_domain() const noexcept override;
+
     void bind_signal_bank(const AnalogSignalBank& signal_bank) noexcept;
     void select_auto_trigger_source(AutoTriggerSource source) noexcept;
     void connect_comparator_auto_trigger(AnalogComparator& comparator) noexcept;

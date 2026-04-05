@@ -76,6 +76,12 @@ std::span<const AddressRange> Timer8::mapped_ranges() const noexcept
     return {ranges_.data(), count};
 }
 
+ClockDomain Timer8::clock_domain() const noexcept
+{
+    // Timer2 is usually the only 8-bit timer with AS2 bit in ASSR
+    return has_async_status_register() ? ClockDomain::async_timer : ClockDomain::io;
+}
+
 void Timer8::reset() noexcept
 {
     tcnt_ = 0U;

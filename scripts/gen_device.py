@@ -225,6 +225,8 @@ def parse_atdf(file_path):
         'sreg_addr': d_sreg['addr'], 'sreg_reset': d_sreg['init']
     }
     device_info['spmcsr_addr'] = fr(r'SPMCSR|SPMCR')['addr']
+    device_info['smcr_addr'] = fr(r'SMCR')['addr']
+    device_info['mcusr_addr'] = fr(r'MCUSR')['addr']
 
     for p in "ABCDEFGH":
         p_info = {'name': f"PORT{p}", 'pin': fr(f"PIN{p}")['addr'], 'ddr': fr(f"DDR{p}")['addr'], 'port': fr(f"PORT{p}")['addr']}
@@ -253,6 +255,7 @@ inline constexpr DeviceDescriptor {name} {{
     .flash_words = {d['flash_words']}U, .sram_bytes = {d['sram_bytes']}U, .eeprom_bytes = {d['eeprom_bytes']}U,
     .interrupt_vector_count = {d['vectors']}U, .interrupt_vector_size = {d['vector_size']}U, .flash_page_size = {hx(d['flash_page_size'])},
     .spl_address = {hx(d['core_regs']['spl_addr'])}, .sph_address = {hx(d['core_regs']['sph_addr'])}, .sreg_address = {hx(d['core_regs']['sreg_addr'])}, .spmcsr_address = {hx(d['spmcsr_addr'])},
+    .smcr_address = {hx(d['smcr_addr'])}, .mcusr_address = {hx(d['mcusr_addr'])},
     .flash_rww_end_word = {d['flash_rww_end_word']}U,
     .spl_reset = {hx(d['core_regs']['spl_reset'])}, .sph_reset = {hx(d['core_regs']['sph_reset'])}, .sreg_reset = {hx(d['core_regs']['sreg_reset'])},
     .adc = {{ 

@@ -39,6 +39,11 @@ std::span<const AddressRange> Uart0::mapped_ranges() const noexcept
     return {ranges_.data(), count};
 }
 
+ClockDomain Uart0::clock_domain() const noexcept
+{
+    return ClockDomain::io;
+}
+
 void Uart0::reset() noexcept
 {
     udr_rx_ = 0U;

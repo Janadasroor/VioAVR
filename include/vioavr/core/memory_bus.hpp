@@ -96,7 +96,7 @@ public:
 
     [[nodiscard]] u8 read_data(u16 address) noexcept;
     void write_data(u16 address, u8 value) noexcept;
-    void tick_peripherals(u64 elapsed_cycles) noexcept;
+    void tick_peripherals(u64 elapsed_cycles, u8 active_domains = 0xFFU) noexcept;
     [[nodiscard]] bool consume_pin_change(PinStateChange& change) noexcept;
     void propagate_external_pin_change(u32 external_id, PinLevel level) noexcept;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept;

@@ -20,6 +20,8 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    [[nodiscard]] ClockDomain clock_domain() const noexcept override;
+
     // Host-side API for SPI simulation
     void inject_miso_byte(u8 value) noexcept;
     void trigger_slave_transfer() noexcept;

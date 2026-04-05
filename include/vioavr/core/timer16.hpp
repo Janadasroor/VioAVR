@@ -26,6 +26,8 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    [[nodiscard]] ClockDomain clock_domain() const noexcept override;
+
     // Co-simulation hooks
     void connect_input_capture(GpioPort& port, u8 bit) noexcept;
     void connect_compare_output_a(GpioPort& port, u8 bit) noexcept;
@@ -94,6 +96,8 @@ private:
     std::optional<BoundPin> pin_icp_;
     u8 last_icp_state_ {0};
     u8 last_t1_state_ {0};
+    u8 noise_canceler_register_ {0};
+    u8 noise_canceler_counter_ {0};
 };
 
 }  // namespace vioavr::core
