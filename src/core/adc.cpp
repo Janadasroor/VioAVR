@@ -251,7 +251,9 @@ bool Adc::free_running_enabled() const noexcept
 
 Adc::AutoTriggerSource Adc::resolve_auto_trigger_source(const u8 selector) const noexcept
 {
-    const auto map = device_ != nullptr ? device_->adc.auto_trigger_map
+    // Use device auto_trigger_map if available and non-empty, otherwise use defaults
+    const bool has_valid_map = device_ != nullptr && device_->adc.auto_trigger_map[1] != AdcAutoTriggerSource{};
+    const auto map = has_valid_map ? device_->adc.auto_trigger_map
                                         : std::array<AdcAutoTriggerSource, 8> {
                                               AdcAutoTriggerSource::free_running,
                                               AdcAutoTriggerSource::analog_comparator,
