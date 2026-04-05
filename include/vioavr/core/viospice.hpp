@@ -6,6 +6,7 @@
 #include "vioavr/core/sync_engine.hpp"
 #include "vioavr/core/pin_map.hpp"
 #include "vioavr/core/analog_signal_bank.hpp"
+#include "vioavr/core/timer8.hpp"
 
 #include <memory>
 #include <string_view>
@@ -32,6 +33,7 @@ public:
 
     // Simulation Step (Called by SPICE)
     void step_duration(double seconds);
+    void tick_timer2_async(u64 ticks);
     
     // External Signal Injection (From SPICE nodes to AVR pins)
     void set_external_pin(u32 external_id, PinLevel level);
@@ -52,6 +54,7 @@ private:
     MemoryBus bus_;
     AvrCpu cpu_;
     AnalogSignalBank analog_signal_bank_;
+    Timer8* timer2_ {};
     PinChangeInterruptSharedState pcint_shared_state_ {};
     std::unique_ptr<PinMap> pin_map_;
     std::unique_ptr<SyncEngine> sync_;

@@ -23,6 +23,7 @@ void vioavr_set_quantum(VioSpiceHandle handle, uint64_t cycles);
 
 // Stepping
 void vioavr_step_duration(VioSpiceHandle handle, double seconds);
+void vioavr_tick_timer2_async(VioSpiceHandle handle, uint64_t ticks);
 
 // Pin Mapping & I/O
 void vioavr_add_pin_mapping(VioSpiceHandle handle, const char* port_name, uint8_t bit_index, uint32_t external_id);

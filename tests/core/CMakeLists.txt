@@ -13,6 +13,7 @@ set(TEST_SOURCES
     cpu_timer_descriptor_test.cpp
     cpu_timer2_descriptor_test.cpp
     cpu_timer2_assr_test.cpp
+    cpu_timer2_async_test.cpp
     cpu_adc_free_running_test.cpp
     cpu_adc_free_running_firmware_test.cpp
     cpu_adc_auto_trigger_test.cpp

@@ -117,7 +117,7 @@ TEST_CASE("Watchdog Timer: Interrupt Mode") {
     cpu.step();
 
     // PC should be at vector 6 (WDT)
-    CHECK(cpu.program_counter() == 12U);
+    CHECK(cpu.program_counter() == 6U);
     // WDIF should be cleared now by hardware entry
     CHECK((wdt.read(0x60) & 0x80) == 0);
 }

@@ -38,6 +38,10 @@ void vioavr_step_duration(VioSpiceHandle handle, double seconds) {
     static_cast<VioSpice*>(handle)->step_duration(seconds);
 }
 
+void vioavr_tick_timer2_async(VioSpiceHandle handle, uint64_t ticks) {
+    static_cast<VioSpice*>(handle)->tick_timer2_async(ticks);
+}
+
 void vioavr_add_pin_mapping(VioSpiceHandle handle, const char* port_name, uint8_t bit_index, uint32_t external_id) {
     static_cast<VioSpice*>(handle)->add_pin_mapping(port_name, bit_index, external_id);
 }
