@@ -66,10 +66,10 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
     cpu.reset();
 
     SUBCASE("Interrupt Trigger and ISR Execution") {
-        step_to(cpu, 4U);
+        for (int i = 0; i < 3; ++i) cpu.step();
         auto s = cpu.snapshot();
-        // CHECK(s.program_counter == 14U);
-        // CHECK((s.sreg & (1U << static_cast<u8>(SregFlag::interrupt))) != 0U);
+        CHECK(s.program_counter == 14U);
+        CHECK((s.sreg & (1U << static_cast<u8>(SregFlag::interrupt))) != 0U);
 
         // Trigger comparator
         comparator.set_positive_input_voltage(0.83);
@@ -77,26 +77,26 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
         // Next step should enter ISR
         cpu.step();
         s = cpu.snapshot();
-        // CHECK(s.program_counter == comparator_vector); // PC=8
-        // CHECK(s.stack_pointer == static_cast<u16>(atmega328.sram_range().end - 2U));
-        // CHECK(s.in_interrupt_handler);
+        CHECK(s.program_counter == comparator_vector); // PC=8
+        CHECK(s.stack_pointer == static_cast<u16>(atmega328.sram_range().end - 2U));
+        CHECK(s.in_interrupt_handler);
 
         // Step through ISR body
         cpu.step(); // LDI r19, 0xA5
-        // CHECK(cpu.snapshot().gpr[19] == 0xA5U);
+        CHECK(cpu.snapshot().gpr[19] == 0xA5U);
 
         cpu.step(); // RETI
         s = cpu.snapshot();
-        // CHECK(s.program_counter == 14U); // Back to NOP
-        // CHECK(s.stack_pointer == atmega328.sram_range().end);
+        CHECK(s.program_counter == 14U); // Back to NOP
+        CHECK(s.stack_pointer == atmega328.sram_range().end);
         CHECK_FALSE(s.in_interrupt_handler);
 
         // Mainline continues
         cpu.step(); // NOP at 14
         cpu.step(); // LDI r18, 0x55
-        // CHECK(cpu.snapshot().gpr[18] == 0x55U);
+        CHECK(cpu.snapshot().gpr[18] == 0x55U);
         
         // ACI should be cleared by hardware on ISR entry
-        // CHECK((bus.read_data(acsr_addr) & 0x10U) == 0U);
+        CHECK((bus.read_data(acsr_addr) & 0x10U) == 0U);
     }
 }

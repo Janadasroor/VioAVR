@@ -46,7 +46,7 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
     bus.write_data(atmega328.pin_change_interrupt_0.pcmsk_address, 0x04U); // PCINT2 (PB2) enable
 
     SUBCASE("Initial State") {
-        // CHECK((port_b.sample_levels() & 0x04U) == 0U);
+        CHECK((port_b.sample_levels() & 0x04U) == 0U);
         InterruptRequest request {};
         CHECK_FALSE(bus.pending_interrupt_request(request));
     }
@@ -56,13 +56,13 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
         signals.set_voltage(0U, 0.50);
         signals.set_voltage(1U, 0.50);
         bus.tick_peripherals(1U);
-        // CHECK((port_b.sample_levels() & 0x04U) == 0U); // Still LOW (hysteresis)
+        CHECK((port_b.sample_levels() & 0x04U) == 0U); // Still LOW (hysteresis)
 
         // Step 3: Set signal 0 to 0.80 (HIGH -> PCINT expected)
         signals.set_voltage(0U, 0.80);
         bus.tick_peripherals(1U);
-        // CHECK((port_b.sample_levels() & 0x04U) != 0U);
-        // CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x01U);
+        CHECK((port_b.sample_levels() & 0x04U) != 0U);
+        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x01U);
 
         // Step 4: Clear PCIF
         bus.write_data(atmega328.pin_change_interrupt_0.pcifr_address, 0x01U);
@@ -73,8 +73,8 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
         signals.set_voltage(1U, 0.20);
         bus.tick_peripherals(1U);
         
-        // CHECK(bus.pending_interrupt_request(request));
-        // CHECK(request.vector_index == atmega328.ext_interrupt.int0_vector_index);
-        // CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x01U);
+        CHECK(bus.pending_interrupt_request(request));
+        CHECK(request.vector_index == atmega328.ext_interrupt.int0_vector_index);
+        CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x01U);
     }
 }

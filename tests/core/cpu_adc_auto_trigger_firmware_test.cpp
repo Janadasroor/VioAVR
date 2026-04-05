@@ -92,13 +92,13 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
         // Run setup (6 instructions: LDI, STS, LDI, STS, LDI, STS)
         // Cycles: 1 + 2 + 1 + 2 + 1 + 2 = 9
         step_to(cpu, 0U);
-        // CHECK(cpu.cycles() == 9U);
-        // CHECK(cpu.program_counter() == 9U);
+        CHECK(cpu.cycles() == 9U);
+        CHECK(cpu.program_counter() == 9U);
         
         // LDS r18, ADCSRA
         cpu.step(); // 2 cycles
         // ADEN=1, ADATE=1, ADSC=0 (not triggered yet), ADIF=0
-        // CHECK((cpu.snapshot().gpr[18] & 0xF0U) == 0xA0U);
+        CHECK((cpu.snapshot().gpr[18] & 0xF0U) == 0xA0U);
 
         // Raise comparator input to trigger edge
         comparator.set_positive_input_voltage(0.83); // ACO becomes 1 -> Trigger ADC
@@ -106,14 +106,14 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
         // LDS r19, ADCSRA
         cpu.step(); // 2 cycles
         // ADSC should be set now (triggered)
-        // CHECK((cpu.snapshot().gpr[19] & 0x40U) != 0U);
+        CHECK((cpu.snapshot().gpr[19] & 0x40U) != 0U);
 
         // Tick to complete conversion (4 cycles)
         // We already ticked 2 during LDS r19.
         cpu.step(); // LDS r20, ADCSRA (2 cycles)
         const auto s2 = cpu.snapshot();
         // ADIF should be set now
-        // CHECK((s2.gpr[20] & 0x10U) != 0U);
+        CHECK((s2.gpr[20] & 0x10U) != 0U);
 
         // Read results
         cpu.step(); // LDS r21, ADCL
@@ -123,7 +123,7 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
             s3.gpr[21] | (static_cast<vioavr::core::u16>(s3.gpr[22]) << 8U)
         );
         // 0.75V -> 768
-        // CHECK(result >= 766U);
-        // CHECK(result <= 769U);
+        CHECK(result >= 766U);
+        CHECK(result <= 769U);
     }
 }

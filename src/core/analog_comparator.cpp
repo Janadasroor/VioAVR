@@ -58,6 +58,7 @@ void AnalogComparator::reset() noexcept
 void AnalogComparator::tick(const u64 elapsed_cycles) noexcept
 {
     (void)elapsed_cycles;
+    refresh_bound_inputs();
 }
 
 u8 AnalogComparator::read(const u16 address) noexcept

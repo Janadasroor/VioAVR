@@ -91,13 +91,13 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
         // Run setup (8 instructions: LDI, STS x 4)
         // Cycles: 1+2 + 1+2 + 1+2 + 1+2 = 12
         step_to(cpu, 0U);
-        // CHECK(cpu.cycles() == 12U);
-        // CHECK(cpu.program_counter() == 12U);
+        CHECK(cpu.cycles() == 12U);
+        CHECK(cpu.program_counter() == 12U);
         
         // LDS r18, ADCSRA
         cpu.step(); // 2 cycles
         // ADEN=1, ADATE=1, ADSC=0, ADIF=0
-        // CHECK((cpu.snapshot().gpr[18] & 0xF0U) == 0xA0U);
+        CHECK((cpu.snapshot().gpr[18] & 0xF0U) == 0xA0U);
 
         // Trigger INT0 falling edge
         exti.set_int0_level(true);
@@ -106,7 +106,7 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
         // LDS r19, ADCSRA
         cpu.step(); // 2 cycles
         // ADSC should be set
-        // CHECK((cpu.snapshot().gpr[19] & 0x40U) != 0U);
+        CHECK((cpu.snapshot().gpr[19] & 0x40U) != 0U);
 
         // Tick to complete conversion (4 cycles)
         // We already ticked 2 during LDS r19.
@@ -119,8 +119,8 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
             snapshot.gpr[20] | (static_cast<vioavr::core::u16>(snapshot.gpr[21]) << 8U)
         );
         
-        // CHECK(result >= 429U);
-        // CHECK(result <= 431U);
-        // CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x01U);
+        CHECK(result >= 429U);
+        CHECK(result <= 431U);
+        CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x01U);
     }
 }

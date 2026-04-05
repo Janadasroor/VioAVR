@@ -47,25 +47,25 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
             (static_cast<vioavr::core::u16>(bus.read_data(atmega328.adc.adch_address)) << 8U)
         );
         // 0.25V -> 1024 * 0.25 = 256
-        // CHECK(result >= 254U);
-        // CHECK(result <= 258U);
+        CHECK(result >= 254U);
+        CHECK(result <= 258U);
     }
 
     SUBCASE("Analog Comparator Level and Flags") {
         bus.write_data(acsr, 0x0BU); // ACIE | ACIS1 | ACIS0
-        // CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (0.25 < 0.70)
+        CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (0.25 < 0.70)
 
         signals.set_voltage(0U, 0.69);
         bus.tick_peripherals(1U);
-        // CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (0.69 < 0.70)
+        CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (0.69 < 0.70)
 
         signals.set_voltage(0U, 0.75); // Greater than 0.70 -> ACO=1
         bus.tick_peripherals(1U);
         
-        // CHECK((bus.read_data(acsr) & 0x30U) == 0x30U); // ACO=1, ACI set (rising edge)
+        CHECK((bus.read_data(acsr) & 0x30U) == 0x30U); // ACO=1, ACI set (rising edge)
         
         InterruptRequest request {};
-        // CHECK(bus.pending_interrupt_request(request));
-        // CHECK(request.vector_index == comparator_vector);
+        CHECK(bus.pending_interrupt_request(request));
+        CHECK(request.vector_index == comparator_vector);
     }
 }

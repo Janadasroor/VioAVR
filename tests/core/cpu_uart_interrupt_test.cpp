@@ -30,18 +30,18 @@ TEST_CASE("UART0 Interrupt Flag and Priority Test")
         
         // UDRE should be pending immediately since UDR is empty
         CHECK(bus.pending_interrupt_request(request));
-        // CHECK(request.vector_index == udre_vec);
+        CHECK(request.vector_index == udre_vec);
 
         // Inject byte to trigger RXC
         uart0.inject_received_byte(0x33U);
         
         // RXC should now override UDRE (higher priority, lower vector index)
         CHECK(bus.pending_interrupt_request(request));
-        // CHECK(request.vector_index == rx_vec);
+        CHECK(request.vector_index == rx_vec);
 
         // Consume RXC
         CHECK(bus.consume_interrupt_request(request));
-        // CHECK(request.vector_index == rx_vec);
+        CHECK(request.vector_index == rx_vec);
         // RXC flag should be cleared by hardware on vectoring? 
         // No, for UART RXC is cleared by reading UDR.
         // Wait, the original test says:
@@ -52,7 +52,7 @@ TEST_CASE("UART0 Interrupt Flag and Priority Test")
 
         // Now UDRE should be pending again
         CHECK(bus.pending_interrupt_request(request));
-        // CHECK(request.vector_index == udre_vec);
+        CHECK(request.vector_index == udre_vec);
 
         // Start transmission to clear UDRE
         bus.write_data(udr, 0x7EU);
@@ -64,11 +64,11 @@ TEST_CASE("UART0 Interrupt Flag and Priority Test")
         // Now UDRE should be set again, and TXC should also be set.
         // UDRE has higher priority than TXC.
         CHECK(bus.pending_interrupt_request(request));
-        // CHECK(request.vector_index == udre_vec);
+        CHECK(request.vector_index == udre_vec);
 
         // Consume UDRE
         CHECK(bus.consume_interrupt_request(request));
-        // CHECK(request.vector_index == udre_vec);
+        CHECK(request.vector_index == udre_vec);
         CHECK((bus.read_data(ucsra) & 0x20U) == 0U);
 
         // Now TXC should be pending

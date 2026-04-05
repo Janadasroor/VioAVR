@@ -82,15 +82,15 @@ TEST_CASE("ADC Firmware Integration Test")
         // Next instruction: LDS r18, ADCSRA (2 words)
         cpu.step(); // LDS occupies 2 cycles
         // ADSC should be set, ADIF should be 0 (conversion in progress)
-        // CHECK((cpu.snapshot().gpr[18] & 0x40U) != 0U);
-        // CHECK((cpu.snapshot().gpr[18] & 0x10U) == 0U);
+        CHECK((cpu.snapshot().gpr[18] & 0x40U) != 0U);
+        CHECK((cpu.snapshot().gpr[18] & 0x10U) == 0U);
 
         // Tick peripherals to complete conversion (4 cycles)
         // LDS was 2 cycles. We need 2 more. Next LDS is another 2 cycles.
         cpu.step(); // LDS r19, ADCSRA
         const auto s1 = cpu.snapshot();
         // Now conversion should be DONE. ADSC=0, ADIF=1
-        // CHECK((s1.gpr[19] & 0x50U) == 0x10U);
+        CHECK((s1.gpr[19] & 0x50U) == 0x10U);
 
         // Read ADCL and ADCH
         cpu.step(); // LDS r20, ADCL
@@ -100,7 +100,7 @@ TEST_CASE("ADC Firmware Integration Test")
             s2.gpr[20] | (static_cast<vioavr::core::u16>(s2.gpr[21]) << 8U)
         );
         // 0.25V -> 256
-        // CHECK(result >= 254U);
-        // CHECK(result <= 258U);
+        CHECK(result >= 254U);
+        CHECK(result <= 258U);
     }
 }

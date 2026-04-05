@@ -105,8 +105,8 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
         // LDI (8), OUT (9) -> Cycles 2, Next PC 10 (Timer starts here)
         // LDI (10), STS (11,12) -> Cycles 3, Next PC 13
         step_to(cpu, 0U);
-        // CHECK(cpu.cycles() == 13U);
-        // CHECK(cpu.program_counter() == 13U);
+        CHECK(cpu.cycles() == 13U);
+        CHECK(cpu.program_counter() == 13U);
 
         // At this point, timer is running (since cycle 10).
         // tcnt should be around 3 (13 - 10).
@@ -121,13 +121,13 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
         
         // Now ADC should be converting. Conversion takes 4 cycles.
         // ADSC should be set.
-        // CHECK((bus.read_data(atmega328.adc.adcsra_address) & 0x40U) != 0U);
+        CHECK((bus.read_data(atmega328.adc.adcsra_address) & 0x40U) != 0U);
 
         // Tick 4 more for conversion
         cpu.run(4);
         
         const auto status = bus.read_data(atmega328.adc.adcsra_address);
-        // CHECK((status & 0x10U) != 0U); // ADIF set
+        CHECK((status & 0x10U) != 0U); // ADIF set
 
         // Read results
         cpu.step(); // LDS r20, ADCL
@@ -136,7 +136,7 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
         const auto result = static_cast<vioavr::core::u16>(
             s2.gpr[20] | (static_cast<vioavr::core::u16>(s2.gpr[21]) << 8U)
         );
-        // CHECK(result >= 612U);
-        // CHECK(result <= 616U);
+        CHECK(result >= 612U);
+        CHECK(result <= 616U);
     }
 }
