@@ -190,7 +190,7 @@ struct DeviceDescriptor {
     u16 spmcsr_address {};
     u16 prr_address {};
     u16 smcr_address {};
-    u16 flash_rww_end_word {}; // End of Read-While-Write section
+    u32 flash_rww_end_word {}; // End of Read-While-Write section
     u8 spl_reset {0x00U};
     u8 sph_reset {0x00U};
     u8 sreg_reset {0x00U};

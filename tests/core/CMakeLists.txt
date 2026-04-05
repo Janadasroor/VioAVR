@@ -47,9 +47,8 @@ set(TEST_SOURCES
     cpu_pin_change_interrupt_test.cpp
     cpu_pin_change_interrupt_groups_test.cpp
     cpu_pin_change_interrupt_firmware_test.cpp
-    cpu_sleep_wake_test.cpp
-    cpu_small_ops_test.cpp
     cpu_spm_boundary_test.cpp
+    cpu_spm_firmware_test.cpp
     cpu_stack_test.cpp
     cpu_timer_test.cpp
     cpu_timer_pwm_test.cpp

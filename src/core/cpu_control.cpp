@@ -38,7 +38,11 @@ void CpuControl::tick(const u64 elapsed_cycles) noexcept
 u8 CpuControl::read(const u16 address) noexcept
 {
     if (address == cpu_.bus().device().spmcsr_address) {
-        return spmcsr_;
+        u8 val = spmcsr_;
+        if (cpu_.bus().flash_rww_busy()) {
+            val |= 0x40U; // RWWSB bit
+        }
+        return val;
     }
     if (address == cpu_.bus().device().spl_address) {
         return static_cast<u8>(cpu_.stack_pointer() & 0xFFU);
@@ -55,7 +59,8 @@ u8 CpuControl::read(const u16 address) noexcept
 void CpuControl::write(const u16 address, const u8 value) noexcept
 {
     if (address == cpu_.bus().device().spmcsr_address) {
-        spmcsr_ = value;
+        // Shield read-only status bits (like RWWSB at bit 6)
+        spmcsr_ = value & 0xBFU; 
     } else if (address == cpu_.bus().device().spl_address) {
         const u16 current = cpu_.stack_pointer();
         cpu_.set_stack_pointer(static_cast<u16>((current & 0xFF00U) | value));
