@@ -6,6 +6,7 @@ inline constexpr DeviceDescriptor atmega4808 {
     .flash_words = 0U, .sram_bytes = 6144U, .eeprom_bytes = 256U,
     .interrupt_vector_count = 36U, .interrupt_vector_size = 4U, .flash_page_size = 0x0U,
     .spl_address = 0xDU, .sph_address = 0xEU, .sreg_address = 0xFU, .spmcsr_address = 0x0U,
+    .smcr_address = 0x0U, .mcusr_address = 0x0U,
     .flash_rww_end_word = 0U,
     .spl_reset = 0x0U, .sph_reset = 0x0U, .sreg_reset = 0x0U,
     .adc = { 

@@ -57,6 +57,11 @@ std::span<const AddressRange> Adc::mapped_ranges() const noexcept {
     return {ranges_.data(), count};
 }
 
+ClockDomain Adc::clock_domain() const noexcept
+{
+    return ClockDomain::adc;
+}
+
 void Adc::reset() noexcept {
     adcsra_ = desc_.adcsra_reset;
     adcsrb_ = desc_.adcsrb_reset;

@@ -6,6 +6,7 @@ inline constexpr DeviceDescriptor at90usb82 {
     .flash_words = 4096U, .sram_bytes = 512U, .eeprom_bytes = 512U,
     .interrupt_vector_count = 29U, .interrupt_vector_size = 4U, .flash_page_size = 0x80U,
     .spl_address = 0x5DU, .sph_address = 0x5EU, .sreg_address = 0x5FU, .spmcsr_address = 0x57U,
+    .smcr_address = 0x53U, .mcusr_address = 0x54U,
     .flash_rww_end_word = 2048U,
     .spl_reset = 0x0U, .sph_reset = 0x0U, .sreg_reset = 0x0U,
     .adc = { 

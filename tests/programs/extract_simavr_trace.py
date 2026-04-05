@@ -1,93 +1,105 @@
 #!/usr/bin/env python3
 """
-Extract register trace from SimAVR via GDB Python API.
-
-Usage: python3 extract_simavr_trace.py <elf_file> [--steps N] [--port P]
-
-Outputs CSV: step,pc,sreg,sp,r0,...,r31
+Extract register trace from SimAVR via GDB 'info registers'.
 """
 
 import subprocess
 import sys
 import time
+import re
 import os
 from pathlib import Path
 
-def extract_trace(elf: Path, max_steps: int = 20, port: int = 1234) -> list[dict]:
-    """Extract trace using GDB Python API."""
+def extract_trace(elf: Path, max_steps: int = 20) -> list[dict]:
+    """Extract trace using GDB's info registers command."""
     
-    elf_abs = str(elf.absolute())
+    # Create GDB script
+    gdb_commands = ["set confirm off", "set pagination off"]
     
-    # Start SimAVR
-    simavr = subprocess.Popen(
-        ['simavr', '-g', '-m', 'atmega328p', elf_abs],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    time.sleep(2)
+    for i in range(max_steps):
+        if i > 0:
+            gdb_commands.append("stepi")
+        gdb_commands.append("info registers")
+        gdb_commands.append("echo ---END_STEP---\\n")
     
-    # Build GDB Python script
-    gdb_python = f'''
-import gdb
-
-# Register names for read_register
-reg_names = ['SREG', 'SP'] + [f'r{{i}}' for i in range(32)]
-
-print("step,pc,sreg,sp," + ",".join([f"r{{i}}" for i in range(32)]))
-
-for step in range({max_steps + 1}):
-    try:
-        pc = int(gdb.parse_and_eval('$pc').cast(gdb.lookup_type('long')))
-        frame = gdb.selected_frame()
-        sreg = int(frame.read_register('SREG'))
-        sp = int(frame.read_register('SP').cast(gdb.lookup_type('long')))
-        regs = [int(frame.read_register(f'r{{i}}')) for i in range(32)]
-        
-        print(f"{{step}},{{pc}},{{sreg}},{{sp}}," + ",".join(str(r) for r in regs))
-        
-        if step < {max_steps}:
-            gdb.execute('stepi', to_string=True)
-    except Exception as e:
-        print(f"Error at step {{step}}: {{e}}", file=sys.stderr)
-        break
-'''
+    gdb_commands.append("quit")
     
-    # Write temp script
-    script_path = '/tmp/gdb_simavr_extract.py'
-    with open(script_path, 'w') as f:
-        f.write(gdb_python)
+    # Write to temp file
+    script_path = "/tmp/simavr_gdb.cmd"
+    with open(script_path, "w") as f:
+        f.write("\n".join(gdb_commands))
     
     try:
+        # Start SimAVR
+        simavr = subprocess.Popen(
+            ["simavr", "-g", "-m", "atmega328p", str(elf)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        time.sleep(3)
+        
+        # Run GDB
         result = subprocess.run(
-            ['avr-gdb', '-batch', '-nx',
-             '-ex', f'file {elf_abs}',
-             '-ex', f'target remote localhost:{port}',
-             '-ex', f'source {script_path}',
-             '-ex', 'quit'],
-            capture_output=True, text=True, timeout=120
+            ["avr-gdb", "-batch",
+             "-ex", f"target remote localhost:1234",
+             "-x", script_path],
+            capture_output=True, text=True, timeout=60
         )
         
-        # Parse CSV output
+        # Parse output
         traces = []
+        current_step = 0
+        regs = {}
+        
         for line in result.stdout.split('\n'):
-            if line.strip() and line.strip()[0].isdigit():
-                parts = line.strip().split(',')
-                if len(parts) >= 36:
-                    traces.append({
-                        'step': int(parts[0]),
-                        'pc': int(parts[1]),
-                        'sreg': int(parts[2]),
-                        'sp': int(parts[3]),
-                        'regs': [int(x) for x in parts[4:36]]
-                    })
+            line = line.strip()
+            
+            # Match register lines: r0  0x0  0
+            match = re.match(r'^(r\d+)\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                reg_name = match.group(1)
+                reg_value = int(match.group(2), 16)
+                regs[reg_name] = reg_value
+            
+            # Match SREG
+            match = re.match(r'^SREG\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                regs['SREG'] = int(match.group(1), 16)
+            
+            # Match SP
+            match = re.match(r'^SP\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                regs['SP'] = int(match.group(1), 16)
+            
+            # Match PC
+            match = re.match(r'^pc\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                regs['pc'] = int(match.group(1), 16)
+            
+            # End of step marker
+            if '---END_STEP---' in line:
+                if 'pc' in regs and 'SREG' in regs and 'SP' in regs:
+                    trace = {
+                        'step': current_step,
+                        'pc': regs['pc'],
+                        'sreg': regs['SREG'],
+                        'sp': regs['SP'],
+                        'regs': [regs.get(f'r{i}', 0) for i in range(32)]
+                    }
+                    traces.append(trace)
+                current_step += 1
+                regs = {}
         
         return traces
-    
+        
     except subprocess.TimeoutExpired:
         print("Error: GDB timed out", file=sys.stderr)
         return []
     finally:
         simavr.terminate()
-        simavr.wait(timeout=5)
+        try:
+            simavr.wait(timeout=5)
+        except:
+            pass
         if os.path.exists(script_path):
             os.unlink(script_path)
 

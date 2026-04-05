@@ -103,6 +103,11 @@ public:
         return *bus_;
     }
 
+    [[nodiscard]] CpuControl& cpu_control() noexcept
+    {
+        return *control_regs_;
+    }
+
     void write_register(u8 index, u8 value) noexcept;
     void write_sreg(u8 value) noexcept;
 
@@ -136,6 +141,8 @@ private:
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();
     [[nodiscard]] bool service_interrupt_if_needed();
+    [[nodiscard]] u8 active_clock_domains() const noexcept;
+
     [[nodiscard]] constexpr u16 interrupt_vector_word_address(u8 vector_index) const noexcept
     {
         // interrupt_vector_size is in bytes, convert to words

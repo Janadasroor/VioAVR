@@ -51,3 +51,4 @@ docs/datasheets/
 !/atmega/OVERVIEW.md
 !/atmega/package.content
 !/atmega/Microchip.ATmega_DFP.pdsc
+tests/programs/*.csv

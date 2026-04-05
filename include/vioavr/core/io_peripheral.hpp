@@ -7,6 +7,15 @@
 
 namespace vioavr::core {
 
+enum class ClockDomain : u8 {
+    cpu = 0x01,
+    io = 0x02,
+    adc = 0x04,
+    async_timer = 0x08,
+    watchdog = 0x10,
+    none = 0x00
+};
+
 class IoPeripheral {
 public:
     virtual ~IoPeripheral() = default;
@@ -14,8 +23,14 @@ public:
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
     [[nodiscard]] virtual std::span<const AddressRange> mapped_ranges() const noexcept = 0;
 
+    [[nodiscard]] virtual ClockDomain clock_domain() const noexcept
+    {
+        return ClockDomain::io;
+    }
+
     virtual void reset() noexcept = 0;
     virtual void tick(u64 elapsed_cycles) noexcept = 0;
+
     [[nodiscard]] virtual u8 read(u16 address) noexcept = 0;
     virtual void write(u16 address, u8 value) noexcept = 0;
     

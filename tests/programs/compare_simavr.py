@@ -1,140 +1,239 @@
 #!/usr/bin/env python3
 """
-Compare VioAVR output against SimAVR reference.
+Compare VioAVR simulator output against SimAVR reference.
 
-This creates a C test program that:
-1. Runs in SimAVR via GDB to extract expected register states
-2. Runs in VioAVR via a trace-dumping CLI
-3. Compares the results
-
-Usage: python3 compare_simavr.py <source.c> [--steps N]
+Usage: python3 compare.py <source.c> [--steps N]
 """
 
 import subprocess
 import sys
-import re
 import os
+import time
+import tempfile
+import re
 from pathlib import Path
-from dataclasses import dataclass, field
 
-@dataclass
-class CpuState:
-    pc: int = 0
-    gpr: list[int] = field(default_factory=lambda: [0]*32)
-    sreg: int = 0
-    sp: int = 0
-    
-    def __getitem__(self, key):
-        if key == 'pc': return self.pc
-        if key == 'sreg': return self.sreg
-        if key == 'sp': return self.sp
-        if isinstance(key, int): return self.gpr[key]
-        return None
-    
-    def diff(self, other: 'CpuState', max_regs=32) -> list[tuple[str, int, int]]:
-        diffs = []
-        if self.pc != other.pc:
-            diffs.append(('PC', self.pc, other.pc))
-        if self.sp != other.sp:
-            diffs.append(('SP', self.sp, other.sp))
-        if self.sreg != other.sreg:
-            diffs.append(('SREG', self.sreg, other.sreg))
-        for i in range(max_regs):
-            if self.gpr[i] != other.gpr[i]:
-                diffs.append((f'R{i}', self.gpr[i], other.gpr[i]))
-        return diffs
-
-def compile_c(src: Path, elf: Path) -> bool:
+def compile_c_source(src: Path, elf: Path) -> bool:
     result = subprocess.run(
-        ['avr-gcc', '-mmcu=atmega328p', '-Os', '-g', '-o', str(elf), str(src)],
+        ["avr-gcc", "-mmcu=atmega328p", "-Os", "-g", "-o", str(elf), str(src)],
         capture_output=True, text=True
     )
     if result.returncode != 0:
-        print(f"Compile error: {result.stderr}", file=sys.stderr)
+        print(f"Compilation failed:\n{result.stderr}", file=sys.stderr)
         return False
     return True
 
-def get_simavr_disassembly(elf: Path) -> list[tuple[int, str, str]]:
-    """Get disassembly from avr-objdump."""
+def extract_bin(elf: Path, bin_path: Path) -> bool:
     result = subprocess.run(
-        ['avr-objdump', '-d', str(elf)],
+        ["avr-objcopy", "-O", "binary", str(elf), str(bin_path)],
         capture_output=True, text=True
     )
-    instructions = []
-    for line in result.stdout.split('\n'):
-        m = re.match(r'\s+([0-9a-f]+):\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+(\S+)', line)
-        if m:
-            addr = int(m.group(1), 16) // 2
-            opcode = int(m.group(2), 16) | (int(m.group(3), 16) << 8)
-            mnemonic = m.group(4)
-            instructions.append((addr, f'{opcode:#06x}', mnemonic))
-    return instructions
+    return result.returncode == 0
 
-def get_vioavr_trace(elf: Path, max_steps: int = 50) -> list[dict]:
-    """Run VioAVR with debug logging to extract trace."""
-    # We need to create a test runner that loads the ELF and dumps state
-    # For now, use the existing test infrastructure
-    return []
+def run_simavr_trace(elf: Path, max_steps: int) -> list[str]:
+    """Extract register trace from SimAVR using GDB."""
+    
+    # Create GDB script
+    gdb_commands = ["set confirm off", "set pagination off"]
+    for i in range(max_steps):
+        if i > 0:
+            gdb_commands.append("stepi")
+        gdb_commands.append("info registers")
+        gdb_commands.append("echo ---END_STEP---\n")
+    gdb_commands.append("quit")
+    
+    script_path = "/tmp/simavr_gdb.cmd"
+    with open(script_path, "w") as f:
+        f.write("\n".join(gdb_commands))
+    
+    try:
+        simavr = subprocess.Popen(
+            ["simavr", "-g", "-m", "atmega328p", str(elf)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        time.sleep(3)
+        
+        result = subprocess.run(
+            ["avr-gdb", "-batch",
+             "-ex", "target remote localhost:1234",
+             "-x", script_path],
+            capture_output=True, text=True, timeout=60
+        )
+        
+        traces = []
+        current_step = 0
+        regs = {}
+        
+        for line in result.stdout.split('\n'):
+            line = line.strip()
+            
+            match = re.match(r'^(r\d+)\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                regs[match.group(1)] = int(match.group(2), 16)
+            
+            match = re.match(r'^SREG\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                regs['SREG'] = int(match.group(1), 16)
+            
+            match = re.match(r'^SP\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                regs['SP'] = int(match.group(1), 16)
+            
+            match = re.match(r'^pc\s+0x([0-9a-fA-F]+)', line)
+            if match:
+                regs['pc'] = int(match.group(1), 16)
+            
+            if '---END_STEP---' in line:
+                if 'pc' in regs and 'SREG' in regs and 'SP' in regs:
+                    trace = {
+                        'step': current_step,
+                        'pc': regs['pc'],
+                        'sreg': regs['SREG'],
+                        'sp': regs['SP'],
+                        'regs': [regs.get(f'r{i}', 0) for i in range(32)]
+                    }
+                    traces.append(trace)
+                current_step += 1
+                regs = {}
+        
+        return traces
+        
+    except subprocess.TimeoutExpired:
+        print("Error: GDB timed out", file=sys.stderr)
+        return []
+    finally:
+        simavr.terminate()
+        try:
+            simavr.wait(timeout=5)
+        except:
+            pass
+        os.unlink(script_path)
+
+def run_vioavr_trace(bin_path: Path, max_steps: int) -> list[str]:
+    trace_runner = "/home/jnd/cpp_projects/VioAVR/tests/programs/trace_runner"
+    if not os.path.exists(trace_runner):
+        print(f"Error: {trace_runner} not found", file=sys.stderr)
+        return []
+    
+    result = subprocess.run(
+        [trace_runner, str(bin_path), "--steps", str(max_steps)],
+        capture_output=True, text=True, timeout=60
+    )
+    
+    lines = []
+    for line in result.stdout.split('\n'):
+        line = line.strip()
+        if line and line[0].isdigit():
+            lines.append(line)
+    
+    return lines
+
+def parse_csv_line(line: str) -> dict:
+    parts = line.split(',')
+    if len(parts) < 36:
+        return {}
+    return {
+        'step': int(parts[0]),
+        'pc': int(parts[1]),
+        'sreg': int(parts[2]),
+        'sp': int(parts[3]),
+        'regs': [int(parts[4+i]) for i in range(32)]
+    }
+
+def compare_traces(simavr_lines: list[str], vioavr_lines: list[str]) -> int:
+    max_steps = min(len(simavr_lines), len(vioavr_lines))
+    if max_steps == 0:
+        print("No trace data to compare")
+        return 0
+    
+    bugs = 0
+    for i in range(max_steps):
+        sim = parse_csv_line(simavr_lines[i])
+        vio = parse_csv_line(vioavr_lines[i])
+        
+        if not sim or not vio:
+            continue
+        
+        if sim['pc'] != vio['pc']:
+            bugs += 1
+            print(f"Step {i}: PC mismatch - SimAVR={sim['pc']:#06x} vs VioAVR={vio['pc']:#06x}")
+        
+        if sim['sreg'] != vio['sreg']:
+            bugs += 1
+            print(f"Step {i}: SREG mismatch - SimAVR={sim['sreg']:#04x} vs VioAVR={vio['sreg']:#04x}")
+        
+        if sim['sp'] != vio['sp']:
+            bugs += 1
+            print(f"Step {i}: SP mismatch - SimAVR={sim['sp']:#06x} vs VioAVR={vio['sp']:#06x}")
+        
+        for r in range(32):
+            if sim['regs'][r] != vio['regs'][r]:
+                bugs += 1
+                print(f"Step {i}: R{r} mismatch - SimAVR={sim['regs'][r]:#04x} vs VioAVR={vio['regs'][r]:#04x}")
+    
+    print(f"\n{'=' * 60}")
+    print(f"Compared {max_steps} steps (SimAVR={len(simavr_lines)}, VioAVR={len(vioavr_lines)})")
+    print(f"Bugs found: {bugs}")
+    
+    if bugs == 0:
+        print("All register states match! VioAVR agrees with SimAVR.")
+    else:
+        print(f"Found {bugs} discrepancies in {max_steps} steps")
+    
+    return bugs
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 compare_simavr.py <source.c> [--steps N]")
+        print("Usage: python3 compare.py <source.c> [--steps N]")
         sys.exit(1)
     
     src = Path(sys.argv[1])
-    steps = 50
-    if '--steps' in sys.argv:
-        idx = sys.argv.index('--steps')
-        steps = int(sys.argv[idx+1])
-    
     if not src.exists():
         print(f"Error: {src} not found")
         sys.exit(1)
     
-    elf = src.with_suffix('.elf')
+    steps = 20
+    if '--steps' in sys.argv:
+        idx = sys.argv.index('--steps')
+        steps = int(sys.argv[idx + 1])
     
-    print(f"=== SimAVR Reference Comparison ===")
+    elf = src.with_suffix('.elf')
+    bin_path = src.with_suffix('.bin')
+    
+    print(f"=== SimAVR vs VioAVR Comparison ===")
     print(f"Source: {src}")
-    print(f"Target: atmega328p")
+    print(f"Steps:  {steps}")
     print()
     
-    # Step 1: Compile
-    print(f"[1/4] Compiling {src.name}...")
-    if not compile_c(src, elf):
+    print("[1/5] Compiling...")
+    if not compile_c_source(src, elf):
         sys.exit(1)
-    print(f"  ✓ {elf}")
+    print(f"  ELF: {elf}")
     
-    # Step 2: Get disassembly
-    print(f"\n[2/4] Disassembling...")
-    instructions = get_simavr_disassembly(elf)
-    print(f"  Found {len(instructions)} instructions")
-    for addr, opcode, mnemonic in instructions[:10]:
-        print(f"    PC={addr:3d}: {opcode}  {mnemonic}")
-    if len(instructions) > 10:
-        print(f"    ... and {len(instructions)-10} more")
+    print("\n[2/5] Extracting binary...")
+    if not extract_bin(elf, bin_path):
+        print("  Failed to extract binary", file=sys.stderr)
+        sys.exit(1)
+    print(f"  BIN: {bin_path}")
     
-    # Step 3: Check if we can run SimAVR
-    print(f"\n[3/4] Checking SimAVR...")
-    result = subprocess.run(
-        ['timeout', '2', 'simavr', '-m', 'atmega328p', str(elf)],
-        capture_output=True, text=True
-    )
-    if 'Loaded' in result.stdout:
-        print(f"  ✓ SimAVR can load ELF")
-    else:
-        print(f"  ✗ SimAVR failed: {result.stderr[:100]}")
+    print(f"\n[3/5] Running SimAVR ({steps} steps)...")
+    simavr_lines = []
+    simavr_traces = run_simavr_trace(elf, steps)
+    for t in simavr_traces:
+        line = f"{t['step']},{t['pc']},{t['sreg']},{t['sp']}"
+        for r in t['regs']:
+            line += f",{r}"
+        simavr_lines.append(line)
+    print(f"  Captured {len(simavr_lines)} states")
     
-    # Step 4: Report what we need
-    print(f"\n[4/4] Next Steps")
-    print(f"  To complete comparison, we need:")
-    print(f"  1. VioAVR CLI tool that loads ELF and dumps register states")
-    print(f"  2. SimAVR GDB script to extract reference states")
-    print(f"  3. Comparison logic to diff the two traces")
-    print(f"\n  Current approach:")
-    print(f"  - We have {len(instructions)} instructions to verify")
-    print(f"  - Each instruction needs PC, GPR, SREG, SP state after execution")
-    print(f"  - Compare VioAVR output against SimAVR output")
-    print(f"  - Report mismatches as bugs to fix")
+    print(f"\n[4/5] Running VioAVR ({steps} steps)...")
+    vioavr_lines = run_vioavr_trace(bin_path, steps)
+    print(f"  Captured {len(vioavr_lines)} states")
+    
+    print(f"\n[5/5] Comparing traces...")
+    bugs = compare_traces(simavr_lines, vioavr_lines)
+    
+    sys.exit(1 if bugs > 0 else 0)
 
 if __name__ == "__main__":
     main()
