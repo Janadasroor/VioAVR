@@ -16,7 +16,7 @@ TEST_CASE("External Interrupt Logic Test")
     using vioavr::core::MemoryBus;
     using vioavr::core::devices::atmega328;
 
-    constexpr auto int0_vector = static_cast<vioavr::core::u8>(2U);
+    constexpr auto int0_vector = static_cast<vioavr::core::u8>(1U);
 
     MemoryBus bus {atmega328};
     ExtInterrupt exti {"EXTINT", atmega328, 4U};

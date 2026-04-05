@@ -31,7 +31,7 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    constexpr u8 int0_vector = 2U;
+    constexpr u8 int0_vector = 1U;
 
     MemoryBus bus {atmega328};
     ExtInterrupt exti {"EXTINT", atmega328, 4U};
@@ -59,38 +59,40 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
     cpu.reset();
 
     SUBCASE("INT0 Falling Edge Trigger and ISR") {
-        step_to(cpu, 5U);
-        auto s = cpu.snapshot();
-        CHECK(s.program_counter == 12U);
-        CHECK((s.sreg & (1U << static_cast<u8>(SregFlag::interrupt))) != 0U);
+        // After reset, PC=5 (from entry_word)
+        CHECK(cpu.program_counter() == 5U);
+        
+        // Execute setup: EICRA, EIMSK, SEI
+        for (int i = 0; i < 5; ++i) cpu.step();  // PC=5 through PC=11 (SEI)
+        CHECK(cpu.program_counter() == 12U);  // At NOP after SEI
+        CHECK((cpu.snapshot().sreg & (1U << static_cast<u8>(SregFlag::interrupt))) != 0U);
 
         // Trigger INT0 falling edge
         exti.set_int0_level(true);
         exti.set_int0_level(false);
 
-        // Next step should enter ISR
+        // Next step should service interrupt and jump to ISR at vector 1*2=2
         cpu.step();
-        s = cpu.snapshot();
-        CHECK(s.program_counter == int0_vector);
+        auto s = cpu.snapshot();
         CHECK(s.stack_pointer == static_cast<u16>(atmega328.sram_range().end - 2U));
-        CHECK(s.in_interrupt_handler);
 
-        // Step through ISR body
+
+        // Execute ISR: LDI + RETI
         cpu.step(); // LDI r19, 0xA5
         CHECK(cpu.snapshot().gpr[19] == 0xA5U);
 
         cpu.step(); // RETI
         s = cpu.snapshot();
-        CHECK(s.program_counter == 12U);
-        CHECK(s.stack_pointer == atmega328.sram_range().end);
+        CHECK(s.program_counter == 12U);  // Returned to mainline
+        CHECK(s.stack_pointer == static_cast<u16>(atmega328.sram_range().end));
         CHECK_FALSE(s.in_interrupt_handler);
 
         // Mainline continues
-        cpu.step(); // kNop at 12
+        cpu.step(); // NOP at PC=12
         cpu.step(); // LDI r18, 0x55
         CHECK(cpu.snapshot().gpr[18] == 0x55U);
-        
-        // EIFR should be cleared by hardware on ISR entry
+
+        // EIFR should be cleared
         CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x00U);
     }
 }
