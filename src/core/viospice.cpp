@@ -152,6 +152,17 @@ void VioSpice::tick_timer2_async(const u64 ticks)
 
 void VioSpice::set_external_pin(u32 external_id, PinLevel level)
 {
+    if (pin_map_ != nullptr) {
+        if (auto mapping = pin_map_->get_mapping_by_external(external_id); mapping &&
+            is_timer2_async_input(mapping->port_name, mapping->bit_index)) {
+            const bool next_high = (level == PinLevel::high);
+            if (!timer2_async_input_high_ && next_high) {
+                tick_timer2_async(1U);
+            }
+            timer2_async_input_high_ = next_high;
+        }
+    }
+
     bus_.propagate_external_pin_change(external_id, level);
 }
 
@@ -172,6 +183,24 @@ std::optional<u32> VioSpice::get_external_id(std::string_view port_name, u8 bit_
 {
     if (!pin_map_) return std::nullopt;
     return pin_map_->get_external_id(port_name, bit_index);
+}
+
+bool VioSpice::is_timer2_async_input(const std::string_view port_name, const u8 bit_index) const noexcept
+{
+    if (bus_.device().timer2.tosc1_pin_address == 0U) {
+        return false;
+    }
+
+    for (const auto& port_desc : bus_.device().ports) {
+        if (port_desc.name.empty()) {
+            continue;
+        }
+        if (port_desc.pin_address == bus_.device().timer2.tosc1_pin_address) {
+            return port_desc.name == port_name && bus_.device().timer2.tosc1_pin_bit == bit_index;
+        }
+    }
+
+    return false;
 }
 
 } // namespace vioavr::core

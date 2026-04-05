@@ -51,11 +51,14 @@ public:
     [[nodiscard]] AnalogSignalBank& analog_signal_bank() noexcept { return analog_signal_bank_; }
 
 private:
+    [[nodiscard]] bool is_timer2_async_input(std::string_view port_name, u8 bit_index) const noexcept;
+
     MemoryBus bus_;
     AvrCpu cpu_;
     AnalogSignalBank analog_signal_bank_;
     Timer8* timer2_ {};
     PinChangeInterruptSharedState pcint_shared_state_ {};
+    bool timer2_async_input_high_ {};
     std::unique_ptr<PinMap> pin_map_;
     std::unique_ptr<SyncEngine> sync_;
     u64 quantum_ {1000};
