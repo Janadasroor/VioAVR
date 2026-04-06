@@ -23,6 +23,7 @@ TEST_CASE("ADC Analog Comparator Auto-Trigger Test")
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
     Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    adc0.set_bus(bus);
     AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 1.1}; // 1.1V bandgap is standard
     
     adc0.connect_comparator_auto_trigger(comparator);

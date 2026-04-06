@@ -23,19 +23,10 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
             ranges_.push_back(AddressRange{desc.smcr_address, desc.smcr_address});
         }
     }
-    // Add MCUSR if not already covered (ATmega328P: MCUSR=0x54)
-    if (desc.mcusr_address != 0U) {
-        bool covered = false;
-        for (const auto& r : ranges_) {
-            if (desc.mcusr_address >= r.begin && desc.mcusr_address <= r.end) {
-                covered = true;
-                break;
-            }
-        }
-        if (!covered) {
-            ranges_.push_back(AddressRange{desc.mcusr_address, desc.mcusr_address});
-        }
-    }
+    // Add PRR/PRR0/PRR1
+    if (desc.prr_address != 0U) ranges_.push_back({desc.prr_address, desc.prr_address});
+    if (desc.prr0_address != 0U) ranges_.push_back({desc.prr0_address, desc.prr0_address});
+    if (desc.prr1_address != 0U) ranges_.push_back({desc.prr1_address, desc.prr1_address});
 }
 
 std::string_view CpuControl::name() const noexcept
@@ -77,64 +68,54 @@ void CpuControl::tick(const u64 elapsed_cycles) noexcept
 
 u8 CpuControl::read(const u16 address) noexcept
 {
-    if (address == cpu_.bus().device().mcusr_address) {
-        return mcusr_;
-    }
-    if (address == cpu_.bus().device().smcr_address) {
-        return smcr_;
-    }
-    if (address == cpu_.bus().device().spmcsr_address) {
+    const auto& d = cpu_.bus().device();
+    if (address == d.mcusr_address) return mcusr_;
+    if (address == d.smcr_address) return smcr_;
+    if (address == d.prr_address) return prr_;
+    if (address == d.prr0_address) return prr0_;
+    if (address == d.prr1_address) return prr1_;
+    
+    if (address == d.spmcsr_address) {
         u8 val = spmcsr_;
-        if (cpu_.bus().flash_rww_busy()) {
-            val |= 0x40U; // RWWSB bit
-        }
+        if (cpu_.bus().flash_rww_busy()) val |= 0x40U; 
         return val;
     }
-    if (address == cpu_.bus().device().spl_address) {
-        return static_cast<u8>(cpu_.stack_pointer() & 0xFFU);
-    }
-    if (address == cpu_.bus().device().sph_address) {
-        return static_cast<u8>((cpu_.stack_pointer() >> 8U) & 0xFFU);
-    }
-    if (address == cpu_.bus().device().sreg_address) {
-        return cpu_.sreg();
-    }
-    if (address == cpu_.bus().device().mcusr_address) {
-        return mcusr_;
-    }
+    if (address == d.spl_address) return static_cast<u8>(cpu_.stack_pointer() & 0xFFU);
+    if (address == d.sph_address) return static_cast<u8>((cpu_.stack_pointer() >> 8U) & 0xFFU);
+    if (address == d.sreg_address) return cpu_.sreg();
     return 0U;
 }
 
 void CpuControl::write(const u16 address, const u8 value) noexcept
 {
-    if (address == cpu_.bus().device().mcusr_address) {
-        // MCUSR is cleared by writing 0 to it
-        // Only flag bits can be cleared; other bits are read-only
-        if (value == 0U) {
-            mcusr_ = 0U;
-        } else {
-            // Writing non-zero doesn't set flags, only clears them
-            // Flags are set by hardware based on reset cause
-            mcusr_ &= ~value;
-        }
-    } else if (address == cpu_.bus().device().smcr_address) {
+    const auto& d = cpu_.bus().device();
+    if (address == d.mcusr_address) {
+        mcusr_ &= ~value; // Flags are cleared by writing 1 (Accuracy)
+    } else if (address == d.smcr_address) {
         smcr_ = value;
-        sleep_enabled_ = (value & 0x01U) != 0U;
-        sleep_mode_ = static_cast<SleepMode>((value >> 1U) & 0x07U);
-    } else if (address == cpu_.bus().device().spmcsr_address) {
-        // Shield read-only status bits (like RWWSB at bit 6)
+        sleep_enabled_ = (value & d.smcr_se_mask) != 0U;
+        // Accurate bit shift for SM bits
+        u8 mask = d.smcr_sm_mask;
+        u8 shift = 0;
+        if (mask > 0) {
+            while (!(mask & 0x01)) { mask >>= 1; shift++; }
+        }
+        sleep_mode_ = static_cast<SleepMode>((value & d.smcr_sm_mask) >> shift);
+    } else if (address == d.prr_address) {
+        prr_ = value;
+    } else if (address == d.prr0_address) {
+        prr0_ = value;
+    } else if (address == d.prr1_address) {
+        prr1_ = value;
+    } else if (address == d.spmcsr_address) {
         spmcsr_ = value & 0xBFU;
-    } else if (address == cpu_.bus().device().spl_address) {
+    } else if (address == d.spl_address) {
         const u16 current = cpu_.stack_pointer();
         cpu_.set_stack_pointer(static_cast<u16>((current & 0xFF00U) | value));
-    } else if (address == cpu_.bus().device().sph_address) {
+    } else if (address == d.sph_address) {
         const u16 current = cpu_.stack_pointer();
         cpu_.set_stack_pointer(static_cast<u16>((static_cast<u16>(value) << 8U) | (current & 0x00FFU)));
-    } else if (address == cpu_.bus().device().mcusr_address) {
-        // MCUSR is cleared by writing 0 to the bits (Actually, usually it's bit-clearing logic, 
-        // but simple assignment is common in simple emulators)
-        mcusr_ = value;
-    } else if (address == cpu_.bus().device().sreg_address) {
+    } else if (address == d.sreg_address) {
         cpu_.write_sreg(value);
     }
 }

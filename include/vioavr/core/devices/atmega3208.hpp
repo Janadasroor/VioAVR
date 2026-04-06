@@ -6,7 +6,9 @@ inline constexpr DeviceDescriptor atmega3208 {
     .flash_words = 0U, .sram_bytes = 4096U, .eeprom_bytes = 256U,
     .interrupt_vector_count = 36U, .interrupt_vector_size = 2U, .flash_page_size = 0x0U,
     .spl_address = 0xDU, .sph_address = 0xEU, .sreg_address = 0xFU, .spmcsr_address = 0x0U,
-    .prr_address = 0x0U, .smcr_address = 0x0U, .mcusr_address = 0x0U,
+    .prr_address = 0x0U, .prr0_address = 0x0U, .prr1_address = 0x0U, .smcr_address = 0x0U, .mcusr_address = 0x0U,
+    .pradc_bit = 255U, .prusart0_bit = 255U, .prspi_bit = 255U, .prtwi_bit = 255U, .prtimer0_bit = 255U, .prtimer1_bit = 255U, .prtimer2_bit = 255U,
+    .smcr_sm_mask = 0xEU, .smcr_se_mask = 0x1U,
     .flash_rww_end_word = 0U,
     .spl_reset = 0x0U, .sph_reset = 0x0U, .sreg_reset = 0x0U,
     .adc = { 

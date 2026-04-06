@@ -87,6 +87,9 @@ private:
     u8 spmcsr_ {};
     u8 smcr_ {};
     u8 mcusr_ {};
+    u8 prr_ {};
+    u8 prr0_ {};
+    u8 prr1_ {};
     SleepMode sleep_mode_ {SleepMode::idle};
     bool sleep_enabled_ {false};
     bool sleeping_ {false};

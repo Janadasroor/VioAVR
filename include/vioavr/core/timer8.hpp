@@ -64,6 +64,7 @@ public:
 private:
     [[nodiscard]] bool has_async_status_register() const noexcept;
     [[nodiscard]] bool async_mode_enabled() const noexcept;
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
     void mark_async_busy(u16 address) noexcept;
     void retire_async_busy() noexcept;
 

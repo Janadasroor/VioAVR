@@ -12,6 +12,7 @@ namespace vioavr::core {
 class AnalogComparator;
 class ExtInterrupt;
 class Timer8;
+class MemoryBus;
 
 class Adc final : public IoPeripheral {
 public:
@@ -32,6 +33,8 @@ public:
         PinMux& pin_mux,
         u8 source_id,
         u16 conversion_cycles = 13U) noexcept;
+
+    void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -60,6 +63,7 @@ public:
     [[nodiscard]] constexpr u16 result() const noexcept { return result_; }
 
 private:
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
     [[nodiscard]] bool auto_trigger_enabled() const noexcept;
     [[nodiscard]] bool free_running_enabled() const noexcept;
     [[nodiscard]] AutoTriggerSource resolve_auto_trigger_source(u8 selector) const noexcept;
@@ -73,6 +77,7 @@ private:
 
     std::string_view name_;
     AdcDescriptor desc_;
+    MemoryBus* bus_ {};
     PinMux* pin_mux_ {};
     std::array<AddressRange, 5> ranges_;
     u8 source_id_;

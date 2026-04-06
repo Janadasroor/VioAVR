@@ -1,4 +1,5 @@
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/timer8.hpp"
@@ -75,6 +76,10 @@ void Adc::reset() noexcept {
 }
 
 void Adc::tick(u64 elapsed_cycles) noexcept {
+    if (power_reduction_enabled()) {
+        converting_ = false;
+        return;
+    }
     if (!converting_ || (adcsra_ & kAdenMask) == 0U) return;
 
     if (elapsed_cycles >= cycles_remaining_) {
@@ -150,6 +155,13 @@ void Adc::start_conversion() noexcept {
     converting_ = true;
     cycles_remaining_ = conversion_cycles_;
     adcsra_ |= desc_.adsc_mask;
+}
+
+bool Adc::power_reduction_enabled() const noexcept {
+    if (!bus_) return false;
+    const auto& d = bus_->device();
+    if (d.pradc_bit == 0xFF) return false;
+    return (bus_->read_data(d.prr_address) & (1 << d.pradc_bit)) != 0;
 }
 
 void Adc::complete_conversion() noexcept {

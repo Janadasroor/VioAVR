@@ -274,6 +274,16 @@ def parse_atdf(file_path):
     device_info['pin_change_interrupt_1'] = { 'pcicr': (fr(r'PCICR') or {'addr':0})['addr'], 'pcifr': (fr(r'PCIFR') or {'addr':0})['addr'], 'pcmsk': (fr(r'PCMSK1') or {'addr':0})['addr'], 'enable_mask': 0x02, 'flag_mask': 0x02, 'vector': fv(r'PCINT1') }
     device_info['pin_change_interrupt_2'] = { 'pcicr': (fr(r'PCICR') or {'addr':0})['addr'], 'pcifr': (fr(r'PCIFR') or {'addr':0})['addr'], 'pcmsk': (fr(r'PCMSK2') or {'addr':0})['addr'], 'enable_mask': 0x04, 'flag_mask': 0x04, 'vector': fv(r'PCINT2') }
     
+    def fbit(reg_name_re, bit_name_re):
+        r = fr(reg_name_re)
+        if not r: return 0xFF
+        p = re.compile(bit_name_re, re.IGNORECASE)
+        for bn, mask in r['bitfields'].items():
+            if p.fullmatch(bn) or p.search(bn):
+                # Return index of first set bit
+                return (mask & -mask).bit_length() - 1
+        return 0xFF
+
     device_info['core_regs'] = {
         'spl_addr': (fr(r'SPL') or {'addr':0})['addr'], 'spl_reset': (fr(r'SPL') or {'init':0})['init'],
         'sph_addr': (fr(r'SPH') or {'addr':0})['addr'], 'sph_reset': (fr(r'SPH') or {'init':0})['init'],
@@ -282,7 +292,27 @@ def parse_atdf(file_path):
     device_info['spmcsr_addr'] = (fr(r'SPMCSR|SPMCR') or {'addr':0})['addr']
     device_info['smcr_addr'] = (fr(r'SMCR') or {'addr':0})['addr']
     device_info['mcusr_addr'] = (fr(r'MCUSR') or {'addr':0})['addr']
-    device_info['prr_addr'] = (fr(r'PRR0|PRR') or {'addr':0})['addr']
+    device_info['prr_addr'] = (fr(r'^PRR$') or {'addr':0})['addr']
+    device_info['prr0_addr'] = (fr(r'PRR0') or {'addr':0})['addr']
+    device_info['prr1_addr'] = (fr(r'PRR1') or {'addr':0})['addr']
+    
+    # Power Reduction Bits
+    pr_reg = r'PRR0|PRR'
+    device_info['pr_bits'] = {
+        'adc': fbit(pr_reg, 'PRADC'),
+        'usart0': fbit(pr_reg, 'PRUSART0'),
+        'spi': fbit(pr_reg, 'PRSPI'),
+        'twi': fbit(pr_reg, 'PRTWI'),
+        'timer0': fbit(pr_reg, 'PRTIM0'),
+        'timer1': fbit(pr_reg, 'PRTIM1'),
+        'timer2': fbit(pr_reg, 'PRTIM2'),
+    }
+    
+    # Sleep Masks
+    device_info['smcr_masks'] = {
+        'sm': fb(r'SMCR', r'SM\d*', 0x0E),
+        'se': fb(r'SMCR', r'SE', 0x01)
+    }
 
     for p in "ABCDEFGH":
         p_info = {'name': f"PORT{p}", 'pin': (fr(f"PIN{p}") or {'addr':0})['addr'], 'ddr': (fr(f"DDR{p}") or {'addr':0})['addr'], 'port': (fr(f"PORT{p}") or {'addr':0})['addr']}
@@ -319,7 +349,9 @@ inline constexpr DeviceDescriptor {name} {{
     .flash_words = {d['flash_words']}U, .sram_bytes = {d['sram_bytes']}U, .eeprom_bytes = {d['eeprom_bytes']}U,
     .interrupt_vector_count = {d['vectors']}U, .interrupt_vector_size = {d['vector_size']}U, .flash_page_size = {hx(d['flash_page_size'])},
     .spl_address = {hx(d['core_regs']['spl_addr'])}, .sph_address = {hx(d['core_regs']['sph_addr'])}, .sreg_address = {hx(d['core_regs']['sreg_addr'])}, .spmcsr_address = {hx(d['spmcsr_addr'])},
-    .prr_address = {hx(d['prr_addr'])}, .smcr_address = {hx(d['smcr_addr'])}, .mcusr_address = {hx(d['mcusr_addr'])},
+    .prr_address = {hx(d['prr_addr'])}, .prr0_address = {hx(d['prr0_addr'])}, .prr1_address = {hx(d['prr1_address']) if 'prr1_address' in d else '0x0U'}, .smcr_address = {hx(d['smcr_addr'])}, .mcusr_address = {hx(d['mcusr_addr'])},
+    .pradc_bit = {d['pr_bits']['adc']}U, .prusart0_bit = {d['pr_bits']['usart0']}U, .prspi_bit = {d['pr_bits']['spi']}U, .prtwi_bit = {d['pr_bits']['twi']}U, .prtimer0_bit = {d['pr_bits']['timer0']}U, .prtimer1_bit = {d['pr_bits']['timer1']}U, .prtimer2_bit = {d['pr_bits']['timer2']}U,
+    .smcr_sm_mask = {hx(d['smcr_masks']['sm'])}, .smcr_se_mask = {hx(d['smcr_masks']['se'])},
     .flash_rww_end_word = {d['flash_rww_end_word']}U,
     .spl_reset = {hx(d['core_regs']['spl_reset'])}, .sph_reset = {hx(d['core_regs']['sph_reset'])}, .sreg_reset = {hx(d['core_regs']['sreg_reset'])},
     .adc = {{ 

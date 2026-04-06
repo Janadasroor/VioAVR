@@ -6,7 +6,9 @@ inline constexpr DeviceDescriptor atmega325pa {
     .flash_words = 16384U, .sram_bytes = 2048U, .eeprom_bytes = 1024U,
     .interrupt_vector_count = 22U, .interrupt_vector_size = 4U, .flash_page_size = 0x80U,
     .spl_address = 0x5DU, .sph_address = 0x5EU, .sreg_address = 0x5FU, .spmcsr_address = 0x57U,
-    .prr_address = 0x64U, .smcr_address = 0x53U, .mcusr_address = 0x54U,
+    .prr_address = 0x64U, .prr0_address = 0x0U, .prr1_address = 0x0U, .smcr_address = 0x53U, .mcusr_address = 0x54U,
+    .pradc_bit = 0U, .prusart0_bit = 1U, .prspi_bit = 2U, .prtwi_bit = 255U, .prtimer0_bit = 255U, .prtimer1_bit = 3U, .prtimer2_bit = 255U,
+    .smcr_sm_mask = 0xEU, .smcr_se_mask = 0x1U,
     .flash_rww_end_word = 14336U,
     .spl_reset = 0x0U, .sph_reset = 0x0U, .sreg_reset = 0x0U,
     .adc = { 

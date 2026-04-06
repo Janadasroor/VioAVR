@@ -85,6 +85,7 @@ int main(int argc, char** argv)
     Timer8 timer2 {"TIMER2", bus.device().timer2};
     Timer16 timer1 {"TIMER1", bus.device().timer1};
     Adc adc {"ADC", bus.device().adc, pin_mux, 0, 13};
+    adc.set_bus(bus);
     Uart0 uart0 {"UART0", bus.device()};
 
     timer0.set_bus(bus);
