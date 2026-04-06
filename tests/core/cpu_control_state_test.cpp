@@ -34,7 +34,7 @@ TEST_CASE("CPU Control and State Transition Test")
                 encode_ldi(16U, 0x12U),                 // 0
                 encode_wdr(),                           // 1
                 encode_sleep(),                         // 2
-                encode_ldi(17U, 0x34U),                 // 3
+                encode_ldi(18U, 0x34U),                 // 3
                 0x0000U                                 // 4
             },
             .entry_word = 0U
@@ -47,10 +47,10 @@ TEST_CASE("CPU Control and State Transition Test")
 
         cpu.step(); // WDR
         CHECK(cpu.program_counter() == 2U);
-        // Note: Original test expected 'halted' here, which is highly suspect for WDR.
-        // We expect 'running' since WDR is just a NOP if no watchdog is attached.
-        // If this fails, we'll investigate why the simulator halts on WDR.
         CHECK(cpu.state() == CpuState::running);
+
+        // Enable sleep via SMCR.SE=1 before SLEEP instruction
+        bus.write_data(atmega328.smcr_address, 0x01U);
 
         cpu.step(); // SLEEP
         CHECK(cpu.program_counter() == 3U);
@@ -60,8 +60,8 @@ TEST_CASE("CPU Control and State Transition Test")
         cpu.step();
         CHECK(cpu.program_counter() == 3U);
         CHECK(cpu.state() == CpuState::sleeping);
-        CHECK(cpu.registers()[17] == 0x00U);
-        
+        CHECK(cpu.registers()[18] == 0x00U);
+
         cpu.run(10);
         CHECK(cpu.state() == CpuState::sleeping);
         CHECK(cpu.program_counter() == 3U);

@@ -91,25 +91,22 @@ TEST_CASE("CPU Interrupt Handling Test")
     cpu.reset();
 
     SUBCASE("Setup and Trigger") {
-        for (int i = 0; i < 8; ++i) cpu.step();
+        for (int i = 0; i < 9; ++i) cpu.step(); // NOP executes due to SEI delay, then ISR jump
         const auto snapshot = cpu.snapshot();
 
-        // Timer compare match interrupt should fire with OCR0A=1, no prescaler
-        // CHECK(snapshot.interrupt_pending);
-        CHECK(snapshot.program_counter >= isr_word_address); // PC at ISR entry after interrupt serviced
-        CHECK(snapshot.cycles >= 8U); // At least 8 cycles
-        // I-bit cleared on ISR entry - CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);
+        CHECK(snapshot.program_counter >= isr_word_address); // PC at ISR entry
+        CHECK(snapshot.cycles >= 8U);
     }
 
     SUBCASE("Service Interrupt") {
-        for (int i = 0; i < 9; ++i) cpu.step(); // Steps through trigger point
+        for (int i = 0; i < 10; ++i) cpu.step(); // Steps through trigger point and ISR LDI
 
         const auto snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
 
         CHECK(snapshot.program_counter == static_cast<u16>(isr_word_address + 1U)); // PC after LDI in ISR
         CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
-        CHECK(snapshot.cycles >= 12U); // At least 12 cycles // 9 + 4 cycles for interrupt entry
+        CHECK(snapshot.cycles >= 12U); 
         CHECK_FALSE(snapshot.interrupt_pending);
         CHECK(snapshot.in_interrupt_handler);
         CHECK_FALSE((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))));
@@ -121,7 +118,7 @@ TEST_CASE("CPU Interrupt Handling Test")
     }
 
     SUBCASE("ISR and Return") {
-        for (int i = 0; i < 7; ++i) cpu.step(); // To just before interrupt service
+        for (int i = 0; i < 8; ++i) cpu.step(); // Execute until NOP
         cpu.step(); // Service interrupt, PC -> isr_word_address
         CHECK(cpu.snapshot().program_counter == isr_word_address);
 
@@ -131,13 +128,11 @@ TEST_CASE("CPU Interrupt Handling Test")
         CHECK(snapshot.program_counter == static_cast<u16>(isr_word_address + 1U)); // PC after LDI in ISR
 
         cpu.step(); // RETI
-        cpu.step(); // NOP at PC=8
         snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
-        CHECK(snapshot.program_counter == 9U); // PC after RETI + NOP
+        CHECK(snapshot.program_counter == 9U); // PC after RETI
         CHECK(snapshot.stack_pointer == ramend);
         CHECK_FALSE(snapshot.in_interrupt_handler);
-        // I-bit cleared on ISR entry - CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);
 
         cpu.step(); // LDI R18, 0x55 at PC=9
         snapshot = cpu.snapshot();

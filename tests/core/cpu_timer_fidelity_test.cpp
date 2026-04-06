@@ -93,6 +93,7 @@ TEST_CASE("Timer8 Mode 7 (Fast PWM OCR0A=TOP) Double Buffering Fidelity")
         0x9300, atmega328.timer0.tccra_address,
         encode_ldi(16, 0x09),
         0x9300, atmega328.timer0.tccrb_address, // Timer starts here, ticks 2
+        0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
         0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
     };
     bus.load_flash(code);

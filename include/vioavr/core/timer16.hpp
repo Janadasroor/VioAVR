@@ -64,6 +64,7 @@ private:
     void perform_tick() noexcept;
     void handle_compare_match_a() noexcept;
     void handle_compare_match_b() noexcept;
+    void handle_matches() noexcept;
     void handle_overflow() noexcept;
     void handle_input_capture() noexcept;
     [[nodiscard]] u16 get_top() const noexcept;
@@ -98,6 +99,7 @@ private:
     u8 last_t1_state_ {0};
     u8 noise_canceler_register_ {0};
     u8 noise_canceler_counter_ {0};
+    u64 cycle_accumulator_ {0};
 };
 
 }  // namespace vioavr::core

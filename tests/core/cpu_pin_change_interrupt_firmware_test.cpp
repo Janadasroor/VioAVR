@@ -58,21 +58,21 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
 
     bus.load_image(HexImage {
         .flash_words = {
-            kNop,                     // 0
-            kNop,                     // 1
-            kNop,                     // 2
-            encode_ldi(19U, 0xA5U),   // 3 ISR body
-            kReti,                    // 4
-            encode_ldi(16U, 0x04U),   // 5 mask PB2
-            encode_sts(16U), 0x6BU,  // 6,7
-            encode_ldi(17U, 0x01U),   // 8 enable group
-            encode_sts(17U), 0x68U,   // 9,10
-            kSei,                     // 11
-            kNop,                     // 12 interrupted point
-            encode_ldi(18U, 0x55U),   // 13 mainline after ISR
-            kNop                      // 14
+            kReti, kReti,             // 0, 1 (Reset vector etc)
+            kReti, kReti,             // 2, 3
+            kReti, kReti,             // 4, 5
+            encode_ldi(19U, 0xA5U),   // 6 ISR body (vector 3 * 2 = 6)
+            kReti,                    // 7
+            encode_ldi(16U, 0x04U),   // 8 mask PB2 (Mainline entry)
+            encode_sts(16U), 0x6BU,   // 9,10
+            encode_ldi(17U, 0x01U),   // 11 enable group
+            encode_sts(17U), 0x68U,   // 12,13
+            kSei,                     // 14
+            kNop,                     // 15 interrupted point
+            encode_ldi(18U, 0x55U),   // 16 mainline after ISR
+            kNop                      // 17
         },
-        .entry_word = 5U
+        .entry_word = 8U
     });
 
     cpu.reset();
@@ -80,7 +80,7 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
     SUBCASE("Setup and Mainline execution") {
         for (int i = 0; i < 5; ++i) cpu.step();
         const auto snapshot = cpu.snapshot();
-        CHECK(snapshot.program_counter == 12U);
+        CHECK(snapshot.program_counter == 15U); // after 5 setup steps, we reach word 15
         CHECK((snapshot.sreg & (1U << static_cast<vioavr::core::u8>(SregFlag::interrupt))) != 0U);
     }
 
@@ -93,29 +93,30 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
         port_b.set_input_levels(0x04U);
         bus.tick_peripherals(1U);
 
+        cpu.step(); // Execute NOP due to SEI delay
         cpu.step(); // Service interrupt
         auto snapshot = cpu.snapshot();
         const auto ramend = atmega328.sram_range().end;
         
-        CHECK(snapshot.program_counter == 3U);
+        CHECK(snapshot.program_counter == 6U); // ISR body is at 6
         CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
-        CHECK(snapshot.cycles == 11U);
+        CHECK(snapshot.cycles == 12U); // 7 cycles setup + 1 for NOP + 4 for ISR entry = 12
         CHECK(snapshot.in_interrupt_handler);
 
         cpu.step(); // LDI R19, 0xA5
         snapshot = cpu.snapshot();
         CHECK(snapshot.gpr[19] == 0xA5U);
-        CHECK(snapshot.program_counter == 4U);
+        CHECK(snapshot.program_counter == 7U); // after ISR body -> 7
 
         cpu.step(); // RETI
         snapshot = cpu.snapshot();
-        // CHECK(snapshot.program_counter == 12U);
+        // CHECK(snapshot.program_counter == 15U);
         CHECK(snapshot.stack_pointer == ramend);
         CHECK_FALSE(snapshot.in_interrupt_handler);
 
         cpu.step(); // LDI R18, 0x55
         snapshot = cpu.snapshot();
         // CHECK(snapshot.gpr[18] == 0x55U);
-        // CHECK(snapshot.program_counter == 14U);
+        // CHECK(snapshot.program_counter == 17U);
     }
 }
