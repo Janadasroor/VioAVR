@@ -240,7 +240,16 @@ def parse_atdf(file_path):
         'ucsra_reset': (fr(r'UCSR0A|UCSRA') or {'init':0})['init'], 
         'ucsrb_reset': (fr(r'UCSR0B|UCSRB') or {'init':0})['init'], 
         'ucsrc_reset': (fr(r'UCSR0C|UCSRC') or {'init':0})['init'],
-        'v_rx': fv(r'USART0?_RX'), 'v_tx': fv(r'USART0?_TX'), 'v_udre': fv(r'USART0?_UDRE') 
+        'v_rx': fv(r'USART0?_RX'), 'v_tx': fv(r'USART0?_TX'), 'v_udre': fv(r'USART0?_UDRE'),
+        'u2x': fb(r'UCSR0?A|UCSRA', r'U2X0?', 0x02),
+        'rxc': fb(r'UCSR0?A|UCSRA', r'RXC0?', 0x80),
+        'txc': fb(r'UCSR0?A|UCSRA', r'TXC0?', 0x40),
+        'udre': fb(r'UCSR0?A|UCSRA', r'UDRE0?', 0x20),
+        'rxen': fb(r'UCSR0?B|UCSRB', r'RXEN0?', 0x10),
+        'txen': fb(r'UCSR0?B|UCSRB', r'TXEN0?', 0x08),
+        'rxcie': fb(r'UCSR0?B|UCSRB', r'RXCIE0?', 0x80),
+        'txcie': fb(r'UCSR0?B|UCSRB', r'TXCIE0?', 0x40),
+        'udrie': fb(r'UCSR0?B|UCSRB', r'UDRIE0?', 0x20),
     }
     device_info['spi'] = { 
         'spcr': (fr(r'SPCR') or {'addr':0})['addr'], 
@@ -248,7 +257,13 @@ def parse_atdf(file_path):
         'spdr': (fr(r'SPDR') or {'addr':0})['addr'], 
         'spcr_reset': (fr(r'SPCR') or {'init':0})['init'], 
         'spsr_reset': (fr(r'SPSR') or {'init':0})['init'],
-        'vector': fv(r'SPI_STC') 
+        'vector': fv(r'SPI_STC'),
+        'spe': fb(r'SPCR', r'SPE', 0x40),
+        'spie': fb(r'SPCR', r'SPIE', 0x80),
+        'mstr': fb(r'SPCR', r'MSTR', 0x10),
+        'spif': fb(r'SPSR', r'SPIF', 0x80),
+        'wcol': fb(r'SPSR', r'WCOL', 0x40),
+        'sp2x': fb(r'SPSR', r'SPI2X', 0x01),
     }
     device_info['twi'] = { 
         'twbr': (fr(r'TWBR') or {'addr':0})['addr'], 
@@ -256,7 +271,13 @@ def parse_atdf(file_path):
         'twar': (fr(r'TWAR') or {'addr':0})['addr'], 
         'twdr': (fr(r'TWDR') or {'addr':0})['addr'], 
         'twcr': (fr(r'TWCR') or {'addr':0})['addr'], 
-        'twamr': (fr(r'TWAMR') or {'addr':0})['addr'], 'vector': fv(r'TWI') 
+        'twamr': (fr(r'TWAMR') or {'addr':0})['addr'], 'vector': fv(r'TWI'),
+        'twint': fb(r'TWCR', r'TWINT', 0x80),
+        'twen': fb(r'TWCR', r'TWEN', 0x04),
+        'twie': fb(r'TWCR', r'TWIE', 0x01),
+        'twsto': fb(r'TWCR', r'TWSTO', 0x10),
+        'twsta': fb(r'TWCR', r'TWSTA', 0x20),
+        'twea': fb(r'TWCR', r'TWEA', 0x40),
     }
     device_info['eeprom_io'] = { 
         'eecr': (fr(r'EECR') or {'addr':0})['addr'], 
@@ -372,12 +393,12 @@ inline constexpr DeviceDescriptor {name} {{
     .timer2 = {{ .tcnt_address = {hx(t2['tcnt'])}, .ocra_address = {hx(t2['ocra'])}, .ocrb_address = {hx(t2['ocrb'])}, .tifr_address = {hx(t2['tifr'])}, .timsk_address = {hx(t2['timsk'])}, .tccra_address = {hx(t2['tccra'])}, .tccrb_address = {hx(t2['tccrb'])}, .assr_address = {hx(t2['assr'])}, .tccra_reset = {hx(t2['tccra_reset'])}, .tccrb_reset = {hx(t2['tccrb_reset'])}, .assr_reset = {hx(t2['assr_reset'])}, .compare_a_vector_index = {t2['v_compa']}U, .compare_b_vector_index = {t2['v_compb']}U, .overflow_vector_index = {t2['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .ocra_pin_address = {hx(t2['ocra_pin_addr'])}, .ocra_pin_bit = {t2['ocra_pin_bit']}U, .ocrb_pin_address = {hx(t2['ocrb_pin_addr'])}, .ocrb_pin_bit = {t2['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(t2['tosc1_pin_addr'])}, .tosc1_pin_bit = {t2['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(t2['tosc2_pin_addr'])}, .tosc2_pin_bit = {t2['tosc2_pin_bit']}U, .wgm0_mask = {hx(t2['wgm0'])}, .wgm2_mask = {hx(t2['wgm2'])}, .cs_mask = {hx(t2['cs'])}, .as2_mask = {hx(t2['as2'])}, .tcn2ub_mask = {hx(t2['tcn2ub'])} }},
     .timer1 = {{ .tcnt_address = {hx(t1['tcnt'])}, .ocra_address = {hx(t1['ocra'])}, .ocrb_address = {hx(t1['ocrb'])}, .icr_address = {hx(t1['icr'])}, .tifr_address = {hx(t1['tifr'])}, .timsk_address = {hx(t1['timsk'])}, .tccra_address = {hx(t1['tccra'])}, .tccrb_address = {hx(t1['tccrb'])}, .tccrc_address = {hx(t1['tccrc'])}, .tccra_reset = {hx(t1['tccra_reset'])}, .tccrb_reset = {hx(t1['tccrb_reset'])}, .tccrc_reset = {hx(t1['tccrc_reset'])}, .capture_vector_index = {t1['v_capt']}U, .compare_a_vector_index = {t1['v_compa']}U, .compare_b_vector_index = {t1['v_compb']}U, .overflow_vector_index = {t1['v_ovf']}U, .capture_enable_mask = 0x20U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t1_pin_address = {hx(t1['t1_pin_addr'])}, .t1_pin_bit = {t1['t1_pin_bit']}U, .icp1_pin_address = {hx(t1['icp1_pin_addr'])}, .icp1_pin_bit = {t1['icp1_pin_bit']}U, .wgm10_mask = {hx(t1['wgm10'])}, .wgm12_mask = {hx(t1['wgm12'])}, .cs_mask = {hx(t1['cs'])}, .ices1_mask = {hx(t1['ices1'])}, .icnc1_mask = {hx(t1['icnc1'])} }},
     .ext_interrupt = {{ .eicra_address = {hx(d['ext_interrupt']['eicra'])}, .eimsk_address = {hx(d['ext_interrupt']['eimsk'])}, .eifr_address = {hx(d['ext_interrupt']['eifr'])}, .int0_vector_index = {d['ext_interrupt']['v_int0']}U, .int1_vector_index = {d['ext_interrupt']['v_int1']}U }},
-    .uart0 = {{ .udr_address = {hx(d['uart0']['udr'])}, .ucsra_address = {hx(d['uart0']['ucsra'])}, .ucsrb_address = {hx(d['uart0']['ucsrb'])}, .ucsrc_address = {hx(d['uart0']['ucsrc'])}, .ubrrl_address = {hx(d['uart0']['ubrrl'])}, .ubrrh_address = {hx(d['uart0']['ubrrh'])}, .ucsra_reset = {hx(d['uart0']['ucsra_reset'])}, .ucsrb_reset = {hx(d['uart0']['ucsrb_reset'])}, .ucsrc_reset = {hx(d['uart0']['ucsrc_reset'])}, .rx_vector_index = {d['uart0']['v_rx']}U, .udre_vector_index = {d['uart0']['v_udre']}U, .tx_vector_index = {d['uart0']['v_tx']}U }},
+    .uart0 = {{ .udr_address = {hx(d['uart0']['udr'])}, .ucsra_address = {hx(d['uart0']['ucsra'])}, .ucsrb_address = {hx(d['uart0']['ucsrb'])}, .ucsrc_address = {hx(d['uart0']['ucsrc'])}, .ubrrl_address = {hx(d['uart0']['ubrrl'])}, .ubrrh_address = {hx(d['uart0']['ubrrh'])}, .ucsra_reset = {hx(d['uart0']['ucsra_reset'])}, .ucsrb_reset = {hx(d['uart0']['ucsrb_reset'])}, .ucsrc_reset = {hx(d['uart0']['ucsrc_reset'])}, .rx_vector_index = {d['uart0']['v_rx']}U, .udre_vector_index = {d['uart0']['v_udre']}U, .tx_vector_index = {d['uart0']['v_tx']}U, .u2x0_mask = {hx(d['uart0']['u2x'])}, .rxc0_mask = {hx(d['uart0']['rxc'])}, .txc0_mask = {hx(d['uart0']['txc'])}, .udre0_mask = {hx(d['uart0']['udre'])}, .rxen0_mask = {hx(d['uart0']['rxen'])}, .txen0_mask = {hx(d['uart0']['txen'])}, .rxcie0_mask = {hx(d['uart0']['rxcie'])}, .txcie0_mask = {hx(d['uart0']['txcie'])}, .udrie0_mask = {hx(d['uart0']['udrie'])} }},
     .pin_change_interrupt_0 = {{ .pcicr_address = {hx(d['pin_change_interrupt_0']['pcicr'])}, .pcifr_address = {hx(d['pin_change_interrupt_0']['pcifr'])}, .pcmsk_address = {hx(d['pin_change_interrupt_0']['pcmsk'])}, .pcicr_enable_mask = {hx(d['pin_change_interrupt_0']['enable_mask'])}, .pcifr_flag_mask = {hx(d['pin_change_interrupt_0']['flag_mask'])}, .vector_index = {d['pin_change_interrupt_0']['vector']}U }},
     .pin_change_interrupt_1 = {{ .pcicr_address = {hx(d['pin_change_interrupt_1']['pcicr'])}, .pcifr_address = {hx(d['pin_change_interrupt_1']['pcifr'])}, .pcmsk_address = {hx(d['pin_change_interrupt_1']['pcmsk'])}, .pcicr_enable_mask = {hx(d['pin_change_interrupt_1']['enable_mask'])}, .pcifr_flag_mask = {hx(d['pin_change_interrupt_1']['flag_mask'])}, .vector_index = {d['pin_change_interrupt_1']['vector']}U }},
     .pin_change_interrupt_2 = {{ .pcicr_address = {hx(d['pin_change_interrupt_2']['pcicr'])}, .pcifr_address = {hx(d['pin_change_interrupt_2']['pcifr'])}, .pcmsk_address = {hx(d['pin_change_interrupt_2']['pcmsk'])}, .pcicr_enable_mask = {hx(d['pin_change_interrupt_2']['enable_mask'])}, .pcifr_flag_mask = {hx(d['pin_change_interrupt_2']['flag_mask'])}, .vector_index = {d['pin_change_interrupt_2']['vector']}U }},
-    .spi = {{ .spcr_address = {hx(d['spi']['spcr'])}, .spsr_address = {hx(d['spi']['spsr'])}, .spdr_address = {hx(d['spi']['spdr'])}, .spcr_reset = {hx(d['spi']['spcr_reset'])}, .spsr_reset = {hx(d['spi']['spsr_reset'])}, .vector_index = {d['spi']['vector']}U }},
-    .twi = {{ .twbr_address = {hx(d['twi']['twbr'])}, .twsr_address = {hx(d['twi']['twsr'])}, .twar_address = {hx(d['twi']['twar'])}, .twdr_address = {hx(d['twi']['twdr'])}, .twcr_address = {hx(d['twi']['twcr'])}, .twamr_address = {hx(d['twi']['twamr'])}, .vector_index = {d['twi']['vector']}U }},
+    .spi = {{ .spcr_address = {hx(d['spi']['spcr'])}, .spsr_address = {hx(d['spi']['spsr'])}, .spdr_address = {hx(d['spi']['spdr'])}, .spcr_reset = {hx(d['spi']['spcr_reset'])}, .spsr_reset = {hx(d['spi']['spsr_reset'])}, .vector_index = {d['spi']['vector']}U, .spe_mask = {hx(d['spi']['spe'])}, .spie_mask = {hx(d['spi']['spie'])}, .mstr_mask = {hx(d['spi']['mstr'])}, .spif_mask = {hx(d['spi']['spif'])}, .wcol_mask = {hx(d['spi']['wcol'])}, .sp2x_mask = {hx(d['spi']['sp2x'])} }},
+    .twi = {{ .twbr_address = {hx(d['twi']['twbr'])}, .twsr_address = {hx(d['twi']['twsr'])}, .twar_address = {hx(d['twi']['twar'])}, .twdr_address = {hx(d['twi']['twdr'])}, .twcr_address = {hx(d['twi']['twcr'])}, .twamr_address = {hx(d['twi']['twamr'])}, .vector_index = {d['twi']['vector']}U, .twint_mask = {hx(d['twi']['twint'])}, .twen_mask = {hx(d['twi']['twen'])}, .twie_mask = {hx(d['twi']['twie'])}, .twsto_mask = {hx(d['twi']['twsto'])}, .twsta_mask = {hx(d['twi']['twsta'])}, .twea_mask = {hx(d['twi']['twea'])} }},
     .eeprom = {{ .eecr_address = {hx(d['eeprom_io']['eecr'])}, .eedr_address = {hx(d['eeprom_io']['eedr'])}, .eearl_address = {hx(d['eeprom_io']['eearl'])}, .eearh_address = {hx(d['eeprom_io']['eearh'])}, .vector_index = {d['eeprom_io']['vector']}U }},
     .wdt = {{ .wdtcsr_address = {hx(d['wdt']['wdtcsr'])}, .vector_index = {d['wdt']['vector']}U }},
     .fuse_address = {hx(d['fuse_addr'])}, .lockbit_address = {hx(d['lockbit_addr'])}, .signature_address = {hx(d['sig_addr'])},

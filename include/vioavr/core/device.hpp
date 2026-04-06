@@ -110,6 +110,16 @@ struct Uart0Descriptor {
     u8 rx_vector_index {};
     u8 udre_vector_index {};
     u8 tx_vector_index {};
+    // New bitmasks for accuracy
+    u8 u2x0_mask {0x02U};  // In UCSRA
+    u8 rxc0_mask {0x80U};  // In UCSRA
+    u8 txc0_mask {0x40U};  // In UCSRA
+    u8 udre0_mask {0x20U}; // In UCSRA
+    u8 rxen0_mask {0x10U}; // In UCSRB
+    u8 txen0_mask {0x08U}; // In UCSRB
+    u8 rxcie0_mask {0x80U}; // In UCSRB
+    u8 txcie0_mask {0x40U}; // In UCSRB
+    u8 udrie0_mask {0x20U}; // In UCSRB
 };
 
 struct PinChangeInterruptDescriptor {
@@ -128,6 +138,13 @@ struct SpiDescriptor {
     u8 spcr_reset {0x00U};
     u8 spsr_reset {0x00U};
     u8 vector_index {};
+    // New bitmasks for accuracy
+    u8 spe_mask {0x40U};   // In SPCR
+    u8 spie_mask {0x80U};  // In SPCR
+    u8 mstr_mask {0x10U};  // In SPCR
+    u8 spif_mask {0x80U};  // In SPSR
+    u8 wcol_mask {0x40U};  // In SPSR
+    u8 sp2x_mask {0x01U};  // In SPSR
 };
 
 struct TwiDescriptor {
@@ -138,6 +155,13 @@ struct TwiDescriptor {
     u16 twcr_address {};
     u16 twamr_address {};
     u8 vector_index {};
+    // New bitmasks for accuracy
+    u8 twint_mask {0x80U}; // In TWCR
+    u8 twen_mask {0x04U};  // In TWCR
+    u8 twie_mask {0x01U};  // In TWCR
+    u8 twsto_mask {0x10U}; // In TWCR
+    u8 twsta_mask {0x20U}; // In TWCR
+    u8 twea_mask {0x40U};  // In TWCR
 };
 
 struct EepromDescriptor {

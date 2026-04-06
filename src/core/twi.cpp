@@ -115,7 +115,7 @@ u8 Twi::read(const u16 address) noexcept
     if (address == desc_.twar_address) return twar_;
     if (address == desc_.twdr_address) return twdr_;
     if (address == desc_.twcr_address) {
-        return static_cast<u8>((twcr_ & 0x7FU) | (interrupt_pending_ ? kTwInt : 0U));
+        return static_cast<u8>((twcr_ & ~desc_.twint_mask) | (interrupt_pending_ ? desc_.twint_mask : 0U));
     }
     if (address == desc_.twamr_address) return twamr_;
     return 0U;
@@ -140,32 +140,24 @@ void Twi::write(const u16 address, const u8 value) noexcept
         return;
     }
     if (address == desc_.twcr_address) {
-        twcr_ = value & 0x7FU; // Don't store TWINT in twcr_
+        twcr_ = value & ~desc_.twint_mask;
 
-        if ((twcr_ & kTwEn) == 0U) {
+        if ((twcr_ & desc_.twen_mask) == 0U) {
             reset();
             return;
         }
 
-        // Clearing TWINT (by writing 1) starts the next TWI step.
-        if ((value & kTwInt) != 0U) {
+        if ((value & desc_.twint_mask) != 0U) {
             interrupt_pending_ = false;
             
-            // F_SCL = CPU / (16 + 2 * TWBR * 4^Prescaler)
             const u8 prescaler_idx = static_cast<u8>(twsr_ & 0x03U);
             static const u32 prescalers[] = {1, 4, 16, 64};
             const u32 scl_divisor = 16U + 2U * twbr_ * prescalers[prescaler_idx];
             
-            // One TWI step is roughly 9 SCL cycles (8 bits + 1 ACK).
             step_cycles_left_ = 9U * std::max(1U, scl_divisor);
-            
-            // Ensure TWSTA is NOT immediately cleared here; it's cleared when START is sent.
         }
 
-        // STOP condition
-        if ((value & kTwSto) != 0U && (value & kTwInt) == 0U) {
-            // Real hardware clears TWSTO when STOP is finished. 
-            // We simulate it taking 1 step.
+        if ((value & desc_.twsto_mask) != 0U && (value & desc_.twint_mask) == 0U) {
             step_cycles_left_ = 100U;
         }
     }
@@ -177,7 +169,7 @@ void Twi::write(const u16 address, const u8 value) noexcept
 
 bool Twi::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
-    if (interrupt_pending_ && (twcr_ & kTwIntEnable) != 0U) {
+    if (interrupt_pending_ && (twcr_ & desc_.twie_mask) != 0U) {
         request = {desc_.vector_index, 0U};
         return true;
     }
@@ -229,16 +221,16 @@ bool Twi::check_slave_address(u8 address) const noexcept
 
 void Twi::complete_step() noexcept
 {
-    if ((twcr_ & kTwSto) != 0U) {
+    if ((twcr_ & desc_.twsto_mask) != 0U) {
         // STOP completed
         twsr_ = kStatusNone;
-        twcr_ &= static_cast<u8>(~kTwSto);
+        twcr_ &= static_cast<u8>(~desc_.twsto_mask);
         mode_ = Mode::idle;
         interrupt_pending_ = true;
         return;
     }
 
-    if ((twcr_ & kTwSta) != 0U) {
+    if ((twcr_ & desc_.twsta_mask) != 0U) {
         // START or Repeated START
         const u8 status = (twsr_ & 0xF8U);
         if (status == kStatusNone || status == kStatusSlaveStop) {
@@ -246,7 +238,7 @@ void Twi::complete_step() noexcept
         } else {
              twsr_ = kStatusRepStart;
         }
-        twcr_ &= static_cast<u8>(~kTwSta);
+        twcr_ &= static_cast<u8>(~desc_.twsta_mask);
         mode_ = Mode::idle; // Mode will be determined by SLA+W/R
         interrupt_pending_ = true;
         return;
@@ -296,7 +288,7 @@ void Twi::handle_master_step() noexcept
         // DATA received
         if (rx_idx_ < rx_buffer_.size()) {
             twdr_ = rx_buffer_[rx_idx_++];
-            if ((twcr_ & kTwEa) != 0U) {
+            if ((twcr_ & desc_.twea_mask) != 0U) {
                 twsr_ = kStatusDataR_Ack;
             } else {
                 twsr_ = kStatusDataR_Nack;

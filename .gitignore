@@ -37,6 +37,7 @@ QWEN.md
 docs/datasheets/
 /tmp/
 
+
 # ATmega DFP Pruning 
 /atmega/simulator/
 /atmega/xc8/
@@ -54,3 +55,6 @@ docs/datasheets/
 !/atmega/package.content
 !/atmega/Microchip.ATmega_DFP.pdsc
 tests/programs/*.csv
+
+# avr-libc
+avr-libc/
