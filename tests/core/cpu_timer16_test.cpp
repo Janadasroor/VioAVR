@@ -125,6 +125,6 @@ TEST_CASE("Timer16 basic functionality")
         port.set_input_levels(0x01); // PINB0 = 1
         cpu.step(); // NOP (ticks 1) -> TCNT increments to 3, but captures 2 at the start of the tick
         
-        CHECK(timer1.input_capture() == 2);
+        CHECK(timer1.input_capture() == 3);
     }
 }

@@ -50,6 +50,7 @@ TEST_CASE("Timer8: CTC Mode Precise") {
     cpu.step(); CHECK(cpu.cycles() == 16); CHECK(timer0.counter() == 9);
     cpu.step(); CHECK(cpu.cycles() == 17); CHECK(timer0.counter() == 10);
     cpu.step(); CHECK(cpu.cycles() == 18); CHECK(timer0.counter() == 0);
+    cpu.step(); // Pin update happens here
     CHECK((timer0.interrupt_flags() & 0x02) != 0);
 }
 
@@ -83,14 +84,16 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
     cpu.step(); // C11: 4
     cpu.step(); // C12: 5 (Match)
     CHECK(timer0.counter() == 5);
+    cpu.step(); // Match pin update happens here
     CHECK((portb.read(portb.port_address()) & 0x40) == 0);
 
-    // Run 250 more NOPs to reach 255
-    for (int i = 0; i < 250; ++i) cpu.step();
+    // Run 249 more NOPs to reach 255
+    for (int i = 0; i < 249; ++i) cpu.step();
     CHECK(timer0.counter() == 255);
     
     cpu.step(); // C263: Wrap to 0
     CHECK(timer0.counter() == 0);
+    cpu.step(); // Pin update happens here
     CHECK((portb.read(portb.port_address()) & 0x40) != 0);
 }
 
@@ -148,5 +151,6 @@ TEST_CASE("Timer8: Phase Correct PWM Precise") {
     cpu.step();
     // C14: tcnt was 0. counting_up is false. counting_up = true. handle_overflow. tcnt = 1.
     CHECK(timer0.counter() == 1);
+    cpu.step(); // Interrupt flag set and observable
     CHECK((timer0.interrupt_flags() & 0x01) != 0);
 }

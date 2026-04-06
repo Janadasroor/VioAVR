@@ -44,6 +44,8 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    [[nodiscard]] ClockDomain clock_domain() const noexcept override;
+
     void connect_compare_output_a(GpioPort& port, u8 bit) noexcept;
     void connect_compare_output_b(GpioPort& port, u8 bit) noexcept;
     void connect_adc_auto_trigger(class Adc& adc) noexcept;

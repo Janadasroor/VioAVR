@@ -113,18 +113,18 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
     const u8 cs = tccrb_ & kCsMask;
     if (cs == 0) return;
 
+
     if (cs <= 5) {
         static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
         const u16 divisor = prescalers[cs];
         
-        // Accumulate cycles from this tick call
-        cycle_accumulator_ += elapsed_cycles;
-        
-        // Process full prescaled ticks
-        const u64 ticks = cycle_accumulator_ / divisor;
-        cycle_accumulator_ %= divisor;
-
-        perform_ticks(ticks);
+        for (u64 cycle = 0; cycle < elapsed_cycles; ++cycle) {
+            // Increment cycle accumulator FIRST to match hardware cycle boundary
+            if (++cycle_accumulator_ >= divisor) {
+                cycle_accumulator_ = 0;
+                perform_tick();
+            }
+        }
     } else {
         // External clock via T0 pin
         if (bus_) {
@@ -270,13 +270,11 @@ void Timer8::perform_tick() noexcept
     const u8 top = get_top();
     const bool is_phase_correct = (mode_ == Mode::pc_pwm_ff || mode_ == Mode::pc_pwm_ocra);
     const bool is_fast_pwm = (mode_ == Mode::fast_pwm_ff || mode_ == Mode::fast_pwm_ocra);
-    const bool is_ctc = (mode_ == Mode::ctc_ocra);
 
-    bool wrapped = false;
-    
+    // 2. Perform the counter increment/wrap logic
     if (is_phase_correct) {
         if (counting_up_) {
-            if (tcnt_ >= top) {
+            if (tcnt_ == top) {
                 counting_up_ = false;
                 if (tcnt_ > 0) tcnt_--;
             } else {
@@ -294,38 +292,45 @@ void Timer8::perform_tick() noexcept
                 tcnt_++;
             } else {
                 tcnt_--;
-                if (tcnt_ == 0) {
-                    counting_up_ = true;
-                    handle_overflow();
-                }
             }
         }
-        if (tcnt_ == ocra_) handle_compare_match_a();
-        if (tcnt_ == ocrb_) handle_compare_match_b();
     } else if (is_fast_pwm) {
-        if (tcnt_ >= top) {
+        if (tcnt_ == top) {
             handle_overflow();
             ocra_ = ocra_buffer_;
             ocrb_ = ocrb_buffer_;
             tcnt_ = 0;
-            wrapped = true;
-            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
-            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
         } else {
             tcnt_++;
         }
+    } else { // Normal or CTC
+        if (tcnt_ == top) {
+            if (mode_ != Mode::ctc_ocra) handle_overflow();
+            tcnt_ = 0;
+        } else {
+            tcnt_++;
+        }
+    }
+
+    // 3. Sample matches AFTER the update 
+    if (is_phase_correct) {
         if (tcnt_ == ocra_) handle_compare_match_a();
         if (tcnt_ == ocrb_) handle_compare_match_b();
     } else {
-        if (tcnt_ >= top) {
-            if (!is_ctc) handle_overflow();
-            tcnt_ = 0;
-            wrapped = true;
-        } else {
-            tcnt_++;
+        if (tcnt_ == ocra_) handle_compare_match_a();
+        if (tcnt_ == ocrb_) handle_compare_match_b();
+        
+        // Fast PWM: Set pins at BOTTOM (tcnt_ == 0 and we just wrapped)
+        // Wait, the previous logic checked if tcnt_ == top before increment. 
+        // If it wrapped this tick, tcnt_ is now 0.
+        if (is_fast_pwm && tcnt_ == 0 && top != 0) { // wrapped
+            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
+            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
+        } else if (is_fast_pwm && top == 0) {
+            // Special case TOP=0
+            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
+            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
         }
-        if (tcnt_ == ocra_ || (wrapped && top == ocra_)) handle_compare_match_a();
-        if (tcnt_ == ocrb_ || (wrapped && top == ocrb_)) handle_compare_match_b();
     }
 }
 
@@ -359,7 +364,6 @@ void Timer8::handle_compare_match_a() noexcept
         }
     }
     
-    // printf("[TIMER8] Match A at TCNT=%d, mode=%d, up=%d, wgm=%d\n", (int)tcnt_, (int)mode_, (int)counting_up_, (int)(tccra_ & 0x03));
     apply_pin_action(pin_a_, action);
 
     if (adc_compare_trigger_) {

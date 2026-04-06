@@ -116,8 +116,8 @@ TEST_CASE("Watchdog Timer: Interrupt Mode") {
     cpu.write_sreg(0x80); // SEI
     cpu.step();
 
-    // PC should be at vector 6 (WDT)
-    CHECK(cpu.program_counter() == 6U);
+    // PC should be at vector 6 (WDT) -> word address 12
+    CHECK(cpu.program_counter() == 12U);
     // WDIF should be cleared now by hardware entry
     CHECK((wdt.read(0x60) & 0x80) == 0);
 }

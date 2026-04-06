@@ -51,7 +51,7 @@ void AvrCpu::reset() noexcept
     cycles_ = 0U;
     interrupt_pending_ = false;
     interrupt_depth_ = 0U;
-    state_ = (bus_ != nullptr && bus_->flash_size_words() > 0U) ? CpuState::running : CpuState::halted;
+    state_ = (bus_ != nullptr && bus_->loaded_program_words() > 0U) ? CpuState::running : CpuState::halted;
 
     if (bus_ != nullptr) {
         bus_->reset();
@@ -569,7 +569,6 @@ void AvrCpu::write_sreg(const u8 value) noexcept
 
 void AvrCpu::update_add_flags(const u8 lhs, const u8 rhs, const u8 result, const bool carry_in) noexcept
 {
-    const u16 sum = static_cast<u16>(lhs) + static_cast<u16>(rhs) + (carry_in ? 1U : 0U);
     const bool r7 = (result & 0x80U) != 0U;
     const bool d7 = (lhs & 0x80U) != 0U;
     const bool s7 = (rhs & 0x80U) != 0U;
@@ -586,6 +585,7 @@ void AvrCpu::update_add_flags(const u8 lhs, const u8 rhs, const u8 result, const
     set_flag(SregFlag::sign, flag(SregFlag::negative) != flag(SregFlag::overflow));
     // C: Rd7 & Rr7 | Rr7 & !R7 | !R7 & Rd7
     set_flag(SregFlag::carry, (d7 && s7) || (s7 && !r7) || (!r7 && d7));
+    (void)carry_in;
 }
 
 void AvrCpu::update_sub_flags(const u8 lhs, const u8 rhs, const u8 result, const bool carry_in) noexcept
@@ -596,6 +596,7 @@ void AvrCpu::update_sub_flags(const u8 lhs, const u8 rhs, const u8 result, const
     const bool r3 = (result & 0x08U) != 0U;
     const bool d3 = (lhs & 0x08U) != 0U;
     const bool s3 = (rhs & 0x08U) != 0U;
+    (void)carry_in;
 
     // H: !Rd3 & Rr3 | Rr3 & R3 | R3 & !Rd3
     set_flag(SregFlag::halfCarry, (!d3 && s3) || (s3 && r3) || (r3 && !d3));
@@ -1588,6 +1589,7 @@ void AvrCpu::execute_std_z(const DecodedInstruction& instruction)
 
 void AvrCpu::execute_sts(const DecodedInstruction& instruction)
 {
+    // STS is 2 words. execute_store_indirect increments PC by 1.
     execute_store_indirect(instruction.words[1], decode_destination_register(instruction.opcode), false, 0U);
     program_counter_ = static_cast<u16>(instruction.word_address + 2U);
 }

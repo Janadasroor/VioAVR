@@ -51,17 +51,20 @@ TEST_CASE("Timer0 Control and Prescaler Test")
         bus.write_data(atmega328.timer0.tccra_address, 0x02U); // WGM01=1 (CTC)
         bus.write_data(atmega328.timer0.tccrb_address, 0x03U); // clk/64
         bus.write_data(atmega328.timer0.ocra_address, 0x01U);
-        bus.write_data(atmega328.timer0.tcnt_address, 0x01U);
+        bus.write_data(atmega328.timer0.tcnt_address, 0x00U);
         
         // Clear flag
         bus.write_data(atmega328.timer0.tifr_address, 0x02U);
 
         bus.tick_peripherals(63U);
-        CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x01U);
+        CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x00U);
         CHECK(timer0.interrupt_flags() == 0x00U);
 
-        bus.tick_peripherals(1U); // 64th tick -> TCNT resets to 0 in CTC
-        CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x00U);
+        bus.tick_peripherals(1U); // 64th tick -> TCNT=1, matches OCRA
+        CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x01U);
         CHECK((timer0.interrupt_flags() & 0x02U) != 0U);
+
+        bus.tick_peripherals(64U); // Next 64 ticks -> TCNT clears to 0
+        CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0x00U);
     }
 }

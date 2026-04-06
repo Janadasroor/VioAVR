@@ -102,6 +102,7 @@ void Timer16::reset() noexcept
     last_t1_state_ = 0U;
     noise_canceler_register_ = 0U;
     noise_canceler_counter_ = 0U;
+    cycle_accumulator_ = 0U;
 }
 
 void Timer16::tick(const u64 elapsed_cycles) noexcept
@@ -128,43 +129,56 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
     static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
     const u16 divisor = prescalers[cs];
 
-    // Check for ICP edge if connected (sample once per tick call)
-    if (pin_icp_) {
-        const u8 current_raw_state = (pin_icp_->port->read(pin_icp_->port->pin_address()) >> pin_icp_->bit) & 0x01U;
-        
+    for (u64 cycle = 0; cycle < elapsed_cycles; ++cycle) {
+        // Sample occurs at the BEGINNING of the cycle boundary
+        bool should_tick = false;
+        if (++cycle_accumulator_ >= divisor) {
+            cycle_accumulator_ = 0;
+            should_tick = true;
+        }
+
         bool event_triggered = false;
-        if (tccrb_ & kIcnc1) {
-            // Noise Canceler: Needs 4 identical samples
-            if (current_raw_state == noise_canceler_register_) {
-                if (noise_canceler_counter_ < 4) {
-                    noise_canceler_counter_++;
-                    if (noise_canceler_counter_ == 4) {
-                        // Level is stable, check for edge
-                        const bool rising_edge = (tccrb_ & kIces1) != 0;
-                        if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
-                        else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
-                        last_icp_state_ = current_raw_state;
-                    }
-                }
-            } else {
+        // Check for ICP edge if connected (sample every cycle)
+        if (pin_icp_) {
+            const u8 current_raw_state = (pin_icp_->port->read(pin_icp_->port->pin_address()) >> pin_icp_->bit) & 0x01U;
+            
+            // Initialization: use first sample as baseline if noise canceler was just reset
+            if (noise_canceler_counter_ == 0) {
                 noise_canceler_register_ = current_raw_state;
                 noise_canceler_counter_ = 1;
+                last_icp_state_ = current_raw_state;
             }
-        } else {
-            // No noise canceler: immediate edge detection
-            const bool rising_edge = (tccrb_ & kIces1) != 0;
-            if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
-            else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
-            last_icp_state_ = current_raw_state;
+
+            if (tccrb_ & kIcnc1) {
+                if (current_raw_state == noise_canceler_register_) {
+                    if (noise_canceler_counter_ < 4) {
+                        if (++noise_canceler_counter_ == 4) {
+                            const bool rising_edge = (tccrb_ & kIces1) != 0;
+                            if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
+                            else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
+                            last_icp_state_ = current_raw_state;
+                        }
+                    }
+                } else {
+                    noise_canceler_register_ = current_raw_state;
+                    noise_canceler_counter_ = 1;
+                }
+            } else {
+                const bool rising_edge = (tccrb_ & kIces1) != 0;
+                if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
+                else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
+                last_icp_state_ = current_raw_state;
+            }
+        }
+
+        if (should_tick) {
+            handle_matches();
+            perform_tick();
         }
 
         if (event_triggered) {
             handle_input_capture();
         }
-    }
-
-    for (u64 i = 0; i < (elapsed_cycles / divisor); ++i) {
-        perform_tick();
     }
 }
 
@@ -298,8 +312,6 @@ void Timer16::perform_tick() noexcept
                               mode_ == Mode::fast_pwm_10bit || mode_ == Mode::fast_pwm_icr ||
                               mode_ == Mode::fast_pwm_ocr);
 
-    bool wrapped = false;
-
     if (is_phase_correct) {
         if (counting_up_) {
             if (tcnt_ == top) {
@@ -312,15 +324,35 @@ void Timer16::perform_tick() noexcept
             if (tcnt_ == 0) {
                 counting_up_ = true;
                 handle_overflow();
-                // Set pins at BOTTOM in phase-correct PWM
-                if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
-                if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
                 tcnt_++;
             } else {
                 tcnt_--;
             }
         }
-        // Phase-correct PWM: pin action depends on counting direction
+    } else {
+        if (tcnt_ == top) {
+            tcnt_ = 0;
+            if (mode_ == Mode::normal || is_fast_pwm) {
+                handle_overflow();
+            }
+        } else {
+            tcnt_++;
+        }
+    }
+}
+
+void Timer16::handle_matches() noexcept
+{
+    const bool is_phase_correct = (mode_ == Mode::pc_pwm_8bit || mode_ == Mode::pc_pwm_9bit ||
+                                   mode_ == Mode::pc_pwm_10bit || mode_ == Mode::pfc_pwm_icr ||
+                                   mode_ == Mode::pfc_pwm_ocr || mode_ == Mode::pc_pwm_icr ||
+                                   mode_ == Mode::pc_pwm_ocr);
+    const bool is_fast_pwm = (mode_ == Mode::fast_pwm_8bit || mode_ == Mode::fast_pwm_9bit ||
+                              mode_ == Mode::fast_pwm_10bit || mode_ == Mode::fast_pwm_icr ||
+                              mode_ == Mode::fast_pwm_ocr);
+
+    if (is_phase_correct) {
+        // Phase-correct PWM: update output pins based on current TCNT and counting direction
         if (tcnt_ == ocra_) {
             PinAction action = get_pin_action_a();
             if (action == PinAction::clear) {
@@ -339,23 +371,22 @@ void Timer16::perform_tick() noexcept
             }
             apply_pin_action(pin_b_, action);
         }
-    } else {
-        if (tcnt_ == top) {
-            tcnt_ = 0;
-            wrapped = true;
-            if (mode_ == Mode::normal || is_fast_pwm) {
-                handle_overflow();
-            }
-            // Set pins at BOTTOM in fast PWM
-            if (is_fast_pwm) {
-                if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
-                if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
-            }
-        } else {
-            tcnt_++;
+        
+        // Special case: set pins at BOTTOM if we are about to transition there
+        if (!counting_up_ && tcnt_ == 0) {
+            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
+            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
         }
-        if (tcnt_ == ocra_ || (wrapped && top == ocra_)) handle_compare_match_a();
-        if (tcnt_ == ocrb_ || (wrapped && top == ocrb_)) handle_compare_match_b();
+    } else {
+        // Normal / CTC / Fast PWM matches
+        if (tcnt_ == ocra_) handle_compare_match_a();
+        if (tcnt_ == ocrb_) handle_compare_match_b();
+        
+        // Fast PWM: Set pins at BOTTOM (transition from TOP to 0)
+        if (is_fast_pwm && tcnt_ == get_top()) {
+            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
+            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
+        }
     }
 }
 
