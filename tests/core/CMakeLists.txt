@@ -78,6 +78,7 @@ set(TEST_SOURCES
     cpu_timer_fidelity_test.cpp
     input_pin_fidelity_test.cpp
     ext_interrupt_fidelity_test.cpp
+    math_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

@@ -206,6 +206,7 @@ def parse_atdf(file_path):
         'tcn2ub': fb(r'ASSR', r'TCN2UB', 0x10)
     }
     
+    tc1_s = signal_map.get('TC1', {})
     device_info['timer1'] = { 
         'tcnt': (fr(r'TCNT1L?|TCNT1') or {'addr':0})['addr'], 
         'ocra': (fr(r'OCR1AL?|OCR1A') or {'addr':0})['addr'], 
@@ -219,7 +220,14 @@ def parse_atdf(file_path):
         'tccrc_reset': (fr(r'TCCR1C') or {'init':0})['init'],
         'timsk': (fr(r'TIMSK1|TIMSK') or {'addr':0})['addr'], 
         'tifr': (fr(r'TIFR1|TIFR') or {'addr':0})['addr'], 
-        'v_ovf': fv(r'TIMER1_OVF'), 'v_compa': fv(r'TIMER1_COMPA?'), 'v_compb': fv(r'TIMER1_COMPB'), 'v_capt': fv(r'TIMER1_CAPT') 
+        'v_ovf': fv(r'TIMER1_OVF'), 'v_compa': fv(r'TIMER1_COMPA?'), 'v_compb': fv(r'TIMER1_COMPB'), 'v_capt': fv(r'TIMER1_CAPT'),
+        'wgm10': fb(r'TCCR1A', r'WGM10', 0x01) | fb(r'TCCR1A', r'WGM11', 0x02),
+        'wgm12': fb(r'TCCR1B', r'WGM12', 0x08) | fb(r'TCCR1B', r'WGM13', 0x10),
+        'cs': fb(r'TCCR1B', r'CS1.', 0x07),
+        'ices1': fb(r'TCCR1B', r'ICES1', 0x40),
+        'icnc1': fb(r'TCCR1B', r'ICNC1', 0x80),
+        't1_pin_addr': tc1_s.get('T', (0, 0))[0], 't1_pin_bit': tc1_s.get('T', (0, 0))[1],
+        'icp1_pin_addr': tc1_s.get('ICP', (0, 0))[0], 'icp1_pin_bit': tc1_s.get('ICP', (0, 0))[1]
     }
     
     device_info['uart0'] = { 
@@ -301,6 +309,7 @@ def generate_header(d, output_dir):
     
     t0 = d['timer0']
     t2 = d['timer2']
+    t1 = d['timer1']
     
     content = f"""#pragma once
 #include "vioavr/core/device.hpp"
@@ -329,7 +338,7 @@ inline constexpr DeviceDescriptor {name} {{
     }},
     .timer0 = {{ .tcnt_address = {hx(t0['tcnt'])}, .ocra_address = {hx(t0['ocra'])}, .ocrb_address = {hx(t0['ocrb'])}, .tifr_address = {hx(t0['tifr'])}, .timsk_address = {hx(t0['timsk'])}, .tccra_address = {hx(t0['tccra'])}, .tccrb_address = {hx(t0['tccrb'])}, .assr_address = {hx(t0['assr'])}, .tccra_reset = {hx(t0['tccra_reset'])}, .tccrb_reset = {hx(t0['tccrb_reset'])}, .assr_reset = {hx(t0['assr_reset'])}, .compare_a_vector_index = {t0['v_compa']}U, .compare_b_vector_index = {t0['v_compb']}U, .overflow_vector_index = {t0['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(t0['t_pin_addr'])}, .t0_pin_bit = {t0['t_pin_bit']}U, .ocra_pin_address = {hx(t0['ocra_pin_addr'])}, .ocra_pin_bit = {t0['ocra_pin_bit']}U, .ocrb_pin_address = {hx(t0['ocrb_pin_addr'])}, .ocrb_pin_bit = {t0['ocrb_pin_bit']}U, .tosc1_pin_address = 0x0U, .tosc1_pin_bit = 0U, .tosc2_pin_address = 0x0U, .tosc2_pin_bit = 0U, .wgm0_mask = {hx(t0['wgm0'])}, .wgm2_mask = {hx(t0['wgm2'])}, .cs_mask = {hx(t0['cs'])} }},
     .timer2 = {{ .tcnt_address = {hx(t2['tcnt'])}, .ocra_address = {hx(t2['ocra'])}, .ocrb_address = {hx(t2['ocrb'])}, .tifr_address = {hx(t2['tifr'])}, .timsk_address = {hx(t2['timsk'])}, .tccra_address = {hx(t2['tccra'])}, .tccrb_address = {hx(t2['tccrb'])}, .assr_address = {hx(t2['assr'])}, .tccra_reset = {hx(t2['tccra_reset'])}, .tccrb_reset = {hx(t2['tccrb_reset'])}, .assr_reset = {hx(t2['assr_reset'])}, .compare_a_vector_index = {t2['v_compa']}U, .compare_b_vector_index = {t2['v_compb']}U, .overflow_vector_index = {t2['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .ocra_pin_address = {hx(t2['ocra_pin_addr'])}, .ocra_pin_bit = {t2['ocra_pin_bit']}U, .ocrb_pin_address = {hx(t2['ocrb_pin_addr'])}, .ocrb_pin_bit = {t2['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(t2['tosc1_pin_addr'])}, .tosc1_pin_bit = {t2['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(t2['tosc2_pin_addr'])}, .tosc2_pin_bit = {t2['tosc2_pin_bit']}U, .wgm0_mask = {hx(t2['wgm0'])}, .wgm2_mask = {hx(t2['wgm2'])}, .cs_mask = {hx(t2['cs'])}, .as2_mask = {hx(t2['as2'])}, .tcn2ub_mask = {hx(t2['tcn2ub'])} }},
-    .timer1 = {{ .tcnt_address = {hx(d['timer1']['tcnt'])}, .ocra_address = {hx(d['timer1']['ocra'])}, .ocrb_address = {hx(d['timer1']['ocrb'])}, .icr_address = {hx(d['timer1']['icr'])}, .tifr_address = {hx(d['timer1']['tifr'])}, .timsk_address = {hx(d['timer1']['timsk'])}, .tccra_address = {hx(d['timer1']['tccra'])}, .tccrb_address = {hx(d['timer1']['tccrb'])}, .tccrc_address = {hx(d['timer1']['tccrc'])}, .tccra_reset = {hx(d['timer1']['tccra_reset'])}, .tccrb_reset = {hx(d['timer1']['tccrb_reset'])}, .tccrc_reset = {hx(d['timer1']['tccrc_reset'])}, .capture_vector_index = {d['timer1']['v_capt']}U, .compare_a_vector_index = {d['timer1']['v_compa']}U, .compare_b_vector_index = {d['timer1']['v_compb']}U, .overflow_vector_index = {d['timer1']['v_ovf']}U, .capture_enable_mask = 0x20U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U }},
+    .timer1 = {{ .tcnt_address = {hx(t1['tcnt'])}, .ocra_address = {hx(t1['ocra'])}, .ocrb_address = {hx(t1['ocrb'])}, .icr_address = {hx(t1['icr'])}, .tifr_address = {hx(t1['tifr'])}, .timsk_address = {hx(t1['timsk'])}, .tccra_address = {hx(t1['tccra'])}, .tccrb_address = {hx(t1['tccrb'])}, .tccrc_address = {hx(t1['tccrc'])}, .tccra_reset = {hx(t1['tccra_reset'])}, .tccrb_reset = {hx(t1['tccrb_reset'])}, .tccrc_reset = {hx(t1['tccrc_reset'])}, .capture_vector_index = {t1['v_capt']}U, .compare_a_vector_index = {t1['v_compa']}U, .compare_b_vector_index = {t1['v_compb']}U, .overflow_vector_index = {t1['v_ovf']}U, .capture_enable_mask = 0x20U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t1_pin_address = {hx(t1['t1_pin_addr'])}, .t1_pin_bit = {t1['t1_pin_bit']}U, .icp1_pin_address = {hx(t1['icp1_pin_addr'])}, .icp1_pin_bit = {t1['icp1_pin_bit']}U, .wgm10_mask = {hx(t1['wgm10'])}, .wgm12_mask = {hx(t1['wgm12'])}, .cs_mask = {hx(t1['cs'])}, .ices1_mask = {hx(t1['ices1'])}, .icnc1_mask = {hx(t1['icnc1'])} }},
     .ext_interrupt = {{ .eicra_address = {hx(d['ext_interrupt']['eicra'])}, .eimsk_address = {hx(d['ext_interrupt']['eimsk'])}, .eifr_address = {hx(d['ext_interrupt']['eifr'])}, .int0_vector_index = {d['ext_interrupt']['v_int0']}U, .int1_vector_index = {d['ext_interrupt']['v_int1']}U }},
     .uart0 = {{ .udr_address = {hx(d['uart0']['udr'])}, .ucsra_address = {hx(d['uart0']['ucsra'])}, .ucsrb_address = {hx(d['uart0']['ucsrb'])}, .ucsrc_address = {hx(d['uart0']['ucsrc'])}, .ubrrl_address = {hx(d['uart0']['ubrrl'])}, .ubrrh_address = {hx(d['uart0']['ubrrh'])}, .ucsra_reset = {hx(d['uart0']['ucsra_reset'])}, .ucsrb_reset = {hx(d['uart0']['ucsrb_reset'])}, .ucsrc_reset = {hx(d['uart0']['ucsrc_reset'])}, .rx_vector_index = {d['uart0']['v_rx']}U, .udre_vector_index = {d['uart0']['v_udre']}U, .tx_vector_index = {d['uart0']['v_tx']}U }},
     .pin_change_interrupt_0 = {{ .pcicr_address = {hx(d['pin_change_interrupt_0']['pcicr'])}, .pcifr_address = {hx(d['pin_change_interrupt_0']['pcifr'])}, .pcmsk_address = {hx(d['pin_change_interrupt_0']['pcmsk'])}, .pcicr_enable_mask = {hx(d['pin_change_interrupt_0']['enable_mask'])}, .pcifr_flag_mask = {hx(d['pin_change_interrupt_0']['flag_mask'])}, .vector_index = {d['pin_change_interrupt_0']['vector']}U }},
@@ -355,6 +364,6 @@ def main():
     files = list(ad.glob("*.atdf"))
     for f in files:
         try: generate_header(parse_atdf(f), od)
-        except Exception as e: pass
+        except Exception as e: print(f"FAIL {f.name}: {e}")
 
 if __name__ == "__main__": main()
