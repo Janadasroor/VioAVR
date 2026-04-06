@@ -107,6 +107,8 @@ void Timer16::reset() noexcept
 
 void Timer16::tick(const u64 elapsed_cycles) noexcept
 {
+    if (power_reduction_enabled()) return;
+
     const u8 cs = tccrb_ & desc_.cs_mask;
     if (cs == 0) return; // Stopped
 
@@ -299,6 +301,14 @@ void Timer16::update_mode() noexcept
         Mode::ctc_icr, Mode::normal, Mode::fast_pwm_icr, Mode::fast_pwm_ocr
     };
     mode_ = modes[wgm & 0x0FU];
+}
+
+bool Timer16::power_reduction_enabled() const noexcept
+{
+    if (!bus_) return false;
+    const auto& d = bus_->device();
+    if (d.prtimer1_bit == 0xFF) return false;
+    return (bus_->read_data(d.prr_address) & (1 << d.prtimer1_bit)) != 0;
 }
 
 void Timer16::perform_tick() noexcept

@@ -208,9 +208,22 @@ struct DeviceDescriptor {
     u16 sph_address {0x005EU};
     u16 sreg_address {0x005FU};
     u16 spmcsr_address {};
-    u16 prr_address {};
+    u16 prr_address {};   // Common for many chips
+    u16 prr0_address {};  // Some have PRR0/PRR1
+    u16 prr1_address {};
     u16 smcr_address {};
     u16 mcusr_address {};
+    // Power Reduction Bits (indices in PRR/PRR0/PRR1)
+    u8 pradc_bit {0xFFU};
+    u8 prusart0_bit {0xFFU};
+    u8 prspi_bit {0xFFU};
+    u8 prtwi_bit {0xFFU};
+    u8 prtimer0_bit {0xFFU};
+    u8 prtimer1_bit {0xFFU};
+    u8 prtimer2_bit {0xFFU};
+    // Sleep Mode Masks (in SMCR)
+    u8 smcr_sm_mask {0x0EU}; // Sleep Mode select bits
+    u8 smcr_se_mask {0x01U}; // Sleep Enable bit
     u32 flash_rww_end_word {}; // End of Read-While-Write section
     u8 spl_reset {0x00U};
     u8 sph_reset {0x00U};

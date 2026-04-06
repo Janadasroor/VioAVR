@@ -18,6 +18,7 @@ TEST_CASE("ADC Basic Functionality Test")
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
     Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U}; // Source ID 6, 4 cycles
+    adc0.set_bus(bus);
     bus.attach_peripheral(adc0);
     bus.reset();
 

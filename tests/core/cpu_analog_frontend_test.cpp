@@ -30,6 +30,7 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     MemoryBus bus {atmega328};
     PinMux pin_mux {8};
     Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    adc0.set_bus(bus);
     adc0.bind_signal_bank(signals);
     
     AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 0.0}; // Disable hysteresis for deterministic test

@@ -48,6 +48,7 @@ TEST_CASE("ADC Firmware Integration Test")
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
     Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    adc0.set_bus(bus);
     adc0.set_channel_voltage(0U, 0.25);
     bus.attach_peripheral(adc0);
     AvrCpu cpu {bus};

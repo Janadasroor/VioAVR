@@ -102,6 +102,10 @@ void Timer8::reset() noexcept
 
 void Timer8::tick(const u64 elapsed_cycles) noexcept
 {
+    if (power_reduction_enabled()) {
+        return;
+    }
+
     if (elapsed_cycles > 0U) {
         retire_async_busy();
     }
@@ -253,6 +257,21 @@ void Timer8::connect_adc_auto_trigger(Adc& adc) noexcept
 void Timer8::connect_adc_overflow_auto_trigger(Adc& adc) noexcept
 {
     adc_overflow_trigger_ = &adc;
+}
+
+bool Timer8::power_reduction_enabled() const noexcept
+{
+    if (!bus_) return false;
+    const auto& d = bus_->device();
+    // Check which bit to use (Timer0 uses prtimer0_bit, Timer2 uses prtimer2_bit)
+    u8 pr_bit = 0xFF;
+    if (desc_.tcnt_address == d.timer0.tcnt_address) pr_bit = d.prtimer0_bit;
+    else if (desc_.tcnt_address == d.timer2.tcnt_address) pr_bit = d.prtimer2_bit;
+
+    if (pr_bit == 0xFF) return false;
+
+    // PRR bit 1 = Disabled
+    return (bus_->read_data(d.prr_address) & (1 << pr_bit)) != 0;
 }
 
 void Timer8::update_mode() noexcept

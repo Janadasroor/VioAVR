@@ -61,6 +61,7 @@ private:
     };
 
     void update_mode() noexcept;
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
     void perform_tick() noexcept;
     void handle_compare_match_a() noexcept;
     void handle_compare_match_b() noexcept;

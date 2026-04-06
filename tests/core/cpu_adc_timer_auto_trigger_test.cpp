@@ -21,6 +21,7 @@ TEST_CASE("ADC Timer Auto-Trigger Test")
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
     Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    adc0.set_bus(bus);
     Timer8 timer0 {"TIMER0", atmega328};
     
     adc0.connect_timer_compare_auto_trigger(timer0);

@@ -52,6 +52,7 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
     Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    adc0.set_bus(bus);
     ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
     
     adc0.connect_external_interrupt_0_auto_trigger(exti);
