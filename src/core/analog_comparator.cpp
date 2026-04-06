@@ -64,8 +64,8 @@ u8 AnalogComparator::read(u16 address) noexcept {
 void AnalogComparator::write(u16 address, u8 value) noexcept {
     if (address == desc_.acsr_address) {
         const u8 old_acsr = acsr_;
-        acsr_ = (value & ~kAciMask);
-        if (value & kAciMask) acsr_ &= ~kAciMask; // ACI is cleared by writing 1
+        acsr_ = (value & ~desc_.aci_mask);
+        if (value & desc_.aci_mask) acsr_ &= ~desc_.aci_mask; // ACI is cleared by writing 1
 
         if ((old_acsr & kAcdMask) && !(acsr_ & kAcdMask)) {
             update_pin_ownership();
@@ -79,7 +79,7 @@ void AnalogComparator::write(u16 address, u8 value) noexcept {
 }
 
 bool AnalogComparator::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    if ((acsr_ & kAcieMask) && (acsr_ & kAciMask)) {
+    if ((acsr_ & desc_.acie_mask) && (acsr_ & desc_.aci_mask)) {
         request.vector_index = desc_.vector_index;
         return true;
     }
@@ -88,7 +88,7 @@ bool AnalogComparator::pending_interrupt_request(InterruptRequest& request) cons
 
 bool AnalogComparator::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
-        acsr_ &= ~kAciMask;
+        acsr_ &= ~desc_.aci_mask;
         return true;
     }
     return false;

@@ -100,12 +100,12 @@ void Adc::write(u16 address, u8 value) noexcept {
         const bool next_enabled = (value & kAdenMask);
         
         // ADIF is cleared by writing 1
-        if (value & kAdifMask) {
-            adcsra_ &= ~kAdifMask;
+        if (value & desc_.adif_mask) {
+            adcsra_ &= ~desc_.adif_mask;
         }
         
         // Update components of ADCSRA except ADIF which was handled above
-        adcsra_ = (adcsra_ & kAdifMask) | (value & ~kAdifMask);
+        adcsra_ = (adcsra_ & desc_.adif_mask) | (value & ~desc_.adif_mask);
         
         if (!was_enabled && next_enabled) {
             update_pin_ownership();
@@ -114,7 +114,7 @@ void Adc::write(u16 address, u8 value) noexcept {
             converting_ = false;
         }
 
-        if (next_enabled && (value & kAdscMask)) {
+        if (next_enabled && (value & desc_.adsc_mask)) {
             start_conversion();
         }
     } else if (address == desc_.admux_address) {
@@ -129,7 +129,7 @@ void Adc::write(u16 address, u8 value) noexcept {
 }
 
 bool Adc::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    if ((adcsra_ & kAdieMask) && (adcsra_ & kAdifMask)) {
+    if ((adcsra_ & desc_.adie_mask) && (adcsra_ & desc_.adif_mask)) {
         request.vector_index = desc_.vector_index;
         return true;
     }
@@ -138,7 +138,7 @@ bool Adc::pending_interrupt_request(InterruptRequest& request) const noexcept {
 
 bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
-        adcsra_ &= ~kAdifMask; // Clear flag on entry
+        adcsra_ &= ~desc_.adif_mask; // Clear flag on entry
         return true;
     }
     return false;
@@ -149,7 +149,7 @@ void Adc::start_conversion() noexcept {
     
     converting_ = true;
     cycles_remaining_ = conversion_cycles_;
-    adcsra_ |= kAdscMask;
+    adcsra_ |= desc_.adsc_mask;
 }
 
 void Adc::complete_conversion() noexcept {
@@ -163,8 +163,8 @@ void Adc::complete_conversion() noexcept {
 
     result_ = static_cast<u16>(std::clamp(voltage * 1024.0, 0.0, 1023.0));
     
-    adcsra_ &= ~kAdscMask;
-    adcsra_ |= kAdifMask;
+    adcsra_ &= ~desc_.adsc_mask;
+    adcsra_ |= desc_.adif_mask;
     converting_ = false;
 
     // Check for free-running mode restart
