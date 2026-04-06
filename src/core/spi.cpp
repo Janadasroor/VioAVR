@@ -68,13 +68,11 @@ u8 Spi::read(const u16 address) noexcept
         return spcr_;
     }
     if (address == desc_.spsr_address) {
-        // Note: Reading SPSR with SPIF set, then reading SPDR clears SPIF.
-        // We handle this in SPDR read.
         return spsr_;
     }
     if (address == desc_.spdr_address) {
-        if ((spsr_ & kSpiInterruptFlag) != 0U) {
-            spsr_ &= static_cast<u8>(~kSpiInterruptFlag);
+        if ((spsr_ & desc_.spif_mask) != 0U) {
+            spsr_ &= static_cast<u8>(~desc_.spif_mask);
             interrupt_pending_ = false;
         }
         return spdr_;
@@ -89,28 +87,24 @@ void Spi::write(const u16 address, const u8 value) noexcept
         return;
     }
     if (address == desc_.spsr_address) {
-        // SPSR is mostly read-only except SPI2X (bit 0) which is R/W.
-        spsr_ = static_cast<u8>((spsr_ & 0xFEU) | (value & 0x01U));
+        spsr_ = static_cast<u8>((spsr_ & ~desc_.sp2x_mask) | (value & desc_.sp2x_mask));
         return;
     }
     if (address == desc_.spdr_address) {
-        if ((spcr_ & kSpiEnable) == 0U) {
+        if ((spcr_ & desc_.spe_mask) == 0U) {
             spdr_ = value;
             return;
         }
 
         if (transfer_cycles_left_ > 0U) {
-            spsr_ |= 0x40U; // WCOL: Write Collision
+            spsr_ |= desc_.wcol_mask;
             return;
         }
 
-        // Only Master starts a transfer on SPDR write.
-        // Slave waits for an external clock.
-        if ((spcr_ & kSpiMaster) != 0U) {
+        if ((spcr_ & desc_.mstr_mask) != 0U) {
             // Start transfer
             u8 data = value;
-            if ((spcr_ & 0x20U) != 0U) { // DORD: Data Order
-                // Reverse bits
+            if ((spcr_ & 0x20U) != 0U) { // DORD
                 data = static_cast<u8>(
                     ((data & 0x01U) << 7U) | ((data & 0x02U) << 5U) |
                     ((data & 0x04U) << 3U) | ((data & 0x08U) << 1U) |
@@ -122,7 +116,7 @@ void Spi::write(const u16 address, const u8 value) noexcept
             
             u32 divisor = 0;
             const u8 spr = static_cast<u8>(spcr_ & 0x03U);
-            const bool spi2x = (spsr_ & 0x01U) != 0U;
+            const bool spi2x = (spsr_ & desc_.sp2x_mask) != 0U;
 
             switch (spr) {
             case 0: divisor = spi2x ? 2U : 4U; break;
@@ -133,7 +127,6 @@ void Spi::write(const u16 address, const u8 value) noexcept
 
             transfer_cycles_left_ = 8U * divisor;
         } else {
-            // Slave: just buffer the value to be shifted out later
             shift_register_ = value;
         }
     }
@@ -141,8 +134,8 @@ void Spi::write(const u16 address, const u8 value) noexcept
 
 bool Spi::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
-    if (interrupt_pending_ && (spcr_ & kSpiInterruptEnable) != 0U) {
-        request = {desc_.vector_index, 0U}; // Source ID 0
+    if (interrupt_pending_ && (spcr_ & desc_.spie_mask) != 0U) {
+        request = {desc_.vector_index, 0U};
         return true;
     }
     return false;
@@ -196,7 +189,7 @@ void Spi::complete_transfer() noexcept
         );
     }
     spdr_ = received;
-    spsr_ |= kSpiInterruptFlag;
+    spsr_ |= desc_.spif_mask;
     interrupt_pending_ = true;
 }
 
