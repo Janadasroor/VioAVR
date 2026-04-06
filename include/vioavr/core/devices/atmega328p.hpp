@@ -6,23 +6,25 @@ inline constexpr DeviceDescriptor atmega328p {
     .flash_words = 16384U, .sram_bytes = 2048U, .eeprom_bytes = 1024U,
     .interrupt_vector_count = 26U, .interrupt_vector_size = 4U, .flash_page_size = 0x80U,
     .spl_address = 0x5DU, .sph_address = 0x5EU, .sreg_address = 0x5FU, .spmcsr_address = 0x57U,
-    .smcr_address = 0x53U, .mcusr_address = 0x54U,
+    .prr_address = 0x64U, .smcr_address = 0x53U, .mcusr_address = 0x54U,
     .flash_rww_end_word = 14336U,
     .spl_reset = 0x0U, .sph_reset = 0x0U, .sreg_reset = 0x0U,
     .adc = { 
         .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU, .vector_index = 21U, .adcsra_reset = 0x0U, .adcsrb_reset = 0x0U, .admux_reset = 0x0U,
         .didr0_address = 0x7EU,
-        .adc_pin_address = {{ 0x26U, 0x26U, 0x26U, 0x26U, 0x26U, 0x26U, 0x0U, 0x0U }},
+        .adc_pin_address = {{ 0x28U, 0x28U, 0x28U, 0x28U, 0x28U, 0x28U, 0x0U, 0x0U }},
         .adc_pin_bit = {{ 0U, 1U, 2U, 3U, 4U, 5U, 0U, 0U }},
-        .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }}
+        .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }},
+        .adsc_mask = 0x40U, .adif_mask = 0x10U, .adie_mask = 0x8U
     },
     .ac = { 
         .acsr_address = 0x50U, .didr1_address = 0x7FU, .vector_index = 23U,
-        .ain0_pin_address = 0x29U, .ain0_pin_bit = 6U,
-        .ain1_pin_address = 0x29U, .ain1_pin_bit = 7U
+        .ain0_pin_address = 0x2BU, .ain0_pin_bit = 6U,
+        .ain1_pin_address = 0x2BU, .ain1_pin_bit = 7U,
+        .aci_mask = 0x10U, .acie_mask = 0x8U
     },
-    .timer0 = { .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U, .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .assr_reset = 0x0U, .compare_a_vector_index = 14U, .compare_b_vector_index = 15U, .overflow_vector_index = 16U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = 0x29U, .t0_pin_bit = 4U, .ocra_pin_address = 0x29U, .ocra_pin_bit = 6U, .ocrb_pin_address = 0x29U, .ocrb_pin_bit = 5U, .tosc1_pin_address = 0x0U, .tosc1_pin_bit = 0U, .tosc2_pin_address = 0x0U, .tosc2_pin_bit = 0U },
-    .timer2 = { .tcnt_address = 0xB2U, .ocra_address = 0xB3U, .ocrb_address = 0xB4U, .tifr_address = 0x37U, .timsk_address = 0x70U, .tccra_address = 0xB0U, .tccrb_address = 0xB1U, .assr_address = 0xB6U, .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .assr_reset = 0x0U, .compare_a_vector_index = 7U, .compare_b_vector_index = 8U, .overflow_vector_index = 9U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = 0x0U, .t0_pin_bit = 0U, .ocra_pin_address = 0x23U, .ocra_pin_bit = 3U, .ocrb_pin_address = 0x29U, .ocrb_pin_bit = 3U, .tosc1_pin_address = 0x23U, .tosc1_pin_bit = 6U, .tosc2_pin_address = 0x23U, .tosc2_pin_bit = 7U },
+    .timer0 = { .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U, .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .assr_reset = 0x0U, .compare_a_vector_index = 14U, .compare_b_vector_index = 15U, .overflow_vector_index = 16U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = 0x2BU, .t0_pin_bit = 4U, .ocra_pin_address = 0x2BU, .ocra_pin_bit = 6U, .ocrb_pin_address = 0x2BU, .ocrb_pin_bit = 5U, .tosc1_pin_address = 0x0U, .tosc1_pin_bit = 0U, .tosc2_pin_address = 0x0U, .tosc2_pin_bit = 0U, .wgm0_mask = 0x3U, .wgm2_mask = 0x8U, .cs_mask = 0x7U },
+    .timer2 = { .tcnt_address = 0xB2U, .ocra_address = 0xB3U, .ocrb_address = 0xB4U, .tifr_address = 0x37U, .timsk_address = 0x70U, .tccra_address = 0xB0U, .tccrb_address = 0xB1U, .assr_address = 0xB6U, .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .assr_reset = 0x0U, .compare_a_vector_index = 7U, .compare_b_vector_index = 8U, .overflow_vector_index = 9U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .ocra_pin_address = 0x25U, .ocra_pin_bit = 3U, .ocrb_pin_address = 0x2BU, .ocrb_pin_bit = 3U, .tosc1_pin_address = 0x25U, .tosc1_pin_bit = 6U, .tosc2_pin_address = 0x25U, .tosc2_pin_bit = 7U, .wgm0_mask = 0x3U, .wgm2_mask = 0x8U, .cs_mask = 0x7U, .as2_mask = 0x20U, .tcn2ub_mask = 0x10U },
     .timer1 = { .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U, .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U, .capture_vector_index = 10U, .compare_a_vector_index = 11U, .compare_b_vector_index = 12U, .overflow_vector_index = 13U, .capture_enable_mask = 0x20U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U },
     .ext_interrupt = { .eicra_address = 0x69U, .eimsk_address = 0x3DU, .eifr_address = 0x3CU, .int0_vector_index = 1U, .int1_vector_index = 2U },
     .uart0 = { .udr_address = 0xC6U, .ucsra_address = 0xC0U, .ucsrb_address = 0xC1U, .ucsrc_address = 0xC2U, .ubrrl_address = 0xC4U, .ubrrh_address = 0xC5U, .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U, .rx_vector_index = 18U, .udre_vector_index = 19U, .tx_vector_index = 20U },

@@ -33,6 +33,10 @@ struct AdcDescriptor {
     std::array<u16, 8> adc_pin_address {};
     std::array<u8, 8> adc_pin_bit {};
     std::array<AdcAutoTriggerSource, 8> auto_trigger_map {};
+    // New bitmasks for accuracy
+    u8 adsc_mask {0x40U};
+    u8 adif_mask {0x10U};
+    u8 adie_mask {0x08U};
 };
 
 struct AnalogComparatorDescriptor {
@@ -43,6 +47,9 @@ struct AnalogComparatorDescriptor {
     u8 ain0_pin_bit {};
     u16 ain1_pin_address {};
     u8 ain1_pin_bit {};
+    // New bitmasks for accuracy
+    u8 aci_mask {0x10U};
+    u8 acie_mask {0x08U};
 };
 
 struct Timer8Descriptor {
@@ -73,6 +80,13 @@ struct Timer8Descriptor {
     u8 tosc1_pin_bit {};
     u16 tosc2_pin_address {};
     u8 tosc2_pin_bit {};
+    // New bitmasks for accuracy
+    u8 wgm0_mask {0x03U}; // In TCCRA
+    u8 wgm1_mask {0x00U}; // If applicable
+    u8 wgm2_mask {0x08U}; // In TCCRB
+    u8 cs_mask {0x07U};   // In TCCRB
+    u8 as2_mask {0x20U};  // In ASSR
+    u8 tcn2ub_mask {0x10U}; // In ASSR
 };
 
 struct ExtInterruptDescriptor {

@@ -99,25 +99,46 @@ int main(int argc, char** argv)
     bus.attach_peripheral(uart0);
 
     // GPIO Ports
-    GpioPort portb {"PORTB", 0x23U, 0x24U, 0x25U}; // PINB, DDRB, PORTB
-    GpioPort portc {"PORTC", 0x26U, 0x27U, 0x28U}; // PINC, DDRC, PORTC
-    GpioPort portd {"PORTD", 0x29U, 0x2AU, 0x2BU}; // PIND, DDRD, PORTD
+    std::vector<std::unique_ptr<GpioPort>> gpio_ports;
+    for (size_t i = 0; i < device->ports.size(); ++i) {
+        const auto& p_desc = device->ports[i];
+        if (p_desc.name.empty()) continue;
+        
+        auto port = std::make_unique<GpioPort>(p_desc.name, p_desc.pin_address, p_desc.ddr_address, p_desc.port_address);
+        
+        // Register port with pin mux using PORT address
+        pin_mux.register_port(port->port_address(), static_cast<u8>(i));
+        
+        bus.attach_peripheral(*port);
+        gpio_ports.push_back(std::move(port));
+    }
+
     PinChangeInterruptSharedState pcint_shared {};
-    PinChangeInterrupt pcint0 {"PCINT0", bus.device().pin_change_interrupt_0, portb, pcint_shared, true};
-    PinChangeInterrupt pcint1 {"PCINT1", bus.device().pin_change_interrupt_1, portc, pcint_shared, false};
-    PinChangeInterrupt pcint2 {"PCINT2", bus.device().pin_change_interrupt_2, portd, pcint_shared, false};
+    auto get_port = [&](std::string_view name) -> GpioPort* {
+        for (auto& p : gpio_ports) if (p->name() == name) return p.get();
+        return nullptr;
+    };
 
-    // Register ports with pin mux for address-based lookups
-    pin_mux.register_port(portb.pin_address(), 0);
-    pin_mux.register_port(portc.pin_address(), 1);
-    pin_mux.register_port(portd.pin_address(), 2);
+    auto* portb = get_port("PORTB");
+    auto* portc = get_port("PORTC");
+    auto* portd = get_port("PORTD");
 
-    auto bind_timer8_outputs = [](Timer8& timer, const Timer8Descriptor& desc,
-                                  GpioPort& portb, GpioPort& portc, GpioPort& portd) {
+    if (portb) {
+        auto pci0 = std::make_unique<PinChangeInterrupt>("PCINT0", device->pin_change_interrupt_0, *portb, pcint_shared, true);
+        bus.attach_peripheral(*pci0.release());
+    }
+    if (portc) {
+        auto pci1 = std::make_unique<PinChangeInterrupt>("PCINT1", device->pin_change_interrupt_1, *portc, pcint_shared, false);
+        bus.attach_peripheral(*pci1.release());
+    }
+    if (portd) {
+        auto pci2 = std::make_unique<PinChangeInterrupt>("PCINT2", device->pin_change_interrupt_2, *portd, pcint_shared, false);
+        bus.attach_peripheral(*pci2.release());
+    }
+
+    auto bind_timer8_outputs = [&](Timer8& timer, const Timer8Descriptor& desc) {
         auto resolve_port = [&](const u16 pin_address) -> GpioPort* {
-            if (pin_address == portb.pin_address()) return &portb;
-            if (pin_address == portc.pin_address()) return &portc;
-            if (pin_address == portd.pin_address()) return &portd;
+            for (auto& p : gpio_ports) if (p->port_address() == pin_address || p->pin_address() == pin_address) return p.get();
             return nullptr;
         };
 
@@ -129,15 +150,8 @@ int main(int argc, char** argv)
         }
     };
 
-    bind_timer8_outputs(timer0, bus.device().timer0, portb, portc, portd);
-    bind_timer8_outputs(timer2, bus.device().timer2, portb, portc, portd);
-    
-    bus.attach_peripheral(portb);
-    bus.attach_peripheral(portc);
-    bus.attach_peripheral(portd);
-    bus.attach_peripheral(pcint0);
-    bus.attach_peripheral(pcint1);
-    bus.attach_peripheral(pcint2);
+    bind_timer8_outputs(timer0, device->timer0);
+    bind_timer8_outputs(timer2, device->timer2);
 
     bool benchmark = false;
     bool trace = false;

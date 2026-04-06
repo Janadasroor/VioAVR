@@ -33,3 +33,6 @@
 - [x] `tests/programs/trace_runner.cpp` - Dumps register trace as CSV
 - [x] `tests/programs/compare_traces.py` - Compares VioAVR vs expected
 - [x] `tests/programs/simavr_compare.py` - SimAVR comparison framework
+- [x] `scripts/atdf_export.py` - Hardware metadata extraction from ATDF
+- [x] `scripts/gen_audit_md.py` - Automated accuracy checklist generation
+- [x] `scripts/re-audit.sh` - Master MCU audit update script

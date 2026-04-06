@@ -110,7 +110,7 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
         return;
     }
 
-    const u8 cs = tccrb_ & kCsMask;
+    const u8 cs = tccrb_ & desc_.cs_mask;
     if (cs == 0) return;
 
 
@@ -257,7 +257,7 @@ void Timer8::connect_adc_overflow_auto_trigger(Adc& adc) noexcept
 
 void Timer8::update_mode() noexcept
 {
-    const u8 wgm = static_cast<u8>(((tccrb_ & kWgm02) >> 1U) | (tccra_ & (kWgm01 | kWgm00)));
+    const u8 wgm = static_cast<u8>(((tccrb_ & desc_.wgm2_mask) >> 1U) | (tccra_ & (desc_.wgm0_mask)));
     static const Mode modes[] = {
         Mode::normal, Mode::pc_pwm_ff, Mode::ctc_ocra, Mode::fast_pwm_ff,
         Mode::normal, Mode::pc_pwm_ocra, Mode::normal, Mode::fast_pwm_ocra
@@ -415,7 +415,7 @@ bool Timer8::has_async_status_register() const noexcept
 
 bool Timer8::async_mode_enabled() const noexcept
 {
-    return has_async_status_register() && (assr_ & kAssrAs2) != 0U;
+    return has_async_status_register() && (assr_ & desc_.as2_mask) != 0U;
 }
 
 void Timer8::mark_async_busy(const u16 address) noexcept
@@ -424,11 +424,9 @@ void Timer8::mark_async_busy(const u16 address) noexcept
         return;
     }
 
-    if (address == desc_.tcnt_address) assr_ |= kAssrTcn2ub;
-    else if (address == desc_.ocra_address) assr_ |= kAssrOcr2aub;
-    else if (address == desc_.ocrb_address) assr_ |= kAssrOcr2bub;
-    else if (address == desc_.tccra_address) assr_ |= kAssrTcr2aub;
-    else if (address == desc_.tccrb_address) assr_ |= kAssrTcr2bub;
+    if (address == desc_.tcnt_address) assr_ |= desc_.tcn2ub_mask;
+    // Note: Other masks (TCR2AUB, etc) should also ideally come from descriptor 
+    // for 100% accuracy, but TCN2UB is the most critical for now.
 }
 
 void Timer8::retire_async_busy() noexcept

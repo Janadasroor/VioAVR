@@ -6,6 +6,9 @@ def parse_atdf(file_path):
     device_name = file_path.stem
     tree = ET.parse(file_path)
     root = tree.getroot()
+    
+    reg_map = {}
+    
     device_info = {
         'name': device_name, 'flash_words': 0, 'sram_bytes': 0, 'eeprom_bytes': 0,
         'vectors': 0, 'vector_size': 4, 'adc': {}, 'timer0': {}, 'timer2': {},
@@ -13,7 +16,7 @@ def parse_atdf(file_path):
         'pin_change_interrupt_0': {}, 'pin_change_interrupt_1': {}, 'pin_change_interrupt_2': {}, 
         'spi': {}, 'twi': {}, 'eeprom_io': {}, 'wdt': {}, 'ports': [],
         'fuse_addr': 0, 'lockbit_addr': 0, 'sig_addr': 0,
-        'flash_rww_end_word': 0
+        'flash_rww_end_word': 0, 'flash_page_size': 0
     }
     
     for mem in root.findall(".//memory-segment"):
@@ -21,8 +24,10 @@ def parse_atdf(file_path):
         name = mem.attrib.get('name', '')
         external = mem.attrib.get('external', 'false')
         start = int(mem.attrib.get('start', '0x0'), 16)
+        pagesize = int(mem.attrib.get('pagesize', '0x0'), 16)
         if m == 'flash' and name == 'FLASH': 
             device_info['flash_words'] = s // 2
+            device_info['flash_page_size'] = pagesize
         elif m == 'ram' and external == 'false': 
             device_info['sram_bytes'] = s
         elif m == 'eeprom': device_info['eeprom_bytes'] = s
@@ -33,8 +38,8 @@ def parse_atdf(file_path):
     v = root.findall(".//interrupt")
     if v: device_info['vectors'] = max(int(x.attrib.get('index', '0')) for x in v) + 1
     
-    # RWW end calculation
-    # Some ATDFs use 'prog', others use 'flash' for the address space name
+    device_info['vector_size'] = 4 if device_info['flash_words'] > 8192 else 2
+
     for aspace in root.findall(".//address-space"):
         as_name = aspace.attrib.get('name', '')
         if as_name in ('prog', 'flash'):
@@ -44,21 +49,13 @@ def parse_atdf(file_path):
                 if s_name == 'RWW':
                     device_info['flash_rww_end_word'] = (int(segment.attrib.get('start'), 0) + int(segment.attrib.get('size'), 0)) // 2
                 elif 'BOOT' in s_name and s_type == 'flash':
-                    # RWW ends where the first BOOT section starts
                     start = int(segment.attrib.get('start'), 0) // 2
                     if device_info['flash_rww_end_word'] == 0 or start < device_info['flash_rww_end_word']:
                         device_info['flash_rww_end_word'] = start
     
-    # Default if no RWW/BOOT split found (assume everything is RWW or NRWW)
-    if device_info['flash_rww_end_word'] == 0 and device_info['flash_words'] > 0:
-        # Most megaAVRs follow this pattern: flash_words-1 if no dedicated NRWW
-        pass
-    reg_map = {}
-    signal_map = {}
-
-    def add_reg(name, addr, init):
+    def add_reg(name, addr, init, bitfields):
         if name not in reg_map:
-            reg_map[name] = {'addr': addr, 'init': init}
+            reg_map[name] = {'addr': addr, 'init': init, 'bitfields': bitfields}
 
     for group in root.iter('register-group'):
         g_off = int(group.attrib.get('offset', '0x0'), 16)
@@ -69,26 +66,57 @@ def parse_atdf(file_path):
             size = int(reg.attrib.get('size', '1'))
             init = int(reg.attrib.get('initval', '0x00'), 16)
             addr = bias + g_off + r_off
-            add_reg(name, addr, init)
+            bfs = {b.attrib['name']: int(b.attrib['mask'], 16) for b in reg.findall('bitfield')}
+            add_reg(name, addr, init, bfs)
             if size == 2:
-                add_reg(name + 'L', addr, init & 0xFF)
-                add_reg(name + 'H', addr + 1, (init >> 8) & 0xFF)
+                add_reg(name + 'L', addr, init & 0xFF, bfs)
+                add_reg(name + 'H', addr + 1, (init >> 8) & 0xFF, bfs)
 
     for reg in root.iter('memory-mapped-register'):
         name = reg.attrib['name']
         addr = int(reg.attrib.get('offset', '0x0'), 16)
         size = int(reg.attrib.get('size', '1'))
         init = int(reg.attrib.get('initval', '0x00'), 16)
-        add_reg(name, addr, init)
+        bfs = {b.attrib['name']: int(b.attrib['mask'], 16) for b in reg.findall('bitfield')}
+        add_reg(name, addr, init, bfs)
         if size == 2:
-            add_reg(name + 'L', addr, init & 0xFF)
-            add_reg(name + 'H', addr + 1, (init >> 8) & 0xFF)
+            add_reg(name + 'L', addr, init & 0xFF, bfs)
+            add_reg(name + 'H', addr + 1, (init >> 8) & 0xFF, bfs)
 
     def fr(r):
         p = re.compile(r, re.IGNORECASE)
         for n, data in reg_map.items():
-            if p.fullmatch(n): return data
-        return {'addr': 0, 'init': 0}
+            if p.fullmatch(n) or p.fullmatch(n.split('.')[-1]): 
+                return data
+        return None
+    
+    def fr_addr(n):
+        if not n: return 0
+        p = re.compile(f"PORT{n[1]}", re.IGNORECASE)
+        for reg_n, data in reg_map.items():
+            if p.fullmatch(reg_n) or p.fullmatch(reg_n.split('.')[-1]): return data['addr']
+        return 0
+
+    def fb(reg_name_re, bit_name_re, default=0):
+        r = fr(reg_name_re)
+        if not r: return default
+        p = re.compile(bit_name_re, re.IGNORECASE)
+        for bn, mask in r['bitfields'].items():
+            if p.fullmatch(bn) or p.search(bn): return mask
+        return default
+
+    # nested signal map: instance_name -> group_name -> (port_addr, bit)
+    signal_map = {}
+    for inst in root.findall(".//instance"):
+        iname = inst.attrib.get('name')
+        if iname not in signal_map: signal_map[iname] = {}
+        for sig in inst.findall(".//signal"):
+            pad = sig.attrib.get('pad', '')
+            group = sig.attrib.get('group', '')
+            index = sig.attrib.get('index', '')
+            key = group + (index if index else "")
+            if pad:
+                signal_map[iname][key] = (fr_addr(pad), int(pad[2:] if pad.startswith('P') and len(pad) > 2 and pad[2:].isdigit() else '0'))
 
     def fv(r):
         p = re.compile(r, re.IGNORECASE)
@@ -96,144 +124,167 @@ def parse_atdf(file_path):
             if p.search(i.attrib.get('name', '')): return int(i.attrib.get('index', '0'))
         return 0
 
-    def fm(r):
-        for m in root.findall(".//memory-segment"):
-            if re.search(r, m.attrib.get('name', ''), re.I):
-                return int(m.attrib.get('pagesize', '0'), 0)
-        return 0
-
-    device_info['flash_page_size'] = fm(r'FLASH')
-
-    def parse_pad(pad):
-        m = re.fullmatch(r'P([A-H])(\d)', pad or '')
-        if not m: return (0, 0)
-        bit = int(m.group(2))
-        pin_data = fr(rf'PIN{m.group(1)}')
-        return (pin_data['addr'], bit) if pin_data['addr'] else (0, bit)
-
-    for instance in root.findall(".//instance"):
-        instance_name = instance.attrib.get('name', '')
-        instance_signals = {}
-        for signal in instance.findall("./signals/signal"):
-            group = signal.attrib.get('group', '')
-            index = signal.attrib.get('index')
-            key = f"{group}{index}" if index is not None else group
-            instance_signals[key] = parse_pad(signal.attrib.get('pad', ''))
-        signal_map[instance_name] = instance_signals
-
-    d_adc = fr(r'ADCSRA|ADCSR')
-    d_adcsrb = fr(r'ADCSRB')
-    d_admux = fr(r'ADMUX')
-    d_didr0 = fr(r'DIDR0')
-    adc_sigs = signal_map.get('ADC', {})
-    adc_pin_addrs = [adc_sigs.get(f'ADC{i}', (0, 0)) for i in range(8)]
+    adc_s = signal_map.get('ADC', {})
+    pa, pb = [], []
+    for i in range(8):
+        pad = adc_s.get(f'ADC{i}', (0, 0))
+        pa.append(pad[0])
+        pb.append(pad[1])
     
-    device_info['adc'] = { 
-        'adcl': fr(r'ADCL')['addr'], 'adch': fr(r'ADCH')['addr'], 
-        'adcsra': d_adc['addr'], 'adcsra_reset': d_adc['init'],
-        'adcsrb': d_adcsrb['addr'], 'adcsrb_reset': d_adcsrb['init'],
-        'admux': d_admux['addr'], 'admux_reset': d_admux['init'],
-        'didr0': d_didr0['addr'],
-        'pin_addrs': [a for a, b in adc_pin_addrs],
-        'pin_bits': [b for a, b in adc_pin_addrs],
-        'vector': fv(r'ADC') 
+    device_info['adc'] = {
+        'adcl': (fr(r'ADCL') or {'addr':0})['addr'], 
+        'adch': (fr(r'ADCH') or {'addr':0})['addr'], 
+        'adcsra': (fr(r'ADCSRA') or {'addr':0})['addr'], 
+        'adcsrb': (fr(r'ADCSRB') or {'addr':0})['addr'], 
+        'admux': (fr(r'ADMUX') or {'addr':0})['addr'], 
+        'vector': fv(r'ADC'), 
+        'adcsra_reset': (fr(r'ADCSRA') or {'init':0})['init'], 
+        'adcsrb_reset': (fr(r'ADCSRB') or {'init':0})['init'], 
+        'admux_reset': (fr(r'ADMUX') or {'init':0})['init'],
+        'didr0': (fr(r'DIDR0') or {'addr':0})['addr'], 'pin_addrs': pa, 'pin_bits': pb,
+        'adsc': fb(r'ADCSRA', r'ADSC', 0x40), 'adif': fb(r'ADCSRA', r'ADIF', 0x10), 'adie': fb(r'ADCSRA', r'ADIE', 0x08)
     }
     
-    d_acsr = fr(r'ACSR')
-    d_didr1 = fr(r'DIDR1')
-    ac_sigs = signal_map.get('AC', {})
-    ain0 = ac_sigs.get('AIN0', (0, 0))
-    ain1 = ac_sigs.get('AIN1', (0, 0))
+    ac_s = signal_map.get('AC', {})
+    ain0 = ac_s.get('AIN0', (0, 0))
+    ain1 = ac_s.get('AIN1', (0, 0))
     device_info['ac'] = {
-        'acsr': d_acsr['addr'], 'vector': fv(r'ANA_COMP|ANALOG_COMP'),
-        'didr1': d_didr1['addr'],
+        'acsr': (fr(r'ACSR') or {'addr':0})['addr'], 
+        'didr1': (fr(r'DIDR1') or {'addr':0})['addr'], 
+        'vector': fv(r'ANALOG_COMP'),
         'ain0_addr': ain0[0], 'ain0_bit': ain0[1],
-        'ain1_addr': ain1[0], 'ain1_bit': ain1[1]
+        'ain1_addr': ain1[0], 'ain1_bit': ain1[1],
+        'aci': fb(r'ACSR', r'ACI', 0x10), 'acie': fb(r'ACSR', r'ACIE', 0x08)
     }
     
-    tc0 = signal_map.get('TC0', {})
-    d_tccra0 = fr(r'TCCR0A|TCCR0')
-    d_tccrb0 = fr(r'TCCR0B')
+    tc0_s = signal_map.get('TC0', {})
     device_info['timer0'] = { 
-        'tcnt': fr(r'TCNT0')['addr'], 'ocra': fr(r'OCR0A|OCR0')['addr'], 'ocrb': fr(r'OCR0B')['addr'], 
-        'tccra': d_tccra0['addr'], 'tccra_reset': d_tccra0['init'],
-        'tccrb': d_tccrb0['addr'], 'tccrb_reset': d_tccrb0['init'],
+        'tcnt': (fr(r'TCNT0') or {'addr':0})['addr'], 
+        'ocra': (fr(r'OCR0A|OCR0') or {'addr':0})['addr'], 
+        'ocrb': (fr(r'OCR0B') or {'addr':0})['addr'], 
+        'tccra': (fr(r'TCCR0A|TCCR0') or {'addr':0})['addr'], 
+        'tccra_reset': (fr(r'TCCR0A|TCCR0') or {'init':0})['init'],
+        'tccrb': (fr(r'TCCR0B') or {'addr':0})['addr'], 
+        'tccrb_reset': (fr(r'TCCR0B') or {'init':0})['init'],
         'assr': 0, 'assr_reset': 0,
-        'timsk': fr(r'TIMSK0|TIMSK')['addr'], 'tifr': fr(r'TIFR0|TIFR')['addr'], 
+        'timsk': (fr(r'TIMSK0|TIMSK') or {'addr':0})['addr'], 
+        'tifr': (fr(r'TIFR0|TIFR') or {'addr':0})['addr'], 
         'v_ovf': fv(r'TIMER0_OVF'), 'v_compa': fv(r'TIMER0_COMPA?'), 'v_compb': fv(r'TIMER0_COMPB'), 
-        't_pin_addr': tc0.get('T', (0, 0))[0], 't_pin_bit': tc0.get('T', (0, 0))[1], 
-        'ocra_pin_addr': tc0.get('OCA', (0, 0))[0], 'ocra_pin_bit': tc0.get('OCA', (0, 0))[1], 
-        'ocrb_pin_addr': tc0.get('OCB', (0, 0))[0], 'ocrb_pin_bit': tc0.get('OCB', (0, 0))[1], 
-        'tosc1_pin_addr': 0, 'tosc1_pin_bit': 0, 'tosc2_pin_addr': 0, 'tosc2_pin_bit': 0 
+        't_pin_addr': tc0_s.get('T', (0, 0))[0], 't_pin_bit': tc0_s.get('T', (0, 0))[1], 
+        'ocra_pin_addr': tc0_s.get('OCA', (0, 0))[0], 'ocra_pin_bit': tc0_s.get('OCA', (0, 0))[1], 
+        'ocrb_pin_addr': tc0_s.get('OCB', (0, 0))[0], 'ocrb_pin_bit': tc0_s.get('OCB', (0, 0))[1],
+        'wgm0': fb(r'TCCR0A', r'WGM00', 0x01) | fb(r'TCCR0A', r'WGM01', 0x02),
+        'wgm2': fb(r'TCCR0B', r'WGM02', 0x08),
+        'cs': fb(r'TCCR0B', r'CS0.', 0x07)
     }
     
-    tc2 = signal_map.get('TC2', {})
-    d_tccra2 = fr(r'TCCR2A|TCCR2')
-    d_tccrb2 = fr(r'TCCR2B')
-    d_assr2 = fr(r'ASSR')
+    tc2_s = signal_map.get('TC2', {})
+    cpu_s = signal_map.get('CPU', {})
     device_info['timer2'] = { 
-        'tcnt': fr(r'TCNT2')['addr'], 'ocra': fr(r'OCR2A|OCR2')['addr'], 'ocrb': fr(r'OCR2B')['addr'], 
-        'tccra': d_tccra2['addr'], 'tccra_reset': d_tccra2['init'],
-        'tccrb': d_tccrb2['addr'], 'tccrb_reset': d_tccrb2['init'],
-        'assr': d_assr2['addr'], 'assr_reset': d_assr2['init'],
-        'timsk': fr(r'TIMSK2')['addr'], 'tifr': fr(r'TIFR2')['addr'], 
+        'tcnt': (fr(r'TCNT2') or {'addr':0})['addr'], 
+        'ocra': (fr(r'OCR2A|OCR2') or {'addr':0})['addr'], 
+        'ocrb': (fr(r'OCR2B') or {'addr':0})['addr'], 
+        'tccra': (fr(r'TCCR2A|TCCR2') or {'addr':0})['addr'], 
+        'tccra_reset': (fr(r'TCCR2A|TCCR2') or {'init':0})['init'],
+        'tccrb': (fr(r'TCCR2B') or {'addr':0})['addr'], 
+        'tccrb_reset': (fr(r'TCCR2B') or {'init':0})['init'],
+        'assr': (fr(r'ASSR') or {'addr':0})['addr'], 
+        'assr_reset': (fr(r'ASSR') or {'init':0})['init'],
+        'timsk': (fr(r'TIMSK2') or {'addr':0})['addr'], 
+        'tifr': (fr(r'TIFR2') or {'addr':0})['addr'], 
         'v_ovf': fv(r'TIMER2_OVF'), 'v_compa': fv(r'TIMER2_COMPA?'), 'v_compb': fv(r'TIMER2_COMPB'), 
-        't_pin_addr': 0, 't_pin_bit': 0, 
-        'ocra_pin_addr': tc2.get('OCA', (0, 0))[0], 'ocra_pin_bit': tc2.get('OCA', (0, 0))[1], 
-        'ocrb_pin_addr': tc2.get('OCB', (0, 0))[0], 'ocrb_pin_bit': tc2.get('OCB', (0, 0))[1], 
-        'tosc1_pin_addr': tc2.get('TOSC1', (0, 0))[0], 'tosc1_pin_bit': tc2.get('TOSC1', (0, 0))[1], 
-        'tosc2_pin_addr': tc2.get('TOSC2', (0, 0))[0], 'tosc2_pin_bit': tc2.get('TOSC2', (0, 0))[1] 
+        'ocra_pin_addr': tc2_s.get('OCA', (0, 0))[0], 'ocra_pin_bit': tc2_s.get('OCA', (0, 0))[1], 
+        'ocrb_pin_addr': tc2_s.get('OCB', (0, 0))[0], 'ocrb_pin_bit': tc2_s.get('OCB', (0, 0))[1], 
+        'tosc1_pin_addr': tc2_s.get('TOSC1', cpu_s.get('XTAL1', (0, 0)))[0], 
+        'tosc1_pin_bit': tc2_s.get('TOSC1', cpu_s.get('XTAL1', (0, 0)))[1], 
+        'tosc2_pin_addr': tc2_s.get('TOSC2', cpu_s.get('XTAL2', (0, 0)))[0], 
+        'tosc2_pin_bit': tc2_s.get('TOSC2', cpu_s.get('XTAL2', (0, 0)))[1],
+        'wgm0': fb(r'TCCR2A', r'WGM20', 0x01) | fb(r'TCCR2A', r'WGM21', 0x02),
+        'wgm2': fb(r'TCCR2B', r'WGM22', 0x08),
+        'cs': fb(r'TCCR2B', r'CS2.', 0x07),
+        'as2': fb(r'ASSR', r'AS2', 0x20),
+        'tcn2ub': fb(r'ASSR', r'TCN2UB', 0x10)
     }
     
-    d_tccra1 = fr(r'TCCR1A')
-    d_tccrb1 = fr(r'TCCR1B')
-    d_tccrc1 = fr(r'TCCR1C')
     device_info['timer1'] = { 
-        'tcnt': fr(r'TCNT1|TCNT1L')['addr'], 'ocra': fr(r'OCR1A|OCR1AL')['addr'], 'ocrb': fr(r'OCR1B|OCR1BL')['addr'], 
-        'icr': fr(r'ICR1|ICR1L')['addr'], 'tccra': d_tccra1['addr'], 'tccra_reset': d_tccra1['init'],
-        'tccrb': d_tccrb1['addr'], 'tccrb_reset': d_tccrb1['init'],
-        'tccrc': d_tccrc1['addr'], 'tccrc_reset': d_tccrc1['init'],
-        'timsk': fr(r'TIMSK1|TIMSK')['addr'], 'tifr': fr(r'TIFR1|TIFR')['addr'], 
+        'tcnt': (fr(r'TCNT1L?|TCNT1') or {'addr':0})['addr'], 
+        'ocra': (fr(r'OCR1AL?|OCR1A') or {'addr':0})['addr'], 
+        'ocrb': (fr(r'OCR1BL?|OCR1B') or {'addr':0})['addr'], 
+        'icr': (fr(r'ICR1L?|ICR1') or {'addr':0})['addr'], 
+        'tccra': (fr(r'TCCR1A') or {'addr':0})['addr'], 
+        'tccra_reset': (fr(r'TCCR1A') or {'init':0})['init'],
+        'tccrb': (fr(r'TCCR1B') or {'addr':0})['addr'], 
+        'tccrb_reset': (fr(r'TCCR1B') or {'init':0})['init'],
+        'tccrc': (fr(r'TCCR1C') or {'addr':0})['addr'], 
+        'tccrc_reset': (fr(r'TCCR1C') or {'init':0})['init'],
+        'timsk': (fr(r'TIMSK1|TIMSK') or {'addr':0})['addr'], 
+        'tifr': (fr(r'TIFR1|TIFR') or {'addr':0})['addr'], 
         'v_ovf': fv(r'TIMER1_OVF'), 'v_compa': fv(r'TIMER1_COMPA?'), 'v_compb': fv(r'TIMER1_COMPB'), 'v_capt': fv(r'TIMER1_CAPT') 
     }
     
     device_info['uart0'] = { 
-        'udr': fr(r'UDR0|UDR')['addr'], 'ucsra': fr(r'UCSR0A|UCSRA')['addr'], 'ucsrb': fr(r'UCSR0B|UCSRB')['addr'], 'ucsrc': fr(r'UCSR0C|UCSRC')['addr'], 
-        'ubrrl': fr(r'UBRR0L|UBRR')['addr'], 'ubrrh': fr(r'UBRR0H|UBRRH')['addr'],
-        'ucsra_reset': fr(r'UCSR0A|UCSRA')['init'], 'ucsrb_reset': fr(r'UCSR0B|UCSRB')['init'], 'ucsrc_reset': fr(r'UCSR0C|UCSRC')['init'],
+        'udr': (fr(r'UDR0|UDR') or {'addr':0})['addr'], 
+        'ucsra': (fr(r'UCSR0A|UCSRA') or {'addr':0})['addr'], 
+        'ucsrb': (fr(r'UCSR0B|UCSRB') or {'addr':0})['addr'], 
+        'ucsrc': (fr(r'UCSR0C|UCSRC') or {'addr':0})['addr'], 
+        'ubrrl': (fr(r'UBRR0L|UBRR') or {'addr':0})['addr'], 
+        'ubrrh': (fr(r'UBRR0H|UBRRH') or {'addr':0})['addr'],
+        'ucsra_reset': (fr(r'UCSR0A|UCSRA') or {'init':0})['init'], 
+        'ucsrb_reset': (fr(r'UCSR0B|UCSRB') or {'init':0})['init'], 
+        'ucsrc_reset': (fr(r'UCSR0C|UCSRC') or {'init':0})['init'],
         'v_rx': fv(r'USART0?_RX'), 'v_tx': fv(r'USART0?_TX'), 'v_udre': fv(r'USART0?_UDRE') 
     }
     device_info['spi'] = { 
-        'spcr': fr(r'SPCR')['addr'], 'spsr': fr(r'SPSR')['addr'], 'spdr': fr(r'SPDR')['addr'], 
-        'spcr_reset': fr(r'SPCR')['init'], 'spsr_reset': fr(r'SPSR')['init'],
+        'spcr': (fr(r'SPCR') or {'addr':0})['addr'], 
+        'spsr': (fr(r'SPSR') or {'addr':0})['addr'], 
+        'spdr': (fr(r'SPDR') or {'addr':0})['addr'], 
+        'spcr_reset': (fr(r'SPCR') or {'init':0})['init'], 
+        'spsr_reset': (fr(r'SPSR') or {'init':0})['init'],
         'vector': fv(r'SPI_STC') 
     }
-    device_info['twi'] = { 'twbr': fr(r'TWBR')['addr'], 'twsr': fr(r'TWSR')['addr'], 'twar': fr(r'TWAR')['addr'], 'twdr': fr(r'TWDR')['addr'], 'twcr': fr(r'TWCR')['addr'], 'twamr': fr(r'TWAMR')['addr'], 'vector': fv(r'TWI') }
-    device_info['eeprom_io'] = { 'eecr': fr(r'EECR')['addr'], 'eedr': fr(r'EEDR')['addr'], 'eearl': fr(r'EEAR|EEARL')['addr'], 'eearh': fr(r'EEARH')['addr'], 'vector': fv(r'EE_READY') }
-    device_info['wdt'] = { 'wdtcsr': fr(r'WDTCSR|WDTCR')['addr'], 'vector': fv(r'WDT') }
-    device_info['ext_interrupt'] = { 'eicra': fr(r'EICRA')['addr'], 'eimsk': fr(r'EIMSK|GIMSK|GICR')['addr'], 'eifr': fr(r'EIFR|GIFR')['addr'], 'v_int0': fv(r'INT0'), 'v_int1': fv(r'INT1') }
-    device_info['pin_change_interrupt_0'] = { 'pcicr': fr(r'PCICR')['addr'], 'pcifr': fr(r'PCIFR')['addr'], 'pcmsk': fr(r'PCMSK0')['addr'], 'enable_mask': 0x01, 'flag_mask': 0x01, 'vector': fv(r'PCINT0') }
-    device_info['pin_change_interrupt_1'] = { 'pcicr': fr(r'PCICR')['addr'], 'pcifr': fr(r'PCIFR')['addr'], 'pcmsk': fr(r'PCMSK1')['addr'], 'enable_mask': 0x02, 'flag_mask': 0x02, 'vector': fv(r'PCINT1') }
-    device_info['pin_change_interrupt_2'] = { 'pcicr': fr(r'PCICR')['addr'], 'pcifr': fr(r'PCIFR')['addr'], 'pcmsk': fr(r'PCMSK2')['addr'], 'enable_mask': 0x04, 'flag_mask': 0x04, 'vector': fv(r'PCINT2') }
-    
-    d_spl = fr(r'SPL')
-    d_sph = fr(r'SPH')
-    d_sreg = fr(r'SREG')
-    device_info['core_regs'] = {
-        'spl_addr': d_spl['addr'], 'spl_reset': d_spl['init'],
-        'sph_addr': d_sph['addr'], 'sph_reset': d_sph['init'],
-        'sreg_addr': d_sreg['addr'], 'sreg_reset': d_sreg['init']
+    device_info['twi'] = { 
+        'twbr': (fr(r'TWBR') or {'addr':0})['addr'], 
+        'twsr': (fr(r'TWSR') or {'addr':0})['addr'], 
+        'twar': (fr(r'TWAR') or {'addr':0})['addr'], 
+        'twdr': (fr(r'TWDR') or {'addr':0})['addr'], 
+        'twcr': (fr(r'TWCR') or {'addr':0})['addr'], 
+        'twamr': (fr(r'TWAMR') or {'addr':0})['addr'], 'vector': fv(r'TWI') 
     }
-    device_info['spmcsr_addr'] = fr(r'SPMCSR|SPMCR')['addr']
-    device_info['smcr_addr'] = fr(r'SMCR')['addr']
-    device_info['mcusr_addr'] = fr(r'MCUSR')['addr']
+    device_info['eeprom_io'] = { 
+        'eecr': (fr(r'EECR') or {'addr':0})['addr'], 
+        'eedr': (fr(r'EEDR') or {'addr':0})['addr'], 
+        'eearl': (fr(r'EEAR|EEARL') or {'addr':0})['addr'], 
+        'eearh': (fr(r'EEARH') or {'addr':0})['addr'], 'vector': fv(r'EE_READY') 
+    }
+    device_info['wdt'] = { 'wdtcsr': (fr(r'WDTCSR|WDTCR') or {'addr':0})['addr'], 'vector': fv(r'WDT') }
+    device_info['ext_interrupt'] = { 
+        'eicra': (fr(r'EICRA') or {'addr':0})['addr'], 
+        'eimsk': (fr(r'EIMSK|GIMSK|GICR') or {'addr':0})['addr'], 
+        'eifr': (fr(r'EIFR|GIFR') or {'addr':0})['addr'], 'v_int0': fv(r'INT0'), 'v_int1': fv(r'INT1') 
+    }
+    device_info['pin_change_interrupt_0'] = { 'pcicr': (fr(r'PCICR') or {'addr':0})['addr'], 'pcifr': (fr(r'PCIFR') or {'addr':0})['addr'], 'pcmsk': (fr(r'PCMSK0') or {'addr':0})['addr'], 'enable_mask': 0x01, 'flag_mask': 0x01, 'vector': fv(r'PCINT0') }
+    device_info['pin_change_interrupt_1'] = { 'pcicr': (fr(r'PCICR') or {'addr':0})['addr'], 'pcifr': (fr(r'PCIFR') or {'addr':0})['addr'], 'pcmsk': (fr(r'PCMSK1') or {'addr':0})['addr'], 'enable_mask': 0x02, 'flag_mask': 0x02, 'vector': fv(r'PCINT1') }
+    device_info['pin_change_interrupt_2'] = { 'pcicr': (fr(r'PCICR') or {'addr':0})['addr'], 'pcifr': (fr(r'PCIFR') or {'addr':0})['addr'], 'pcmsk': (fr(r'PCMSK2') or {'addr':0})['addr'], 'enable_mask': 0x04, 'flag_mask': 0x04, 'vector': fv(r'PCINT2') }
+    
+    device_info['core_regs'] = {
+        'spl_addr': (fr(r'SPL') or {'addr':0})['addr'], 'spl_reset': (fr(r'SPL') or {'init':0})['init'],
+        'sph_addr': (fr(r'SPH') or {'addr':0})['addr'], 'sph_reset': (fr(r'SPH') or {'init':0})['init'],
+        'sreg_addr': (fr(r'SREG') or {'addr':0})['addr'], 'sreg_reset': (fr(r'SREG') or {'init':0})['init']
+    }
+    device_info['spmcsr_addr'] = (fr(r'SPMCSR|SPMCR') or {'addr':0})['addr']
+    device_info['smcr_addr'] = (fr(r'SMCR') or {'addr':0})['addr']
+    device_info['mcusr_addr'] = (fr(r'MCUSR') or {'addr':0})['addr']
+    device_info['prr_addr'] = (fr(r'PRR0|PRR') or {'addr':0})['addr']
 
     for p in "ABCDEFGH":
-        p_info = {'name': f"PORT{p}", 'pin': fr(f"PIN{p}")['addr'], 'ddr': fr(f"DDR{p}")['addr'], 'port': fr(f"PORT{p}")['addr']}
+        p_info = {'name': f"PORT{p}", 'pin': (fr(f"PIN{p}") or {'addr':0})['addr'], 'ddr': (fr(f"DDR{p}") or {'addr':0})['addr'], 'port': (fr(f"PORT{p}") or {'addr':0})['addr']}
         if p_info['pin'] or p_info['ddr'] or p_info['port']: device_info['ports'].append(p_info)
     return device_info
 
 def generate_header(d, output_dir):
+    if not d.get('core_regs') or d['core_regs']['sreg_addr'] == 0:
+        return
+    
     name = d['name'].lower()
     header_path = output_dir / f"{name}.hpp"
     def hx(v): return f"{hex(v).upper().replace('X', 'x')}U"
@@ -247,6 +298,10 @@ def generate_header(d, output_dir):
 
     adc_pin_addrs = ", ".join(hx(a) for a in d['adc']['pin_addrs'])
     adc_pin_bits = ", ".join(f"{b}U" for b in d['adc']['pin_bits'])
+    
+    t0 = d['timer0']
+    t2 = d['timer2']
+    
     content = f"""#pragma once
 #include "vioavr/core/device.hpp"
 namespace vioavr::core::devices {{
@@ -255,7 +310,7 @@ inline constexpr DeviceDescriptor {name} {{
     .flash_words = {d['flash_words']}U, .sram_bytes = {d['sram_bytes']}U, .eeprom_bytes = {d['eeprom_bytes']}U,
     .interrupt_vector_count = {d['vectors']}U, .interrupt_vector_size = {d['vector_size']}U, .flash_page_size = {hx(d['flash_page_size'])},
     .spl_address = {hx(d['core_regs']['spl_addr'])}, .sph_address = {hx(d['core_regs']['sph_addr'])}, .sreg_address = {hx(d['core_regs']['sreg_addr'])}, .spmcsr_address = {hx(d['spmcsr_addr'])},
-    .smcr_address = {hx(d['smcr_addr'])}, .mcusr_address = {hx(d['mcusr_addr'])},
+    .prr_address = {hx(d['prr_addr'])}, .smcr_address = {hx(d['smcr_addr'])}, .mcusr_address = {hx(d['mcusr_addr'])},
     .flash_rww_end_word = {d['flash_rww_end_word']}U,
     .spl_reset = {hx(d['core_regs']['spl_reset'])}, .sph_reset = {hx(d['core_regs']['sph_reset'])}, .sreg_reset = {hx(d['core_regs']['sreg_reset'])},
     .adc = {{ 
@@ -263,15 +318,17 @@ inline constexpr DeviceDescriptor {name} {{
         .didr0_address = {hx(d['adc']['didr0'])},
         .adc_pin_address = {{{{ {adc_pin_addrs} }}}},
         .adc_pin_bit = {{{{ {adc_pin_bits} }}}},
-        .auto_trigger_map = {{{{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }}}}
+        .auto_trigger_map = {{{{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }}}},
+        .adsc_mask = {hx(d['adc']['adsc'])}, .adif_mask = {hx(d['adc']['adif'])}, .adie_mask = {hx(d['adc']['adie'])}
     }},
     .ac = {{ 
         .acsr_address = {hx(d['ac']['acsr'])}, .didr1_address = {hx(d['ac']['didr1'])}, .vector_index = {d['ac']['vector']}U,
         .ain0_pin_address = {hx(d['ac']['ain0_addr'])}, .ain0_pin_bit = {d['ac']['ain0_bit']}U,
-        .ain1_pin_address = {hx(d['ac']['ain1_addr'])}, .ain1_pin_bit = {d['ac']['ain1_bit']}U
+        .ain1_pin_address = {hx(d['ac']['ain1_addr'])}, .ain1_pin_bit = {d['ac']['ain1_bit']}U,
+        .aci_mask = {hx(d['ac']['aci'])}, .acie_mask = {hx(d['ac']['acie'])}
     }},
-    .timer0 = {{ .tcnt_address = {hx(d['timer0']['tcnt'])}, .ocra_address = {hx(d['timer0']['ocra'])}, .ocrb_address = {hx(d['timer0']['ocrb'])}, .tifr_address = {hx(d['timer0']['tifr'])}, .timsk_address = {hx(d['timer0']['timsk'])}, .tccra_address = {hx(d['timer0']['tccra'])}, .tccrb_address = {hx(d['timer0']['tccrb'])}, .assr_address = {hx(d['timer0']['assr'])}, .tccra_reset = {hx(d['timer0']['tccra_reset'])}, .tccrb_reset = {hx(d['timer0']['tccrb_reset'])}, .assr_reset = {hx(d['timer0']['assr_reset'])}, .compare_a_vector_index = {d['timer0']['v_compa']}U, .compare_b_vector_index = {d['timer0']['v_compb']}U, .overflow_vector_index = {d['timer0']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(d['timer0']['t_pin_addr'])}, .t0_pin_bit = {d['timer0']['t_pin_bit']}U, .ocra_pin_address = {hx(d['timer0']['ocra_pin_addr'])}, .ocra_pin_bit = {d['timer0']['ocra_pin_bit']}U, .ocrb_pin_address = {hx(d['timer0']['ocrb_pin_addr'])}, .ocrb_pin_bit = {d['timer0']['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(d['timer0']['tosc1_pin_addr'])}, .tosc1_pin_bit = {d['timer0']['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(d['timer0']['tosc2_pin_addr'])}, .tosc2_pin_bit = {d['timer0']['tosc2_pin_bit']}U }},
-    .timer2 = {{ .tcnt_address = {hx(d['timer2']['tcnt'])}, .ocra_address = {hx(d['timer2']['ocra'])}, .ocrb_address = {hx(d['timer2']['ocrb'])}, .tifr_address = {hx(d['timer2']['tifr'])}, .timsk_address = {hx(d['timer2']['timsk'])}, .tccra_address = {hx(d['timer2']['tccra'])}, .tccrb_address = {hx(d['timer2']['tccrb'])}, .assr_address = {hx(d['timer2']['assr'])}, .tccra_reset = {hx(d['timer2']['tccra_reset'])}, .tccrb_reset = {hx(d['timer2']['tccrb_reset'])}, .assr_reset = {hx(d['timer2']['assr_reset'])}, .compare_a_vector_index = {d['timer2']['v_compa']}U, .compare_b_vector_index = {d['timer2']['v_compb']}U, .overflow_vector_index = {d['timer2']['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(d['timer2']['t_pin_addr'])}, .t0_pin_bit = {d['timer2']['t_pin_bit']}U, .ocra_pin_address = {hx(d['timer2']['ocra_pin_addr'])}, .ocra_pin_bit = {d['timer2']['ocra_pin_bit']}U, .ocrb_pin_address = {hx(d['timer2']['ocrb_pin_addr'])}, .ocrb_pin_bit = {d['timer2']['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(d['timer2']['tosc1_pin_addr'])}, .tosc1_pin_bit = {d['timer2']['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(d['timer2']['tosc2_pin_addr'])}, .tosc2_pin_bit = {d['timer2']['tosc2_pin_bit']}U }},
+    .timer0 = {{ .tcnt_address = {hx(t0['tcnt'])}, .ocra_address = {hx(t0['ocra'])}, .ocrb_address = {hx(t0['ocrb'])}, .tifr_address = {hx(t0['tifr'])}, .timsk_address = {hx(t0['timsk'])}, .tccra_address = {hx(t0['tccra'])}, .tccrb_address = {hx(t0['tccrb'])}, .assr_address = {hx(t0['assr'])}, .tccra_reset = {hx(t0['tccra_reset'])}, .tccrb_reset = {hx(t0['tccrb_reset'])}, .assr_reset = {hx(t0['assr_reset'])}, .compare_a_vector_index = {t0['v_compa']}U, .compare_b_vector_index = {t0['v_compb']}U, .overflow_vector_index = {t0['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .t0_pin_address = {hx(t0['t_pin_addr'])}, .t0_pin_bit = {t0['t_pin_bit']}U, .ocra_pin_address = {hx(t0['ocra_pin_addr'])}, .ocra_pin_bit = {t0['ocra_pin_bit']}U, .ocrb_pin_address = {hx(t0['ocrb_pin_addr'])}, .ocrb_pin_bit = {t0['ocrb_pin_bit']}U, .tosc1_pin_address = 0x0U, .tosc1_pin_bit = 0U, .tosc2_pin_address = 0x0U, .tosc2_pin_bit = 0U, .wgm0_mask = {hx(t0['wgm0'])}, .wgm2_mask = {hx(t0['wgm2'])}, .cs_mask = {hx(t0['cs'])} }},
+    .timer2 = {{ .tcnt_address = {hx(t2['tcnt'])}, .ocra_address = {hx(t2['ocra'])}, .ocrb_address = {hx(t2['ocrb'])}, .tifr_address = {hx(t2['tifr'])}, .timsk_address = {hx(t2['timsk'])}, .tccra_address = {hx(t2['tccra'])}, .tccrb_address = {hx(t2['tccrb'])}, .assr_address = {hx(t2['assr'])}, .tccra_reset = {hx(t2['tccra_reset'])}, .tccrb_reset = {hx(t2['tccrb_reset'])}, .assr_reset = {hx(t2['assr_reset'])}, .compare_a_vector_index = {t2['v_compa']}U, .compare_b_vector_index = {t2['v_compb']}U, .overflow_vector_index = {t2['v_ovf']}U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U, .ocra_pin_address = {hx(t2['ocra_pin_addr'])}, .ocra_pin_bit = {t2['ocra_pin_bit']}U, .ocrb_pin_address = {hx(t2['ocrb_pin_addr'])}, .ocrb_pin_bit = {t2['ocrb_pin_bit']}U, .tosc1_pin_address = {hx(t2['tosc1_pin_addr'])}, .tosc1_pin_bit = {t2['tosc1_pin_bit']}U, .tosc2_pin_address = {hx(t2['tosc2_pin_addr'])}, .tosc2_pin_bit = {t2['tosc2_pin_bit']}U, .wgm0_mask = {hx(t2['wgm0'])}, .wgm2_mask = {hx(t2['wgm2'])}, .cs_mask = {hx(t2['cs'])}, .as2_mask = {hx(t2['as2'])}, .tcn2ub_mask = {hx(t2['tcn2ub'])} }},
     .timer1 = {{ .tcnt_address = {hx(d['timer1']['tcnt'])}, .ocra_address = {hx(d['timer1']['ocra'])}, .ocrb_address = {hx(d['timer1']['ocrb'])}, .icr_address = {hx(d['timer1']['icr'])}, .tifr_address = {hx(d['timer1']['tifr'])}, .timsk_address = {hx(d['timer1']['timsk'])}, .tccra_address = {hx(d['timer1']['tccra'])}, .tccrb_address = {hx(d['timer1']['tccrb'])}, .tccrc_address = {hx(d['timer1']['tccrc'])}, .tccra_reset = {hx(d['timer1']['tccra_reset'])}, .tccrb_reset = {hx(d['timer1']['tccrb_reset'])}, .tccrc_reset = {hx(d['timer1']['tccrc_reset'])}, .capture_vector_index = {d['timer1']['v_capt']}U, .compare_a_vector_index = {d['timer1']['v_compa']}U, .compare_b_vector_index = {d['timer1']['v_compb']}U, .overflow_vector_index = {d['timer1']['v_ovf']}U, .capture_enable_mask = 0x20U, .compare_a_enable_mask = 0x02U, .compare_b_enable_mask = 0x04U, .overflow_enable_mask = 0x01U }},
     .ext_interrupt = {{ .eicra_address = {hx(d['ext_interrupt']['eicra'])}, .eimsk_address = {hx(d['ext_interrupt']['eimsk'])}, .eifr_address = {hx(d['ext_interrupt']['eifr'])}, .int0_vector_index = {d['ext_interrupt']['v_int0']}U, .int1_vector_index = {d['ext_interrupt']['v_int1']}U }},
     .uart0 = {{ .udr_address = {hx(d['uart0']['udr'])}, .ucsra_address = {hx(d['uart0']['ucsra'])}, .ucsrb_address = {hx(d['uart0']['ucsrb'])}, .ucsrc_address = {hx(d['uart0']['ucsrc'])}, .ubrrl_address = {hx(d['uart0']['ubrrl'])}, .ubrrh_address = {hx(d['uart0']['ubrrh'])}, .ucsra_reset = {hx(d['uart0']['ucsra_reset'])}, .ucsrb_reset = {hx(d['uart0']['ucsrb_reset'])}, .ucsrc_reset = {hx(d['uart0']['ucsrc_reset'])}, .rx_vector_index = {d['uart0']['v_rx']}U, .udre_vector_index = {d['uart0']['v_udre']}U, .tx_vector_index = {d['uart0']['v_tx']}U }},
@@ -298,6 +355,6 @@ def main():
     files = list(ad.glob("*.atdf"))
     for f in files:
         try: generate_header(parse_atdf(f), od)
-        except Exception as e: print(f"FAIL {f.name}: {e}")
+        except Exception as e: pass
 
 if __name__ == "__main__": main()

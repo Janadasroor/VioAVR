@@ -56,7 +56,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             // Port index is assumed from sequence (A=0, B=1...)
             // In a better version we'd use a more robust mapping.
             static u8 next_port_idx = 0;
-            pin_mux_.register_port(port->pin_address(), next_port_idx++);
+            pin_mux_.register_port(port->port_address(), next_port_idx++);
             
             bus_.attach_peripheral(*port.release());
         }
@@ -205,7 +205,8 @@ bool VioSpice::is_timer2_async_input(const std::string_view port_name, const u8 
         if (port_desc.name.empty()) {
             continue;
         }
-        if (port_desc.pin_address == bus_.device().timer2.tosc1_pin_address) {
+        if (port_desc.pin_address == bus_.device().timer2.tosc1_pin_address ||
+            port_desc.port_address == bus_.device().timer2.tosc1_pin_address) {
             return port_desc.name == port_name && bus_.device().timer2.tosc1_pin_bit == bit_index;
         }
     }
