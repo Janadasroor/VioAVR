@@ -30,6 +30,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+GEMINI.md
+QWEN.md
 
 # Project specific
 docs/datasheets/

@@ -178,6 +178,12 @@ struct Timer16Descriptor {
     u8 t1_pin_bit {};
     u16 icp1_pin_address {};
     u8 icp1_pin_bit {};
+    // New bitmasks for accuracy
+    u8 wgm10_mask {0x03U}; // In TCCRA
+    u8 wgm12_mask {0x18U}; // In TCCRB
+    u8 cs_mask {0x07U};    // In TCCRB
+    u8 ices1_mask {0x40U}; // In TCCRB
+    u8 icnc1_mask {0x80U}; // In TCCRB
 };
 
 struct PortDescriptor {

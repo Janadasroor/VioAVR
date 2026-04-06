@@ -107,7 +107,7 @@ void Timer16::reset() noexcept
 
 void Timer16::tick(const u64 elapsed_cycles) noexcept
 {
-    const u8 cs = tccrb_ & kCsMask;
+    const u8 cs = tccrb_ & desc_.cs_mask;
     if (cs == 0) return; // Stopped
 
     // External Clocking (CS=110 falling, 111 rising)
@@ -149,11 +149,11 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
                 last_icp_state_ = current_raw_state;
             }
 
-            if (tccrb_ & kIcnc1) {
+            if (tccrb_ & desc_.icnc1_mask) {
                 if (current_raw_state == noise_canceler_register_) {
                     if (noise_canceler_counter_ < 4) {
                         if (++noise_canceler_counter_ == 4) {
-                            const bool rising_edge = (tccrb_ & kIces1) != 0;
+                            const bool rising_edge = (tccrb_ & desc_.ices1_mask) != 0;
                             if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
                             else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
                             last_icp_state_ = current_raw_state;
@@ -164,7 +164,7 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
                     noise_canceler_counter_ = 1;
                 }
             } else {
-                const bool rising_edge = (tccrb_ & kIces1) != 0;
+                const bool rising_edge = (tccrb_ & desc_.ices1_mask) != 0;
                 if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
                 else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
                 last_icp_state_ = current_raw_state;
@@ -291,7 +291,7 @@ void Timer16::connect_compare_output_b(GpioPort& port, const u8 bit) noexcept { 
 
 void Timer16::update_mode() noexcept
 {
-    const u8 wgm = static_cast<u8>(((tccrb_ & 0x18U) >> 1U) | (tccra_ & 0x03U));
+    const u8 wgm = static_cast<u8>(((tccrb_ & desc_.wgm12_mask) >> 1U) | (tccra_ & desc_.wgm10_mask));
     static const Mode modes[] = {
         Mode::normal, Mode::pc_pwm_8bit, Mode::pc_pwm_9bit, Mode::pc_pwm_10bit,
         Mode::ctc_ocr, Mode::fast_pwm_8bit, Mode::fast_pwm_9bit, Mode::fast_pwm_10bit,

@@ -36,3 +36,4 @@
 - [x] `scripts/atdf_export.py` - Hardware metadata extraction from ATDF
 - [x] `scripts/gen_audit_md.py` - Automated accuracy checklist generation
 - [x] `scripts/re-audit.sh` - Master MCU audit update script
+- [x] `scripts/check_header_accuracy.py` - Automated C++ vs ATDF comparison

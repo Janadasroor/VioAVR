@@ -32,7 +32,7 @@ TEST_CASE("External Interrupt Fidelity Test") {
     bus.attach_peripheral(exint);
 
     // 2. Load the test firmware
-    const auto image = HexImageLoader::load_file("../tests/test_ext_interrupt.hex", atmega328p);
+    const auto image = HexImageLoader::load_file("../test_ext_interrupt.hex", atmega328p);
     bus.load_image(image);
     cpu.reset();
 

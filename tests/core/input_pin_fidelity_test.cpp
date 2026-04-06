@@ -20,7 +20,7 @@ TEST_CASE("GPIO Input Pin Fidelity Test") {
     bus.attach_peripheral(portd);
 
     // 2. Load the input_test firmware
-    const auto image = HexImageLoader::load_file("../tests/input_test.hex", atmega328p);
+    const auto image = HexImageLoader::load_file("../input_test.hex", atmega328p);
     bus.load_image(image);
     cpu.reset();
 
