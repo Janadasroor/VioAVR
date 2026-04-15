@@ -23,10 +23,10 @@
 - [ ] Interrupt Latency Validation
 - [ ] VCD Tracing
 
-### Phase 5: Ecosystem & Tooling (Blocked)
+### Phase 5: Ecosystem & Tooling
 - [ ] GDB Server
 - [ ] WebAssembly (Wasm)
-- [ ] MCU Coverage Expansion
+- [ ] MCU Coverage Expansion (See [TODO_AVR_ACCURACY_ROADMAP.md](TODO_AVR_ACCURACY_ROADMAP.md) for 100+ step plan)
 - [ ] ARCHITECTURE.md
 
 ### Debugging Tools Created

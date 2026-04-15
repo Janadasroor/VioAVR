@@ -114,12 +114,12 @@ bool ExtInterrupt::on_external_pin_change(u8 bit_index, PinLevel level) noexcept
 bool ExtInterrupt::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
     const_cast<ExtInterrupt*>(this)->refresh_bound_input();
-    if (int0_pending_ && (eimsk_ & kInt0Mask) != 0U) {
-        request = {.vector_index = desc_.int0_vector_index, .source_id = source_id_};
+    if (int0_pending_ && (eimsk_ & 0x01U) != 0U) {
+        request = {.vector_index = desc_.vector_indices[0], .source_id = source_id_};
         return true;
     }
     if (int1_pending_ && (eimsk_ & 0x02U) != 0U) {
-        request = {.vector_index = desc_.int1_vector_index, .source_id = source_id_};
+        request = {.vector_index = desc_.vector_indices[1], .source_id = source_id_};
         return true;
     }
     return false;
@@ -132,12 +132,12 @@ bool ExtInterrupt::consume_interrupt_request(InterruptRequest& request) noexcept
         return false;
     }
 
-    if (request.vector_index == desc_.int0_vector_index) {
+    if (request.vector_index == desc_.vector_indices[0]) {
         int0_pending_ = false;
-        eifr_ &= static_cast<u8>(~kInt0Mask);
+        eifr_ &= static_cast<u8>(~0x01U);
         return true;
     }
-    if (request.vector_index == desc_.int1_vector_index) {
+    if (request.vector_index == desc_.vector_indices[1]) {
         int1_pending_ = false;
         eifr_ &= static_cast<u8>(~0x02U);
         return true;

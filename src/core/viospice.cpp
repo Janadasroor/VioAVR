@@ -5,106 +5,115 @@
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/analog_comparator.hpp"
-#include "vioavr/core/uart0.hpp"
+#include "vioavr/core/uart.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
+#include "vioavr/core/watchdog_timer.hpp"
+#include <map>
 
 namespace vioavr::core {
 
 VioSpice::VioSpice(const DeviceDescriptor& device)
-    : pin_mux_(8), bus_(device), cpu_(bus_)
+    : pin_mux_(device.port_count), bus_(device), cpu_(bus_)
 {
     pin_map_ = std::make_unique<PinMap>();
     bus_.set_pin_map(pin_map_.get());
 
-    auto eeprom = std::make_unique<Eeprom>("EEPROM", bus_.device());
-    auto timer0 = std::make_unique<Timer8>("TIMER0", bus_.device().timer0);
-    auto timer2 = std::make_unique<Timer8>("TIMER2", bus_.device().timer2);
-    auto timer1 = std::make_unique<Timer16>("TIMER1", bus_.device().timer1);
-    
-    // Pass pin_mux_ to Adc and AnalogComparator
-    auto adc = std::make_unique<Adc>("ADC", bus_.device().adc, pin_mux_, 0, 13);
-    adc->bind_signal_bank(analog_signal_bank_);
-    
-    auto ac = std::make_unique<AnalogComparator>("AC", bus_.device().ac, pin_mux_, 0);
-    ac->bind_signal_bank(analog_signal_bank_, 0, 1);
-    
-    auto uart0 = std::make_unique<Uart0>("UART0", bus_.device());
-    auto exint = std::make_unique<ExtInterrupt>("EXINT", bus_.device().ext_interrupt, pin_mux_, 0);
+    // 1. Instantiate and Register Ports
+    std::map<u16, GpioPort*> port_by_pin_addr;
+    std::vector<GpioPort*> port_list;
+    for (u8 i = 0; i < device.port_count; ++i) {
+        const auto& desc = device.ports[i];
+        if (desc.name.empty()) continue;
 
-    timer0->set_bus(bus_);
-    timer2->set_bus(bus_);
-    timer2_ = timer2.get();
+        auto port = std::make_unique<GpioPort>(
+            desc.name, 
+            desc.pin_address, 
+            desc.ddr_address, 
+            desc.port_address
+        );
+        port_by_pin_addr[desc.pin_address] = port.get();
+        port_list.push_back(port.get());
+        pin_mux_.register_port(port->port_address(), i);
+        bus_.attach_peripheral(*port.release());
+    }
 
-    // Port/Pin wiring
-    GpioPort* port_b = nullptr;
-    GpioPort* port_c = nullptr;
-    GpioPort* port_d = nullptr;
-    for (const auto& port_desc : bus_.device().ports) {
-        if (!port_desc.name.empty()) {
-            auto port = std::make_unique<GpioPort>(
-                port_desc.name, 
-                port_desc.pin_address, 
-                port_desc.ddr_address, 
-                port_desc.port_address
-            );
-            if (port_desc.name == "PORTB") port_b = port.get();
-            if (port_desc.name == "PORTC") port_c = port.get();
-            if (port_desc.name == "PORTD") port_d = port.get();
-            
-            // Port index is assumed from sequence (A=0, B=1...)
-            // In a better version we'd use a more robust mapping.
-            static u8 next_port_idx = 0;
-            pin_mux_.register_port(port->port_address(), next_port_idx++);
-            
-            bus_.attach_peripheral(*port.release());
+    // 2. Instantiate and Wire 8-bit Timers
+    for (u8 i = 0; i < device.timer8_count; ++i) {
+        const auto& desc = device.timers8[i];
+        auto timer = std::make_unique<Timer8>("TIMER8_" + std::to_string(i), desc);
+        timer->set_bus(bus_);
+
+        if (auto it = port_by_pin_addr.find(desc.ocra_pin_address); it != port_by_pin_addr.end()) {
+            timer->connect_compare_output_a(*it->second, desc.ocra_pin_bit);
+        }
+        if (auto it = port_by_pin_addr.find(desc.ocrb_pin_address); it != port_by_pin_addr.end()) {
+            timer->connect_compare_output_b(*it->second, desc.ocrb_pin_bit);
+        }
+
+        // Identify Timer2 (Async) for external clocking
+        if (desc.assr_address != 0U) {
+            timer2_ = timer.get();
+        }
+
+        bus_.attach_peripheral(*timer.release());
+    }
+
+    // 3. Instantiate and Wire 16-bit Timers
+    for (u8 i = 0; i < device.timer16_count; ++i) {
+        const auto& desc = device.timers16[i];
+        auto timer = std::make_unique<Timer16>("TIMER16_" + std::to_string(i), desc);
+        
+        if (auto it = port_by_pin_addr.find(desc.ocra_pin_address); it != port_by_pin_addr.end()) {
+            timer->connect_compare_output_a(*it->second, desc.ocra_pin_bit);
+        }
+        if (auto it = port_by_pin_addr.find(desc.ocrb_pin_address); it != port_by_pin_addr.end()) {
+            timer->connect_compare_output_b(*it->second, desc.ocrb_pin_bit);
+        }
+
+        bus_.attach_peripheral(*timer.release());
+    }
+
+    // 4. Instantiate and Register Other Peripherals
+    for (u8 i = 0; i < device.uart_count; ++i) {
+        auto uart = std::make_unique<Uart>(device, i);
+        bus_.attach_peripheral(*uart.release());
+    }
+
+    for (u8 i = 0; i < device.adc_count; ++i) {
+        auto adc = std::make_unique<Adc>("ADC" + std::to_string(i), device.adcs[i], pin_mux_, 0, 15);
+        adc->bind_signal_bank(analog_signal_bank_);
+        bus_.attach_peripheral(*adc.release());
+    }
+
+    for (u8 i = 0; i < device.ac_count; ++i) {
+        auto ac = std::make_unique<AnalogComparator>("AC" + std::to_string(i), device.acs[i], pin_mux_, 0);
+        ac->bind_signal_bank(analog_signal_bank_, 0, 1);
+        bus_.attach_peripheral(*ac.release());
+    }
+
+    for (u8 i = 0; i < device.ext_interrupt_count; ++i) {
+        auto exint = std::make_unique<ExtInterrupt>("EXINT" + std::to_string(i), device.ext_interrupts[i], pin_mux_, i);
+        bus_.attach_peripheral(*exint.release());
+    }
+
+    for (u8 i = 0; i < device.pcint_count; ++i) {
+        if (i < port_list.size()) {
+            auto pci = std::make_unique<PinChangeInterrupt>(
+                "PCINT" + std::to_string(i), device.pcints[i], *port_list[i], pcint_shared_state_, i == 0);
+            bus_.attach_peripheral(*pci.release());
         }
     }
 
-    auto bind_timer8_outputs = [](Timer8& timer, const Timer8Descriptor& desc,
-                                   GpioPort* port_b, GpioPort* port_c, GpioPort* port_d) {
-        auto resolve_port = [&](const u16 pin_address) -> GpioPort* {
-            if (port_b != nullptr && pin_address == port_b->pin_address()) return port_b;
-            if (port_c != nullptr && pin_address == port_c->pin_address()) return port_c;
-            if (port_d != nullptr && pin_address == port_d->pin_address()) return port_d;
-            return nullptr;
-        };
-
-        if (auto* port = resolve_port(desc.ocra_pin_address); port != nullptr) {
-            timer.connect_compare_output_a(*port, desc.ocra_pin_bit);
-        }
-        if (auto* port = resolve_port(desc.ocrb_pin_address); port != nullptr) {
-            timer.connect_compare_output_b(*port, desc.ocrb_pin_bit);
-        }
-    };
-
-    bind_timer8_outputs(*timer0, bus_.device().timer0, port_b, port_c, port_d);
-    bind_timer8_outputs(*timer2, bus_.device().timer2, port_b, port_c, port_d);
-
-    bus_.attach_peripheral(*eeprom.release());
-    bus_.attach_peripheral(*timer0.release());
-    bus_.attach_peripheral(*timer2.release());
-    bus_.attach_peripheral(*timer1.release());
-    bus_.attach_peripheral(*adc.release());
-    bus_.attach_peripheral(*ac.release());
-    bus_.attach_peripheral(*uart0.release());
-    bus_.attach_peripheral(*exint.release());
-
-    if (port_b != nullptr && bus_.device().pin_change_interrupt_0.pcmsk_address != 0U) {
-        auto pci0 = std::make_unique<PinChangeInterrupt>(
-            "PCINT0", bus_.device().pin_change_interrupt_0, *port_b, pcint_shared_state_, true);
-        bus_.attach_peripheral(*pci0.release());
+    for (u8 i = 0; i < device.eeprom_count; ++i) {
+        auto eeprom = std::make_unique<Eeprom>("EEPROM" + std::to_string(i), device);
+        bus_.attach_peripheral(*eeprom.release());
     }
-    if (port_c != nullptr && bus_.device().pin_change_interrupt_1.pcmsk_address != 0U) {
-        auto pci1 = std::make_unique<PinChangeInterrupt>(
-            "PCINT1", bus_.device().pin_change_interrupt_1, *port_c, pcint_shared_state_, false);
-        bus_.attach_peripheral(*pci1.release());
-    }
-    if (port_d != nullptr && bus_.device().pin_change_interrupt_2.pcmsk_address != 0U) {
-        auto pci2 = std::make_unique<PinChangeInterrupt>(
-            "PCINT2", bus_.device().pin_change_interrupt_2, *port_d, pcint_shared_state_, false);
-        bus_.attach_peripheral(*pci2.release());
+
+    for (u8 i = 0; i < device.wdt_count; ++i) {
+        auto wdt = std::make_unique<WatchdogTimer>("WDT" + std::to_string(i), device.wdts[i], cpu_);
+        bus_.attach_peripheral(*wdt.release());
     }
 
     set_quantum(1000);
@@ -197,20 +206,21 @@ std::optional<u32> VioSpice::get_external_id(std::string_view port_name, u8 bit_
 
 bool VioSpice::is_timer2_async_input(const std::string_view port_name, const u8 bit_index) const noexcept
 {
-    if (bus_.device().timer2.tosc1_pin_address == 0U) {
-        return false;
-    }
+    const auto& device = bus_.device();
+    for (u32 i = 0; i < device.timer8_count; ++i) {
+        const auto& t8 = device.timers8[i];
+        if (t8.assr_address == 0U) continue;
 
-    for (const auto& port_desc : bus_.device().ports) {
-        if (port_desc.name.empty()) {
-            continue;
-        }
-        if (port_desc.pin_address == bus_.device().timer2.tosc1_pin_address ||
-            port_desc.port_address == bus_.device().timer2.tosc1_pin_address) {
-            return port_desc.name == port_name && bus_.device().timer2.tosc1_pin_bit == bit_index;
+        for (const auto& port_desc : device.ports) {
+            if (port_desc.name.empty()) continue;
+            if (port_desc.pin_address == t8.tosc1_pin_address || port_desc.port_address == t8.tosc1_pin_address) {
+                if (port_desc.name == port_name && t8.tosc1_pin_bit == bit_index) return true;
+            }
+            if (port_desc.pin_address == t8.tosc2_pin_address || port_desc.port_address == t8.tosc2_pin_address) {
+                if (port_desc.name == port_name && t8.tosc2_pin_bit == bit_index) return true;
+            }
         }
     }
-
     return false;
 }
 

@@ -30,13 +30,17 @@ struct AdcDescriptor {
     u8 adcsrb_reset {0x00U};
     u8 admux_reset {0x00U};
     u16 didr0_address {};
-    std::array<u16, 8> adc_pin_address {};
-    std::array<u8, 8> adc_pin_bit {};
+    std::array<u16, 16> adc_pin_address {}; // Increased to 16 for mega2560
+    std::array<u8, 16> adc_pin_bit {};
     std::array<AdcAutoTriggerSource, 8> auto_trigger_map {};
-    // New bitmasks for accuracy
     u8 adsc_mask {0x40U};
+    u8 adate_mask {0x20U};
     u8 adif_mask {0x10U};
     u8 adie_mask {0x08U};
+    u8 aden_mask {0x80U};
+    u8 adlar_mask {0x20U}; // Usually in ADMUX
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
 };
 
 struct AnalogComparatorDescriptor {
@@ -47,7 +51,6 @@ struct AnalogComparatorDescriptor {
     u8 ain0_pin_bit {};
     u16 ain1_pin_address {};
     u8 ain1_pin_bit {};
-    // New bitmasks for accuracy
     u8 aci_mask {0x10U};
     u8 acie_mask {0x08U};
 };
@@ -67,11 +70,6 @@ struct Timer8Descriptor {
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
     u8 overflow_vector_index {};
-    u8 compare_a_enable_mask {};
-    u8 compare_b_enable_mask {};
-    u8 overflow_enable_mask {};
-    u16 t0_pin_address {};
-    u8 t0_pin_bit {};
     u16 ocra_pin_address {};
     u8 ocra_pin_bit {};
     u16 ocrb_pin_address {};
@@ -80,24 +78,27 @@ struct Timer8Descriptor {
     u8 tosc1_pin_bit {};
     u16 tosc2_pin_address {};
     u8 tosc2_pin_bit {};
-    // New bitmasks for accuracy
-    u8 wgm0_mask {0x03U}; // In TCCRA
-    u8 wgm1_mask {0x00U}; // If applicable
-    u8 wgm2_mask {0x08U}; // In TCCRB
-    u8 cs_mask {0x07U};   // In TCCRB
-    u8 as2_mask {0x20U};  // In ASSR
-    u8 tcn2ub_mask {0x10U}; // In ASSR
+    u8 wgm0_mask {0x03U}; // bits 0,1 of TCCRA
+    u8 wgm2_mask {0x08U}; // bit 3 of TCCRB
+    u8 cs_mask {0x07U};   // bits 0,1,2 of TCCRB
+    u8 as2_mask {0x20U};  // bit 5 of ASSR
+    u8 tcn2ub_mask {0x10U}; // bit 4 of ASSR
+    u8 compare_a_enable_mask {0x02U}; // bit 1 of TIMSK/TIFR
+    u8 compare_b_enable_mask {0x04U}; // bit 2 of TIMSK/TIFR
+    u8 overflow_enable_mask {0x01U};  // bit 0 of TIMSK/TIFR
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
 };
 
 struct ExtInterruptDescriptor {
     u16 eicra_address {};
+    u16 eicrb_address {};
     u16 eimsk_address {};
     u16 eifr_address {};
-    u8 int0_vector_index {};
-    u8 int1_vector_index {};
+    std::array<u8, 8> vector_indices {};
 };
 
-struct Uart0Descriptor {
+struct UartDescriptor {
     u16 udr_address {};
     u16 ucsra_address {};
     u16 ucsrb_address {};
@@ -110,16 +111,17 @@ struct Uart0Descriptor {
     u8 rx_vector_index {};
     u8 udre_vector_index {};
     u8 tx_vector_index {};
-    // New bitmasks for accuracy
-    u8 u2x0_mask {0x02U};  // In UCSRA
-    u8 rxc0_mask {0x80U};  // In UCSRA
-    u8 txc0_mask {0x40U};  // In UCSRA
-    u8 udre0_mask {0x20U}; // In UCSRA
-    u8 rxen0_mask {0x10U}; // In UCSRB
-    u8 txen0_mask {0x08U}; // In UCSRB
-    u8 rxcie0_mask {0x80U}; // In UCSRB
-    u8 txcie0_mask {0x40U}; // In UCSRB
-    u8 udrie0_mask {0x20U}; // In UCSRB
+    u8 u2x_mask {0x02U};
+    u8 rxc_mask {0x80U};
+    u8 txc_mask {0x40U};
+    u8 udre_mask {0x20U};
+    u8 rxen_mask {0x10U};
+    u8 txen_mask {0x08U};
+    u8 rxcie_mask {0x80U};
+    u8 txcie_mask {0x40U};
+    u8 udrie_mask {0x20U};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
 };
 
 struct PinChangeInterruptDescriptor {
@@ -138,13 +140,14 @@ struct SpiDescriptor {
     u8 spcr_reset {0x00U};
     u8 spsr_reset {0x00U};
     u8 vector_index {};
-    // New bitmasks for accuracy
-    u8 spe_mask {0x40U};   // In SPCR
-    u8 spie_mask {0x80U};  // In SPCR
-    u8 mstr_mask {0x10U};  // In SPCR
-    u8 spif_mask {0x80U};  // In SPSR
-    u8 wcol_mask {0x40U};  // In SPSR
-    u8 sp2x_mask {0x01U};  // In SPSR
+    u8 spe_mask {0x40U};
+    u8 spie_mask {0x80U};
+    u8 mstr_mask {0x10U};
+    u8 spif_mask {0x80U};
+    u8 wcol_mask {0x40U};
+    u8 sp2x_mask {0x01U};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
 };
 
 struct TwiDescriptor {
@@ -155,13 +158,14 @@ struct TwiDescriptor {
     u16 twcr_address {};
     u16 twamr_address {};
     u8 vector_index {};
-    // New bitmasks for accuracy
-    u8 twint_mask {0x80U}; // In TWCR
-    u8 twen_mask {0x04U};  // In TWCR
-    u8 twie_mask {0x01U};  // In TWCR
-    u8 twsto_mask {0x10U}; // In TWCR
-    u8 twsta_mask {0x20U}; // In TWCR
-    u8 twea_mask {0x40U};  // In TWCR
+    u8 twint_mask {0x80U};
+    u8 twen_mask {0x04U};
+    u8 twie_mask {0x01U};
+    u8 twsto_mask {0x10U};
+    u8 twsta_mask {0x20U};
+    u8 twea_mask {0x40U};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
 };
 
 struct EepromDescriptor {
@@ -175,6 +179,8 @@ struct EepromDescriptor {
 struct WdtDescriptor {
     u16 wdtcsr_address {};
     u8 vector_index {};
+    u8 wdie_mask {0x40U};
+    u8 wde_mask {0x08U};
 };
 
 struct Timer16Descriptor {
@@ -194,20 +200,24 @@ struct Timer16Descriptor {
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
     u8 overflow_vector_index {};
-    u8 capture_enable_mask {};
-    u8 compare_a_enable_mask {};
-    u8 compare_b_enable_mask {};
-    u8 overflow_enable_mask {};
-    u16 t1_pin_address {};
-    u8 t1_pin_bit {};
-    u16 icp1_pin_address {};
-    u8 icp1_pin_bit {};
-    // New bitmasks for accuracy
-    u8 wgm10_mask {0x03U}; // In TCCRA
-    u8 wgm12_mask {0x18U}; // In TCCRB
-    u8 cs_mask {0x07U};    // In TCCRB
-    u8 ices1_mask {0x40U}; // In TCCRB
-    u8 icnc1_mask {0x80U}; // In TCCRB
+    u16 ocra_pin_address {};
+    u8 ocra_pin_bit {};
+    u16 ocrb_pin_address {};
+    u8 ocrb_pin_bit {};
+    u16 icp_pin_address {};
+    u8 icp_pin_bit {};
+    u8 wgm10_mask {0x03U};
+    u8 wgm12_mask {0x18U};
+    u8 cs_mask {0x07U};
+    u8 ices_mask {0x40U};
+    u8 icnc_mask {0x80U};
+    u8 capture_enable_mask {0x20U};
+    u8 compare_a_enable_mask {0x02U};
+    u8 compare_b_enable_mask {0x04U};
+    u8 compare_c_enable_mask {0x08U};
+    u8 overflow_enable_mask {0x01U};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
 };
 
 struct PortDescriptor {
@@ -232,12 +242,11 @@ struct DeviceDescriptor {
     u16 sph_address {0x005EU};
     u16 sreg_address {0x005FU};
     u16 spmcsr_address {};
-    u16 prr_address {};   // Common for many chips
-    u16 prr0_address {};  // Some have PRR0/PRR1
+    u16 prr_address {};
+    u16 prr0_address {};
     u16 prr1_address {};
     u16 smcr_address {};
     u16 mcusr_address {};
-    // Power Reduction Bits (indices in PRR/PRR0/PRR1)
     u8 pradc_bit {0xFFU};
     u8 prusart0_bit {0xFFU};
     u8 prspi_bit {0xFFU};
@@ -245,32 +254,54 @@ struct DeviceDescriptor {
     u8 prtimer0_bit {0xFFU};
     u8 prtimer1_bit {0xFFU};
     u8 prtimer2_bit {0xFFU};
-    // Sleep Mode Masks (in SMCR)
-    u8 smcr_sm_mask {0x0EU}; // Sleep Mode select bits
-    u8 smcr_se_mask {0x01U}; // Sleep Enable bit
-    u32 flash_rww_end_word {}; // End of Read-While-Write section
+    u8 smcr_sm_mask {0x0EU};
+    u8 smcr_se_mask {0x01U};
+    u32 flash_rww_end_word {};
     u8 spl_reset {0x00U};
     u8 sph_reset {0x00U};
     u8 sreg_reset {0x00U};
     u64 cpu_frequency_hz {16'000'000U};
-    AdcDescriptor adc {};
-    AnalogComparatorDescriptor ac {};
-    Timer8Descriptor timer0 {};
-    Timer8Descriptor timer2 {};
-    Timer16Descriptor timer1 {};
-    ExtInterruptDescriptor ext_interrupt {};
-    Uart0Descriptor uart0 {};
-    PinChangeInterruptDescriptor pin_change_interrupt_0 {};
-    PinChangeInterruptDescriptor pin_change_interrupt_1 {};
-    PinChangeInterruptDescriptor pin_change_interrupt_2 {};
-    SpiDescriptor spi {};
-    TwiDescriptor twi {};
-    EepromDescriptor eeprom {};
-    WdtDescriptor wdt {};
+
+    // Peripheral Arrays
+    u8 adc_count {0U};
+    std::array<AdcDescriptor, 4> adcs {};
+
+    u8 ac_count {0U};
+    std::array<AnalogComparatorDescriptor, 4> acs {};
+
+    u8 timer8_count {0U};
+    std::array<Timer8Descriptor, 8> timers8 {};
+
+    u8 timer16_count {0U};
+    std::array<Timer16Descriptor, 8> timers16 {};
+
+    u8 ext_interrupt_count {0U};
+    std::array<ExtInterruptDescriptor, 16> ext_interrupts {};
+
+    u8 uart_count {0U};
+    std::array<UartDescriptor, 8> uarts {};
+
+    u8 pcint_count {0U};
+    std::array<PinChangeInterruptDescriptor, 8> pcints {};
+
+    u8 spi_count {0U};
+    std::array<SpiDescriptor, 4> spis {};
+
+    u8 twi_count {0U};
+    std::array<TwiDescriptor, 4> twis {};
+
+    u8 eeprom_count {0U};
+    std::array<EepromDescriptor, 4> eeproms {};
+
+    u8 wdt_count {0U};
+    std::array<WdtDescriptor, 4> wdts {};
+
     u16 fuse_address {0x0000U};
     u16 lockbit_address {0x0000U};
     u16 signature_address {0x0000U};
-    std::array<PortDescriptor, 8> ports {}; // Max 8 ports (A..H)
+
+    u8 port_count {0U};
+    std::array<PortDescriptor, 16> ports {};
 
     [[nodiscard]] constexpr u16 data_end_address() const noexcept
     {

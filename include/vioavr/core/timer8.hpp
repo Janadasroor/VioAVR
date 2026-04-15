@@ -27,7 +27,6 @@ public:
         set
     };
 
-    explicit Timer8(std::string_view name, const DeviceDescriptor& device) noexcept;
     explicit Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept;
 
     void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }

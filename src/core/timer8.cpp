@@ -21,8 +21,8 @@ constexpr u8 kAssrAs2 = 0x20U;
 constexpr u8 kAssrExclk = 0x40U;
 }
 
-Timer8::Timer8(std::string_view name, const DeviceDescriptor& device) noexcept
-    : name_(name), desc_(device.timer0)
+Timer8::Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept
+    : name_(name), desc_(desc)
 {
     std::vector<u16> addrs = {
         desc_.tcnt_address, desc_.ocra_address, desc_.ocrb_address,
@@ -30,7 +30,6 @@ Timer8::Timer8(std::string_view name, const DeviceDescriptor& device) noexcept
         desc_.assr_address
     };
     std::sort(addrs.begin(), addrs.end());
-    
     size_t ri = 0;
     ranges_.fill({0, 0});
     for (size_t i = 0; i < addrs.size(); ++i) {
@@ -261,22 +260,21 @@ void Timer8::connect_adc_overflow_auto_trigger(Adc& adc) noexcept
 
 bool Timer8::power_reduction_enabled() const noexcept
 {
-    if (!bus_) return false;
-    const auto& d = bus_->device();
-    // Check which bit to use (Timer0 uses prtimer0_bit, Timer2 uses prtimer2_bit)
-    u8 pr_bit = 0xFF;
-    if (desc_.tcnt_address == d.timer0.tcnt_address) pr_bit = d.prtimer0_bit;
-    else if (desc_.tcnt_address == d.timer2.tcnt_address) pr_bit = d.prtimer2_bit;
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
+        return false;
+    }
 
-    if (pr_bit == 0xFF) return false;
-
-    // PRR bit 1 = Disabled
-    return (bus_->read_data(d.prr_address) & (1 << pr_bit)) != 0;
+    // PRR bit 1 = Disabled/Powered Down
+    return (bus_->read_data(desc_.pr_address) & desc_.pr_bit) != 0;
 }
 
 void Timer8::update_mode() noexcept
 {
-    const u8 wgm = static_cast<u8>(((tccrb_ & desc_.wgm2_mask) >> 1U) | (tccra_ & (desc_.wgm0_mask)));
+    // Extract WGM bits. wgm0_mask is usually in TCCRA, wgm2_mask in TCCRB bit 3.
+    const u8 wgm01 = (tccra_ & desc_.wgm0_mask);
+    const u8 wgm2 = (tccrb_ & desc_.wgm2_mask) ? 4U : 0U;
+    const u8 wgm = wgm2 | wgm01;
+
     static const Mode modes[] = {
         Mode::normal, Mode::pc_pwm_ff, Mode::ctc_ocra, Mode::fast_pwm_ff,
         Mode::normal, Mode::pc_pwm_ocra, Mode::normal, Mode::fast_pwm_ocra

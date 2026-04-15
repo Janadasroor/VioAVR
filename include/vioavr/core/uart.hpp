@@ -6,9 +6,9 @@
 
 namespace vioavr::core {
 
-class Uart0 final : public IoPeripheral {
+class Uart final : public IoPeripheral {
 public:
-    explicit Uart0(std::string_view name, const DeviceDescriptor& device) noexcept;
+    explicit Uart(const DeviceDescriptor& device, u8 index) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -27,7 +27,7 @@ public:
 
 private:
     std::string_view name_;
-    Uart0Descriptor desc_;
+    UartDescriptor desc_;
     std::array<AddressRange, 4> ranges_;
 
     u8 udr_rx_ {};
