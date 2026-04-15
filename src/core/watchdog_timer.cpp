@@ -30,8 +30,8 @@ const u32 kWdtTicks[] = {
 };
 }
 
-WatchdogTimer::WatchdogTimer(std::string_view name, const DeviceDescriptor& device, AvrCpu& cpu) noexcept
-    : name_(name), desc_(device.wdt), cpu_(cpu), ranges_{{{desc_.wdtcsr_address, desc_.wdtcsr_address}}}
+WatchdogTimer::WatchdogTimer(std::string_view name, const WdtDescriptor& desc, AvrCpu& cpu) noexcept
+    : name_(name), desc_(desc), cpu_(cpu), ranges_{{{desc_.wdtcsr_address, desc_.wdtcsr_address}}}
 {
 }
 
@@ -64,7 +64,7 @@ void WatchdogTimer::tick(const u64 elapsed_cycles) noexcept
         }
     }
 
-    if ((wdtcsr_ & (kWde | kWdie)) == 0U) {
+    if ((wdtcsr_ & (desc_.wde_mask | desc_.wdie_mask)) == 0U) {
         return;
     }
 
@@ -87,7 +87,7 @@ void WatchdogTimer::write(const u16 address, const u8 value) noexcept
 {
     if (address == desc_.wdtcsr_address) {
         // Timed sequence start: WDCE and WDE must be set to 1
-        if ((value & kWdce) != 0U && (value & kWde) != 0U) {
+        if ((value & kWdce) != 0U && (value & desc_.wde_mask) != 0U) {
             timed_sequence_active_ = true;
             timed_sequence_cycles_left_ = 16; // 4 cycles in silicon, but we use a larger buffer for simulation stability
             wdtcsr_ |= kWdce;
@@ -107,11 +107,11 @@ void WatchdogTimer::write(const u16 address, const u8 value) noexcept
             u8 new_wdtcsr = wdtcsr_;
             
             // Allow changing WDIE
-            if (value & kWdie) new_wdtcsr |= kWdie;
-            else new_wdtcsr &= static_cast<u8>(~kWdie);
+            if (value & desc_.wdie_mask) new_wdtcsr |= desc_.wdie_mask;
+            else new_wdtcsr &= static_cast<u8>(~desc_.wdie_mask);
 
             // Allow setting WDE
-            if (value & kWde) new_wdtcsr |= kWde;
+            if (value & desc_.wde_mask) new_wdtcsr |= desc_.wde_mask;
             
             // Allow clearing WDIF by writing 1
             if (value & kWdif) interrupt_pending_ = false;
@@ -124,7 +124,7 @@ void WatchdogTimer::write(const u16 address, const u8 value) noexcept
 
 bool WatchdogTimer::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
-    if (interrupt_pending_ && (wdtcsr_ & kWdie) != 0U) {
+    if (interrupt_pending_ && (wdtcsr_ & desc_.wdie_mask) != 0U) {
         request = {desc_.vector_index, 0U};
         return true;
     }
@@ -154,13 +154,13 @@ void WatchdogTimer::reset_watchdog() noexcept
 
 void WatchdogTimer::complete_timeout() noexcept
 {
-    if ((wdtcsr_ & kWdie) != 0U) {
+    if ((wdtcsr_ & desc_.wdie_mask) != 0U) {
         interrupt_pending_ = true;
         // In Interrupt and Reset Mode, WDIE is cleared after interrupt.
-        if ((wdtcsr_ & kWde) != 0U) {
-            wdtcsr_ &= static_cast<u8>(~kWdie);
+        if ((wdtcsr_ & desc_.wde_mask) != 0U) {
+            wdtcsr_ &= static_cast<u8>(~desc_.wdie_mask);
         }
-    } else if ((wdtcsr_ & kWde) != 0U) {
+    } else if ((wdtcsr_ & desc_.wde_mask) != 0U) {
         cpu_.reset();
     }
     reset_watchdog();

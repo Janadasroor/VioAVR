@@ -11,7 +11,6 @@ class MemoryBus;
 
 class Timer16 final : public IoPeripheral {
 public:
-    explicit Timer16(std::string_view name, const DeviceDescriptor& device) noexcept;
     explicit Timer16(std::string_view name, const Timer16Descriptor& desc) noexcept;
 
     void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }

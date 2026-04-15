@@ -11,15 +11,6 @@
 
 namespace vioavr::core {
 
-namespace {
-constexpr u8 kAdenMask = 0x80U;
-constexpr u8 kAdscMask = 0x40U;
-constexpr u8 kAdateMask = 0x20U;
-constexpr u8 kAdifMask = 0x10U;
-constexpr u8 kAdieMask = 0x08U;
-constexpr u8 kAdlarMask = 0x20U;
-}
-
 Adc::Adc(std::string_view name,
          const AdcDescriptor& descriptor,
          PinMux& pin_mux,
@@ -80,7 +71,7 @@ void Adc::tick(u64 elapsed_cycles) noexcept {
         converting_ = false;
         return;
     }
-    if (!converting_ || (adcsra_ & kAdenMask) == 0U) return;
+    if (!converting_ || (adcsra_ & desc_.aden_mask) == 0U) return;
 
     if (elapsed_cycles >= cycles_remaining_) {
         complete_conversion();
@@ -101,8 +92,8 @@ u8 Adc::read(u16 address) noexcept {
 
 void Adc::write(u16 address, u8 value) noexcept {
     if (address == desc_.adcsra_address) {
-        const bool was_enabled = (adcsra_ & kAdenMask);
-        const bool next_enabled = (value & kAdenMask);
+        const bool was_enabled = (adcsra_ & desc_.aden_mask);
+        const bool next_enabled = (value & desc_.aden_mask);
         
         // ADIF is cleared by writing 1
         if (value & desc_.adif_mask) {
@@ -150,7 +141,7 @@ bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
 }
 
 void Adc::start_conversion() noexcept {
-    if (!(adcsra_ & kAdenMask)) return;
+    if (!(adcsra_ & desc_.aden_mask)) return;
     
     converting_ = true;
     cycles_remaining_ = conversion_cycles_;
@@ -192,7 +183,7 @@ u8 Adc::selected_channel() const noexcept {
 void Adc::update_pin_ownership() noexcept {
     if (!pin_mux_) return;
 
-    const bool enabled = (adcsra_ & kAdenMask);
+    const bool enabled = (adcsra_ & desc_.aden_mask);
     for (u8 i = 0; i < 8; ++i) {
         const u16 pin_addr = desc_.adc_pin_address[i];
         const u8 pin_bit = desc_.adc_pin_bit[i];

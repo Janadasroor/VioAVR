@@ -22,7 +22,7 @@ constexpr u8 kMasterWriteTimeout = 4U;
 }
 
 Eeprom::Eeprom(std::string_view name, const DeviceDescriptor& device) noexcept
-    : name_(name), desc_(device.eeprom), size_(device.eeprom_bytes)
+    : name_(name), desc_(device.eeproms[0]), size_(device.eeprom_bytes)
 {
     storage_.resize(size_, 0xFFU);
     const std::array<u16, 4> addrs = {

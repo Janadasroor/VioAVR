@@ -9,7 +9,7 @@ class AvrCpu;
 
 class WatchdogTimer final : public IoPeripheral {
 public:
-    explicit WatchdogTimer(std::string_view name, const DeviceDescriptor& device, AvrCpu& cpu) noexcept;
+    explicit WatchdogTimer(std::string_view name, const WdtDescriptor& desc, AvrCpu& cpu) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;

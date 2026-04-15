@@ -32,11 +32,6 @@ constexpr u8 kWgm12 = 0x08U;
 constexpr u8 kCsMask = 0x07U;
 }
 
-Timer16::Timer16(std::string_view name, const DeviceDescriptor& device) noexcept
-    : Timer16(name, device.timer1)
-{
-}
-
 Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc) noexcept
     : name_(name), desc_(desc)
 {
@@ -54,11 +49,6 @@ Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc) noexcept
     ranges_.fill({0, 0});
     for (size_t i = 0; i < addrs.size(); ++i) {
         if (addrs[i] == 0) continue;
-        // Address 0x01 is not a valid IO address for registers
-        if (addrs[i] < 0x20 && addrs[i] != desc_.tifr_address && addrs[i] != desc_.timsk_address) {
-            // Some devices have TIFR/TIMSK in low IO, others in high IO.
-        }
-
         if (ri > 0 && addrs[i] == ranges_[ri-1].end + 1) {
              ranges_[ri-1].end = addrs[i];
         } else if (ri < ranges_.size()) {
@@ -293,7 +283,11 @@ void Timer16::connect_compare_output_b(GpioPort& port, const u8 bit) noexcept { 
 
 void Timer16::update_mode() noexcept
 {
-    const u8 wgm = static_cast<u8>(((tccrb_ & desc_.wgm12_mask) >> 1U) | (tccra_ & desc_.wgm10_mask));
+    // wgm10_mask is usually 0x03 in TCCRA. wgm12_mask is usually 0x18 in TCCRB.
+    const u8 wgm_low = (tccra_ & desc_.wgm10_mask);
+    const u8 wgm_high = static_cast<u8>(((tccrb_ & desc_.wgm12_mask) >> 3U) << 2U);
+    const u8 wgm = wgm_high | wgm_low;
+    
     static const Mode modes[] = {
         Mode::normal, Mode::pc_pwm_8bit, Mode::pc_pwm_9bit, Mode::pc_pwm_10bit,
         Mode::ctc_ocr, Mode::fast_pwm_8bit, Mode::fast_pwm_9bit, Mode::fast_pwm_10bit,
@@ -305,10 +299,12 @@ void Timer16::update_mode() noexcept
 
 bool Timer16::power_reduction_enabled() const noexcept
 {
-    if (!bus_) return false;
-    const auto& d = bus_->device();
-    if (d.prtimer1_bit == 0xFF) return false;
-    return (bus_->read_data(d.prr_address) & (1 << d.prtimer1_bit)) != 0;
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
+        return false;
+    }
+
+    // PRR bit 1 = Disabled
+    return (bus_->read_data(desc_.pr_address) & desc_.pr_bit) != 0;
 }
 
 void Timer16::perform_tick() noexcept

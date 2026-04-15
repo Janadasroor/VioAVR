@@ -48,7 +48,7 @@ constexpr u8 kStatusBusError       = 0x00U;
 }
 
 Twi::Twi(std::string_view name, const DeviceDescriptor& device) noexcept
-    : name_(name), desc_(device.twi)
+    : name_(name), desc_(device.twis[0])
 {
     std::vector<u16> addrs;
     auto add_if_valid = [&](u16 addr) { if (addr != 0U) addrs.push_back(addr); };

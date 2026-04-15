@@ -11,7 +11,7 @@ constexpr u8 kSpiInterruptEnable = 0x80U;
 }
 
 Spi::Spi(std::string_view name, const DeviceDescriptor& device) noexcept
-    : name_(name), desc_(device.spi)
+    : name_(name), desc_(device.spis[0])
 {
     const std::array<u16, 3> addrs = {desc_.spcr_address, desc_.spsr_address, desc_.spdr_address};
     ranges_ = {{
