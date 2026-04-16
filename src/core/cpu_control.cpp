@@ -23,6 +23,8 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
             ranges_.push_back(AddressRange{desc.smcr_address, desc.smcr_address});
         }
     }
+    if (desc.rampz_address != 0U) ranges_.push_back({desc.rampz_address, desc.rampz_address});
+    if (desc.eind_address != 0U) ranges_.push_back({desc.eind_address, desc.eind_address});
     // Add PRR/PRR0/PRR1
     if (desc.prr_address != 0U) ranges_.push_back({desc.prr_address, desc.prr_address});
     if (desc.prr0_address != 0U) ranges_.push_back({desc.prr0_address, desc.prr0_address});
@@ -83,6 +85,8 @@ u8 CpuControl::read(const u16 address) noexcept
     if (address == d.spl_address) return static_cast<u8>(cpu_.stack_pointer() & 0xFFU);
     if (address == d.sph_address) return static_cast<u8>((cpu_.stack_pointer() >> 8U) & 0xFFU);
     if (address == d.sreg_address) return cpu_.sreg();
+    if (address == d.rampz_address) return cpu_.rampz();
+    if (address == d.eind_address) return cpu_.eind();
     return 0U;
 }
 
@@ -117,6 +121,10 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         cpu_.set_stack_pointer(static_cast<u16>((static_cast<u16>(value) << 8U) | (current & 0x00FFU)));
     } else if (address == d.sreg_address) {
         cpu_.write_sreg(value);
+    } else if (address == d.rampz_address) {
+        cpu_.set_rampz(value);
+    } else if (address == d.eind_address) {
+        cpu_.set_eind(value);
     }
 }
 

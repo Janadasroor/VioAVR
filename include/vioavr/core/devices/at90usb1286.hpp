@@ -13,6 +13,8 @@ inline constexpr DeviceDescriptor at90usb1286 {
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
+    .rampz_address = 0x5BU,
+    .eind_address = 0x5CU,
     .spmcsr_address = 0x0U,
     .prr_address = 0x65U,
     .prr0_address = 0x64U,
@@ -120,13 +122,13 @@ inline constexpr DeviceDescriptor at90usb1286 {
 
     .uart_count = 1U,
     .uarts = {{ {
-            .udr_address = 0xCEU, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x0U, .ubrrh_address = 0x0U,
+            .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xCAU, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
             .rx_vector_index = 25U,
             .udre_vector_index = 26U,
             .tx_vector_index = 27U,
-            .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
-            .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
+            .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
+            .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
             .pr_address = 0x65U, .pr_bit = 0x1U
         } }},
     

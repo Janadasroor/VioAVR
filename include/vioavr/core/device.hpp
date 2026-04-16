@@ -247,6 +247,8 @@ struct DeviceDescriptor {
     u16 spl_address {0x005DU};
     u16 sph_address {0x005EU};
     u16 sreg_address {0x005FU};
+    u16 rampz_address {};
+    u16 eind_address {};
     u16 spmcsr_address {};
     u16 prr_address {};
     u16 prr0_address {};

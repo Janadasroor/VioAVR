@@ -13,6 +13,8 @@ inline constexpr DeviceDescriptor atmegas64m1 {
     .spl_address = 0x57U,
     .sph_address = 0x57U,
     .sreg_address = 0x5FU,
+    .rampz_address = 0x0U,
+    .eind_address = 0x0U,
     .spmcsr_address = 0x57U,
     .prr_address = 0x64U,
     .prr0_address = 0x0U,

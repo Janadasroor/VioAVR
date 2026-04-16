@@ -13,6 +13,8 @@ inline constexpr DeviceDescriptor atmega8535 {
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
+    .rampz_address = 0x0U,
+    .eind_address = 0x0U,
     .spmcsr_address = 0x57U,
     .prr_address = 0x0U,
     .prr0_address = 0x0U,
@@ -102,7 +104,7 @@ inline constexpr DeviceDescriptor atmega8535 {
 
     .uart_count = 1U,
     .uarts = {{ {
-            .udr_address = 0x2CU, .ucsra_address = 0x2BU, .ucsrb_address = 0x2AU, .ucsrc_address = 0x40U, .ubrrl_address = 0x29U, .ubrrh_address = 0x40U,
+            .udr_address = 0x2CU, .ucsra_address = 0x2BU, .ucsrb_address = 0x2AU, .ucsrc_address = 0x40U, .ubrrl_address = 0x40U, .ubrrh_address = 0x40U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
             .rx_vector_index = 11U,
             .udre_vector_index = 12U,

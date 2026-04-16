@@ -13,6 +13,8 @@ inline constexpr DeviceDescriptor at90pwm81 {
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
+    .rampz_address = 0x0U,
+    .eind_address = 0x0U,
     .spmcsr_address = 0x0U,
     .prr_address = 0x86U,
     .prr0_address = 0x0U,

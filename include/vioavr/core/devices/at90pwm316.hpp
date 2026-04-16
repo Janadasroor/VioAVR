@@ -13,6 +13,8 @@ inline constexpr DeviceDescriptor at90pwm316 {
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
+    .rampz_address = 0x0U,
+    .eind_address = 0x0U,
     .spmcsr_address = 0x0U,
     .prr_address = 0x64U,
     .prr0_address = 0x0U,
@@ -86,7 +88,7 @@ inline constexpr DeviceDescriptor at90pwm316 {
 
     .uart_count = 1U,
     .uarts = {{ {
-            .udr_address = 0xC6U, .ucsra_address = 0xC0U, .ucsrb_address = 0xC1U, .ucsrc_address = 0xC2U, .ubrrl_address = 0xC4U, .ubrrh_address = 0xC5U,
+            .udr_address = 0xC6U, .ucsra_address = 0xC0U, .ucsrb_address = 0xC1U, .ucsrc_address = 0xC2U, .ubrrl_address = 0xC5U, .ubrrh_address = 0xC5U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
             .rx_vector_index = 21U,
             .udre_vector_index = 22U,

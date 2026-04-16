@@ -13,6 +13,8 @@ inline constexpr DeviceDescriptor atmega4809 {
     .spl_address = 0x3DU,
     .sph_address = 0x3DU,
     .sreg_address = 0x3FU,
+    .rampz_address = 0x0U,
+    .eind_address = 0x0U,
     .spmcsr_address = 0x0U,
     .prr_address = 0x0U,
     .prr0_address = 0x0U,
