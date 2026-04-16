@@ -21,8 +21,13 @@ inline constexpr DeviceDescriptor atmega128a {
     .prr1_address = 0x0U,
     .smcr_address = 0x0U,
     .mcusr_address = 0x0U,
+    .mcucr_address = 0x55U,
     .xmcra_address = 0x6DU,
     .xmcrb_address = 0x6CU,
+    .xmem = {
+            .xmcra_address = 0x6DU, .xmcrb_address = 0x6CU,
+            .mcucr_address = 0x55U, .sre_mask = 0x80U
+        },
     
     .adc_count = 1U,
     .adcs = {{ {

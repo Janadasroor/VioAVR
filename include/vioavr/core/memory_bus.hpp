@@ -104,6 +104,11 @@ public:
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
 
+    void set_xmem(class Xmem* xmem) noexcept { xmem_ = xmem; }
+    [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
+    
+    [[nodiscard]] u8 get_wait_states(u16 address) const noexcept;
+
 private:
     [[nodiscard]] IoPeripheral* find_peripheral(u16 address) noexcept;
     [[nodiscard]] const IoPeripheral* find_peripheral(u16 address) const noexcept;
@@ -114,6 +119,7 @@ private:
     std::vector<u16> flash_;
     std::vector<u8> data_;
     bool flash_rww_busy_ {false};
+    Xmem* xmem_ {nullptr};
     std::vector<IoPeripheral*> peripherals_ {};
     std::vector<IoPeripheral*> dispatch_table_ {};
     u32 loaded_program_words_ {};

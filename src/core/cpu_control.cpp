@@ -10,17 +10,19 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
     if (desc.spmcsr_address != 0U && (desc.spmcsr_address < desc.spl_address || desc.spmcsr_address > desc.sreg_address)) {
         ranges_.push_back(AddressRange{desc.spmcsr_address, desc.spmcsr_address});
     }
-    // Add SMCR if not already covered (ATmega328P: SMCR=0x53)
     if (desc.smcr_address != 0U) {
+        ranges_.push_back(AddressRange{desc.smcr_address, desc.smcr_address});
+    }
+    if (desc.mcucr_address != 0U) {
         bool covered = false;
         for (const auto& r : ranges_) {
-            if (desc.smcr_address >= r.begin && desc.smcr_address <= r.end) {
+            if (desc.mcucr_address >= r.begin && desc.mcucr_address <= r.end) {
                 covered = true;
                 break;
             }
         }
         if (!covered) {
-            ranges_.push_back(AddressRange{desc.smcr_address, desc.smcr_address});
+            ranges_.push_back(AddressRange{desc.mcucr_address, desc.mcucr_address});
         }
     }
     if (desc.rampz_address != 0U) ranges_.push_back({desc.rampz_address, desc.rampz_address});
@@ -48,6 +50,7 @@ void CpuControl::reset() noexcept
     // On power-on reset, set PORF flag
     // This is the initial reset - subsequent resets (via AvrCpu::reset()) should preserve existing flags
     mcusr_ = MCUSR_PORF;
+    mcucr_ = 0U;
     sleep_mode_ = SleepMode::idle;
     sleep_enabled_ = false;
     sleeping_ = false;
@@ -72,6 +75,7 @@ u8 CpuControl::read(const u16 address) noexcept
 {
     const auto& d = cpu_.bus().device();
     if (address == d.mcusr_address) return mcusr_;
+    if (address == d.mcucr_address) return mcucr_;
     if (address == d.smcr_address) return smcr_;
     if (address == d.prr_address) return prr_;
     if (address == d.prr0_address) return prr0_;
@@ -95,16 +99,18 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
     const auto& d = cpu_.bus().device();
     if (address == d.mcusr_address) {
         mcusr_ &= ~value; // Flags are cleared by writing 1 (Accuracy)
+    } else if (address == d.mcucr_address) {
+        mcucr_ = value;
     } else if (address == d.smcr_address) {
         smcr_ = value;
         sleep_enabled_ = (value & d.smcr_se_mask) != 0U;
         // Accurate bit shift for SM bits
-        u8 mask = d.smcr_sm_mask;
-        u8 shift = 0;
-        if (mask > 0) {
-            while (!(mask & 0x01)) { mask >>= 1; shift++; }
+        u8 sm_mask = d.smcr_sm_mask;
+        u8 sm_shift = 0;
+        if (sm_mask > 0) {
+            while (!(sm_mask & 0x01)) { sm_mask >>= 1; sm_shift++; }
         }
-        sleep_mode_ = static_cast<SleepMode>((value & d.smcr_sm_mask) >> shift);
+        sleep_mode_ = static_cast<SleepMode>((value & d.smcr_sm_mask) >> sm_shift);
     } else if (address == d.prr_address) {
         prr_ = value;
     } else if (address == d.prr0_address) {
@@ -114,11 +120,11 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
     } else if (address == d.spmcsr_address) {
         spmcsr_ = value & 0xBFU;
     } else if (address == d.spl_address) {
-        const u16 current = cpu_.stack_pointer();
-        cpu_.set_stack_pointer(static_cast<u16>((current & 0xFF00U) | value));
+        const u16 sp = cpu_.stack_pointer();
+        cpu_.set_stack_pointer(static_cast<u16>((sp & 0xFF00U) | value));
     } else if (address == d.sph_address) {
-        const u16 current = cpu_.stack_pointer();
-        cpu_.set_stack_pointer(static_cast<u16>((static_cast<u16>(value) << 8U) | (current & 0x00FFU)));
+        const u16 sp = cpu_.stack_pointer();
+        cpu_.set_stack_pointer(static_cast<u16>((static_cast<u16>(value) << 8U) | (sp & 0x00FFU)));
     } else if (address == d.sreg_address) {
         cpu_.write_sreg(value);
     } else if (address == d.rampz_address) {

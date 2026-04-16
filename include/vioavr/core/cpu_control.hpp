@@ -78,8 +78,8 @@ public:
     void exit_sleep() noexcept { sleeping_ = false; }
     [[nodiscard]] bool is_sleeping() const noexcept { return sleeping_; }
 
-    // MCUSR (MCU Status Register) - Reset cause flags
     [[nodiscard]] u8 mcusr() const noexcept { return mcusr_; }
+    [[nodiscard]] u8 mcucr() const noexcept { return mcucr_; }
     void set_reset_cause(ResetCause cause) noexcept;
     void clear_mcusr() noexcept { mcusr_ = 0U; }
 
@@ -87,6 +87,7 @@ private:
     u8 spmcsr_ {};
     u8 smcr_ {};
     u8 mcusr_ {};
+    u8 mcucr_ {};
     u8 prr_ {};
     u8 prr0_ {};
     u8 prr1_ {};

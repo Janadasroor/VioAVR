@@ -1,4 +1,5 @@
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/xmem.hpp"
 #include "vioavr/core/logger.hpp"
 
 #include <algorithm>
@@ -84,6 +85,8 @@ u8 MemoryBus::read_data(const u16 address) noexcept
         value = peripheral->read(address);
     } else if (address < data_.size()) {
         value = data_[address];
+    } else if (xmem_ != nullptr) {
+        value = xmem_->read_external(address);
     }
 
     if (trace_hook_ != nullptr) {
@@ -106,6 +109,8 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
 
     if (address < data_.size()) {
         data_[address] = value;
+    } else if (xmem_ != nullptr) {
+        xmem_->write_external(address, value);
     }
 }
 
@@ -220,6 +225,11 @@ void MemoryBus::write_program_word(const u32 word_address, const u16 value) noex
     if (word_address < flash_.size()) {
         flash_[word_address] = value;
     }
+}
+
+u8 MemoryBus::get_wait_states(const u16 address) const noexcept
+{
+    return (xmem_ != nullptr) ? xmem_->get_wait_states(address) : 0U;
 }
 
 }  // namespace vioavr::core

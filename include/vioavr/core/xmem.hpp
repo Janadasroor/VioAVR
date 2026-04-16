@@ -5,10 +5,11 @@
 #include <vector>
 
 namespace vioavr::core {
+class CpuControl;
 
 class Xmem final : public IoPeripheral {
 public:
-    explicit Xmem(const DeviceDescriptor& desc) noexcept;
+    explicit Xmem(const DeviceDescriptor& desc, CpuControl& cpu_control) noexcept;
     
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -19,7 +20,7 @@ public:
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
 
-    [[nodiscard]] bool enabled() const noexcept { return enabled_; }
+    [[nodiscard]] bool enabled() const noexcept;
     
     // Memory access interface for external SRAM
     [[nodiscard]] u8 read_external(u16 address) noexcept;
@@ -30,6 +31,7 @@ public:
 
 private:
     const DeviceDescriptor& desc_;
+    CpuControl& cpu_control_;
     std::vector<AddressRange> ranges_;
     
     // Registers

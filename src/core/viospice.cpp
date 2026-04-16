@@ -138,9 +138,11 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         bus_.attach_peripheral(*can_bus.release());
     }
 
-    if (device.xmcra_address != 0U || device.xmcrb_address != 0U) {
-        auto xmem = std::make_unique<Xmem>(device);
+    if (device.xmem.xmcra_address != 0U || device.xmem.xmcrb_address != 0U || device.xmem.mcucr_address != 0U) {
+        auto xmem = std::make_unique<Xmem>(device, cpu_.control());
+        Xmem* xmem_ptr = xmem.get();
         bus_.attach_peripheral(*xmem.release());
+        bus_.set_xmem(xmem_ptr);
     }
 
     set_quantum(1000);

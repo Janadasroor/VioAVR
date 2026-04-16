@@ -663,7 +663,7 @@ u8 AvrCpu::pop_byte() noexcept
     }
 
     ++stack_pointer_;
-    return bus_->read_data(stack_pointer_);
+    return read_data_bus(stack_pointer_);
 }
 
 void AvrCpu::push_word(const u16 value) noexcept
@@ -712,7 +712,7 @@ void AvrCpu::execute_load_indirect(const u8 destination,
         return;
     }
 
-    write_register(destination, bus_->read_data(address));
+    write_register(destination, read_data_bus(address));
     if (post_increment) {
         write_register_pair(pointer_low_register, static_cast<u16>(address + 1U));
     }
@@ -1274,8 +1274,8 @@ void AvrCpu::execute_cbi(const DecodedInstruction& instruction)
     const u8 io_offset = static_cast<u8>((instruction.opcode >> 3U) & 0x1FU);
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     const u16 address = MemoryBus::low_io_address(io_offset);
-    const u8 value = static_cast<u8>(bus_->read_data(address) & static_cast<u8>(~(1U << bit_index)));
-    bus_->write_data(address, value);
+    const u8 value = static_cast<u8>(read_data_bus(address) & static_cast<u8>(~(1U << bit_index)));
+    write_data_bus(address, value);
     ++program_counter_;
     advance_cycles(2U);
 }
@@ -1290,7 +1290,7 @@ void AvrCpu::execute_sbic(const DecodedInstruction& instruction)
     const u8 io_offset = static_cast<u8>((instruction.opcode >> 3U) & 0x1FU);
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     const u16 address = MemoryBus::low_io_address(io_offset);
-    const bool bit_is_clear = (bus_->read_data(address) & (1U << bit_index)) == 0U;
+    const bool bit_is_clear = (read_data_bus(address) & (1U << bit_index)) == 0U;
     if (bit_is_clear) {
         const u8 skip_words = classify_word_size(bus_->read_program_word(instruction.word_address + 1U));
         program_counter_ = instruction.word_address + 1U + skip_words;
@@ -1312,7 +1312,7 @@ void AvrCpu::execute_sbi(const DecodedInstruction& instruction)
     const u8 io_offset = static_cast<u8>((instruction.opcode >> 3U) & 0x1FU);
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     const u16 address = MemoryBus::low_io_address(io_offset);
-    const u8 value = static_cast<u8>(bus_->read_data(address) | static_cast<u8>(1U << bit_index));
+    const u8 value = static_cast<u8>(read_data_bus(address) | static_cast<u8>(1U << bit_index));
     write_data_bus(address, value);
     ++program_counter_;
     advance_cycles(2U);
@@ -1328,7 +1328,7 @@ void AvrCpu::execute_sbis(const DecodedInstruction& instruction)
     const u8 io_offset = static_cast<u8>((instruction.opcode >> 3U) & 0x1FU);
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     const u16 address = MemoryBus::low_io_address(io_offset);
-    const bool bit_is_set = (bus_->read_data(address) & (1U << bit_index)) != 0U;
+    const bool bit_is_set = (read_data_bus(address) & (1U << bit_index)) != 0U;
     if (bit_is_set) {
         const u8 skip_words = classify_word_size(bus_->read_program_word(instruction.word_address + 1U));
         program_counter_ = instruction.word_address + 1U + skip_words;
@@ -1350,7 +1350,7 @@ void AvrCpu::execute_in(const DecodedInstruction& instruction)
     const u8 destination =
         static_cast<u8>(((instruction.opcode >> 4U) & 0x1FU));
     const u8 io_offset = static_cast<u8>(((instruction.opcode >> 5U) & 0x30U) | (instruction.opcode & 0x0FU));
-    write_register(destination, bus_->read_data(MemoryBus::low_io_address(io_offset)));
+    write_register(destination, read_data_bus(MemoryBus::low_io_address(io_offset)));
     ++program_counter_;
     advance_cycles(1U);
 }
@@ -1927,9 +1927,26 @@ void AvrCpu::execute_brne(const DecodedInstruction& instruction)
     execute_brbc(instruction);
 }
 
+u8 AvrCpu::read_data_bus(const u16 address) noexcept
+{
+    if (bus_ == nullptr) return 0U;
+    
+    u8 ws = bus_->get_wait_states(address);
+    if (ws > 0) {
+        advance_cycles(static_cast<u64>(ws));
+    }
+    
+    return bus_->read_data(address);
+}
+
 void AvrCpu::write_data_bus(const u16 address, const u8 value) noexcept
 {
     if (bus_ == nullptr) return;
+
+    u8 ws = bus_->get_wait_states(address);
+    if (ws > 0) {
+        advance_cycles(static_cast<u64>(ws));
+    }
 
     if (address == bus_->device().spmcsr_address) {
         // Intercept SPMCSR writes for 4-cycle lockout
