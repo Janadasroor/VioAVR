@@ -1,16 +1,19 @@
-#!/usr/bin/env python3
-import xml.etree.ElementTree as ET
+import sys, json
+from pathlib import Path
+from atdf_export import parse_atdf
 
-def debug_atdf(file_path):
-    tree = ET.parse(file_path)
-    root = tree.getroot()
-    
-    for module in root.findall(".//module"):
-        m_name = module.attrib.get('name')
-        for instance in module.findall("instance"):
-            i_name = instance.attrib.get('name')
-            for rg in instance.findall("register-group"):
-                print(f"Mod: {m_name}, Inst: {i_name}, RG: {rg.attrib.get('name')}, NIM: {rg.attrib.get('name-in-module')}, Off: {rg.attrib.get('offset')}")
+atdf_path = "atmega/atdf/ATmega328P.atdf"
+data = parse_atdf(atdf_path)
 
-if __name__ == "__main__":
-    debug_atdf("atmega/atdf/ATmega128.atdf")
+# Debug CPU registers
+cpu = data['peripherals'].get('CPU', data['peripherals'].get('CPU_REGISTERS', {}))
+print("CPU Registers:")
+for r_name, r_data in cpu.get('registers', {}).items():
+    if "SP" in r_name or "SREG" in r_name:
+        print(f"  {r_name}: offset={hex(r_data['offset'])}, size={r_data['size']}")
+
+# Debug ADC registers
+adc = data['peripherals'].get('ADC', {})
+print("\nADC Registers:")
+for r_name, r_data in adc.get('registers', {}).items():
+    print(f"  {r_name}: offset={hex(r_data['offset'])}, size={r_data['size']}")

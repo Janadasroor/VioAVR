@@ -21,7 +21,7 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     using vioavr::core::devices::atmega328;
 
     constexpr auto acsr = static_cast<vioavr::core::u16>(0x50U);
-    constexpr auto comparator_vector = atmega328.ac.vector_index;
+    constexpr auto comparator_vector = atmega328.acs[0].vector_index;
 
     AnalogSignalBank signals;
     signals.set_voltage(0U, 0.25);
@@ -29,11 +29,11 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
 
     MemoryBus bus {atmega328};
     PinMux pin_mux {8};
-    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
     adc0.bind_signal_bank(signals);
     
-    AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 0.0}; // Disable hysteresis for deterministic test
+    AnalogComparator comparator {"AC", atmega328.acs[0], pin_mux, 9U, 0.0}; // Disable hysteresis for deterministic test
     comparator.bind_signal_bank(signals, 0U, 1U);
     
     bus.attach_peripheral(adc0);
@@ -41,13 +41,13 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     bus.reset();
 
     SUBCASE("ADC Conversion of Signal Bank") {
-        bus.write_data(atmega328.adc.admux_address, 0x00U);
-        bus.write_data(atmega328.adc.adcsra_address, 0xC0U); // ADEN | ADSC
+        bus.write_data(atmega328.adcs[0].admux_address, 0x00U);
+        bus.write_data(atmega328.adcs[0].adcsra_address, 0xC0U); // ADEN | ADSC
         bus.tick_peripherals(10U);
         
         const auto result = static_cast<vioavr::core::u16>(
-            bus.read_data(atmega328.adc.adcl_address) |
-            (static_cast<vioavr::core::u16>(bus.read_data(atmega328.adc.adch_address)) << 8U)
+            bus.read_data(atmega328.adcs[0].adcl_address) |
+            (static_cast<vioavr::core::u16>(bus.read_data(atmega328.adcs[0].adch_address)) << 8U)
         );
         // 0.25V -> 1024 * 0.25 = 256
         CHECK(result >= 254U);

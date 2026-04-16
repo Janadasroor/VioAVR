@@ -19,7 +19,7 @@ TEST_CASE("External Interrupt Fidelity Test") {
     // 1. Setup Port B and Port D
     GpioPort portb {"PORTB", 0x23U, 0x24U, 0x25U};
     GpioPort portd {"PORTD", 0x29U, 0x2AU, 0x2BU};
-    ExtInterrupt exint {"EXINT", atmega328p.ext_interrupt, pin_mux, 0};
+    ExtInterrupt exint {"EXINT", atmega328p.ext_interrupts[0], pin_mux, 0};
     
     // Connect PinMux to Bus and Port
     PinMap pin_map;

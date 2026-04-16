@@ -74,6 +74,8 @@ struct Timer8Descriptor {
     u8 ocra_pin_bit {};
     u16 ocrb_pin_address {};
     u8 ocrb_pin_bit {};
+    u16 t_pin_address {};
+    u8 t_pin_bit {};
     u16 tosc1_pin_address {};
     u8 tosc1_pin_bit {};
     u16 tosc2_pin_address {};
@@ -174,6 +176,7 @@ struct EepromDescriptor {
     u16 eearl_address {};
     u16 eearh_address {};
     u8 vector_index {};
+    u16 size {};
 };
 
 struct WdtDescriptor {
@@ -181,6 +184,7 @@ struct WdtDescriptor {
     u8 vector_index {};
     u8 wdie_mask {0x40U};
     u8 wde_mask {0x08U};
+    u8 wdce_mask {0x10U};
 };
 
 struct Timer16Descriptor {
@@ -206,6 +210,8 @@ struct Timer16Descriptor {
     u8 ocrb_pin_bit {};
     u16 icp_pin_address {};
     u8 icp_pin_bit {};
+    u16 t_pin_address {};
+    u8 t_pin_bit {};
     u8 wgm10_mask {0x03U};
     u8 wgm12_mask {0x18U};
     u8 cs_mask {0x07U};

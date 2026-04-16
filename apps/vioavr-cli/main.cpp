@@ -5,7 +5,7 @@
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/adc.hpp"
-#include "vioavr/core/uart0.hpp"
+#include "vioavr/core/uart.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
@@ -80,13 +80,13 @@ int main(int argc, char** argv)
     PinMux pin_mux {3};
 
     // Peripherals
-    Eeprom eeprom {"EEPROM", bus.device()};
-    Timer8 timer0 {"TIMER0", bus.device().timer0};
-    Timer8 timer2 {"TIMER2", bus.device().timer2};
-    Timer16 timer1 {"TIMER1", bus.device().timer1};
-    Adc adc {"ADC", bus.device().adc, pin_mux, 0, 13};
+    Eeprom eeprom {"EEPROM", bus.device().eeproms[0]};
+    Timer8 timer0 {"TIMER0", bus.device().timers8[0]};
+    Timer8 timer2 {"TIMER2", bus.device().timers8[1]};
+    Timer16 timer1 {"TIMER1", bus.device().timers16[0]};
+    Adc adc {"ADC", bus.device().adcs[0], pin_mux, 0, 13};
     adc.set_bus(bus);
-    Uart0 uart0 {"UART0", bus.device()};
+    Uart uart0 {"USART0", bus.device().uarts[0]};
 
     timer0.set_bus(bus);
     timer2.set_bus(bus);
@@ -125,15 +125,15 @@ int main(int argc, char** argv)
     auto* portd = get_port("PORTD");
 
     if (portb) {
-        auto pci0 = std::make_unique<PinChangeInterrupt>("PCINT0", device->pin_change_interrupt_0, *portb, pcint_shared, true);
+        auto pci0 = std::make_unique<PinChangeInterrupt>("PCINT0", device->pcints[0], *portb, pcint_shared, true);
         bus.attach_peripheral(*pci0.release());
     }
     if (portc) {
-        auto pci1 = std::make_unique<PinChangeInterrupt>("PCINT1", device->pin_change_interrupt_1, *portc, pcint_shared, false);
+        auto pci1 = std::make_unique<PinChangeInterrupt>("PCINT1", device->pcints[1], *portc, pcint_shared, false);
         bus.attach_peripheral(*pci1.release());
     }
     if (portd) {
-        auto pci2 = std::make_unique<PinChangeInterrupt>("PCINT2", device->pin_change_interrupt_2, *portd, pcint_shared, false);
+        auto pci2 = std::make_unique<PinChangeInterrupt>("PCINT2", device->pcints[2], *portd, pcint_shared, false);
         bus.attach_peripheral(*pci2.release());
     }
 
@@ -151,8 +151,8 @@ int main(int argc, char** argv)
         }
     };
 
-    bind_timer8_outputs(timer0, device->timer0);
-    bind_timer8_outputs(timer2, device->timer2);
+    bind_timer8_outputs(timer0, device->timers8[0]);
+    bind_timer8_outputs(timer2, device->timers8[1]);
 
     bool benchmark = false;
     bool trace = false;

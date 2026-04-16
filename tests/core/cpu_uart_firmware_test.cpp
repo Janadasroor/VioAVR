@@ -4,7 +4,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/uart0.hpp"
+#include "vioavr/core/uart.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 namespace {
@@ -39,19 +39,19 @@ TEST_CASE("UART0 Firmware Test")
     using namespace vioavr::core::devices;
 
     MemoryBus bus {atmega328};
-    Uart0 uart0 {"USART0", atmega328};
+    Uart uart0 {"USART0", atmega328.uarts[0]};
     bus.attach_peripheral(uart0);
     AvrCpu cpu {bus};
 
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x18U),  // RXEN0 | TXEN0
-            encode_sts(16U), atmega328.uart0.ucsrb_address,
+            encode_sts(16U), atmega328.uarts[0].ucsrb_address,
             encode_ldi(17U, 0x41U),
-            encode_sts(17U), atmega328.uart0.udr_address,
-            encode_lds(18U), atmega328.uart0.ucsra_address,
-            encode_lds(19U), atmega328.uart0.ucsra_address,
-            encode_lds(20U), atmega328.uart0.udr_address,
+            encode_sts(17U), atmega328.uarts[0].udr_address,
+            encode_lds(18U), atmega328.uarts[0].ucsra_address,
+            encode_lds(19U), atmega328.uarts[0].ucsra_address,
+            encode_lds(20U), atmega328.uarts[0].udr_address,
             0x0000U
         },
         .entry_word = 0U
@@ -62,7 +62,7 @@ TEST_CASE("UART0 Firmware Test")
     SUBCASE("Setup and Initial Transmit") {
         cpu.step(); // LDI RXEN|TXEN
         cpu.step(); // STS UCSRB
-        CHECK(bus.read_data(atmega328.uart0.ucsrb_address) == 0x18U);
+        CHECK(bus.read_data(atmega328.uarts[0].ucsrb_address) == 0x18U);
         CHECK(cpu.cycles() == 3U);
         
         cpu.step(); // LDI 'A'
@@ -96,6 +96,6 @@ TEST_CASE("UART0 Firmware Test")
         CHECK(cpu.snapshot().gpr[20] == 0xA5U);
         
         // After UDR read, RXC should clear
-        CHECK((bus.read_data(atmega328.uart0.ucsra_address) & 0x80U) == 0U);
+        CHECK((bus.read_data(atmega328.uarts[0].ucsra_address) & 0x80U) == 0U);
     }
 }

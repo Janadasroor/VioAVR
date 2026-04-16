@@ -35,12 +35,12 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    const u16 acsr_addr = atmega328.ac.acsr_address;
-    const u8 comparator_vector = atmega328.ac.vector_index; // 23 on 328P
+    const u16 acsr_addr = atmega328.acs[0].acsr_address;
+    const u8 comparator_vector = atmega328.acs[0].vector_index; // 23 on 328P
 
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 0.01};
+    AnalogComparator comparator {"AC", atmega328.acs[0], pin_mux, 9U, 0.01};
     comparator.set_negative_input_voltage(0.80);
     comparator.set_positive_input_voltage(0.20);
     bus.attach_peripheral(comparator);

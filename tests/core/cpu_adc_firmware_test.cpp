@@ -47,7 +47,7 @@ TEST_CASE("ADC Firmware Integration Test")
 
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
     adc0.set_channel_voltage(0U, 0.25);
     bus.attach_peripheral(adc0);
@@ -63,13 +63,13 @@ TEST_CASE("ADC Firmware Integration Test")
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x00U),
-            encode_sts(16U), atmega328.adc.admux_address,
+            encode_sts(16U), atmega328.adcs[0].admux_address,
             encode_ldi(17U, 0xC0U),   // ADEN | ADSC
-            encode_sts(17U), atmega328.adc.adcsra_address,
-            encode_lds(18U), atmega328.adc.adcsra_address,
-            encode_lds(19U), atmega328.adc.adcsra_address,
-            encode_lds(20U), atmega328.adc.adcl_address,
-            encode_lds(21U), atmega328.adc.adch_address,
+            encode_sts(17U), atmega328.adcs[0].adcsra_address,
+            encode_lds(18U), atmega328.adcs[0].adcsra_address,
+            encode_lds(19U), atmega328.adcs[0].adcsra_address,
+            encode_lds(20U), atmega328.adcs[0].adcl_address,
+            encode_lds(21U), atmega328.adcs[0].adch_address,
             0x0000U
         },
         .entry_word = 0U

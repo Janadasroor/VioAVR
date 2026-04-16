@@ -21,20 +21,13 @@ constexpr u32 kEepromWriteOnlyCycles = 28800U;
 constexpr u8 kMasterWriteTimeout = 4U; 
 }
 
-Eeprom::Eeprom(std::string_view name, const DeviceDescriptor& device) noexcept
-    : name_(name), desc_(device.eeproms[0]), size_(device.eeprom_bytes)
+Eeprom::Eeprom(std::string_view name, const EepromDescriptor& descriptor) noexcept
+    : name_(name), desc_(descriptor), size_(descriptor.size)
 {
+    ranges_[0].begin = std::min({desc_.eearl_address, desc_.eearh_address, desc_.eedr_address, desc_.eecr_address});
+    ranges_[0].end = std::max({desc_.eearl_address, desc_.eearh_address, desc_.eedr_address, desc_.eecr_address});
+    
     storage_.resize(size_, 0xFFU);
-    const std::array<u16, 4> addrs = {
-        desc_.eecr_address, desc_.eedr_address, 
-        desc_.eearl_address, desc_.eearh_address
-    };
-    ranges_ = {{
-        AddressRange{
-            *std::min_element(addrs.begin(), addrs.end()),
-            *std::max_element(addrs.begin(), addrs.end())
-        }
-    }};
 }
 
 std::string_view Eeprom::name() const noexcept

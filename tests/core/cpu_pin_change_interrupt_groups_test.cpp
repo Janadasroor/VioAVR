@@ -17,9 +17,9 @@ TEST_CASE("Pin change interrupt groups share PCICR/PCIFR and keep separate PCMSK
     GpioPort port_c {"PORTC", 0x26U, 0x27U, 0x28U};
     GpioPort port_d {"PORTD", 0x29U, 0x2AU, 0x2BU};
     PinChangeInterruptSharedState shared {};
-    PinChangeInterrupt pci0 {"PCINT0", atmega328p.pin_change_interrupt_0, port_b, shared, true};
-    PinChangeInterrupt pci1 {"PCINT1", atmega328p.pin_change_interrupt_1, port_c, shared, false};
-    PinChangeInterrupt pci2 {"PCINT2", atmega328p.pin_change_interrupt_2, port_d, shared, false};
+    PinChangeInterrupt pci0 {"PCINT0", atmega328p.pcints[0], port_b, shared, true};
+    PinChangeInterrupt pci1 {"PCINT1", atmega328p.pcints[1], port_c, shared, false};
+    PinChangeInterrupt pci2 {"PCINT2", atmega328p.pcints[2], port_d, shared, false};
 
     bus.attach_peripheral(port_b);
     bus.attach_peripheral(port_c);

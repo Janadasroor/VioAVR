@@ -9,7 +9,7 @@ using namespace vioavr::core;
 TEST_CASE("Watchdog Timer: Reset Mode") {
     MemoryBus bus {devices::atmega328};
     AvrCpu cpu {bus};
-    WatchdogTimer wdt {"WDT", devices::atmega328, cpu};
+    WatchdogTimer wdt {"WDT", devices::atmega328.wdts[0], cpu};
     bus.attach_peripheral(wdt);
     cpu.set_watchdog_timer(&wdt);
 
@@ -51,7 +51,7 @@ TEST_CASE("Watchdog Timer: Reset Mode") {
 TEST_CASE("Watchdog Timer: WDR resets timer") {
     MemoryBus bus {devices::atmega328};
     AvrCpu cpu {bus};
-    WatchdogTimer wdt {"WDT", devices::atmega328, cpu};
+    WatchdogTimer wdt {"WDT", devices::atmega328.wdts[0], cpu};
     bus.attach_peripheral(wdt);
     cpu.set_watchdog_timer(&wdt);
 
@@ -88,7 +88,7 @@ TEST_CASE("Watchdog Timer: WDR resets timer") {
 TEST_CASE("Watchdog Timer: Interrupt Mode") {
     MemoryBus bus {devices::atmega328};
     AvrCpu cpu {bus};
-    WatchdogTimer wdt {"WDT", devices::atmega328, cpu};
+    WatchdogTimer wdt {"WDT", devices::atmega328.wdts[0], cpu};
     bus.attach_peripheral(wdt);
     cpu.set_watchdog_timer(&wdt);
 

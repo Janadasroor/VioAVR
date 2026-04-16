@@ -14,17 +14,17 @@ TEST_CASE("ADC Descriptor and Trigger Logic Test")
     using vioavr::core::devices::atmega328;
 
     PinMux pin_mux(8);
-    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
     adc0.reset();
 
     SUBCASE("Trigger Select Register") {
-        adc0.write(atmega328.adc.adcsrb_address, 0x01U);
+        adc0.write(atmega328.adcs[0].adcsrb_address, 0x01U);
         CHECK(adc0.trigger_select_register() == 0x01U);
     }
 
     SUBCASE("Auto Trigger - Comparator") {
-        adc0.write(atmega328.adc.adcsrb_address, 0x01U); // Comparator trigger select
-        adc0.write(atmega328.adc.adcsra_address, 0xA0U); // ADEN | ADATE
+        adc0.write(atmega328.adcs[0].adcsrb_address, 0x01U); // Comparator trigger select
+        adc0.write(atmega328.adcs[0].adcsra_address, 0xA0U); // ADEN | ADATE
         
         adc0.notify_auto_trigger(Adc::AutoTriggerSource::comparator);
         
@@ -34,8 +34,8 @@ TEST_CASE("ADC Descriptor and Trigger Logic Test")
 
     SUBCASE("Auto Trigger - Timer Overflow") {
         adc0.reset();
-        adc0.write(atmega328.adc.adcsrb_address, 0x04U); // Timer0 Overflow trigger select
-        adc0.write(atmega328.adc.adcsra_address, 0xA0U);
+        adc0.write(atmega328.adcs[0].adcsrb_address, 0x04U); // Timer0 Overflow trigger select
+        adc0.write(atmega328.adcs[0].adcsra_address, 0xA0U);
         
         adc0.notify_auto_trigger(Adc::AutoTriggerSource::timer_overflow);
         CHECK((adc0.adcsra() & 0x40U) != 0U);
@@ -43,8 +43,8 @@ TEST_CASE("ADC Descriptor and Trigger Logic Test")
 
     SUBCASE("Auto Trigger - Mismatched Source") {
         adc0.reset();
-        adc0.write(atmega328.adc.adcsrb_address, 0x06U); // DIFFERENT trigger select
-        adc0.write(atmega328.adc.adcsra_address, 0xA0U);
+        adc0.write(atmega328.adcs[0].adcsrb_address, 0x06U); // DIFFERENT trigger select
+        adc0.write(atmega328.adcs[0].adcsra_address, 0xA0U);
         
         adc0.notify_auto_trigger(Adc::AutoTriggerSource::timer_overflow);
         // ADSC should NOT be set because the trigger source doesn't match the selection

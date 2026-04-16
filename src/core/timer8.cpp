@@ -1,5 +1,6 @@
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/logger.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/adc.hpp"
 #include <algorithm>
@@ -19,27 +20,6 @@ constexpr u8 kAssrOcr2aub = 0x08U;
 constexpr u8 kAssrTcn2ub = 0x10U;
 constexpr u8 kAssrAs2 = 0x20U;
 constexpr u8 kAssrExclk = 0x40U;
-}
-
-Timer8::Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept
-    : name_(name), desc_(desc)
-{
-    std::vector<u16> addrs = {
-        desc_.tcnt_address, desc_.ocra_address, desc_.ocrb_address,
-        desc_.tifr_address, desc_.timsk_address, desc_.tccra_address, desc_.tccrb_address,
-        desc_.assr_address
-    };
-    std::sort(addrs.begin(), addrs.end());
-    size_t ri = 0;
-    ranges_.fill({0, 0});
-    for (size_t i = 0; i < addrs.size(); ++i) {
-        if (addrs[i] == 0) continue;
-        if (ri > 0 && addrs[i] == ranges_[ri-1].end + 1) {
-             ranges_[ri-1].end = addrs[i];
-        } else {
-             ranges_[ri++] = {addrs[i], addrs[i]};
-        }
-    }
 }
 
 Timer8::Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept
@@ -122,21 +102,23 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
         const u16 divisor = prescalers[cs];
         
         for (u64 cycle = 0; cycle < elapsed_cycles; ++cycle) {
-            // Increment cycle accumulator FIRST to match hardware cycle boundary
             if (++cycle_accumulator_ >= divisor) {
                 cycle_accumulator_ = 0;
                 perform_tick();
             }
         }
     } else {
-        // External clock via T0 pin
-        if (bus_) {
-            const u8 current_state = (bus_->read_data(desc_.t0_pin_address) >> desc_.t0_pin_bit) & 0x01U;
-            const bool edge = (cs == 6) ? (last_clk_pin_state_ == 1 && current_state == 0) : (last_clk_pin_state_ == 0 && current_state == 1);
-            if (edge) {
-                perform_tick();
+        // External clock via T pin
+        for (u64 cycle = 0; cycle < elapsed_cycles; ++cycle) {
+            if (bus_ && desc_.t_pin_address != 0U) {
+                // Pin sampling happens on every cycle
+                const u8 current_state = (bus_->read_data(desc_.t_pin_address) >> desc_.t_pin_bit) & 0x01U;
+                const bool edge = (cs == 6) ? (last_clk_pin_state_ == 1 && current_state == 0) : (last_clk_pin_state_ == 0 && current_state == 1);
+                if (edge) {
+                    perform_tick();
+                }
+                last_clk_pin_state_ = current_state;
             }
-            last_clk_pin_state_ = current_state;
         }
     }
 }

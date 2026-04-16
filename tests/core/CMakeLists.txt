@@ -89,5 +89,8 @@ foreach(source IN LISTS TEST_SOURCES)
     
     add_executable(${target_name} ${source})
     target_link_libraries(${target_name} PRIVATE VioAVR::core)
-    add_test(NAME ${target_name} COMMAND ${target_name})
+    # Don't register utilities as tests
+    if (NOT test_name STREQUAL "cpu_trace_util")
+        add_test(NAME ${target_name} COMMAND ${target_name})
+    endif()
 endforeach()

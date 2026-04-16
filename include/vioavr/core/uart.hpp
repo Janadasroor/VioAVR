@@ -8,7 +8,7 @@ namespace vioavr::core {
 
 class Uart final : public IoPeripheral {
 public:
-    explicit Uart(const DeviceDescriptor& device, u8 index) noexcept;
+    explicit Uart(std::string_view name, const UartDescriptor& descriptor) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;

@@ -19,7 +19,7 @@ void run_to_cycle(AvrCpu& cpu, u64 target) {
 
 TEST_CASE("Timer8: CTC Mode Precise") {
     MemoryBus bus {devices::atmega328};
-    Timer8 timer0 {"TIMER0", devices::atmega328};
+    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 
@@ -56,7 +56,7 @@ TEST_CASE("Timer8: CTC Mode Precise") {
 
 TEST_CASE("Timer8: Fast PWM Mode Precise") {
     MemoryBus bus {devices::atmega328};
-    Timer8 timer0 {"TIMER0", devices::atmega328};
+    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
     GpioPort portb {"PORTB", 0x23, 0x24, 0x25};
     bus.attach_peripheral(portb);
@@ -99,7 +99,7 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
 
 TEST_CASE("Timer8: Phase Correct PWM Precise") {
     MemoryBus bus {devices::atmega328};
-    Timer8 timer0 {"TIMER0", devices::atmega328};
+    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 

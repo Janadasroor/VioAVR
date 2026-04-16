@@ -177,7 +177,7 @@ void Adc::complete_conversion() noexcept {
 }
 
 u8 Adc::selected_channel() const noexcept {
-    return admux_ & 0x07U; // Simplified 3-bit channel select
+    return admux_ & 0x0FU; // Supports up to 16 channels
 }
 
 void Adc::update_pin_ownership() noexcept {

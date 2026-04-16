@@ -29,7 +29,7 @@ target_sources(vioavr_core
         timer8.cpp
 
         timer16.cpp
-        uart0.cpp
+        uart.cpp
         watchdog_timer.cpp
 )
 

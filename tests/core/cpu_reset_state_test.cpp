@@ -6,7 +6,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/timer16.hpp"
-#include "vioavr/core/uart0.hpp"
+#include "vioavr/core/uart.hpp"
 #include "vioavr/core/spi.hpp"
 #include "vioavr/core/twi.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
@@ -20,12 +20,12 @@ using namespace vioavr::core::devices;
 TEST_CASE("Reset State Verification")
 {
     MemoryBus bus {atmega328};
-    Timer8 timer0 {"TIMER0", atmega328};
-    Timer16 timer1 {"TIMER1", atmega328};
-    Timer8 timer2 {"TIMER2", atmega328};
-    Uart0 uart {"UART0", atmega328};
-    Spi spi {"SPI", atmega328};
-    Twi twi {"TWI", atmega328};
+    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
+    Timer16 timer1 {"TIMER1", atmega328.timers16[0]};
+    Timer8 timer2 {"TIMER2", atmega328.timers8[1]};
+    Uart uart {"UART0", atmega328.uarts[0]};
+    Spi spi {"SPI", atmega328.spis[0]};
+    Twi twi {"TWI", atmega328.twis[0]};
 
     bus.attach_peripheral(timer0);
     bus.attach_peripheral(timer1);
@@ -79,42 +79,42 @@ TEST_CASE("Reset State Verification")
 
     SUBCASE("Timer0 Reset State") {
         // TCNT, TCCR, OCR should be zeroed by reset
-        CHECK(bus.read_data(atmega328.timer0.tcnt_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer0.tccra_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer0.tccrb_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer0.timsk_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer0.tifr_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[0].tcnt_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[0].tccra_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[0].tccrb_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[0].timsk_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[0].tifr_address) == 0U);
     }
 
     SUBCASE("Timer1 Reset State") {
-        CHECK(bus.read_data(atmega328.timer1.tcnt_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer1.tcnt_address + 1U) == 0U);
-        CHECK(bus.read_data(atmega328.timer1.tccra_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer1.tccrb_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer1.timsk_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer1.tifr_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers16[0].tcnt_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers16[0].tcnt_address + 1U) == 0U);
+        CHECK(bus.read_data(atmega328.timers16[0].tccra_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers16[0].tccrb_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers16[0].timsk_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers16[0].tifr_address) == 0U);
     }
 
     SUBCASE("Timer2 Reset State") {
-        CHECK(bus.read_data(atmega328.timer2.tcnt_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer2.tccra_address) == 0U);
-        CHECK(bus.read_data(atmega328.timer2.tccrb_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[1].tcnt_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[1].tccra_address) == 0U);
+        CHECK(bus.read_data(atmega328.timers8[1].tccrb_address) == 0U);
     }
 
     SUBCASE("UART0 Reset State") {
         // UCSRA: UDRE (bit 5) should be set at reset (TX buffer empty)
-        CHECK((bus.read_data(atmega328.uart0.ucsra_address) & 0x20U) != 0U);
+        CHECK((bus.read_data(atmega328.uarts[0].ucsra_address) & 0x20U) != 0U);
         // UCSRB: all interrupts disabled
-        CHECK(bus.read_data(atmega328.uart0.ucsrb_address) == 0U);
+        CHECK(bus.read_data(atmega328.uarts[0].ucsrb_address) == 0U);
         // UDR should be zero
-        CHECK(bus.read_data(atmega328.uart0.udr_address) == 0U);
+        CHECK(bus.read_data(atmega328.uarts[0].udr_address) == 0U);
     }
 
     SUBCASE("External Interrupt Reset State") {
         // EIMSK: no external interrupts enabled
-        CHECK(bus.read_data(atmega328.ext_interrupt.eimsk_address) == 0U);
+        CHECK(bus.read_data(atmega328.ext_interrupts[0].eimsk_address) == 0U);
         // EIFR: no pending flags
-        CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0U);
+        CHECK(bus.read_data(atmega328.ext_interrupts[0].eifr_address) == 0U);
     }
 }
 
@@ -125,7 +125,7 @@ TEST_CASE("SEI/RETI Interrupt Latency Verification")
     // - After RETI: one instruction executes before next interrupt is serviced
 
     MemoryBus bus {atmega328};
-    Timer8 timer0 {"TIMER0", atmega328};
+    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
 
     constexpr u16 kSei = 0x9478U;
@@ -136,7 +136,7 @@ TEST_CASE("SEI/RETI Interrupt Latency Verification")
         return static_cast<u16>(0xE000U | ((imm & 0xF0U) << 4U) | ((rd - 16U) << 4U) | (imm & 0x0FU));
     };
 
-    constexpr u16 isr_word = static_cast<u16>(atmega328.timer0.compare_a_vector_index * 2);
+    constexpr u16 isr_word = static_cast<u16>(atmega328.timers8[0].compare_a_vector_index * 2);
 
     // Layout: mainline at 0-7, ISR at vector address
     std::vector<u16> flash(32, kNop);
@@ -156,10 +156,10 @@ TEST_CASE("SEI/RETI Interrupt Latency Verification")
 
     // Set up timer for immediate compare match after tick
     // TCNT=254, OCR=255: next tick will increment TCNT to 255 == OCR, triggering match
-    bus.write_data(atmega328.timer0.timsk_address, 0x02);    // OCIE0A = 1 (enable interrupt)
-    bus.write_data(atmega328.timer0.ocra_address, 0xFF);     // OCR0A = 255
-    bus.write_data(atmega328.timer0.tcnt_address, 0xFE);     // TCNT0 = 254
-    bus.write_data(atmega328.timer0.tccrb_address, 0x01);    // CS00 = 1 (no prescaler)
+    bus.write_data(atmega328.timers8[0].timsk_address, 0x02);    // OCIE0A = 1 (enable interrupt)
+    bus.write_data(atmega328.timers8[0].ocra_address, 0xFF);     // OCR0A = 255
+    bus.write_data(atmega328.timers8[0].tcnt_address, 0xFE);     // TCNT0 = 254
+    bus.write_data(atmega328.timers8[0].tccrb_address, 0x01);    // CS00 = 1 (no prescaler)
     bus.tick_peripherals(1);                                 // Tick once: TCNT->255 == OCR, sets OCF0A
 
     SUBCASE("SEI One-Instruction Delay") {

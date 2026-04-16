@@ -3,7 +3,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/uart0.hpp"
+#include "vioavr/core/uart.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 TEST_CASE("UART0 Peripheral Functional Test")
@@ -12,13 +12,13 @@ TEST_CASE("UART0 Peripheral Functional Test")
     using namespace vioavr::core::devices;
 
     MemoryBus bus {atmega328};
-    Uart0 uart0 {"USART0", atmega328};
+    Uart uart0 {"USART0", atmega328.uarts[0]};
     bus.attach_peripheral(uart0);
     bus.reset();
 
-    const auto ucsra = atmega328.uart0.ucsra_address;
-    const auto ucsrb = atmega328.uart0.ucsrb_address;
-    const auto udr = atmega328.uart0.udr_address;
+    const auto ucsra = atmega328.uarts[0].ucsra_address;
+    const auto ucsrb = atmega328.uarts[0].ucsrb_address;
+    const auto udr = atmega328.uarts[0].udr_address;
 
     SUBCASE("Default status and transmission") {
         // UDRE (bit 5) should be set on reset. TXC (bit 6) is cleared on reset.

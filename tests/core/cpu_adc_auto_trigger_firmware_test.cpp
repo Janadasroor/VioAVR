@@ -53,9 +53,9 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
 
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
-    AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 1.1};
+    AnalogComparator comparator {"AC", atmega328.acs[0], pin_mux, 9U, 1.1};
     
     adc0.connect_comparator_auto_trigger(comparator);
     adc0.set_channel_voltage(0U, 0.75); // Target value: 768
@@ -76,16 +76,16 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x00U),                     // 0
-            encode_sts(16U), atmega328.adc.admux_address, // 1, 2
+            encode_sts(16U), atmega328.adcs[0].admux_address, // 1, 2
             encode_ldi(16U, 0x01U),                     // 3
-            encode_sts(16U), atmega328.adc.adcsrb_address, // 4, 5
+            encode_sts(16U), atmega328.adcs[0].adcsrb_address, // 4, 5
             encode_ldi(17U, 0xA0U),                     // 6 (ADEN | ADATE)
-            encode_sts(17U), atmega328.adc.adcsra_address, // 7, 8
-            encode_lds(18U), atmega328.adc.adcsra_address, // 9, 10
-            encode_lds(19U), atmega328.adc.adcsra_address, // 11, 12
-            encode_lds(20U), atmega328.adc.adcsra_address, // 13, 14
-            encode_lds(21U), atmega328.adc.adcl_address,   // 15, 16
-            encode_lds(22U), atmega328.adc.adch_address,   // 17, 18
+            encode_sts(17U), atmega328.adcs[0].adcsra_address, // 7, 8
+            encode_lds(18U), atmega328.adcs[0].adcsra_address, // 9, 10
+            encode_lds(19U), atmega328.adcs[0].adcsra_address, // 11, 12
+            encode_lds(20U), atmega328.adcs[0].adcsra_address, // 13, 14
+            encode_lds(21U), atmega328.adcs[0].adcl_address,   // 15, 16
+            encode_lds(22U), atmega328.adcs[0].adch_address,   // 17, 18
             0x0000U
         },
         .entry_word = 0U

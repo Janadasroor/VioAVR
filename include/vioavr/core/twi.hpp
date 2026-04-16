@@ -9,7 +9,7 @@ namespace vioavr::core {
 
 class Twi final : public IoPeripheral {
 public:
-    explicit Twi(std::string_view name, const DeviceDescriptor& device) noexcept;
+    explicit Twi(std::string_view name, const TwiDescriptor& descriptor) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;

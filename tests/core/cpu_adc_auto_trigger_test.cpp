@@ -22,9 +22,9 @@ TEST_CASE("ADC Analog Comparator Auto-Trigger Test")
 
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
-    AnalogComparator comparator {"AC", atmega328.ac, pin_mux, 9U, 1.1}; // 1.1V bandgap is standard
+    AnalogComparator comparator {"AC", atmega328.acs[0], pin_mux, 9U, 1.1}; // 1.1V bandgap is standard
     
     adc0.connect_comparator_auto_trigger(comparator);
     bus.attach_peripheral(adc0);
@@ -35,27 +35,27 @@ TEST_CASE("ADC Analog Comparator Auto-Trigger Test")
     comparator.set_negative_input_voltage(0.80);
     comparator.set_positive_input_voltage(0.20); // ACO = 0
 
-    bus.write_data(atmega328.adc.admux_address, 0x00U);
-    bus.write_data(atmega328.adc.adcsrb_address, 0x01U); // Analog Comparator Trigger
-    bus.write_data(atmega328.adc.adcsra_address, 0xA0U);  // ADEN | ADATE
+    bus.write_data(atmega328.adcs[0].admux_address, 0x00U);
+    bus.write_data(atmega328.adcs[0].adcsrb_address, 0x01U); // Analog Comparator Trigger
+    bus.write_data(atmega328.adcs[0].adcsra_address, 0xA0U);  // ADEN | ADATE
 
     SUBCASE("No Trigger initially") {
-        // CHECK((bus.read_data(atmega328.adc.adcsra_address) & 0x40U) == 0U);
+        // CHECK((bus.read_data(atmega328.adcs[0].adcsra_address) & 0x40U) == 0U);
         
         comparator.set_positive_input_voltage(0.79); // Still < 0.80, ACO=0
-        // CHECK((bus.read_data(atmega328.adc.adcsra_address) & 0x40U) == 0U);
+        // CHECK((bus.read_data(atmega328.adcs[0].adcsra_address) & 0x40U) == 0U);
     }
 
     SUBCASE("Comparator Trigger and Result") {
         comparator.set_positive_input_voltage(0.83); // > 0.80, ACO transitions to 1 -> Rising edge triggers ADC
-        // CHECK((bus.read_data(atmega328.adc.adcsra_address) & 0x40U) != 0U);
+        // CHECK((bus.read_data(atmega328.adcs[0].adcsra_address) & 0x40U) != 0U);
 
         bus.tick_peripherals(10U); // Wait for conversion
-        // CHECK((bus.read_data(atmega328.adc.adcsra_address) & 0x10U) != 0U);
+        // CHECK((bus.read_data(atmega328.adcs[0].adcsra_address) & 0x10U) != 0U);
 
         const auto result = static_cast<vioavr::core::u16>(
-            bus.read_data(atmega328.adc.adcl_address) |
-            (static_cast<vioavr::core::u16>(bus.read_data(atmega328.adc.adch_address)) << 8U)
+            bus.read_data(atmega328.adcs[0].adcl_address) |
+            (static_cast<vioavr::core::u16>(bus.read_data(atmega328.adcs[0].adch_address)) << 8U)
         );
         // CHECK(result >= 766U);
         // CHECK(result <= 769U);
