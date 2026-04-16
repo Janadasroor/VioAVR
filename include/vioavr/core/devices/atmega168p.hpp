@@ -21,6 +21,8 @@ inline constexpr DeviceDescriptor atmega168p {
     .prr1_address = 0x0U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
+    .xmcra_address = 0x0U,
+    .xmcrb_address = 0x0U,
     
     .adc_count = 1U,
     .adcs = {{ {
@@ -78,13 +80,14 @@ inline constexpr DeviceDescriptor atmega168p {
     
     .timer16_count = 1U,
     .timers16 = {{ {
-            .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
+            .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .ocrc_address = 0x0U, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
             .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U,
             .capture_vector_index = 10U,
             .compare_a_vector_index = 11U,
             .compare_b_vector_index = 12U,
+            .compare_c_vector_index = 0U,
             .overflow_vector_index = 13U,
-            .ocra_pin_address = 0x25U, .ocra_pin_bit = 1U, .ocrb_pin_address = 0x25U, .ocrb_pin_bit = 2U,
+            .ocra_pin_address = 0x25U, .ocra_pin_bit = 1U, .ocrb_pin_address = 0x25U, .ocrb_pin_bit = 2U, .ocrc_pin_address = 0x0U, .ocrc_pin_bit = 0U,
             .icp_pin_address = 0x23U, .icp_pin_bit = 0U,
             .t_pin_address = 0x29U, .t_pin_bit = 5U,
             .wgm10_mask = 0x3U, .wgm12_mask = 0x18U, .cs_mask = 0x7U, .ices_mask = 0x40U, .icnc_mask = 0x80U,

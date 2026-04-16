@@ -21,6 +21,8 @@ inline constexpr DeviceDescriptor atmega1609 {
     .prr1_address = 0x0U,
     .smcr_address = 0x0U,
     .mcusr_address = 0x0U,
+    .xmcra_address = 0x0U,
+    .xmcrb_address = 0x0U,
     
     .adc_count = 1U,
     .adcs = {{ {
