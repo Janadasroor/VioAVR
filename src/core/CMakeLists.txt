@@ -21,7 +21,7 @@ target_sources(vioavr_core
         pin_mux.cpp
         register_file.cpp
         spi.cpp
-
+        can.cpp
         twi.cpp
         sync_engine.cpp
         viospice.cpp

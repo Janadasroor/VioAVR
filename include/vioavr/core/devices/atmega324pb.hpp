@@ -248,6 +248,9 @@ inline constexpr DeviceDescriptor atmega324pb {
             .wdie_mask = 0x40U, .wde_mask = 0x8U
         } }},
 
+    .can_count = 0U,
+    .cans = {{  }},
+
     .port_count = 5U,
     .ports = {{
         { "PORTA", 0x20U, 0x21U, 0x22U },

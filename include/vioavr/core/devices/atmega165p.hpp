@@ -154,6 +154,9 @@ inline constexpr DeviceDescriptor atmega165p {
             .wdie_mask = 0x0U, .wde_mask = 0x8U
         } }},
 
+    .can_count = 0U,
+    .cans = {{  }},
+
     .port_count = 7U,
     .ports = {{
         { "PORTA", 0x20U, 0x21U, 0x22U },

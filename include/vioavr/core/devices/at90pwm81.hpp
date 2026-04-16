@@ -101,6 +101,9 @@ inline constexpr DeviceDescriptor at90pwm81 {
             .wdie_mask = 0x40U, .wde_mask = 0x8U
         } }},
 
+    .can_count = 0U,
+    .cans = {{  }},
+
     .port_count = 3U,
     .ports = {{
         { "PORTB", 0x23U, 0x24U, 0x25U },

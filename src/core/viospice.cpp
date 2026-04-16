@@ -12,6 +12,7 @@
 #include "vioavr/core/watchdog_timer.hpp"
 #include "vioavr/core/spi.hpp"
 #include "vioavr/core/twi.hpp"
+#include "vioavr/core/can.hpp"
 #include <map>
 
 namespace vioavr::core {
@@ -126,6 +127,11 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     for (u8 i = 0; i < device.wdt_count; ++i) {
         auto wdt = std::make_unique<WatchdogTimer>("WDT" + std::to_string(i), device.wdts[i], cpu_);
         bus_.attach_peripheral(*wdt.release());
+    }
+
+    for (u8 i = 0; i < device.can_count; ++i) {
+        auto can_bus = std::make_unique<CanBus>("CAN" + std::to_string(i), device.cans[i]);
+        bus_.attach_peripheral(*can_bus.release());
     }
 
     set_quantum(1000);

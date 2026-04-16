@@ -99,7 +99,8 @@ def generate_header(data, output_dir):
     # 2. Group Peripherals
     groups = {
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
-        'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': []
+        'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
+        'CAN': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -247,6 +248,19 @@ def generate_header(data, output_dir):
             .twint_mask = {hx(b('TWCR', 'TWINT'))}, .twen_mask = {hx(b('TWCR', 'TWEN'))}, .twie_mask = {hx(b('TWCR', 'TWIE'))}, .twsto_mask = {hx(b('TWCR', 'TWSTO'))}, .twsta_mask = {hx(b('TWCR', 'TWSTA'))}, .twea_mask = {hx(b('TWCR', 'TWEA'))},
             .pr_address = {get_pr_info(data, f'PRTWI{idx}|PRTWI')[0]}, .pr_bit = {get_pr_info(data, f'PRTWI{idx}|PRTWI')[1]}
         }}"""
+    
+    def gen_can(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        idt = next((reg for name, reg in p_data.get('registers', {}).items() if 'CANIDT' in name), {'offset': 0})
+        idm = next((reg for name, reg in p_data.get('registers', {}).items() if 'CANIDM' in name), {'offset': 0})
+        return f"""{{
+            .cangcon_address = {hx(r('CANGCON')['offset'])}, .cangsta_address = {hx(r('CANGSTA')['offset'])}, .cangit_address = {hx(r('CANGIT')['offset'])}, .cangie_address = {hx(r('CANGIE')['offset'])}, .canen1_address = {hx(r('CANEN1')['offset'])}, .canen2_address = {hx(r('CANEN2')['offset'])}, .canie1_address = {hx(r('CANIE1')['offset'])}, .canie2_address = {hx(r('CANIE2')['offset'])}, .cansit1_address = {hx(r('CANSIT1')['offset'])}, .cansit2_address = {hx(r('CANSIT2')['offset'])}, .canbt1_address = {hx(r('CANBT1')['offset'])}, .canbt2_address = {hx(r('CANBT2')['offset'])}, .canbt3_address = {hx(r('CANBT3')['offset'])}, .cantcon_address = {hx(r('CANTCON')['offset'])},
+            .cantim_address = {hx(r('CANTIM|CANTIML')['offset'])}, .canttc_address = {hx(r('CANTTC|CANTTCL')['offset'])}, .cantec_address = {hx(r('CANTEC')['offset'])}, .canrec_address = {hx(r('CANREC')['offset'])}, .canhpmob_address = {hx(r('CANHPMOB')['offset'])}, .canpage_address = {hx(r('CANPAGE')['offset'])}, .canstmob_address = {hx(r('CANSTMOB')['offset'])}, .cancdmob_address = {hx(r('CANCDMOB')['offset'])}, .canidt_address = {hx(idt['offset'])}, .canidm_address = {hx(idm['offset'])}, .canstm_address = {hx(r('CANSTM|CANSTML')['offset'])}, .canmsg_address = {hx(r('CANMSG')['offset'])},
+            .canit_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'CANIT' in (i.get('name') or '').upper()), 0)}U,
+            .ovrit_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'OVRIT' in (i.get('name') or '').upper()), 0)}U,
+            .mob_count = 15U,
+            .pr_address = {get_pr_info(data, 'PRCAN')[0]}, .pr_bit = {get_pr_info(data, 'PRCAN')[1]}
+        }}"""
 
     def gen_pcint(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
@@ -293,6 +307,7 @@ def generate_header(data, output_dir):
     acs_str = ",\n        ".join(gen_ac(n, d) for n, d in groups['AC'])
     spis_str = ",\n        ".join(gen_spi(n, d) for n, d in groups['SPI'])
     twis_str = ",\n        ".join(gen_twi(n, d) for n, d in groups['TWI'])
+    cans_str = ",\n        ".join(gen_can(n, d) for n, d in groups['CAN'])
     pcints_str = ",\n        ".join(gen_pcint(n, d) for n, d in groups['PCINT'])
     ext_ints_str = ",\n        ".join(gen_ext_int(n, d) for n, d in groups['EXINT'])
     eeproms_str = ",\n        ".join(gen_eeprom(n, d) for n, d in groups['EEPROM'])
@@ -356,6 +371,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
     
     .wdt_count = {len(groups['WDT'])}U,
     .wdts = {{{{ {wdts_str} }}}},
+
+    .can_count = {len(groups['CAN'])}U,
+    .cans = {{{{ {cans_str} }}}},
 
     .port_count = {len(ports_raw)}U,
     .ports = {{{{
