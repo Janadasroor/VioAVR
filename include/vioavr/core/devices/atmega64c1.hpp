@@ -143,6 +143,16 @@ inline constexpr DeviceDescriptor atmega64c1 {
             .wdie_mask = 0x40U, .wde_mask = 0x8U
         } }},
 
+    .can_count = 1U,
+    .cans = {{ {
+            .cangcon_address = 0xD8U, .cangsta_address = 0xD9U, .cangit_address = 0xDAU, .cangie_address = 0xDBU, .canen1_address = 0xDDU, .canen2_address = 0xDCU, .canie1_address = 0xDFU, .canie2_address = 0xDEU, .cansit1_address = 0xE1U, .cansit2_address = 0xE0U, .canbt1_address = 0xE2U, .canbt2_address = 0xE3U, .canbt3_address = 0xE4U, .cantcon_address = 0xE5U,
+            .cantim_address = 0xE6U, .canttc_address = 0xE8U, .cantec_address = 0xEAU, .canrec_address = 0xEBU, .canhpmob_address = 0xECU, .canpage_address = 0xEDU, .canstmob_address = 0xEEU, .cancdmob_address = 0xEFU, .canidt_address = 0xF0U, .canidm_address = 0xF4U, .canstm_address = 0xEEU, .canmsg_address = 0xFAU,
+            .canit_vector_index = 0U,
+            .ovrit_vector_index = 0U,
+            .mob_count = 15U,
+            .pr_address = 0x64U, .pr_bit = 0x40U
+        } }},
+
     .port_count = 4U,
     .ports = {{
         { "PORTB", 0x23U, 0x24U, 0x25U },

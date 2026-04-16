@@ -122,6 +122,9 @@ inline constexpr DeviceDescriptor atmega4809 {
             .wdie_mask = 0x0U, .wde_mask = 0x0U
         } }},
 
+    .can_count = 0U,
+    .cans = {{  }},
+
     .port_count = 9U,
     .ports = {{
         { "PORT0", 0x4B0U, 0x0U, 0x0U },

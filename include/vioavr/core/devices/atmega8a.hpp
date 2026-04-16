@@ -146,6 +146,9 @@ inline constexpr DeviceDescriptor atmega8a {
             .wdie_mask = 0x0U, .wde_mask = 0x8U
         } }},
 
+    .can_count = 0U,
+    .cans = {{  }},
+
     .port_count = 3U,
     .ports = {{
         { "PORTB", 0x36U, 0x37U, 0x38U },

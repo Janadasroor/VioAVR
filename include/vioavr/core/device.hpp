@@ -187,6 +187,40 @@ struct WdtDescriptor {
     u8 wdce_mask {0x10U};
 };
 
+struct CanDescriptor {
+    u16 cangcon_address {};
+    u16 cangsta_address {};
+    u16 cangit_address {};
+    u16 cangie_address {};
+    u16 canen1_address {};
+    u16 canen2_address {};
+    u16 canie1_address {};
+    u16 canie2_address {};
+    u16 cansit1_address {};
+    u16 cansit2_address {};
+    u16 canbt1_address {};
+    u16 canbt2_address {};
+    u16 canbt3_address {};
+    u16 cantcon_address {};
+    u16 cantim_address {};  // 16-bit
+    u16 canttc_address {};  // 16-bit
+    u16 cantec_address {};
+    u16 canrec_address {};
+    u16 canhpmob_address {};
+    u16 canpage_address {};
+    u16 canstmob_address {};
+    u16 cancdmob_address {};
+    u16 canidt_address {}; // Base of CANIDT (usually CANIDT4)
+    u16 canidm_address {}; // Base of CANIDM (usually CANIDM4)
+    u16 canstm_address {};  // 16-bit
+    u16 canmsg_address {};
+    u8 canit_vector_index {};
+    u8 ovrit_vector_index {};
+    u8 mob_count {15U};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
 struct Timer16Descriptor {
     u16 tcnt_address {};
     u16 ocra_address {};
@@ -303,6 +337,9 @@ struct DeviceDescriptor {
 
     u8 wdt_count {0U};
     std::array<WdtDescriptor, 4> wdts {};
+
+    u8 can_count {0U};
+    std::array<CanDescriptor, 2> cans {};
 
     u16 fuse_address {0x0000U};
     u16 lockbit_address {0x0000U};
