@@ -26,7 +26,7 @@ struct DecodedInstruction {
 
 struct CpuSnapshot {
     std::array<u8, kRegisterFileSize> gpr {};
-    u16 program_counter {};
+    u32 program_counter {};
     u16 stack_pointer {};
     u8 sreg {};
     u64 cycles {};
@@ -73,7 +73,7 @@ public:
         return gpr_;
     }
 
-    [[nodiscard]] constexpr u16 program_counter() const noexcept
+    [[nodiscard]] constexpr u32 program_counter() const noexcept
     {
         return program_counter_;
     }
@@ -91,6 +91,26 @@ public:
     [[nodiscard]] constexpr u8 sreg() const noexcept
     {
         return sreg_;
+    }
+
+    [[nodiscard]] constexpr u8 rampz() const noexcept
+    {
+        return rampz_;
+    }
+
+    void set_rampz(u8 value) noexcept
+    {
+        rampz_ = value;
+    }
+
+    [[nodiscard]] constexpr u8 eind() const noexcept
+    {
+        return eind_;
+    }
+
+    void set_eind(u8 value) noexcept
+    {
+        eind_ = value;
     }
 
     [[nodiscard]] MemoryBus& bus() noexcept
@@ -143,10 +163,10 @@ private:
     [[nodiscard]] bool service_interrupt_if_needed();
     [[nodiscard]] u8 active_clock_domains() const noexcept;
 
-    [[nodiscard]] constexpr u16 interrupt_vector_word_address(u8 vector_index) const noexcept
+    [[nodiscard]] constexpr u32 interrupt_vector_word_address(u8 vector_index) const noexcept
     {
         // interrupt_vector_size is in bytes, convert to words
-        return static_cast<u16>(vector_index * (bus_->device().interrupt_vector_size / 2U));
+        return static_cast<u32>(vector_index * (bus_->device().interrupt_vector_size / 2U));
     }
     [[nodiscard]] constexpr bool flag(SregFlag flag_bit) const noexcept
     {
@@ -177,6 +197,9 @@ private:
     [[nodiscard]] u8 pop_byte() noexcept;
     void push_word(u16 value) noexcept;
     [[nodiscard]] u16 pop_word() noexcept;
+
+    void push_pc(u32 address) noexcept;
+    [[nodiscard]] u32 pop_pc() noexcept;
     void execute_load_indirect(u8 destination, u16 address, bool post_increment, u8 pointer_low_register) noexcept;
     void execute_store_indirect(u16 address, u8 source, bool post_increment, u8 pointer_low_register) noexcept;
     void execute_nop(const DecodedInstruction& instruction);
@@ -240,6 +263,11 @@ private:
     void execute_lpm(const DecodedInstruction& instruction);
     void execute_lpm_z(const DecodedInstruction& instruction);
     void execute_lpm_z_postinc(const DecodedInstruction& instruction);
+    void execute_elpm(const DecodedInstruction& instruction);
+    void execute_elpm_z(const DecodedInstruction& instruction);
+    void execute_elpm_z_postinc(const DecodedInstruction& instruction);
+    void execute_eicall(const DecodedInstruction& instruction);
+    void execute_eijmp(const DecodedInstruction& instruction);
     void execute_spm(const DecodedInstruction& instruction);
     void execute_lds(const DecodedInstruction& instruction);
     void execute_st_x(const DecodedInstruction& instruction);
@@ -288,9 +316,11 @@ private:
     std::unique_ptr<RegisterFile> register_file_;
     std::array<u16, 65536> fast_decode_table_ {};
     std::array<u8, kRegisterFileSize> gpr_ {};
-    u16 program_counter_ {};
+    u32 program_counter_ {};
     u16 stack_pointer_ {};
     u8 sreg_ {};
+    u8 rampz_ {};
+    u8 eind_ {};
     u64 cycles_ {};
     double cycle_accumulator_ {0.0};
     bool interrupt_pending_ {};

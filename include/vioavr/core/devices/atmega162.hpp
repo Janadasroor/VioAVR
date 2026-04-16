@@ -13,6 +13,8 @@ inline constexpr DeviceDescriptor atmega162 {
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
+    .rampz_address = 0x0U,
+    .eind_address = 0x0U,
     .spmcsr_address = 0x0U,
     .prr_address = 0x0U,
     .prr0_address = 0x0U,
@@ -110,23 +112,23 @@ inline constexpr DeviceDescriptor atmega162 {
 
     .uart_count = 2U,
     .uarts = {{ {
-            .udr_address = 0x2CU, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x29U, .ubrrh_address = 0x40U,
+            .udr_address = 0x2CU, .ucsra_address = 0x2BU, .ucsrb_address = 0x2AU, .ucsrc_address = 0x40U, .ubrrl_address = 0x40U, .ubrrh_address = 0x40U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
             .rx_vector_index = 19U,
             .udre_vector_index = 21U,
             .tx_vector_index = 23U,
-            .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
-            .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
+            .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
+            .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
             .pr_address = 0x0U, .pr_bit = 0xFFU
         },
         {
-            .udr_address = 0x23U, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x20U, .ubrrh_address = 0x5CU,
+            .udr_address = 0x23U, .ucsra_address = 0x22U, .ucsrb_address = 0x21U, .ucsrc_address = 0x5CU, .ubrrl_address = 0x5CU, .ubrrh_address = 0x5CU,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
             .rx_vector_index = 19U,
             .udre_vector_index = 21U,
             .tx_vector_index = 23U,
-            .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
-            .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
+            .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
+            .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
             .pr_address = 0x0U, .pr_bit = 0xFFU
         } }},
     

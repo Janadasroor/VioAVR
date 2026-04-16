@@ -131,13 +131,13 @@ def generate_header(data, output_dir):
         idx = "".join(filter(str.isdigit, p_name)) or "0"
         pr_addr, pr_bit = get_pr_info(data, f'PRUSART{idx}|PRUSART')
         return f"""{{
-            .udr_address = {hx(r('UDR')['offset'])}, .ucsra_address = {hx(r('UCSRA')['offset'])}, .ucsrb_address = {hx(r('UCSRB')['offset'])}, .ucsrc_address = {hx(r('UCSRC')['offset'])}, .ubrrl_address = {hx(r('UBRR.*L')['offset'])}, .ubrrh_address = {hx(r('UBRR.*H')['offset'])},
-            .ucsra_reset = {hx(r('UCSRA')['initval'])}, .ucsrb_reset = {hx(r('UCSRB')['initval'])}, .ucsrc_reset = {hx(r('UCSRC')['initval'])},
+            .udr_address = {hx(r(f'UDR{idx}|UDR')['offset'])}, .ucsra_address = {hx(r(f'UCSR{idx}A|UCSRA')['offset'])}, .ucsrb_address = {hx(r(f'UCSR{idx}B|UCSRB')['offset'])}, .ucsrc_address = {hx(r(f'UCSR{idx}C|UCSRC')['offset'])}, .ubrrl_address = {get_reg_addr(p_data, f'UBRR{idx}|UBRR')}, .ubrrh_address = {get_reg_addr(p_data, f'UBRR{idx}|UBRR', True)},
+            .ucsra_reset = {hx(r(f'UCSR{idx}A|UCSRA')['initval'])}, .ucsrb_reset = {hx(r(f'UCSR{idx}B|UCSRB')['initval'])}, .ucsrc_reset = {hx(r(f'UCSR{idx}C|UCSRC')['initval'])},
             .rx_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'RX' in (i.get('name') or i.get('caption') or '').upper() and (p_name in (i.get('name') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)}U,
             .udre_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'UDRE' in (i.get('name') or i.get('caption') or '').upper() and (p_name in (i.get('name') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)}U,
             .tx_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'TX' in (i.get('name') or i.get('caption') or '').upper() and (p_name in (i.get('name') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)}U,
-            .u2x_mask = {hx(b('UCSRA', 'U2X'))}, .rxc_mask = {hx(b('UCSRA', 'RXC'))}, .txc_mask = {hx(b('UCSRA', 'TXC'))}, .udre_mask = {hx(b('UCSRA', 'UDRE'))},
-            .rxen_mask = {hx(b('UCSRB', 'RXEN'))}, .txen_mask = {hx(b('UCSRB', 'TXEN'))}, .rxcie_mask = {hx(b('UCSRB', 'RXCIE'))}, .txcie_mask = {hx(b('UCSRB', 'TXCIE'))}, .udrie_mask = {hx(b('UCSRB', 'UDRIE'))},
+            .u2x_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'U2X'))}, .rxc_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'RXC'))}, .txc_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'TXC'))}, .udre_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'UDRE'))},
+            .rxen_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'RXEN'))}, .txen_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'TXEN'))}, .rxcie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'RXCIE'))}, .txcie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'TXCIE'))}, .udrie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'UDRIE'))},
             .pr_address = {pr_addr}, .pr_bit = {pr_bit}
         }}"""
 
@@ -151,19 +151,19 @@ def generate_header(data, output_dir):
         t1_a, t1_b = get_pad_info(port_map, p_data, 'TOSC1', 'PIN')
         t2_a, t2_b = get_pad_info(port_map, p_data, 'TOSC2', 'PIN')
         return f"""{{
-            .tcnt_address = {hx(r('TCNT')['offset'])}, .ocra_address = {hx(r('OCR.*A')['offset'])}, .ocrb_address = {hx(r('OCR.*B')['offset'])}, .tifr_address = {hx(r('TIFR')['offset'])}, .timsk_address = {hx(r('TIMSK')['offset'])}, .tccra_address = {hx(r('TCCR.*A')['offset'])}, .tccrb_address = {hx(r('TCCR.*B')['offset'])}, .assr_address = {hx(r('ASSR')['offset'])},
-            .tccra_reset = {hx(r('TCCR.*A')['initval'])}, .tccrb_reset = {hx(r('TCCR.*B')['initval'])}, .assr_reset = {hx(r('ASSR')['initval'])},
+            .tcnt_address = {hx(r(f'TCNT{idx}|TCNT')['offset'])}, .ocra_address = {hx(r(f'OCR{idx}A|OCR.*A')['offset'])}, .ocrb_address = {hx(r(f'OCR{idx}B|OCR.*B')['offset'])}, .tifr_address = {hx(r(f'TIFR{idx}|TIFR')['offset'])}, .timsk_address = {hx(r(f'TIMSK{idx}|TIMSK')['offset'])}, .tccra_address = {hx(r(f'TCCR{idx}A|TCCR.*A')['offset'])}, .tccrb_address = {hx(r(f'TCCR{idx}B|TCCR.*B')['offset'])}, .assr_address = {hx(r(f'ASSR{idx}|ASSR')['offset'])},
+            .tccra_reset = {hx(r(f'TCCR{idx}A|TCCR.*A')['initval'])}, .tccrb_reset = {hx(r(f'TCCR{idx}B|TCCR.*B')['initval'])}, .assr_reset = {hx(r(f'ASSR{idx}|ASSR')['initval'])},
             .compare_a_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('COMPA' in (i.get('name') or i.get('caption') or '').upper() or 'OCIE0A' in (i.get('name') or '').upper() or 'Compare Match A' in (i.get('caption') or ''))), 0)}U,
             .compare_b_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('COMPB' in (i.get('name') or i.get('caption') or '').upper() or 'OCIE0B' in (i.get('name') or '').upper() or 'Compare Match B' in (i.get('caption') or ''))), 0)}U,
             .overflow_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('OVF' in (i.get('name') or i.get('caption') or '').upper() or 'Overflow' in (i.get('caption') or ''))), 0)}U,
             .ocra_pin_address = {pa_a}, .ocra_pin_bit = {pa_b}U, .ocrb_pin_address = {pb_a}, .ocrb_pin_bit = {pb_b}U,
             .t_pin_address = {t_a}, .t_pin_bit = {t_b}U,
             .tosc1_pin_address = {t1_a}, .tosc1_pin_bit = {t1_b}U, .tosc2_pin_address = {t2_a}, .tosc2_pin_bit = {t2_b}U,
-            .wgm0_mask = {hx(b('TCCR.*A', 'WGM.*0'))}, .wgm2_mask = {hx(b('TCCR.*B', 'WGM.*2'))}, .cs_mask = {hx(b('TCCR.*B', 'CS'))},
-            .as2_mask = {hx(b('ASSR', 'AS2'))}, .tcn2ub_mask = {hx(b('ASSR', 'TCN2UB'))},
-            .compare_a_enable_mask = {hx(b('TIMSK', 'OCIEA') or b('TIMSK0', 'OCIE0A') or b('TIMSK2', 'OCIE2A'))},
-            .compare_b_enable_mask = {hx(b('TIMSK', 'OCIEB') or b('TIMSK0', 'OCIE0B') or b('TIMSK2', 'OCIE2B'))},
-            .overflow_enable_mask = {hx(b('TIMSK', 'TOIE') or b('TIMSK0', 'TOIE0') or b('TIMSK2', 'TOIE2'))},
+            .wgm0_mask = {hx(b(f'TCCR{idx}A|TCCR.*A', 'WGM.*0'))}, .wgm2_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'WGM.*2'))}, .cs_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'CS'))},
+            .as2_mask = {hx(b(f'ASSR{idx}|ASSR', 'AS2'))}, .tcn2ub_mask = {hx(b(f'ASSR{idx}|ASSR', 'TCN2UB'))},
+            .compare_a_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'OCIEA') or b(f'TIMSK{idx}|TIMSK', f'OCIE{idx}A') or b('TIMSK', 'OCIEA'))},
+            .compare_b_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'OCIEB') or b(f'TIMSK{idx}|TIMSK', f'OCIE{idx}B') or b('TIMSK', 'OCIEB'))},
+            .overflow_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'TOIE') or b(f'TIMSK{idx}|TIMSK', f'TOIE{idx}') or b('TIMSK', 'TOIE'))},
             .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]}
         }}"""
     
@@ -315,6 +315,8 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .spl_address = {get_reg_addr(cpu, 'SPL|SP')},
     .sph_address = {get_reg_addr(cpu, 'SPH|SP', True)},
     .sreg_address = {get_reg_addr(cpu, 'SREG')},
+    .rampz_address = {get_reg_addr(cpu, 'RAMPZ')},
+    .eind_address = {get_reg_addr(cpu, 'EIND')},
     .spmcsr_address = {get_reg_addr(cpu, 'SPMCSR|SPMCR')},
     .prr_address = {get_reg_addr(cpu, 'PRR')},
     .prr0_address = {get_reg_addr(cpu, 'PRR0')},

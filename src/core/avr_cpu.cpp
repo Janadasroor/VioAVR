@@ -45,7 +45,7 @@ void AvrCpu::reset() noexcept
 {
     Logger::info("Resetting AVR CPU");
     gpr_.fill(0U);
-    program_counter_ = bus_ != nullptr ? static_cast<u16>(bus_->reset_word_address()) : 0U;
+    program_counter_ = bus_ != nullptr ? bus_->reset_word_address() : 0U;
     stack_pointer_ = bus_ != nullptr ? bus_->device().sram_range().end : 0U;
     write_sreg(0U);
     cycles_ = 0U;
@@ -256,8 +256,11 @@ std::span<const AvrCpu::InstructionDescriptor> AvrCpu::instruction_table() noexc
         {0xFE0FU, 0x9002U, "LD -Z", &AvrCpu::execute_ld_z_predec},
         {0xD208U, 0x8000U, "LDD Z+q", &AvrCpu::execute_ldd_z},
         {0xFFFFU, 0x95C8U, "LPM", &AvrCpu::execute_lpm},
+        {0xFFFFU, 0x95D8U, "ELPM", &AvrCpu::execute_elpm},
         {0xFE0FU, 0x9004U, "LPM Z", &AvrCpu::execute_lpm_z},
+        {0xFE0FU, 0x9006U, "ELPM Z", &AvrCpu::execute_elpm_z},
         {0xFE0FU, 0x9005U, "LPM Z+", &AvrCpu::execute_lpm_z_postinc},
+        {0xFE0FU, 0x9007U, "ELPM Z+", &AvrCpu::execute_elpm_z_postinc},
         {0xFFFFU, 0x95E8U, "SPM", &AvrCpu::execute_spm},
         {0xFE0FU, 0x9000U, "LDS", &AvrCpu::execute_lds},
         {0xFE0FU, 0x920CU, "ST X", &AvrCpu::execute_st_x},
@@ -279,7 +282,9 @@ std::span<const AvrCpu::InstructionDescriptor> AvrCpu::instruction_table() noexc
         {0xFFFFU, 0x9409U, "IJMP", &AvrCpu::execute_ijmp},
         {0xFE0EU, 0x940EU, "CALL", &AvrCpu::execute_call},
         {0xFE0EU, 0x940CU, "JMP", &AvrCpu::execute_jmp},
+        {0xFFFFU, 0x9419U, "EIJMP", &AvrCpu::execute_eijmp},
         {0xFFFFU, 0x9509U, "ICALL", &AvrCpu::execute_icall},
+        {0xFFFFU, 0x9519U, "EICALL", &AvrCpu::execute_eicall},
         {0xFFFFU, 0x9508U, "RET", &AvrCpu::execute_ret},
         {0xFFFFU, 0x9518U, "RETI", &AvrCpu::execute_reti},
         {0xFFFFU, 0x9588U, "SLEEP", &AvrCpu::execute_sleep},
@@ -529,7 +534,7 @@ bool AvrCpu::service_interrupt_if_needed()
         trace_hook_->on_interrupt(request.vector_index);
     }
 
-    push_word(program_counter_);
+    push_pc(program_counter_);
     set_flag(SregFlag::interrupt, false);
     program_counter_ = interrupt_vector_word_address(request.vector_index);
     interrupt_pending_ = false;
@@ -663,15 +668,38 @@ u8 AvrCpu::pop_byte() noexcept
 
 void AvrCpu::push_word(const u16 value) noexcept
 {
-    push_byte(static_cast<u8>(value & 0x00FFU));
-    push_byte(static_cast<u8>((value >> 8U) & 0x00FFU));
+    push_byte(static_cast<u8>(value & 0xFFU));
+    push_byte(static_cast<u8>((value >> 8U) & 0xFFU));
 }
 
 u16 AvrCpu::pop_word() noexcept
 {
-    const u8 high = pop_byte();
-    const u8 low = pop_byte();
-    return static_cast<u16>(low | (static_cast<u16>(high) << 8U));
+    u16 value = static_cast<u16>(pop_byte()) << 8U;
+    value |= static_cast<u16>(pop_byte());
+    return value;
+}
+
+void AvrCpu::push_pc(u32 address) noexcept
+{
+    push_byte(static_cast<u8>(address & 0xFFU));
+    push_byte(static_cast<u8>((address >> 8U) & 0xFFU));
+    if (bus_->device().flash_words > 65536) {
+        push_byte(static_cast<u8>((address >> 16U) & 0xFFU));
+    }
+}
+
+u32 AvrCpu::pop_pc() noexcept
+{
+    u32 address = 0;
+    if (bus_->device().flash_words > 65536) {
+        address = static_cast<u32>(pop_byte()) << 16U;
+        address |= static_cast<u32>(pop_byte()) << 8U;
+        address |= static_cast<u32>(pop_byte());
+    } else {
+        address = static_cast<u32>(pop_byte()) << 8U;
+        address |= static_cast<u32>(pop_byte());
+    }
+    return address;
 }
 
 void AvrCpu::execute_load_indirect(const u8 destination,
@@ -712,7 +740,7 @@ void AvrCpu::execute_store_indirect(const u16 address,
 
 void AvrCpu::execute_nop(const DecodedInstruction& instruction)
 {
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -721,7 +749,7 @@ void AvrCpu::execute_ldi(const DecodedInstruction& instruction)
     const u8 destination = static_cast<u8>(16U + ((instruction.opcode >> 4U) & 0x0FU));
     const u8 immediate = static_cast<u8>(((instruction.opcode >> 4U) & 0xF0U) | (instruction.opcode & 0x0FU));
     write_register(destination, immediate);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -730,7 +758,7 @@ void AvrCpu::execute_movw(const DecodedInstruction& instruction)
     const u8 destination_low = static_cast<u8>(((instruction.opcode >> 4U) & 0x0FU) * 2U);
     const u8 source_low = static_cast<u8>((instruction.opcode & 0x0FU) * 2U);
     write_register_pair(destination_low, read_register_pair(source_low));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -739,7 +767,7 @@ void AvrCpu::execute_mov(const DecodedInstruction& instruction)
     const u8 destination = decode_destination_register(instruction.opcode);
     const u8 source = decode_source_register(instruction.opcode);
     write_register(destination, gpr_[source]);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -752,7 +780,7 @@ void AvrCpu::execute_mul(const DecodedInstruction& instruction)
     write_register(1U, static_cast<u8>((product >> 8U) & 0x00FFU));
     set_flag(SregFlag::zero, product == 0U);
     set_flag(SregFlag::carry, (product & 0x8000U) != 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -767,7 +795,7 @@ void AvrCpu::execute_muls(const DecodedInstruction& instruction)
     write_register(1U, static_cast<u8>((product >> 8U) & 0x00FFU));
     set_flag(SregFlag::zero, product == 0U);
     set_flag(SregFlag::carry, (product & 0x8000U) != 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -782,7 +810,7 @@ void AvrCpu::execute_mulsu(const DecodedInstruction& instruction)
     write_register(1U, static_cast<u8>((product >> 8U) & 0x00FFU));
     set_flag(SregFlag::zero, product == 0U);
     set_flag(SregFlag::carry, (product & 0x8000U) != 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -796,7 +824,7 @@ void AvrCpu::execute_fmul(const DecodedInstruction& instruction)
     write_register(1U, static_cast<u8>((result >> 8U) & 0x00FFU));
     set_flag(SregFlag::zero, result == 0U);
     set_flag(SregFlag::carry, (product & 0x8000U) != 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -812,7 +840,7 @@ void AvrCpu::execute_fmuls(const DecodedInstruction& instruction)
     write_register(1U, static_cast<u8>((result >> 8U) & 0x00FFU));
     set_flag(SregFlag::zero, result == 0U);
     set_flag(SregFlag::carry, (product & 0x8000U) != 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -828,7 +856,7 @@ void AvrCpu::execute_fmulsu(const DecodedInstruction& instruction)
     write_register(1U, static_cast<u8>((result >> 8U) & 0x00FFU));
     set_flag(SregFlag::zero, result == 0U);
     set_flag(SregFlag::carry, (product & 0x8000U) != 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -842,7 +870,7 @@ void AvrCpu::execute_com(const DecodedInstruction& instruction)
     set_flag(SregFlag::overflow, false);
     set_flag(SregFlag::sign, flag(SregFlag::negative) != flag(SregFlag::overflow));
     set_flag(SregFlag::carry, true);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -853,7 +881,7 @@ void AvrCpu::execute_neg(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(0U - lhs);
     write_register(destination, result);
     update_sub_flags(0U, lhs, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -862,7 +890,7 @@ void AvrCpu::execute_swap(const DecodedInstruction& instruction)
     const u8 destination = decode_destination_register(instruction.opcode);
     const u8 value = gpr_[destination];
     write_register(destination, static_cast<u8>((value << 4U) | (value >> 4U)));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -876,7 +904,7 @@ void AvrCpu::execute_adiw(const DecodedInstruction& instruction)
     const u16 result = static_cast<u16>(lhs + immediate);
     write_register_pair(low_register, result);
     update_adiw_flags(lhs, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -889,7 +917,7 @@ void AvrCpu::execute_add(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(lhs + rhs);
     write_register(destination, result);
     update_add_flags(lhs, rhs, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -905,7 +933,7 @@ void AvrCpu::execute_adc(const DecodedInstruction& instruction)
     const bool prev_zero = flag(SregFlag::zero);
     update_add_flags(lhs, rhs, result, carry_in);
     set_flag(SregFlag::zero, prev_zero && result == 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -918,7 +946,7 @@ void AvrCpu::execute_inc(const DecodedInstruction& instruction)
     set_flag(SregFlag::zero, result == 0U);
     set_flag(SregFlag::overflow, result == 0x80U);
     set_flag(SregFlag::sign, flag(SregFlag::negative) != flag(SregFlag::overflow));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -934,7 +962,7 @@ void AvrCpu::execute_asr(const DecodedInstruction& instruction)
     set_flag(SregFlag::carry, carry_out);
     set_flag(SregFlag::overflow, flag(SregFlag::negative) != flag(SregFlag::carry));
     set_flag(SregFlag::sign, flag(SregFlag::negative) != flag(SregFlag::overflow));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -949,7 +977,7 @@ void AvrCpu::execute_lsr(const DecodedInstruction& instruction)
     set_flag(SregFlag::carry, carry_out);
     set_flag(SregFlag::overflow, flag(SregFlag::negative) != flag(SregFlag::carry));
     set_flag(SregFlag::sign, flag(SregFlag::negative) != flag(SregFlag::overflow));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -965,7 +993,7 @@ void AvrCpu::execute_ror(const DecodedInstruction& instruction)
     set_flag(SregFlag::carry, carry_out);
     set_flag(SregFlag::overflow, flag(SregFlag::negative) != flag(SregFlag::carry));
     set_flag(SregFlag::sign, flag(SregFlag::negative) != flag(SregFlag::overflow));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -981,7 +1009,7 @@ void AvrCpu::execute_sbc(const DecodedInstruction& instruction)
     const bool prev_zero = flag(SregFlag::zero);
     update_sub_flags(lhs, rhs, result, carry_in);
     set_flag(SregFlag::zero, prev_zero && result == 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -996,7 +1024,7 @@ void AvrCpu::execute_sbci(const DecodedInstruction& instruction)
     const bool prev_zero = flag(SregFlag::zero);
     update_sub_flags(lhs, immediate, result, carry_in);
     set_flag(SregFlag::zero, prev_zero && result == 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1009,7 +1037,7 @@ void AvrCpu::execute_sub(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(lhs - rhs);
     write_register(destination, result);
     update_sub_flags(lhs, rhs, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1022,7 +1050,7 @@ void AvrCpu::execute_dec(const DecodedInstruction& instruction)
     set_flag(SregFlag::zero, result == 0U);
     set_flag(SregFlag::overflow, result == 0x7FU);
     set_flag(SregFlag::sign, flag(SregFlag::negative) != flag(SregFlag::overflow));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1036,7 +1064,7 @@ void AvrCpu::execute_sbiw(const DecodedInstruction& instruction)
     const u16 result = static_cast<u16>(lhs - immediate);
     write_register_pair(low_register, result);
     update_sbiw_flags(lhs, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -1047,7 +1075,7 @@ void AvrCpu::execute_cpi(const DecodedInstruction& instruction)
     const u8 lhs = gpr_[destination];
     const u8 result = static_cast<u8>(lhs - immediate);
     update_sub_flags(lhs, immediate, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1059,7 +1087,7 @@ void AvrCpu::execute_cp(const DecodedInstruction& instruction)
     const u8 rhs = gpr_[source];
     const u8 result = static_cast<u8>(lhs - rhs);
     update_sub_flags(lhs, rhs, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1074,7 +1102,7 @@ void AvrCpu::execute_cpc(const DecodedInstruction& instruction)
     const bool prev_zero = flag(SregFlag::zero);
     update_sub_flags(lhs, rhs, result, carry_in);
     set_flag(SregFlag::zero, prev_zero && result == 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1086,12 +1114,12 @@ void AvrCpu::execute_cpse(const DecodedInstruction& instruction)
     if (equal) {
         const u16 next_opcode = bus_ != nullptr ? bus_->read_program_word(instruction.word_address + 1U) : 0U;
         const u8 skip_words = classify_word_size(next_opcode);
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U + skip_words);
+        program_counter_ = instruction.word_address + 1U + skip_words;
         advance_cycles(skip_words == 2U ? 3U : 2U);
         return;
     }
 
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1103,12 +1131,12 @@ void AvrCpu::execute_sbrc(const DecodedInstruction& instruction)
     if (bit_is_clear) {
         const u16 next_opcode = bus_ != nullptr ? bus_->read_program_word(instruction.word_address + 1U) : 0U;
         const u8 skip_words = classify_word_size(next_opcode);
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U + skip_words);
+        program_counter_ = instruction.word_address + 1U + skip_words;
         advance_cycles(skip_words == 2U ? 3U : 2U);
         return;
     }
 
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1120,12 +1148,12 @@ void AvrCpu::execute_sbrs(const DecodedInstruction& instruction)
     if (bit_is_set) {
         const u16 next_opcode = bus_ != nullptr ? bus_->read_program_word(instruction.word_address + 1U) : 0U;
         const u8 skip_words = classify_word_size(next_opcode);
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U + skip_words);
+        program_counter_ = instruction.word_address + 1U + skip_words;
         advance_cycles(skip_words == 2U ? 3U : 2U);
         return;
     }
 
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1134,7 +1162,7 @@ void AvrCpu::execute_bst(const DecodedInstruction& instruction)
     const u8 destination = decode_destination_register(instruction.opcode);
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     set_flag(SregFlag::transfer, (gpr_[destination] & (1U << bit_index)) != 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1148,7 +1176,7 @@ void AvrCpu::execute_bld(const DecodedInstruction& instruction)
     } else {
         write_register(destination, static_cast<u8>(gpr_[destination] & static_cast<u8>(~mask)));
     }
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1157,7 +1185,7 @@ void AvrCpu::execute_tst(const DecodedInstruction& instruction)
     const u8 destination = decode_destination_register(instruction.opcode);
     const u8 result = gpr_[destination];
     update_logic_flags(result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1165,7 +1193,7 @@ void AvrCpu::execute_ser(const DecodedInstruction& instruction)
 {
     const u8 destination = static_cast<u8>(16U + ((instruction.opcode >> 4U) & 0x0FU));
     write_register(destination, 0xFFU);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1177,7 +1205,7 @@ void AvrCpu::execute_subi(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(lhs - immediate);
     write_register(destination, result);
     update_sub_flags(lhs, immediate, result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1188,7 +1216,7 @@ void AvrCpu::execute_andi(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(gpr_[destination] & immediate);
     write_register(destination, result);
     update_logic_flags(result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1199,7 +1227,7 @@ void AvrCpu::execute_and(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(gpr_[destination] & gpr_[source]);
     write_register(destination, result);
     update_logic_flags(result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1210,7 +1238,7 @@ void AvrCpu::execute_or(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(gpr_[destination] | gpr_[source]);
     write_register(destination, result);
     update_logic_flags(result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1221,7 +1249,7 @@ void AvrCpu::execute_ori(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(gpr_[destination] | immediate);
     write_register(destination, result);
     update_logic_flags(result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1232,7 +1260,7 @@ void AvrCpu::execute_eor(const DecodedInstruction& instruction)
     const u8 result = static_cast<u8>(gpr_[destination] ^ gpr_[source]);
     write_register(destination, result);
     update_logic_flags(result);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1265,7 +1293,7 @@ void AvrCpu::execute_sbic(const DecodedInstruction& instruction)
     const bool bit_is_clear = (bus_->read_data(address) & (1U << bit_index)) == 0U;
     if (bit_is_clear) {
         const u8 skip_words = classify_word_size(bus_->read_program_word(instruction.word_address + 1U));
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U + skip_words);
+        program_counter_ = instruction.word_address + 1U + skip_words;
         advance_cycles(skip_words == 2U ? 3U : 2U);
         return;
     }
@@ -1303,7 +1331,7 @@ void AvrCpu::execute_sbis(const DecodedInstruction& instruction)
     const bool bit_is_set = (bus_->read_data(address) & (1U << bit_index)) != 0U;
     if (bit_is_set) {
         const u8 skip_words = classify_word_size(bus_->read_program_word(instruction.word_address + 1U));
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U + skip_words);
+        program_counter_ = instruction.word_address + 1U + skip_words;
         advance_cycles(skip_words == 2U ? 3U : 2U);
         return;
     }
@@ -1412,7 +1440,7 @@ void AvrCpu::execute_lpm(const DecodedInstruction& instruction)
     }
 
     write_register(0U, bus_->read_program_byte(z_pointer()));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
 }
 
@@ -1424,7 +1452,7 @@ void AvrCpu::execute_lpm_z(const DecodedInstruction& instruction)
     }
 
     write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(z_pointer()));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
 }
 
@@ -1438,7 +1466,48 @@ void AvrCpu::execute_lpm_z_postinc(const DecodedInstruction& instruction)
     const u16 address = z_pointer();
     write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(address));
     set_z_pointer(static_cast<u16>(address + 1U));
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
+    advance_cycles(3U);
+}
+
+void AvrCpu::execute_elpm(const DecodedInstruction& instruction)
+{
+    if (bus_ == nullptr) {
+        state_ = CpuState::halted;
+        return;
+    }
+
+    const u32 addr = (static_cast<u32>(rampz_) << 16U) | z_pointer();
+    write_register(0U, bus_->read_program_byte(addr));
+    program_counter_ = instruction.word_address + 1U;
+    advance_cycles(3U);
+}
+
+void AvrCpu::execute_elpm_z(const DecodedInstruction& instruction)
+{
+    if (bus_ == nullptr) {
+        state_ = CpuState::halted;
+        return;
+    }
+
+    const u32 addr = (static_cast<u32>(rampz_) << 16U) | z_pointer();
+    write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(addr));
+    program_counter_ = instruction.word_address + 1U;
+    advance_cycles(3U);
+}
+
+void AvrCpu::execute_elpm_z_postinc(const DecodedInstruction& instruction)
+{
+    if (bus_ == nullptr) {
+        state_ = CpuState::halted;
+        return;
+    }
+
+    const u32 addr = (static_cast<u32>(rampz_) << 16U) | z_pointer();
+    const u8 destination = decode_destination_register(instruction.opcode);
+    write_register(destination, bus_->read_program_byte(addr));
+    write_register_pair(30U, static_cast<u16>(z_pointer() + 1U));
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
 }
 
@@ -1448,7 +1517,7 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     const u16 spmcsr_addr = bus_->device().spmcsr_address;
     if (spmcsr_addr == 0U) {
         advance_cycles(1U);
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+        program_counter_ = instruction.word_address + 1U;
         return;
     }
 
@@ -1457,7 +1526,7 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     
     if (!spmen || spm_lock_timeout_ == 0U) {
         advance_cycles(1U);
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+        program_counter_ = instruction.word_address + 1U;
         return;
     }
 
@@ -1468,7 +1537,7 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     if (rwwsb && !rwwsre) {
         write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xFEU)); // Clear SPMEN
         advance_cycles(1U);
-        program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+        program_counter_ = instruction.word_address + 1U;
         return;
     }
 
@@ -1515,13 +1584,13 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     spm_lock_timeout_ = 0U;
     
     // PC advancement
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
 }
 
 void AvrCpu::execute_lds(const DecodedInstruction& instruction)
 {
     execute_load_indirect(decode_destination_register(instruction.opcode), instruction.words[1], false, 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 2U);
+    program_counter_ = instruction.word_address + 2U;
 }
 
 void AvrCpu::execute_st_x(const DecodedInstruction& instruction)
@@ -1591,7 +1660,7 @@ void AvrCpu::execute_sts(const DecodedInstruction& instruction)
 {
     // STS is 2 words. execute_store_indirect increments PC by 1.
     execute_store_indirect(instruction.words[1], decode_destination_register(instruction.opcode), false, 0U);
-    program_counter_ = static_cast<u16>(instruction.word_address + 2U);
+    program_counter_ = instruction.word_address + 2U;
 }
 
 void AvrCpu::execute_rcall(const DecodedInstruction& instruction)
@@ -1600,8 +1669,8 @@ void AvrCpu::execute_rcall(const DecodedInstruction& instruction)
     if ((displacement & 0x0800) != 0) {
         displacement -= 0x1000;
     }
-    push_word(static_cast<u16>(instruction.word_address + 1U));
-    program_counter_ = static_cast<u16>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+    push_pc(instruction.word_address + 1U);
+    program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
     advance_cycles(3U);
 }
 
@@ -1612,14 +1681,21 @@ void AvrCpu::execute_rjmp(const DecodedInstruction& instruction)
         displacement -= 0x1000;
     }
     program_counter_ =
-        static_cast<u16>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+        static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
     advance_cycles(2U);
 }
 
 void AvrCpu::execute_ijmp(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    program_counter_ = z_pointer();
+    program_counter_ = static_cast<u32>(z_pointer());
+    advance_cycles(2U);
+}
+
+void AvrCpu::execute_eijmp(const DecodedInstruction& instruction)
+{
+    (void)instruction;
+    program_counter_ = (static_cast<u32>(eind_) << 16U) | z_pointer();
     advance_cycles(2U);
 }
 
@@ -1628,7 +1704,7 @@ void AvrCpu::execute_jmp(const DecodedInstruction& instruction)
     const u32 target = (((static_cast<u32>(instruction.opcode) & 0x01F0U) << 13U) |
                         ((static_cast<u32>(instruction.opcode) & 0x0001U) << 16U) |
                         instruction.words[1]);
-    program_counter_ = static_cast<u16>(target);
+    program_counter_ = target;
     advance_cycles(3U);
 }
 
@@ -1636,7 +1712,7 @@ void AvrCpu::execute_push(const DecodedInstruction& instruction)
 {
     const u8 source = decode_destination_register(instruction.opcode);
     push_byte(gpr_[source]);
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
@@ -1644,15 +1720,22 @@ void AvrCpu::execute_pop(const DecodedInstruction& instruction)
 {
     const u8 destination = decode_destination_register(instruction.opcode);
     write_register(destination, pop_byte());
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(2U);
 }
 
 void AvrCpu::execute_icall(const DecodedInstruction& instruction)
 {
-    push_word(static_cast<u16>(instruction.word_address + 1U));
-    program_counter_ = z_pointer();
+    push_pc(instruction.word_address + 1U);
+    program_counter_ = static_cast<u32>(z_pointer());
     advance_cycles(3U);
+}
+
+void AvrCpu::execute_eicall(const DecodedInstruction& instruction)
+{
+    push_pc(instruction.word_address + 1U);
+    program_counter_ = (static_cast<u32>(eind_) << 16U) | z_pointer();
+    advance_cycles(4U);
 }
 
 void AvrCpu::execute_call(const DecodedInstruction& instruction)
@@ -1660,22 +1743,22 @@ void AvrCpu::execute_call(const DecodedInstruction& instruction)
     const u32 target = (((static_cast<u32>(instruction.opcode) & 0x01F0U) << 13U) |
                         ((static_cast<u32>(instruction.opcode) & 0x0001U) << 16U) |
                         instruction.words[1]);
-    push_word(static_cast<u16>(instruction.word_address + instruction.word_size));
-    program_counter_ = static_cast<u16>(target);
+    push_pc(instruction.word_address + instruction.word_size);
+    program_counter_ = target;
     advance_cycles(4U);
 }
 
 void AvrCpu::execute_ret(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    program_counter_ = pop_word();
+    program_counter_ = pop_pc();
     advance_cycles(4U);
 }
 
 void AvrCpu::execute_reti(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    program_counter_ = pop_word();
+    program_counter_ = pop_pc();
     set_flag(SregFlag::interrupt, true);
     if (interrupt_depth_ != 0U) {
         --interrupt_depth_;
@@ -1791,12 +1874,12 @@ void AvrCpu::execute_brbc(const DecodedInstruction& instruction)
     const bool taken = !flag(decode_branch_sreg_bit(instruction.opcode));
     if (taken) {
         const i32 displacement = decode_relative_offset(instruction.opcode, 7U);
-        program_counter_ = static_cast<u16>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+        program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
         advance_cycles(2U);
         return;
     }
 
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
@@ -1805,12 +1888,12 @@ void AvrCpu::execute_brbs(const DecodedInstruction& instruction)
     const bool taken = flag(decode_branch_sreg_bit(instruction.opcode));
     if (taken) {
         const i32 displacement = decode_relative_offset(instruction.opcode, 7U);
-        program_counter_ = static_cast<u16>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+        program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
         advance_cycles(2U);
         return;
     }
 
-    program_counter_ = static_cast<u16>(instruction.word_address + 1U);
+    program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
 
