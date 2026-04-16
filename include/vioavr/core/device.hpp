@@ -225,6 +225,7 @@ struct Timer16Descriptor {
     u16 tcnt_address {};
     u16 ocra_address {};
     u16 ocrb_address {};
+    u16 ocrc_address {};
     u16 icr_address {};
     u16 tifr_address {};
     u16 timsk_address {};
@@ -237,11 +238,14 @@ struct Timer16Descriptor {
     u8 capture_vector_index {};
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
+    u8 compare_c_vector_index {};
     u8 overflow_vector_index {};
     u16 ocra_pin_address {};
     u8 ocra_pin_bit {};
     u16 ocrb_pin_address {};
     u8 ocrb_pin_bit {};
+    u16 ocrc_pin_address {};
+    u8 ocrc_pin_bit {};
     u16 icp_pin_address {};
     u8 icp_pin_bit {};
     u16 t_pin_address {};
@@ -289,6 +293,8 @@ struct DeviceDescriptor {
     u16 prr1_address {};
     u16 smcr_address {};
     u16 mcusr_address {};
+    u16 xmcra_address {};
+    u16 xmcrb_address {};
     u8 pradc_bit {0xFFU};
     u8 prusart0_bit {0xFFU};
     u8 prspi_bit {0xFFU};

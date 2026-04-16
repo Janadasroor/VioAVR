@@ -32,6 +32,7 @@ public:
     void connect_input_capture(GpioPort& port, u8 bit) noexcept;
     void connect_compare_output_a(GpioPort& port, u8 bit) noexcept;
     void connect_compare_output_b(GpioPort& port, u8 bit) noexcept;
+    void connect_compare_output_c(GpioPort& port, u8 bit) noexcept;
 
     [[nodiscard]] constexpr u16 counter() const noexcept { return tcnt_; }
     [[nodiscard]] constexpr u16 input_capture() const noexcept { return icr_; }
@@ -65,6 +66,7 @@ private:
     void perform_tick() noexcept;
     void handle_compare_match_a() noexcept;
     void handle_compare_match_b() noexcept;
+    void handle_compare_match_c() noexcept;
     void handle_matches() noexcept;
     void handle_overflow() noexcept;
     void handle_input_capture() noexcept;
@@ -73,15 +75,17 @@ private:
     void apply_pin_action(std::optional<BoundPin> pin, PinAction action) noexcept;
     [[nodiscard]] PinAction get_pin_action_a() const noexcept;
     [[nodiscard]] PinAction get_pin_action_b() const noexcept;
+    [[nodiscard]] PinAction get_pin_action_c() const noexcept;
 
     std::string_view name_;
     Timer16Descriptor desc_;
-    std::array<AddressRange, 4> ranges_ {};
+    std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {};
 
     u16 tcnt_ {};
     u16 ocra_ {};
     u16 ocrb_ {};
+    u16 ocrc_ {};
     u16 icr_ {};
     u8 tccra_ {};
     u8 tccrb_ {};
@@ -95,6 +99,7 @@ private:
     
     std::optional<BoundPin> pin_a_;
     std::optional<BoundPin> pin_b_;
+    std::optional<BoundPin> pin_c_;
     std::optional<BoundPin> pin_icp_;
     u8 last_icp_state_ {0};
     u8 last_t1_state_ {0};

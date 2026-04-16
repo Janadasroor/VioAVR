@@ -174,16 +174,18 @@ def generate_header(data, output_dir):
         idx = "".join(filter(str.isdigit, p_name)) or "1"
         pa_a, pa_b = get_pad_info(port_map, p_data, f'OC{idx}A', 'PORT')
         pb_a, pb_b = get_pad_info(port_map, p_data, f'OC{idx}B', 'PORT')
+        pc_a, pc_b = get_pad_info(port_map, p_data, f'OC{idx}C', 'PORT')
         t_a, t_b = get_pad_info(port_map, p_data, f'T{idx}', 'PIN')
         ic_a, ic_b = get_pad_info(port_map, p_data, f'ICP{idx}', 'PIN')
         return f"""{{
-            .tcnt_address = {hx(r('TCNT.*L?')['offset'])}, .ocra_address = {hx(r('OCR.*AL?')['offset'])}, .ocrb_address = {hx(r('OCR.*BL?')['offset'])}, .icr_address = {hx(r('ICR.*L?')['offset'])}, .tifr_address = {hx(r('TIFR')['offset'])}, .timsk_address = {hx(r('TIMSK')['offset'])}, .tccra_address = {hx(r('TCCR.*A')['offset'])}, .tccrb_address = {hx(r('TCCR.*B')['offset'])}, .tccrc_address = {hx(r('TCCR.*C')['offset'])},
+            .tcnt_address = {hx(r('TCNT.*L?')['offset'])}, .ocra_address = {hx(r('OCR.*AL?')['offset'])}, .ocrb_address = {hx(r('OCR.*BL?')['offset'])}, .ocrc_address = {hx(r('OCR.*CL?')['offset'])}, .icr_address = {hx(r('ICR.*L?')['offset'])}, .tifr_address = {hx(r('TIFR')['offset'])}, .timsk_address = {hx(r('TIMSK')['offset'])}, .tccra_address = {hx(r('TCCR.*A')['offset'])}, .tccrb_address = {hx(r('TCCR.*B')['offset'])}, .tccrc_address = {hx(r('TCCR.*C')['offset'])},
             .tccra_reset = {hx(r('TCCR.*A')['initval'])}, .tccrb_reset = {hx(r('TCCR.*B')['initval'])}, .tccrc_reset = {hx(r('TCCR.*C')['initval'])},
             .capture_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('CAPT' in (i.get('name') or i.get('caption') or '').upper() or 'Capture' in (i.get('caption') or ''))), 0)}U,
             .compare_a_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('COMPA' in (i.get('name') or i.get('caption') or '').upper() or 'OC' in (i.get('name') or '').upper() and 'A' in (i.get('name') or '').upper() or 'Compare Match A' in (i.get('caption') or ''))), 0)}U,
             .compare_b_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('COMPB' in (i.get('name') or i.get('caption') or '').upper() or 'OC' in (i.get('name') or '').upper() and 'B' in (i.get('name') or '').upper() or 'Compare Match B' in (i.get('caption') or ''))), 0)}U,
+            .compare_c_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('COMPC' in (i.get('name') or i.get('caption') or '').upper() or 'OC' in (i.get('name') or '').upper() and 'C' in (i.get('name') or '').upper() or 'Compare Match C' in (i.get('caption') or ''))), 0)}U,
             .overflow_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('OVF' in (i.get('name') or i.get('caption') or '').upper() or 'Overflow' in (i.get('caption') or ''))), 0)}U,
-            .ocra_pin_address = {pa_a}, .ocra_pin_bit = {pa_b}U, .ocrb_pin_address = {pb_a}, .ocrb_pin_bit = {pb_b}U,
+            .ocra_pin_address = {pa_a}, .ocra_pin_bit = {pa_b}U, .ocrb_pin_address = {pb_a}, .ocrb_pin_bit = {pb_b}U, .ocrc_pin_address = {pc_a}, .ocrc_pin_bit = {pc_b}U,
             .icp_pin_address = {ic_a}, .icp_pin_bit = {ic_b}U,
             .t_pin_address = {t_a}, .t_pin_bit = {t_b}U,
             .wgm10_mask = {hx(b('TCCR.*A', 'WGM'))}, .wgm12_mask = {hx(b('TCCR.*B', 'WGM'))}, .cs_mask = {hx(b('TCCR.*B', 'CS'))}, .ices_mask = {hx(b('TCCR.*B', 'ICES'))}, .icnc_mask = {hx(b('TCCR.*B', 'ICNC'))},
@@ -338,6 +340,8 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .prr1_address = {get_reg_addr(cpu, 'PRR1')},
     .smcr_address = {get_reg_addr(cpu, 'SMCR')},
     .mcusr_address = {get_reg_addr(cpu, 'MCUSR')},
+    .xmcra_address = {get_reg_addr(cpu, 'XMCRA')},
+    .xmcrb_address = {get_reg_addr(cpu, 'XMCRB')},
     
     .adc_count = {len(groups['ADC'])}U,
     .adcs = {{{{ {adcs_str} }}}},

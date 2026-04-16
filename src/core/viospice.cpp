@@ -13,6 +13,7 @@
 #include "vioavr/core/spi.hpp"
 #include "vioavr/core/twi.hpp"
 #include "vioavr/core/can.hpp"
+#include "vioavr/core/xmem.hpp"
 #include <map>
 
 namespace vioavr::core {
@@ -74,6 +75,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         if (auto it = port_by_pin_addr.find(desc.ocrb_pin_address); it != port_by_pin_addr.end()) {
             timer->connect_compare_output_b(*it->second, desc.ocrb_pin_bit);
         }
+        if (auto it = port_by_pin_addr.find(desc.ocrc_pin_address); it != port_by_pin_addr.end() && desc.ocrc_address != 0U) {
+            timer->connect_compare_output_c(*it->second, desc.ocrc_pin_bit);
+        }
 
         bus_.attach_peripheral(*timer.release());
     }
@@ -132,6 +136,11 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     for (u8 i = 0; i < device.can_count; ++i) {
         auto can_bus = std::make_unique<CanBus>("CAN" + std::to_string(i), device.cans[i]);
         bus_.attach_peripheral(*can_bus.release());
+    }
+
+    if (device.xmcra_address != 0U || device.xmcrb_address != 0U) {
+        auto xmem = std::make_unique<Xmem>(device);
+        bus_.attach_peripheral(*xmem.release());
     }
 
     set_quantum(1000);

@@ -35,15 +35,30 @@ constexpr u8 kCsMask = 0x07U;
 Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc) noexcept
     : name_(name), desc_(desc)
 {
-    std::vector<u16> addrs = {
-        desc_.tcnt_address, static_cast<u16>(desc_.tcnt_address + 1),
-        desc_.ocra_address, static_cast<u16>(desc_.ocra_address + 1),
-        desc_.ocrb_address, static_cast<u16>(desc_.ocrb_address + 1),
-        desc_.icr_address, static_cast<u16>(desc_.icr_address + 1),
-        desc_.tifr_address, desc_.timsk_address,
-        desc_.tccra_address, desc_.tccrb_address, desc_.tccrc_address
+    std::vector<u16> addrs;
+    auto add_16bit = [&](u16 addr) {
+        if (addr != 0) {
+            addrs.push_back(addr);
+            addrs.push_back(addr + 1);
+        }
     };
+    auto add_8bit = [&](u16 addr) {
+        if (addr != 0) addrs.push_back(addr);
+    };
+
+    add_16bit(desc_.tcnt_address);
+    add_16bit(desc_.ocra_address);
+    add_16bit(desc_.ocrb_address);
+    add_16bit(desc_.ocrc_address);
+    add_16bit(desc_.icr_address);
+    add_8bit(desc_.tifr_address);
+    add_8bit(desc_.timsk_address);
+    add_8bit(desc_.tccra_address);
+    add_8bit(desc_.tccrb_address);
+    add_8bit(desc_.tccrc_address);
+
     std::sort(addrs.begin(), addrs.end());
+    addrs.erase(std::unique(addrs.begin(), addrs.end()), addrs.end());
     
     size_t ri = 0;
     ranges_.fill({0, 0});
@@ -79,6 +94,7 @@ void Timer16::reset() noexcept
     tcnt_ = 0U;
     ocra_ = 0U;
     ocrb_ = 0U;
+    ocrc_ = 0U;
     icr_ = 0U;
     tccra_ = 0U;
     tccrb_ = 0U;
@@ -198,6 +214,12 @@ u8 Timer16::read(const u16 address) noexcept
     }
     if (address == desc_.ocrb_address + 1) return temp_;
 
+    if (address == desc_.ocrc_address && desc_.ocrc_address != 0U) {
+        temp_ = static_cast<u8>(ocrc_ >> 8U);
+        return static_cast<u8>(ocrc_ & 0xFFU);
+    }
+    if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0U) return temp_;
+
     if (address == desc_.icr_address) {
         temp_ = static_cast<u8>(icr_ >> 8U);
         return static_cast<u8>(icr_ & 0xFFU);
@@ -228,6 +250,10 @@ void Timer16::write(const u16 address, const u8 value) noexcept
         temp_ = value;
     } else if (address == desc_.ocrb_address) {
         ocrb_ = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
+    } else if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0U) {
+        temp_ = value;
+    } else if (address == desc_.ocrc_address && desc_.ocrc_address != 0U) {
+        ocrc_ = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
     } else if (address == desc_.icr_address + 1) {
         temp_ = value;
     } else if (address == desc_.icr_address) {
@@ -257,6 +283,10 @@ bool Timer16::pending_interrupt_request(InterruptRequest& request) const noexcep
         request = {desc_.compare_b_vector_index, 0U};
         return true;
     }
+    if ((tifr_ & desc_.compare_c_enable_mask) && (timsk_ & desc_.compare_c_enable_mask)) {
+        request = {desc_.compare_c_vector_index, 0U};
+        return true;
+    }
     if ((tifr_ & desc_.capture_enable_mask) && (timsk_ & desc_.capture_enable_mask)) {
         request = {desc_.capture_vector_index, 0U};
         return true;
@@ -273,6 +303,7 @@ bool Timer16::consume_interrupt_request(InterruptRequest& request) noexcept
     if (pending_interrupt_request(request)) {
         if (request.vector_index == desc_.compare_a_vector_index) tifr_ &= ~desc_.compare_a_enable_mask;
         else if (request.vector_index == desc_.compare_b_vector_index) tifr_ &= ~desc_.compare_b_enable_mask;
+        else if (request.vector_index == desc_.compare_c_vector_index && desc_.compare_c_enable_mask != 0U) tifr_ &= ~desc_.compare_c_enable_mask;
         else if (request.vector_index == desc_.capture_vector_index) tifr_ &= ~desc_.capture_enable_mask;
         else tifr_ &= ~desc_.overflow_enable_mask;
         return true;
@@ -283,6 +314,7 @@ bool Timer16::consume_interrupt_request(InterruptRequest& request) noexcept
 void Timer16::connect_input_capture(GpioPort& port, const u8 bit) noexcept { pin_icp_ = {&port, bit}; }
 void Timer16::connect_compare_output_a(GpioPort& port, const u8 bit) noexcept { pin_a_ = {&port, bit}; }
 void Timer16::connect_compare_output_b(GpioPort& port, const u8 bit) noexcept { pin_b_ = {&port, bit}; }
+void Timer16::connect_compare_output_c(GpioPort& port, const u8 bit) noexcept { pin_c_ = {&port, bit}; }
 
 void Timer16::update_mode() noexcept
 {
@@ -381,21 +413,33 @@ void Timer16::handle_matches() noexcept
             }
             apply_pin_action(pin_b_, action);
         }
+        if (tcnt_ == ocrc_ && desc_.ocrc_address != 0U) {
+            PinAction action = get_pin_action_c();
+            if (action == PinAction::clear) {
+                action = counting_up_ ? PinAction::clear : PinAction::set;
+            } else if (action == PinAction::set) {
+                action = counting_up_ ? PinAction::set : PinAction::clear;
+            }
+            apply_pin_action(pin_c_, action);
+        }
         
         // Special case: set pins at BOTTOM if we are about to transition there
         if (!counting_up_ && tcnt_ == 0) {
             if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
             if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
+            if (get_pin_action_c() == PinAction::clear && desc_.ocrc_address != 0U) apply_pin_action(pin_c_, PinAction::set);
         }
     } else {
         // Normal / CTC / Fast PWM matches
         if (tcnt_ == ocra_) handle_compare_match_a();
         if (tcnt_ == ocrb_) handle_compare_match_b();
+        if (tcnt_ == ocrc_ && desc_.ocrc_address != 0U) handle_compare_match_c();
         
         // Fast PWM: Set pins at BOTTOM (transition from TOP to 0)
         if (is_fast_pwm && tcnt_ == get_top()) {
             if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
             if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
+            if (get_pin_action_c() == PinAction::clear && desc_.ocrc_address != 0U) apply_pin_action(pin_c_, PinAction::set);
         }
     }
 }
@@ -434,6 +478,14 @@ void Timer16::handle_compare_match_b() noexcept
     apply_pin_action(pin_b_, get_pin_action_b());
 }
 
+void Timer16::handle_compare_match_c() noexcept 
+{ 
+    if (desc_.compare_c_enable_mask != 0U) {
+        tifr_ |= desc_.compare_c_enable_mask; 
+        apply_pin_action(pin_c_, get_pin_action_c());
+    }
+}
+
 void Timer16::handle_overflow() noexcept { tifr_ |= desc_.overflow_enable_mask; }
 
 void Timer16::handle_input_capture() noexcept
@@ -463,6 +515,11 @@ Timer16::PinAction Timer16::get_pin_action_a() const noexcept
 Timer16::PinAction Timer16::get_pin_action_b() const noexcept
 {
     return static_cast<PinAction>((tccra_ >> 4U) & 0x03U);
+}
+
+Timer16::PinAction Timer16::get_pin_action_c() const noexcept
+{
+    return static_cast<PinAction>((tccra_ >> 2U) & 0x03U);
 }
 
 }  // namespace vioavr::core

@@ -21,6 +21,8 @@ inline constexpr DeviceDescriptor atmega128a {
     .prr1_address = 0x0U,
     .smcr_address = 0x0U,
     .mcusr_address = 0x0U,
+    .xmcra_address = 0x6DU,
+    .xmcrb_address = 0x6CU,
     
     .adc_count = 1U,
     .adcs = {{ {
@@ -78,13 +80,14 @@ inline constexpr DeviceDescriptor atmega128a {
     
     .timer16_count = 2U,
     .timers16 = {{ {
-            .tcnt_address = 0x4CU, .ocra_address = 0x4AU, .ocrb_address = 0x48U, .icr_address = 0x46U, .tifr_address = 0x56U, .timsk_address = 0x57U, .tccra_address = 0x4FU, .tccrb_address = 0x4EU, .tccrc_address = 0x7AU,
+            .tcnt_address = 0x4CU, .ocra_address = 0x4AU, .ocrb_address = 0x48U, .ocrc_address = 0x78U, .icr_address = 0x46U, .tifr_address = 0x56U, .timsk_address = 0x57U, .tccra_address = 0x4FU, .tccrb_address = 0x4EU, .tccrc_address = 0x7AU,
             .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U,
             .capture_vector_index = 11U,
             .compare_a_vector_index = 12U,
             .compare_b_vector_index = 13U,
+            .compare_c_vector_index = 24U,
             .overflow_vector_index = 14U,
-            .ocra_pin_address = 0x38U, .ocra_pin_bit = 5U, .ocrb_pin_address = 0x38U, .ocrb_pin_bit = 6U,
+            .ocra_pin_address = 0x38U, .ocra_pin_bit = 5U, .ocrb_pin_address = 0x38U, .ocrb_pin_bit = 6U, .ocrc_pin_address = 0x38U, .ocrc_pin_bit = 7U,
             .icp_pin_address = 0x30U, .icp_pin_bit = 4U,
             .t_pin_address = 0x30U, .t_pin_bit = 6U,
             .wgm10_mask = 0x3U, .wgm12_mask = 0x18U, .cs_mask = 0x7U, .ices_mask = 0x40U, .icnc_mask = 0x80U,
@@ -96,13 +99,14 @@ inline constexpr DeviceDescriptor atmega128a {
             .pr_address = 0x0U, .pr_bit = 0xFFU
         },
         {
-            .tcnt_address = 0x88U, .ocra_address = 0x86U, .ocrb_address = 0x84U, .icr_address = 0x80U, .tifr_address = 0x7CU, .timsk_address = 0x7DU, .tccra_address = 0x8BU, .tccrb_address = 0x8AU, .tccrc_address = 0x8CU,
+            .tcnt_address = 0x88U, .ocra_address = 0x86U, .ocrb_address = 0x84U, .ocrc_address = 0x82U, .icr_address = 0x80U, .tifr_address = 0x7CU, .timsk_address = 0x7DU, .tccra_address = 0x8BU, .tccrb_address = 0x8AU, .tccrc_address = 0x8CU,
             .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U,
             .capture_vector_index = 25U,
             .compare_a_vector_index = 26U,
             .compare_b_vector_index = 27U,
+            .compare_c_vector_index = 28U,
             .overflow_vector_index = 29U,
-            .ocra_pin_address = 0x23U, .ocra_pin_bit = 3U, .ocrb_pin_address = 0x23U, .ocrb_pin_bit = 4U,
+            .ocra_pin_address = 0x23U, .ocra_pin_bit = 3U, .ocrb_pin_address = 0x23U, .ocrb_pin_bit = 4U, .ocrc_pin_address = 0x0U, .ocrc_pin_bit = 0U,
             .icp_pin_address = 0x21U, .icp_pin_bit = 7U,
             .t_pin_address = 0x21U, .t_pin_bit = 6U,
             .wgm10_mask = 0x3U, .wgm12_mask = 0x18U, .cs_mask = 0x7U, .ices_mask = 0x40U, .icnc_mask = 0x80U,

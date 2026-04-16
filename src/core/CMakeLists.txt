@@ -31,6 +31,7 @@ target_sources(vioavr_core
         timer16.cpp
         uart.cpp
         watchdog_timer.cpp
+        xmem.cpp
 )
 
 target_include_directories(vioavr_core
