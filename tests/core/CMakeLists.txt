@@ -79,6 +79,7 @@ set(TEST_SOURCES
     input_pin_fidelity_test.cpp
     ext_interrupt_fidelity_test.cpp
     math_fidelity_test.cpp
+    atmega2560_timers_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
