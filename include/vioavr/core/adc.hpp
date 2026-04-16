@@ -69,10 +69,18 @@ private:
     [[nodiscard]] bool free_running_enabled() const noexcept;
     [[nodiscard]] AutoTriggerSource resolve_auto_trigger_source(u8 selector) const noexcept;
     void update_auto_trigger_source_from_register() noexcept;
+    struct MuxMapping {
+        u8 positive_channel;
+        u8 negative_channel;
+        double gain;
+        bool differential;
+    };
+
     void start_conversion() noexcept;
     void restart_free_running_conversion() noexcept;
     void complete_conversion() noexcept;
-    [[nodiscard]] u8 selected_channel() const noexcept;
+    [[nodiscard]] MuxMapping resolve_mux() const noexcept;
+    [[nodiscard]] double get_voltage(u8 channel) const noexcept;
     
     void update_pin_ownership() noexcept;
 
@@ -81,10 +89,11 @@ private:
     MemoryBus* bus_ {};
     PinMux* pin_mux_ {};
     std::array<AddressRange, 5> ranges_;
+    size_t ri_ {0};
     u8 source_id_;
     u16 conversion_cycles_;
     const AnalogSignalBank* signal_bank_ {};
-    std::array<double, 8> local_channel_voltage_ {};
+    std::array<double, 16> local_channel_voltage_ {};
     u8 adcsra_ {};
     u8 admux_ {};
     u8 adcsrb_ {};

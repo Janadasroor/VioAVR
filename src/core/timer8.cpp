@@ -150,8 +150,8 @@ void Timer8::tick_async(const u64 elapsed_ticks) noexcept
 u8 Timer8::read(const u16 address) noexcept
 {
     if (address == desc_.tcnt_address) return tcnt_;
-    if (address == desc_.ocra_address) return ocra_;
-    if (address == desc_.ocrb_address) return ocrb_;
+    if (address == desc_.ocra_address) return ocra_buffer_;
+    if (address == desc_.ocrb_address) return ocrb_buffer_;
     if (address == desc_.tccra_address) return tccra_;
     if (address == desc_.tccrb_address) return tccrb_;
     if (address == desc_.assr_address) return assr_;
@@ -192,6 +192,11 @@ void Timer8::write(const u16 address, const u8 value) noexcept
     else if (address == desc_.tccrb_address) {
         tccrb_ = value;
         update_mode();
+        // Force Output Compare: only in non-PWM modes
+        if (mode_ == Mode::normal || mode_ == Mode::ctc_ocra) {
+            if (value & desc_.foca_mask) handle_compare_match_a();
+            if (value & desc_.focb_mask) handle_compare_match_b();
+        }
         mark_async_busy(address);
     }
     else if (address == desc_.assr_address) assr_ = static_cast<u8>((assr_ & 0x1FU) | (value & (kAssrAs2 | kAssrExclk)));

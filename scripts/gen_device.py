@@ -4,7 +4,9 @@ from pathlib import Path
 
 def hx(v):
     if v is None or v == "": return "0x0U"
-    if isinstance(v, str): v = int(v, 0)
+    if isinstance(v, str):
+        if v.endswith('U'): v = v[:-1]
+        v = int(v, 0)
     return f"{hex(v).upper().replace('X', 'x')}U"
 
 def get_reg(periph, name_regex):
@@ -65,8 +67,8 @@ def get_pr_info(data, bit_regex):
         if reg:
             for b_name, b_data in reg.get('bitfields', {}).items():
                 if p.fullmatch(b_name) or p.search(b_name):
-                    return hx(reg['offset']), hx(b_data['mask'])
-    return "0x0U", "0xFFU"
+                    return reg['offset'], b_data['mask']
+    return 0, 0xFF
 
 def generate_header(data, output_dir):
     name = data['name']
@@ -100,7 +102,7 @@ def generate_header(data, output_dir):
     groups = {
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
-        'CAN': [], 'EXTERNAL_MEMORY': []
+        'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -113,6 +115,8 @@ def generate_header(data, output_dir):
                         groups['PCINT'].append((f'PCINT{idx}', p_data))
         elif 'PCINT' in p_name or 'PCINT' == mod:
             groups['PCINT'].append((p_name, p_data))
+        elif mod == 'TC10':
+            groups['TC10'].append((p_name, p_data))
 
     for k in groups: groups[k].sort()
 
@@ -124,6 +128,8 @@ def generate_header(data, output_dir):
     # 4. Core Regs
     cpu = data['peripherals'].get('CPU', data['peripherals'].get('CPU_REGISTERS', {}))
     regs = cpu.get('registers', {})
+    r_cpu = lambda n: get_reg(cpu, n)
+    b_cpu = lambda n, b_re: get_bit(r_cpu(n), b_re)
     
     # 5. Header Content Generation
     def gen_uart(p_name, p_data):
@@ -165,6 +171,7 @@ def generate_header(data, output_dir):
             .compare_a_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'OCIEA') or b(f'TIMSK{idx}|TIMSK', f'OCIE{idx}A') or b('TIMSK', 'OCIEA'))},
             .compare_b_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'OCIEB') or b(f'TIMSK{idx}|TIMSK', f'OCIE{idx}B') or b('TIMSK', 'OCIEB'))},
             .overflow_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'TOIE') or b(f'TIMSK{idx}|TIMSK', f'TOIE{idx}') or b('TIMSK', 'TOIE'))},
+            .foca_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*A'))}, .focb_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*B'))},
             .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]}
         }}"""
     
@@ -194,6 +201,31 @@ def generate_header(data, output_dir):
             .compare_b_enable_mask = {hx(b('TIMSK.*', 'OCIE.*B'))},
             .compare_c_enable_mask = {hx(b('TIMSK.*', 'OCIE.*C'))},
             .overflow_enable_mask = {hx(b('TIMSK.*', 'TOIE'))},
+            .foca_mask = {hx(b('TCCR.*C', 'FOC.*A'))}, .focb_mask = {hx(b('TCCR.*C', 'FOC.*B'))}, .focc_mask = {hx(b('TCCR.*C', 'FOC.*C'))},
+            .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]}
+        }}"""
+
+    def gen_timer10(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        b = lambda n, b_re: get_bit(r(n), b_re)
+        idx = "".join(filter(str.isdigit, p_name)) or "4"
+        pa_a, pa_b = get_pad_info(port_map, p_data, f'OCA', 'PORT')
+        pan_a, pan_b = get_pad_info(port_map, p_data, f'_OCA', 'PORT')
+        pb_a, pb_b = get_pad_info(port_map, p_data, f'OCB', 'PORT')
+        pbn_a, pbn_b = get_pad_info(port_map, p_data, f'_OCB', 'PORT')
+        pd_a, pd_b = get_pad_info(port_map, p_data, f'OCD', 'PORT')
+        pdn_a, pdn_b = get_pad_info(port_map, p_data, f'_OCD', 'PORT')
+        return f"""{{
+            .tcnt_address = {hx(r('TCNT.*')['offset'])}, .tc4h_address = {hx(r('TC4H')['offset'])}, .ocra_address = {hx(r('OCR.*A')['offset'])}, .ocrb_address = {hx(r('OCR.*B')['offset'])}, .ocrc_address = {hx(r('OCR.*C')['offset'])}, .ocrd_address = {hx(r('OCR.*D')['offset'])},
+            .ocra_pin_address = {pa_a}, .ocra_pin_bit = {pa_b}U, .ocra_neg_pin_address = {pan_a}, .ocra_neg_pin_bit = {pan_b}U,
+            .ocrb_pin_address = {pb_a}, .ocrb_pin_bit = {pb_b}U, .ocrb_neg_pin_address = {pbn_a}, .ocrb_neg_pin_bit = {pbn_b}U,
+            .ocrd_pin_address = {pd_a}, .ocrd_pin_bit = {pd_b}U, .ocrd_neg_pin_address = {pdn_a}, .ocrd_neg_pin_bit = {pdn_b}U,
+            .tccra_address = {hx(r('TCCR.*A')['offset'])}, .tccrb_address = {hx(r('TCCR.*B')['offset'])}, .tccrc_address = {hx(r('TCCR.*C')['offset'])}, .tccrd_address = {hx(r('TCCR.*D')['offset'])}, .tccre_address = {hx(r('TCCR.*E')['offset'])}, .dt4_address = {hx(r('DT4')['offset'])}, .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))}, .timsk_address = {hx(r('TIMSK')['offset'])}, .tifr_address = {hx(r('TIFR')['offset'])},
+            .tccra_reset = {hx(r('TCCR.*A')['initval'])}, .tccrb_reset = {hx(r('TCCR.*B')['initval'])}, .tccrc_reset = {hx(r('TCCR.*C')['initval'])}, .tccrd_reset = {hx(r('TCCR.*D')['initval'])}, .tccre_reset = {hx(r('TCCR.*E')['initval'])},
+            .compare_a_vector_index = {next((i['index'] for i in data.get('interrupts', []) if (f'OC{idx}A' in (i.get('name') or '').upper()) or (f'TIMER{idx}_COMPA' in (i.get('name') or '').upper())), 0)}U,
+            .compare_b_vector_index = {next((i['index'] for i in data.get('interrupts', []) if (f'OC{idx}B' in (i.get('name') or '').upper()) or (f'TIMER{idx}_COMPB' in (i.get('name') or '').upper())), 0)}U,
+            .compare_d_vector_index = {next((i['index'] for i in data.get('interrupts', []) if (f'OC{idx}D' in (i.get('name') or '').upper()) or (f'TIMER{idx}_COMPD' in (i.get('name') or '').upper())), 0)}U,
+            .overflow_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'OVF{idx}' in (i.get('name') or '').upper() or f'TIMER{idx}_OVF' in (i.get('name') or '').upper()), 0)}U,
             .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]}
         }}"""
 
@@ -216,6 +248,19 @@ def generate_header(data, output_dir):
             .auto_trigger_map = {{{{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }}}},
             .adsc_mask = {hx(b('ADCSRA', 'ADSC'))}, .adate_mask = {hx(b('ADCSRA', 'ADATE'))}, .adif_mask = {hx(b('ADCSRA', 'ADIF'))}, .adie_mask = {hx(b('ADCSRA', 'ADIE'))}, .aden_mask = {hx(b('ADCSRA', 'ADEN'))}, .adlar_mask = {hx(b('ADMUX', 'ADLAR'))},
             .pr_address = {get_pr_info(data, 'PRADC')[0]}, .pr_bit = {get_pr_info(data, 'PRADC')[1]}
+        }}"""
+
+    def gen_usb(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        return f"""{{
+            .uhwcon_address = {hx(r('UHWCON')['offset'])}, .usbcon_address = {hx(r('USBCON')['offset'])}, .usbsta_address = {hx(r('USBSTA')['offset'])}, .usbint_address = {hx(r('USBINT')['offset'])},
+            .udcon_address = {hx(r('UDCON')['offset'])}, .udint_address = {hx(r('UDINT')['offset'])}, .udien_address = {hx(r('UDIEN')['offset'])}, .udaddr_address = {hx(r('UDADDR')['offset'])},
+            .uenum_address = {hx(r('UENUM')['offset'])}, .uerst_address = {hx(r('UERST')['offset'])}, .ueint_address = {hx(r('UEINT')['offset'])},
+            .ueintx_address = {hx(r('UEINTX')['offset'])}, .ueienx_address = {hx(r('UEIENX')['offset'])}, .uedatx_address = {hx(r('UEDATX')['offset'])},
+            .uebclx_address = {hx(r('UEBCLX')['offset'])}, .uebchx_address = {hx(r('UEBCHX')['offset'])}, .ueconx_address = {hx(r('UECONX')['offset'])},
+            .uecfg0x_address = {hx(r('UECFG0X')['offset'])}, .uecfg1x_address = {hx(r('UECFG1X')['offset'])}, .uesta0x_address = {hx(r('UESTA0X')['offset'])}, .uesta1x_address = {hx(r('UESTA1X')['offset'])},
+            .vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB' in (i.get('name') or i.get('caption') or '').upper()), 0)}U,
+            .pr_address = {get_pr_info(data, 'PRUSB')[0]}, .pr_bit = {get_pr_info(data, 'PRUSB')[1]}
         }}"""
 
     def gen_ac(p_name, p_data):
@@ -326,6 +371,8 @@ def generate_header(data, output_dir):
     ext_ints_str = ",\n        ".join(gen_ext_int(n, d) for n, d in groups['EXINT'])
     eeproms_str = ",\n        ".join(gen_eeprom(n, d) for n, d in groups['EEPROM'])
     wdts_str = ",\n        ".join(gen_wdt(n, d) for n, d in groups['WDT'])
+    timers10_str = ",\n        ".join(gen_timer10(n, d) for n, d in groups['TC10'])
+    usbs_str = ",\n        ".join(gen_usb(n, d) for n, d in groups['USB_DEVICE'])
     
     ports_str = ",\n        ".join(f'{{ "{p["name"]}", {hx(p["pin"])}, {hx(p["ddr"])}, {hx(p["port"])} }}' for p in ports_raw)
 
@@ -346,28 +393,34 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .sreg_address = {get_reg_addr(cpu, 'SREG')},
     .rampz_address = {get_reg_addr(cpu, 'RAMPZ')},
     .eind_address = {get_reg_addr(cpu, 'EIND')},
-    .spmcsr_address = {get_reg_addr(cpu, 'SPMCSR|SPMCR')},
-    .prr_address = {get_reg_addr(cpu, 'PRR')},
-    .prr0_address = {get_reg_addr(cpu, 'PRR0')},
-    .prr1_address = {get_reg_addr(cpu, 'PRR1')},
-    .smcr_address = {get_reg_addr(cpu, 'SMCR')},
-    .mcusr_address = {get_reg_addr(cpu, 'MCUSR')},
-    .mcucr_address = {get_reg_addr(cpu, 'MCUCR')},
-    .xmcra_address = {get_reg_addr(cpu, 'XMCRA')},
-    .xmcrb_address = {get_reg_addr(cpu, 'XMCRB')},
-    .xmem = {gen_xmem(cpu)},
-    
+    .spmcsr_address = {hx(r_cpu('SPMCSR')['offset']) if r_cpu('SPMCSR') else '0x0U'},
+    .prr_address = {hx(r_cpu('PRR')['offset']) if r_cpu('PRR') else '0x0U'},
+    .prr0_address = {hx(r_cpu('PRR0')['offset']) if r_cpu('PRR0') else '0x0U'},
+    .prr1_address = {hx(r_cpu('PRR1')['offset']) if r_cpu('PRR1') else '0x0U'},
+    .smcr_address = {hx(r_cpu('SMCR')['offset']) if r_cpu('SMCR') else '0x0U'},
+    .mcusr_address = {hx(r_cpu('MCUSR')['offset']) if r_cpu('MCUSR') else '0x0U'},
+    .mcucr_address = {hx(r_cpu('MCUCR')['offset']) if r_cpu('MCUCR') else '0x0U'},
+    .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))},
+    .xmcra_address = {hx(r_cpu('XMCRA')['offset']) if r_cpu('XMCRA') else '0x0U'},
+    .xmcrb_address = {hx(r_cpu('XMCRB')['offset']) if r_cpu('XMCRB') else '0x0U'},
+    .xmem = {gen_xmem(groups['EXTERNAL_MEMORY'][0][1]) if groups['EXTERNAL_MEMORY'] else '{0}'},
+    .pradc_bit = {hx(get_pr_info(data, 'PRADC')[1])},
+    .prusart0_bit = {hx(get_pr_info(data, 'PRUSART0|PRUSART')[1])},
+    .prspi_bit = {hx(get_pr_info(data, 'PRSPI')[1])},
+    .prtwi_bit = {hx(get_pr_info(data, 'PRTWI')[1])},
+    .prtimer0_bit = {hx(get_pr_info(data, 'PRTIM0')[1])},
+    .prtimer1_bit = {hx(get_pr_info(data, 'PRTIM1')[1])},
+    .prtimer2_bit = {hx(get_pr_info(data, 'PRTIM2')[1])},
     .adc_count = {len(groups['ADC'])}U,
     .adcs = {{{{ {adcs_str} }}}},
-    
     .ac_count = {len(groups['AC'])}U,
     .acs = {{{{ {acs_str} }}}},
-    
     .timer8_count = {len(groups['TC8'] + groups['TC8_ASYNC'])}U,
     .timers8 = {{{{ {timers8_str} }}}},
-    
     .timer16_count = {len(groups['TC16'])}U,
     .timers16 = {{{{ {timers16_str} }}}},
+    .timer10_count = {len(groups['TC10'])}U,
+    .timers10 = {{{{ {timers10_str} }}}},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},
@@ -392,6 +445,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .can_count = {len(groups['CAN'])}U,
     .cans = {{{{ {cans_str} }}}},
+    
+    .usb_count = {len(groups['USB_DEVICE'])}U,
+    .usbs = {{{{ {usbs_str} }}}},
 
     .port_count = {len(ports_raw)}U,
     .ports = {{{{

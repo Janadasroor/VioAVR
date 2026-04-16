@@ -80,6 +80,12 @@ set(TEST_SOURCES
     ext_interrupt_fidelity_test.cpp
     math_fidelity_test.cpp
     atmega2560_timers_test.cpp
+    can_fidelity_test.cpp
+    cpu_timer10_fidelity_test.cpp
+    cpu_timer10_deadtime_test.cpp
+    cpu_timer10_pfc_test.cpp
+    cpu_adc_differential_test.cpp
+    usb_basic_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

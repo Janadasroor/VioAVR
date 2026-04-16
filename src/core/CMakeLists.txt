@@ -27,10 +27,11 @@ target_sources(vioavr_core
         viospice.cpp
         viospice_c.cpp
         timer8.cpp
-
         timer16.cpp
+        timer10.cpp
         uart.cpp
         watchdog_timer.cpp
+        usb.cpp
         xmem.cpp
 )
 

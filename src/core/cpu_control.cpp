@@ -31,6 +31,7 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
     if (desc.prr_address != 0U) ranges_.push_back({desc.prr_address, desc.prr_address});
     if (desc.prr0_address != 0U) ranges_.push_back({desc.prr0_address, desc.prr0_address});
     if (desc.prr1_address != 0U) ranges_.push_back({desc.prr1_address, desc.prr1_address});
+    if (desc.pllcsr_address != 0U) ranges_.push_back({desc.pllcsr_address, desc.pllcsr_address});
 }
 
 std::string_view CpuControl::name() const noexcept
@@ -80,6 +81,7 @@ u8 CpuControl::read(const u16 address) noexcept
     if (address == d.prr_address) return prr_;
     if (address == d.prr0_address) return prr0_;
     if (address == d.prr1_address) return prr1_;
+    if (address == d.pllcsr_address) return pllcsr_;
     
     if (address == d.spmcsr_address) {
         u8 val = spmcsr_;
@@ -117,6 +119,8 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         prr0_ = value;
     } else if (address == d.prr1_address) {
         prr1_ = value;
+    } else if (address == d.pllcsr_address) {
+        pllcsr_ = value;
     } else if (address == d.spmcsr_address) {
         spmcsr_ = value & 0xBFU;
     } else if (address == d.spl_address) {

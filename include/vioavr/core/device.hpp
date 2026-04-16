@@ -88,6 +88,8 @@ struct Timer8Descriptor {
     u8 compare_a_enable_mask {0x02U}; // bit 1 of TIMSK/TIFR
     u8 compare_b_enable_mask {0x04U}; // bit 2 of TIMSK/TIFR
     u8 overflow_enable_mask {0x01U};  // bit 0 of TIMSK/TIFR
+    u8 foca_mask {0x80U}; // bit 7 of TCCRB
+    u8 focb_mask {0x40U}; // bit 6 of TCCRB
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
 };
@@ -228,6 +230,33 @@ struct CanDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct UsbDescriptor {
+    u16 uhwcon_address {};
+    u16 usbcon_address {};
+    u16 usbsta_address {};
+    u16 usbint_address {};
+    u16 udcon_address {};
+    u16 udint_address {};
+    u16 udien_address {};
+    u16 udaddr_address {};
+    u16 uenum_address {};
+    u16 uerst_address {};
+    u16 ueint_address {};
+    u16 ueintx_address {};
+    u16 ueienx_address {};
+    u16 uedatx_address {};
+    u16 uebclx_address {};
+    u16 uebchx_address {};
+    u16 ueconx_address {};
+    u16 uecfg0x_address {};
+    u16 uecfg1x_address {};
+    u16 uesta0x_address {};
+    u16 uesta1x_address {};
+    u8 vector_index {};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
 struct Timer16Descriptor {
     u16 tcnt_address {};
     u16 ocra_address {};
@@ -267,6 +296,50 @@ struct Timer16Descriptor {
     u8 compare_b_enable_mask {0x04U};
     u8 compare_c_enable_mask {0x08U};
     u8 overflow_enable_mask {0x01U};
+    u8 foca_mask {0x80U}; // bit 7 of TCCRC
+    u8 focb_mask {0x40U}; // bit 6 of TCCRC
+    u8 focc_mask {0x20U}; // bit 5 of TCCRC
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
+struct Timer10Descriptor {
+    u16 tcnt_address {};
+    u16 tc4h_address {};
+    u16 ocra_address {};
+    u16 ocrb_address {};
+    u16 ocrc_address {};
+    u16 ocrd_address {};
+    u16 ocra_pin_address {0U};
+    u8 ocra_pin_bit {0xFFU};
+    u16 ocra_neg_pin_address {0U};
+    u8 ocra_neg_pin_bit {0xFFU};
+    u16 ocrb_pin_address {0U};
+    u8 ocrb_pin_bit {0xFFU};
+    u16 ocrb_neg_pin_address {0U};
+    u8 ocrb_neg_pin_bit {0xFFU};
+    u16 ocrd_pin_address {0U};
+    u8 ocrd_pin_bit {0xFFU};
+    u16 ocrd_neg_pin_address {0U};
+    u8 ocrd_neg_pin_bit {0xFFU};
+    u16 tccra_address {};
+    u16 tccrb_address {};
+    u16 tccrc_address {};
+    u16 tccrd_address {};
+    u16 tccre_address {};
+    u16 dt4_address {};
+    u16 pllcsr_address {};
+    u16 timsk_address {};
+    u16 tifr_address {};
+    u8 tccra_reset {};
+    u8 tccrb_reset {};
+    u8 tccrc_reset {};
+    u8 tccrd_reset {};
+    u8 tccre_reset {};
+    u8 compare_a_vector_index {};
+    u8 compare_b_vector_index {};
+    u8 compare_d_vector_index {};
+    u8 overflow_vector_index {};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
 };
@@ -301,6 +374,7 @@ struct DeviceDescriptor {
     u16 smcr_address {};
     u16 mcusr_address {};
     u16 mcucr_address {};
+    u16 pllcsr_address {};
     u16 xmcra_address {};
     u16 xmcrb_address {};
     XmemDescriptor xmem {};
@@ -332,6 +406,9 @@ struct DeviceDescriptor {
     u8 timer16_count {0U};
     std::array<Timer16Descriptor, 8> timers16 {};
 
+    u8 timer10_count {0U};
+    std::array<Timer10Descriptor, 4> timers10 {};
+
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};
 
@@ -355,6 +432,9 @@ struct DeviceDescriptor {
 
     u8 can_count {0U};
     std::array<CanDescriptor, 2> cans {};
+    
+    u8 usb_count {0U};
+    std::array<UsbDescriptor, 1> usbs {};
 
     u16 fuse_address {0x0000U};
     u16 lockbit_address {0x0000U};
