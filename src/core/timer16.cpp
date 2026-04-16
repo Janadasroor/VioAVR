@@ -95,6 +95,9 @@ void Timer16::reset() noexcept
     ocra_ = 0U;
     ocrb_ = 0U;
     ocrc_ = 0U;
+    ocra_buffer_ = 0U;
+    ocrb_buffer_ = 0U;
+    ocrc_buffer_ = 0U;
     icr_ = 0U;
     tccra_ = 0U;
     tccrb_ = 0U;
@@ -203,20 +206,20 @@ u8 Timer16::read(const u16 address) noexcept
     if (address == desc_.tcnt_address + 1) return temp_;
     
     if (address == desc_.ocra_address) {
-        temp_ = static_cast<u8>(ocra_ >> 8U);
-        return static_cast<u8>(ocra_ & 0xFFU);
+        temp_ = static_cast<u8>(ocra_buffer_ >> 8U);
+        return static_cast<u8>(ocra_buffer_ & 0xFFU);
     }
     if (address == desc_.ocra_address + 1) return temp_;
 
     if (address == desc_.ocrb_address) {
-        temp_ = static_cast<u8>(ocrb_ >> 8U);
-        return static_cast<u8>(ocrb_ & 0xFFU);
+        temp_ = static_cast<u8>(ocrb_buffer_ >> 8U);
+        return static_cast<u8>(ocrb_buffer_ & 0xFFU);
     }
     if (address == desc_.ocrb_address + 1) return temp_;
 
     if (address == desc_.ocrc_address && desc_.ocrc_address != 0U) {
-        temp_ = static_cast<u8>(ocrc_ >> 8U);
-        return static_cast<u8>(ocrc_ & 0xFFU);
+        temp_ = static_cast<u8>(ocrc_buffer_ >> 8U);
+        return static_cast<u8>(ocrc_buffer_ & 0xFFU);
     }
     if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0U) return temp_;
 
@@ -237,6 +240,9 @@ u8 Timer16::read(const u16 address) noexcept
 
 void Timer16::write(const u16 address, const u8 value) noexcept
 {
+    const bool is_stopped = (tccrb_ & 0x07U) == 0U;
+    const bool is_pwm = (mode_ != Mode::normal && mode_ != Mode::ctc_ocr && mode_ != Mode::ctc_icr);
+
     // 16-bit Write Protocol: Write High byte first (to TEMP), then Low byte (updates register)
     if (address == desc_.tcnt_address + 1) {
         temp_ = value;
@@ -245,15 +251,21 @@ void Timer16::write(const u16 address, const u8 value) noexcept
     } else if (address == desc_.ocra_address + 1) {
         temp_ = value;
     } else if (address == desc_.ocra_address) {
-        ocra_ = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
+        const u16 val = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
+        ocra_buffer_ = val;
+        if (!is_pwm || is_stopped) ocra_ = val;
     } else if (address == desc_.ocrb_address + 1) {
         temp_ = value;
     } else if (address == desc_.ocrb_address) {
-        ocrb_ = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
+        const u16 val = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
+        ocrb_buffer_ = val;
+        if (!is_pwm || is_stopped) ocrb_ = val;
     } else if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0U) {
         temp_ = value;
     } else if (address == desc_.ocrc_address && desc_.ocrc_address != 0U) {
-        ocrc_ = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
+        const u16 val = static_cast<u16>((static_cast<u16>(temp_) << 8U) | value);
+        ocrc_buffer_ = val;
+        if (!is_pwm || is_stopped) ocrc_ = val;
     } else if (address == desc_.icr_address + 1) {
         temp_ = value;
     } else if (address == desc_.icr_address) {
@@ -353,10 +365,19 @@ void Timer16::perform_tick() noexcept
                               mode_ == Mode::fast_pwm_10bit || mode_ == Mode::fast_pwm_icr ||
                               mode_ == Mode::fast_pwm_ocr);
 
+    const bool is_pc = (mode_ == Mode::pc_pwm_8bit || mode_ == Mode::pc_pwm_9bit ||
+                        mode_ == Mode::pc_pwm_10bit || mode_ == Mode::pc_pwm_icr ||
+                        mode_ == Mode::pc_pwm_ocr);
+    const bool is_pfc = (mode_ == Mode::pfc_pwm_icr || mode_ == Mode::pfc_pwm_ocr);
 
     if (is_phase_correct) {
         if (counting_up_) {
             if (tcnt_ == top) {
+                if (is_pc) {
+                    ocra_ = ocra_buffer_;
+                    ocrb_ = ocrb_buffer_;
+                    ocrc_ = ocrc_buffer_;
+                }
                 counting_up_ = false;
                 tcnt_--;
             } else {
@@ -364,6 +385,11 @@ void Timer16::perform_tick() noexcept
             }
         } else {
             if (tcnt_ == 0) {
+                if (is_pfc) {
+                    ocra_ = ocra_buffer_;
+                    ocrb_ = ocrb_buffer_;
+                    ocrc_ = ocrc_buffer_;
+                }
                 counting_up_ = true;
                 handle_overflow();
                 tcnt_++;
@@ -374,6 +400,11 @@ void Timer16::perform_tick() noexcept
     } else {
         if (tcnt_ == top) {
             tcnt_ = 0;
+            if (is_fast_pwm) {
+                ocra_ = ocra_buffer_;
+                ocrb_ = ocrb_buffer_;
+                ocrc_ = ocrc_buffer_;
+            }
             if (mode_ == Mode::normal || is_fast_pwm) {
                 handle_overflow();
             }

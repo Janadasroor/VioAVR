@@ -21,8 +21,13 @@ inline constexpr DeviceDescriptor atmega6490p {
     .prr1_address = 0x0U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
+    .mcucr_address = 0x55U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
+    .xmem = {
+            .xmcra_address = 0x0U, .xmcrb_address = 0x0U,
+            .mcucr_address = 0x55U, .sre_mask = 0x80U
+        },
     
     .adc_count = 1U,
     .adcs = {{ {

@@ -86,6 +86,9 @@ private:
     u16 ocra_ {};
     u16 ocrb_ {};
     u16 ocrc_ {};
+    u16 ocra_buffer_ {};
+    u16 ocrb_buffer_ {};
+    u16 ocrc_buffer_ {};
     u16 icr_ {};
     u8 tccra_ {};
     u8 tccrb_ {};

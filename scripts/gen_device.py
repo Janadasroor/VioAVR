@@ -100,7 +100,7 @@ def generate_header(data, output_dir):
     groups = {
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
-        'CAN': []
+        'CAN': [], 'EXTERNAL_MEMORY': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -302,6 +302,18 @@ def generate_header(data, output_dir):
             .wdie_mask = {hx(b('WDTCSR|WDTCR', 'WDIE'))}, .wde_mask = {hx(b('WDTCSR|WDTCR', 'WDE'))}
         }}"""
 
+    def gen_xmem(p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        b = lambda n, b_re: get_bit(r(n), b_re)
+        xmcra = r('XMCRA')
+        xmcrb = r('XMCRB')
+        mcucr = r('MCUCR')
+        sre_mask = b('XMCRA', 'SRE') or b('MCUCR', 'SRE') or 0x80
+        return f"""{{
+            .xmcra_address = {hx(xmcra['offset'])}, .xmcrb_address = {hx(xmcrb['offset'])},
+            .mcucr_address = {hx(mcucr['offset'])}, .sre_mask = {hx(sre_mask)}
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
@@ -340,8 +352,10 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .prr1_address = {get_reg_addr(cpu, 'PRR1')},
     .smcr_address = {get_reg_addr(cpu, 'SMCR')},
     .mcusr_address = {get_reg_addr(cpu, 'MCUSR')},
+    .mcucr_address = {get_reg_addr(cpu, 'MCUCR')},
     .xmcra_address = {get_reg_addr(cpu, 'XMCRA')},
     .xmcrb_address = {get_reg_addr(cpu, 'XMCRB')},
+    .xmem = {gen_xmem(cpu)},
     
     .adc_count = {len(groups['ADC'])}U,
     .adcs = {{{{ {adcs_str} }}}},

@@ -152,6 +152,13 @@ struct SpiDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct XmemDescriptor {
+    u16 xmcra_address {0U};
+    u16 xmcrb_address {0U};
+    u16 mcucr_address {0U};
+    u8 sre_mask {0x80U};
+};
+
 struct TwiDescriptor {
     u16 twbr_address {};
     u16 twsr_address {};
@@ -293,8 +300,10 @@ struct DeviceDescriptor {
     u16 prr1_address {};
     u16 smcr_address {};
     u16 mcusr_address {};
+    u16 mcucr_address {};
     u16 xmcra_address {};
     u16 xmcrb_address {};
+    XmemDescriptor xmem {};
     u8 pradc_bit {0xFFU};
     u8 prusart0_bit {0xFFU};
     u8 prspi_bit {0xFFU};
