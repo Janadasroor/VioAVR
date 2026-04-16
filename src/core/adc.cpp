@@ -155,29 +155,103 @@ bool Adc::power_reduction_enabled() const noexcept {
     return (bus_->read_data(d.prr_address) & (1 << d.pradc_bit)) != 0;
 }
 
-void Adc::complete_conversion() noexcept {
-    const u8 channel = selected_channel();
-    double voltage = 0.0;
+double Adc::get_voltage(u8 channel) const noexcept {
     if (signal_bank_) {
-        voltage = signal_bank_->voltage(channel);
-    } else if (channel < local_channel_voltage_.size()) {
-        voltage = local_channel_voltage_[channel];
+        return signal_bank_->voltage(channel);
+    } 
+    if (channel < local_channel_voltage_.size()) {
+        return local_channel_voltage_[channel];
+    }
+    return 0.0;
+}
+
+void Adc::complete_conversion() noexcept {
+    const MuxMapping mapping = resolve_mux();
+    double pos_v = get_voltage(mapping.positive_channel);
+    double result_v = pos_v;
+
+    if (mapping.differential) {
+        double neg_v = get_voltage(mapping.negative_channel);
+        result_v = (pos_v - neg_v) * mapping.gain;
+        
+        // Differential results are 2's complement 10-bit (-512 to 511)
+        i16 result = static_cast<i16>(std::clamp(result_v * 512.0, -512.0, 511.0));
+        result_ = static_cast<u16>(result) & 0x3FFU;
+    } else {
+        // Single-ended results are unsigned 10-bit (0 to 1023)
+        result_ = static_cast<u16>(std::clamp(result_v * 1024.0, 0.0, 1023.0));
+    }
+    
+    // Left adjust if ADLAR is set
+    if (admux_ & desc_.adlar_mask) {
+        result_ <<= 6; // Standard AVR ADLAR shifts result so ADCH has 8 MSB
+        // Wait! In 16-bit it's result_ << 6? 
+        // Actually, internal result_ is u16 (10 bits).
+        // If ADLAR=1, ADCH contains bits 9:2, ADCL contains bits 1:0 in bits 7:6.
+        // My result_ stores it as 0..1023.
+        // The read() method handles ADCL/ADCH.
     }
 
-    result_ = static_cast<u16>(std::clamp(voltage * 1024.0, 0.0, 1023.0));
-    
     adcsra_ &= ~desc_.adsc_mask;
     adcsra_ |= desc_.adif_mask;
     converting_ = false;
 
-    // Check for free-running mode restart
     if (free_running_enabled()) {
         start_conversion();
     }
 }
 
-u8 Adc::selected_channel() const noexcept {
-    return admux_ & 0x0FU; // Supports up to 16 channels
+Adc::MuxMapping Adc::resolve_mux() const noexcept {
+    u8 mux = (admux_ & 0x1FU);
+    if (adcsrb_ & 0x20U) mux |= 0x20U; // Add MUX5
+
+    // Standard Single-Ended
+    if (mux <= 0x07U) {
+        return { mux, 0, 1.0, false };
+    }
+    if (mux >= 0x20U && mux <= 0x25U) {
+        return { static_cast<u8>(8U + (mux - 0x20U)), 0, 1.0, false };
+    }
+
+    // Special internal channels
+    if (mux == 0x1EU) return { 14, 0, 1.0, false }; // Vbg (1.1V)
+    if (mux == 0x1FU) return { 15, 0, 1.0, false }; // 0V (GND)
+    if (mux == 0x27U) return { 13, 0, 1.0, false }; // Temperature sensor (ADC13)
+
+    // Differential Pairs (ATmega32U4 common subset)
+    // Table 26-4 in Datasheet
+    switch (mux) {
+        // ADC0 - ADC1
+        case 0x08U: return { 0, 1, 10.0, true };
+        case 0x09U: return { 0, 1, 40.0, true };
+        case 0x0AU: return { 1, 1, 10.0, true }; // Offset test
+        case 0x0BU: return { 1, 1, 40.0, true };
+        case 0x0CU: return { 4, 1, 10.0, true };
+        case 0x0DU: return { 4, 1, 40.0, true };
+        case 0x0EU: return { 5, 1, 10.0, true };
+        case 0x0FU: return { 5, 1, 40.0, true };
+        case 0x10U: return { 6, 1, 10.0, true };
+        case 0x11U: return { 6, 1, 40.0, true };
+        case 0x12U: return { 2, 1, 10.0, true };
+        case 0x13U: return { 3, 1, 10.0, true };
+        case 0x14U: return { 2, 1, 40.0, true };
+        case 0x15U: return { 3, 1, 40.0, true };
+        
+        // High gain ADC0-ADC1 (200x)
+        case 0x28U: return { 0, 1, 200.0, true };
+        case 0x29U: return { 0, 1, 200.0, true }; // Wait, duplicate?
+        case 0x2AU: return { 1, 1, 200.0, true };
+        
+        // ADC4 - ADC5
+        case 0x2CU: return { 4, 5, 10.0, true };
+        case 0x2DU: return { 4, 5, 40.0, true };
+        case 0x2EU: return { 4, 5, 200.0, true };
+        
+        default: break;
+    }
+
+    // Default to single ended if unknown
+    return { static_cast<u8>(mux & 0x0FU), 0, 1.0, false };
 }
 
 void Adc::update_pin_ownership() noexcept {

@@ -276,12 +276,18 @@ void Timer16::write(const u16 address, const u8 value) noexcept
     } else if (address == desc_.tccrb_address) {
         tccrb_ = value;
         update_mode();
-    } else if (address == desc_.tccrc_address) {
+    } else if (address == desc_.tccrc_address && desc_.tccrc_address != 0U) {
         tccrc_ = value;
+        // Force Output Compare: Only active in non-PWM modes
+        if (mode_ == Mode::normal || mode_ == Mode::ctc_ocr || mode_ == Mode::ctc_icr) {
+            if (value & desc_.foca_mask) handle_compare_match_a();
+            if (value & desc_.focb_mask) handle_compare_match_b();
+            if (value & desc_.focc_mask && desc_.focc_mask != 0U) handle_compare_match_c();
+        }
     } else if (address == desc_.timsk_address) {
         timsk_ = value;
     } else if (address == desc_.tifr_address) {
-        tifr_ &= static_cast<u8>(~value);
+        tifr_ &= static_cast<u8>(~value); // Write 1 to clear
     }
 }
 

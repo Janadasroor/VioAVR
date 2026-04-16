@@ -13,6 +13,7 @@
 #include "vioavr/core/spi.hpp"
 #include "vioavr/core/twi.hpp"
 #include "vioavr/core/can.hpp"
+#include "vioavr/core/timer10.hpp"
 #include "vioavr/core/xmem.hpp"
 #include <map>
 
@@ -77,6 +78,24 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         }
         if (auto it = port_by_pin_addr.find(desc.ocrc_pin_address); it != port_by_pin_addr.end() && desc.ocrc_address != 0U) {
             timer->connect_compare_output_c(*it->second, desc.ocrc_pin_bit);
+        }
+
+        bus_.attach_peripheral(*timer.release());
+    }
+
+    // 4. Instantiate and Wire High-Speed 10-bit Timers
+    for (u8 i = 0; i < device.timer10_count; ++i) {
+        const auto& desc = device.timers10[i];
+        auto timer = std::make_unique<Timer10>("TIMER10_" + std::to_string(i), desc);
+        
+        if (auto it = port_by_pin_addr.find(desc.ocra_pin_address); it != port_by_pin_addr.end()) {
+            timer->connect_compare_output_a(*it->second, desc.ocra_pin_bit);
+        }
+        if (auto it = port_by_pin_addr.find(desc.ocrb_pin_address); it != port_by_pin_addr.end()) {
+            timer->connect_compare_output_b(*it->second, desc.ocrb_pin_bit);
+        }
+        if (auto it = port_by_pin_addr.find(desc.ocrd_pin_address); it != port_by_pin_addr.end()) {
+            timer->connect_compare_output_d(*it->second, desc.ocrd_pin_bit);
         }
 
         bus_.attach_peripheral(*timer.release());

@@ -3,6 +3,7 @@
 #include "vioavr/core/watchdog_timer.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/timer16.hpp"
+#include "vioavr/core/timer10.hpp"
 
 #include <array>
 #include <cstddef>
@@ -24,6 +25,8 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
                 t8->set_bus(*bus_);
             } else if (auto* t16 = dynamic_cast<Timer16*>(peripheral)) {
                 t16->set_bus(*bus_);
+            } else if (auto* t10 = dynamic_cast<Timer10*>(peripheral)) {
+                t10->set_bus(*bus_);
             }
         }
     }
