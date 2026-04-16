@@ -10,16 +10,14 @@ constexpr u8 kSpiMaster = 0x10U;
 constexpr u8 kSpiInterruptEnable = 0x80U;
 }
 
-Spi::Spi(std::string_view name, const DeviceDescriptor& device) noexcept
-    : name_(name), desc_(device.spis[0])
+Spi::Spi(std::string_view name, const SpiDescriptor& descriptor) noexcept
+    : name_(name), desc_(descriptor)
 {
     const std::array<u16, 3> addrs = {desc_.spcr_address, desc_.spsr_address, desc_.spdr_address};
-    ranges_ = {{
-        AddressRange{
-            *std::min_element(addrs.begin(), addrs.end()),
-            *std::max_element(addrs.begin(), addrs.end())
-        }
-    }};
+    ranges_[0] = {
+        *std::min_element(addrs.begin(), addrs.end()),
+        *std::max_element(addrs.begin(), addrs.end())
+    };
 }
 
 std::string_view Spi::name() const noexcept

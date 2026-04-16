@@ -54,7 +54,7 @@ TEST_CASE("CPU Sleep and Wake Test")
     using vioavr::core::devices::atmega328;
 
     MemoryBus bus {atmega328};
-    Timer8 timer0 {"TIMER0", atmega328};
+    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 
@@ -63,7 +63,7 @@ TEST_CASE("CPU Sleep and Wake Test")
             encode_ldi(16U, 10U),     // 0 OCR0A compare threshold (set to 10 to clear SEI delay)
             encode_out(0x27U, 16U),   // 1 OCR0 (0x33 -> 0x13)
             encode_ldi(19U, 0x02U),   // 2 OCIE0A
-            encode_sts(19U), atmega328.timer0.timsk_address,  // 3,4 TIMSK0
+            encode_sts(19U), atmega328.timers8[0].timsk_address,  // 3,4 TIMSK0
             encode_ldi(20U, 0x01U),   // 5 CS00
             encode_out(0x25U, 20U),   // 6 TCCR0B (0x45 -> 0x25)
             kSei,                     // 7

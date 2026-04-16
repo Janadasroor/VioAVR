@@ -20,7 +20,7 @@ int main() {
     constexpr u16 kNop = 0x0000U;
     
     MemoryBus bus{atmega328};
-    Timer8 timer0{"TIMER0", atmega328};
+    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu{bus};
     
@@ -28,7 +28,7 @@ int main() {
         encode_ldi(16, 0x01),  // 0
         encode_out(0x27, 16),  // 1
         encode_ldi(19, 0x02),  // 2
-        0x9200 | (19 << 4), atmega328.timer0.timsk_address,  // 3,4 STS
+        0x9200 | (19 << 4), atmega328.timers8[0].timsk_address,  // 3,4 STS
         encode_ldi(20, 0x01),  // 5
         encode_out(0x25, 20),  // 6
         kSei,                  // 7

@@ -5,7 +5,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/gpio_port.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -27,17 +27,18 @@ TEST_CASE("Timer16 basic functionality")
 {
     using namespace vioavr::core::devices;
     
-    MemoryBus bus {atmega328};
-    Timer16 timer1 {"TIMER1", atmega328};
+    MemoryBus bus {atmega328p};
+    Timer16 timer1 {"TIMER1", atmega328p.timers16[0]};
+    timer1.set_bus(bus);
     bus.attach_peripheral(timer1);
     AvrCpu cpu {bus};
 
     SUBCASE("16-bit register access protocol") {
         std::vector<u16> code = {
             encode_ldi(16, 0x12),
-            0x9300, atmega328.timer1.tcnt_address + 1, // STS TCNT1H, R16
+            0x9300U, static_cast<u16>(atmega328p.timers16[0].tcnt_address + 1), // STS TCNT1H, R16
             encode_ldi(16, 0x34),
-            0x9300, atmega328.timer1.tcnt_address,     // STS TCNT1L, R16
+            0x9300U, static_cast<u16>(atmega328p.timers16[0].tcnt_address),     // STS TCNT1L, R16
             0x0000 // NOP
         };
         bus.load_flash(code);
@@ -55,7 +56,7 @@ TEST_CASE("Timer16 basic functionality")
     SUBCASE("Normal mode counting") {
         std::vector<u16> code = {
             encode_ldi(16, 0x01),
-            0x9300, atmega328.timer1.tccrb_address,
+            0x9300, atmega328p.timers16[0].tccrb_address,
             0x0000, 0x0000, 0x0000
         };
         bus.load_flash(code);
@@ -72,15 +73,13 @@ TEST_CASE("Timer16 basic functionality")
     }
 
     SUBCASE("CTC mode (Clear Timer on Compare Match)") {
-        // OCR1A = 10
-        // TCCR1B = 0x09 (WGM12 = 1, CS10 = 1) -> CTC mode with TOP = OCR1A
         std::vector<u16> code = {
             encode_ldi(16, 0x00),
-            0x9300, atmega328.timer1.ocra_address + 1,
+            0x9300U, static_cast<u16>(atmega328p.timers16[0].ocra_address + 1),
             encode_ldi(16, 0x0A),
-            0x9300, atmega328.timer1.ocra_address,
+            0x9300U, static_cast<u16>(atmega328p.timers16[0].ocra_address),
             encode_ldi(16, 0x09),
-            0x9300, atmega328.timer1.tccrb_address,
+            0x9300U, static_cast<u16>(atmega328p.timers16[0].tccrb_address),
             0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
         };
         bus.load_flash(code);
@@ -104,13 +103,13 @@ TEST_CASE("Timer16 basic functionality")
     }
 
     SUBCASE("Input Capture") {
-        GpioPort port {"PORTB", 0x23, 0x24, 0x25}; 
+        GpioPort port {"PORTB", 0x23, 0x24, 0x25};
+        bus.attach_peripheral(port);
         timer1.connect_input_capture(port, 0);
         
-        // TCCR1B = 0x41 (ICES1 = 1 (Rising), CS10 = 1)
         std::vector<u16> code = {
             encode_ldi(16, 0x41),
-            0x9300, atmega328.timer1.tccrb_address,
+            0x9300, atmega328p.timers16[0].tccrb_address,
             0x0000, 0x0000, 0x0000
         };
         bus.load_flash(code);
@@ -121,9 +120,8 @@ TEST_CASE("Timer16 basic functionality")
         
         CHECK(timer1.counter() == 2);
         
-        // Simulate rising edge on ICP1 pin
         port.set_input_levels(0x01); // PINB0 = 1
-        cpu.step(); // NOP (ticks 1) -> TCNT increments to 3, but captures 2 at the start of the tick
+        cpu.step(); // NOP (ticks 1) -> TCNT increments to 3
         
         CHECK(timer1.input_capture() == 3);
     }

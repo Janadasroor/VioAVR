@@ -51,9 +51,9 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
 
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
-    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupts[0], pin_mux, 4U};
     
     adc0.connect_external_interrupt_0_auto_trigger(exti);
     adc0.set_channel_voltage(0U, 0.42); // Expected result: 430
@@ -74,17 +74,17 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x00U),                     // 0
-            encode_sts(16U), atmega328.adc.admux_address, // 1, 2
+            encode_sts(16U), atmega328.adcs[0].admux_address, // 1, 2
             encode_ldi(16U, 0x02U),                     // 3
-            encode_sts(16U), atmega328.adc.adcsrb_address, // 4, 5
+            encode_sts(16U), atmega328.adcs[0].adcsrb_address, // 4, 5
             encode_ldi(16U, 0x02U),                     // 6 (Falling edge)
-            encode_sts(16U), atmega328.ext_interrupt.eicra_address, // 7, 8
+            encode_sts(16U), atmega328.ext_interrupts[0].eicra_address, // 7, 8
             encode_ldi(17U, 0xA0U),                     // 9 (ADEN | ADATE)
-            encode_sts(17U), atmega328.adc.adcsra_address, // 10, 11
-            encode_lds(18U), atmega328.adc.adcsra_address, // 12, 13
-            encode_lds(19U), atmega328.adc.adcsra_address, // 14, 15
-            encode_lds(20U), atmega328.adc.adcl_address,   // 16, 17
-            encode_lds(21U), atmega328.adc.adch_address,   // 18, 19
+            encode_sts(17U), atmega328.adcs[0].adcsra_address, // 10, 11
+            encode_lds(18U), atmega328.adcs[0].adcsra_address, // 12, 13
+            encode_lds(19U), atmega328.adcs[0].adcsra_address, // 14, 15
+            encode_lds(20U), atmega328.adcs[0].adcl_address,   // 16, 17
+            encode_lds(21U), atmega328.adcs[0].adch_address,   // 18, 19
             0x0000U
         },
         .entry_word = 0U
@@ -126,6 +126,6 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
         
         // CHECK(result >= 429U);
         // CHECK(result <= 431U);
-        // CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x01U);
+        // CHECK(bus.read_data(atmega328.ext_interrupts[0].eifr_address) == 0x01U);
     }
 }

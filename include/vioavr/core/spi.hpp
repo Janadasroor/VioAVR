@@ -8,7 +8,7 @@ namespace vioavr::core {
 
 class Spi final : public IoPeripheral {
 public:
-    explicit Spi(std::string_view name, const DeviceDescriptor& device) noexcept;
+    explicit Spi(std::string_view name, const SpiDescriptor& descriptor) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;

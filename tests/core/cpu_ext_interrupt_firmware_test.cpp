@@ -36,7 +36,7 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
 
     PinMux pin_mux {8};
     MemoryBus bus {atmega328};
-    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupts[0], pin_mux, 4U};
     bus.attach_peripheral(exti);
     AvrCpu cpu {bus};
 
@@ -48,9 +48,9 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
             kReti,                    // 3
             kNop,                     // 4
             encode_ldi(16U, 0x02U),   // 5: Entry point: EICRA = falling edge sense
-            encode_sts(16U), atmega328.ext_interrupt.eicra_address, // 6, 7
+            encode_sts(16U), atmega328.ext_interrupts[0].eicra_address, // 6, 7
             encode_ldi(17U, 0x01U),   // 8: EIMSK = enable INT0
-            encode_sts(17U), atmega328.ext_interrupt.eimsk_address, // 9, 10
+            encode_sts(17U), atmega328.ext_interrupts[0].eimsk_address, // 9, 10
             kSei,                     // 11: Enable global interrupts
             kNop,                     // 12: Interrupted point
             encode_ldi(18U, 0x55U),   // 13: Mainline after ISR
@@ -95,6 +95,6 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
         CHECK(cpu.snapshot().gpr[18] == 0x55U);
 
         // EIFR should be cleared
-        CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x00U);
+        CHECK(bus.read_data(atmega328.ext_interrupts[0].eifr_address) == 0x00U);
     }
 }

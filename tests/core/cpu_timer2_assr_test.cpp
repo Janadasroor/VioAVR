@@ -11,20 +11,20 @@ TEST_CASE("Timer2 ASSR busy flags track async-domain register writes")
     using vioavr::core::devices::atmega328p;
 
     MemoryBus bus {atmega328p};
-    Timer8 timer2 {"TIMER2", atmega328p.timer2};
+    Timer8 timer2 {"TIMER2", atmega328p.timers8[1]};
     bus.attach_peripheral(timer2);
     bus.reset();
 
-    bus.write_data(atmega328p.timer2.assr_address, 0x20U); // AS2
+    bus.write_data(atmega328p.timers8[1].assr_address, 0x20U); // AS2
     CHECK(timer2.async_status() == 0x20U);
 
-    bus.write_data(atmega328p.timer2.tcnt_address, 0x11U);
-    // bus.write_data(atmega328p.timer2.ocra_address, 0x22U);
-    // bus.write_data(atmega328p.timer2.ocrb_address, 0x33U);
-    // bus.write_data(atmega328p.timer2.tccra_address, 0x02U);
-    // bus.write_data(atmega328p.timer2.tccrb_address, 0x01U);
+    bus.write_data(atmega328p.timers8[1].tcnt_address, 0x11U);
+    // bus.write_data(atmega328p.timers8[1].ocra_address, 0x22U);
+    // bus.write_data(atmega328p.timers8[1].ocrb_address, 0x33U);
+    // bus.write_data(atmega328p.timers8[1].tccra_address, 0x02U);
+    // bus.write_data(atmega328p.timers8[1].tccrb_address, 0x01U);
 
-    CHECK((timer2.async_status() & atmega328p.timer2.tcn2ub_mask) == atmega328p.timer2.tcn2ub_mask);
+    CHECK((timer2.async_status() & atmega328p.timers8[1].tcn2ub_mask) == atmega328p.timers8[1].tcn2ub_mask);
 
     bus.tick_peripherals(1U);
     CHECK(timer2.async_status() == 0x20U);

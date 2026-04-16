@@ -1,0 +1,3559 @@
+{
+  "name": "AT90PWM161",
+  "memories": {
+    "prog": [
+      {
+        "name": "FLASH",
+        "start": 0,
+        "size": 16384,
+        "type": "flash",
+        "pagesize": 128
+      },
+      {
+        "name": "BOOT_SECTION_1",
+        "start": 16128,
+        "size": 256,
+        "type": "flash",
+        "pagesize": 128
+      },
+      {
+        "name": "BOOT_SECTION_2",
+        "start": 15872,
+        "size": 512,
+        "type": "flash",
+        "pagesize": 128
+      },
+      {
+        "name": "BOOT_SECTION_3",
+        "start": 15360,
+        "size": 1024,
+        "type": "flash",
+        "pagesize": 128
+      },
+      {
+        "name": "BOOT_SECTION_4",
+        "start": 14336,
+        "size": 2048,
+        "type": "flash",
+        "pagesize": 128
+      }
+    ],
+    "signatures": [
+      {
+        "name": "SIGNATURES",
+        "start": 0,
+        "size": 3,
+        "type": "signatures",
+        "pagesize": 0
+      }
+    ],
+    "fuses": [
+      {
+        "name": "FUSES",
+        "start": 0,
+        "size": 3,
+        "type": "fuses",
+        "pagesize": 0
+      }
+    ],
+    "lockbits": [
+      {
+        "name": "LOCKBITS",
+        "start": 0,
+        "size": 1,
+        "type": "lockbits",
+        "pagesize": 0
+      }
+    ],
+    "data": [
+      {
+        "name": "REGISTERS",
+        "start": 0,
+        "size": 32,
+        "type": "regs",
+        "pagesize": 0
+      },
+      {
+        "name": "MAPPED_IO",
+        "start": 32,
+        "size": 224,
+        "type": "io",
+        "pagesize": 0
+      },
+      {
+        "name": "IRAM",
+        "start": 256,
+        "size": 1024,
+        "type": "ram",
+        "pagesize": 0
+      }
+    ],
+    "eeprom": [
+      {
+        "name": "EEPROM",
+        "start": 0,
+        "size": 512,
+        "type": "eeprom",
+        "pagesize": 4
+      }
+    ],
+    "io": [],
+    "osccal": [
+      {
+        "name": "OSCCAL",
+        "start": 0,
+        "size": 2,
+        "type": "osccal",
+        "pagesize": 0
+      }
+    ]
+  },
+  "interrupts": [
+    {
+      "name": "RESET",
+      "index": 0,
+      "caption": "External Pin, Power-on Reset, Brown-out Reset, Watchdog Reset and JTAG AVR Reset"
+    },
+    {
+      "name": "PSC2_CAPT",
+      "index": 1,
+      "caption": "PSC2 Capture Event"
+    },
+    {
+      "name": "PSC2_EC",
+      "index": 2,
+      "caption": "PSC2 End Cycle"
+    },
+    {
+      "name": "PSC2_EEC",
+      "index": 3,
+      "caption": "PSC2 End Of Enhanced Cycle"
+    },
+    {
+      "name": "PSC0_CAPT",
+      "index": 4,
+      "caption": "PSC0 Capture Event"
+    },
+    {
+      "name": "PSC0_EC",
+      "index": 5,
+      "caption": "PSC0 End Cycle"
+    },
+    {
+      "name": "PSC0_EEC",
+      "index": 6,
+      "caption": "PSC0 End Of Enhanced Cycle"
+    },
+    {
+      "name": "ANALOG_COMP_1",
+      "index": 7,
+      "caption": "Analog Comparator 1"
+    },
+    {
+      "name": "ANALOG_COMP_2",
+      "index": 8,
+      "caption": "Analog Comparator 2"
+    },
+    {
+      "name": "ANALOG_COMP_3",
+      "index": 9,
+      "caption": "Analog Comparator 3"
+    },
+    {
+      "name": "INT0",
+      "index": 10,
+      "caption": "External Interrupt Request 0"
+    },
+    {
+      "name": "TIMER1_CAPT",
+      "index": 11,
+      "caption": "Timer/Counter1 Capture Event"
+    },
+    {
+      "name": "TIMER1_OVF",
+      "index": 12,
+      "caption": "Timer/Counter1 Overflow"
+    },
+    {
+      "name": "ADC",
+      "index": 13,
+      "caption": "ADC Conversion Complete"
+    },
+    {
+      "name": "INT1",
+      "index": 14,
+      "caption": "External Interrupt Request 1"
+    },
+    {
+      "name": "SPI_STC",
+      "index": 15,
+      "caption": "SPI Serial Transfer Complet"
+    },
+    {
+      "name": "INT2",
+      "index": 16,
+      "caption": "External Interrupt Request 2"
+    },
+    {
+      "name": "WDT",
+      "index": 17,
+      "caption": "Watchdog Timeout Interrupt"
+    },
+    {
+      "name": "EE_READY",
+      "index": 18,
+      "caption": "EEPROM Ready"
+    },
+    {
+      "name": "SPM_READY",
+      "index": 19,
+      "caption": "Store Program Memory Read"
+    }
+  ],
+  "peripherals": {
+    "PORTB": {
+      "module": "PORT",
+      "registers": {
+        "PORTB": {
+          "caption": "Port B Data Register",
+          "offset": 37,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        },
+        "DDRB": {
+          "caption": "Port B Data Direction Register",
+          "offset": 36,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        },
+        "PINB": {
+          "caption": "Port B Input Pins",
+          "offset": 35,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        }
+      },
+      "signals": []
+    },
+    "PORTD": {
+      "module": "PORT",
+      "registers": {
+        "PORTD": {
+          "caption": "Port D Data Register",
+          "offset": 43,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        },
+        "DDRD": {
+          "caption": "Port D Data Direction Register",
+          "offset": 42,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        },
+        "PIND": {
+          "caption": "Port D Input Pins",
+          "offset": 41,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        }
+      },
+      "signals": []
+    },
+    "PORTE": {
+      "module": "PORT",
+      "registers": {
+        "PORTE": {
+          "caption": "Port E Data Register",
+          "offset": 46,
+          "size": 1,
+          "initval": 0,
+          "mask": 7,
+          "bitfields": {}
+        },
+        "DDRE": {
+          "caption": "Port E Data Direction Register",
+          "offset": 45,
+          "size": 1,
+          "initval": 0,
+          "mask": 7,
+          "bitfields": {}
+        },
+        "PINE": {
+          "caption": "Port E Input Pins",
+          "offset": 44,
+          "size": 1,
+          "initval": 0,
+          "mask": 7,
+          "bitfields": {}
+        }
+      },
+      "signals": []
+    },
+    "DAC": {
+      "module": "DAC",
+      "registers": {
+        "DACH": {
+          "caption": "DAC Data Register High Byte",
+          "offset": 89,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "DACH": {
+              "mask": 255,
+              "caption": "DAC Data Register High Byte Bits",
+              "values": {}
+            }
+          }
+        },
+        "DACL": {
+          "caption": "DAC Data Register Low Byte",
+          "offset": 88,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "DACL": {
+              "mask": 255,
+              "caption": "DAC Data Register Low Byte Bits",
+              "values": {}
+            }
+          }
+        },
+        "DACON": {
+          "caption": "DAC Control Register",
+          "offset": 118,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "DAATE": {
+              "mask": 128,
+              "caption": "DAC Auto Trigger Enable Bit",
+              "values": {}
+            },
+            "DATS": {
+              "mask": 112,
+              "caption": "DAC Trigger Selection Bits",
+              "values": {
+                "ANALOG_COMPARATOR_0": {
+                  "value": 0,
+                  "caption": "Analog Comparator 0"
+                },
+                "ANALOG_COMPARATOR_1": {
+                  "value": 1,
+                  "caption": "Analog Comparator 1"
+                },
+                "EXTERNAL_INTERRUPT_REQUEST_0": {
+                  "value": 2,
+                  "caption": "External Interrupt Request 0"
+                },
+                "TIMER_COUNTER0_COMPARE_MATCH_A": {
+                  "value": 3,
+                  "caption": "Timer/Counter0 Compare Match A"
+                },
+                "TIMER_COUNTER0_OVERFLOW": {
+                  "value": 4,
+                  "caption": "Timer/Counter0 Overflow"
+                },
+                "TIMER_COUNTER1_COMPARE_MATCH_B": {
+                  "value": 5,
+                  "caption": "Timer/Counter1 Compare Match B"
+                },
+                "TIMER_COUNTER1_OVERFLOW": {
+                  "value": 6,
+                  "caption": "Timer/Counter1 Overflow"
+                },
+                "TIMER_COUNTER1_CAPTURE_EVENT": {
+                  "value": 7,
+                  "caption": "Timer/Counter1 Capture Event"
+                }
+              }
+            },
+            "DALA": {
+              "mask": 4,
+              "caption": "DAC Left Adjust",
+              "values": {}
+            },
+            "DAEN": {
+              "mask": 1,
+              "caption": "DAC Enable Bit",
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "SPI": {
+      "module": "SPI",
+      "registers": {
+        "SPCR": {
+          "caption": "SPI Control Register",
+          "offset": 55,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "SPIE": {
+              "mask": 128,
+              "caption": "SPI Interrupt Enable",
+              "values": {}
+            },
+            "SPE": {
+              "mask": 64,
+              "caption": "SPI Enable",
+              "values": {}
+            },
+            "DORD": {
+              "mask": 32,
+              "caption": "Data Order",
+              "values": {}
+            },
+            "MSTR": {
+              "mask": 16,
+              "caption": "Master/Slave Select",
+              "values": {}
+            },
+            "CPOL": {
+              "mask": 8,
+              "caption": "Clock polarity",
+              "values": {}
+            },
+            "CPHA": {
+              "mask": 4,
+              "caption": "Clock Phase",
+              "values": {}
+            },
+            "SPR": {
+              "mask": 3,
+              "caption": "SPI Clock Rate Selects",
+              "values": {
+                "FOSC_4": {
+                  "value": 0,
+                  "caption": "fosc/4"
+                },
+                "FOSC_16": {
+                  "value": 1,
+                  "caption": "fosc/16"
+                },
+                "FOSC_64": {
+                  "value": 7,
+                  "caption": "fosc/64"
+                },
+                "FOSC_128": {
+                  "value": 3,
+                  "caption": "fosc/128"
+                },
+                "FOSC_2": {
+                  "value": 4,
+                  "caption": "fosc/2"
+                },
+                "FOSC_8": {
+                  "value": 5,
+                  "caption": "fosc/8"
+                },
+                "FOSC_32": {
+                  "value": 6,
+                  "caption": "fosc/32"
+                }
+              }
+            }
+          }
+        },
+        "SPSR": {
+          "caption": "SPI Status Register",
+          "offset": 56,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "SPIF": {
+              "mask": 128,
+              "caption": "SPI Interrupt Flag",
+              "values": {}
+            },
+            "WCOL": {
+              "mask": 64,
+              "caption": "Write Collision Flag",
+              "values": {}
+            },
+            "SPI2X": {
+              "mask": 1,
+              "caption": "Double SPI Speed Bit",
+              "values": {}
+            }
+          }
+        },
+        "SPDR": {
+          "caption": "SPI Data Register",
+          "offset": 86,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        }
+      },
+      "signals": []
+    },
+    "WDT": {
+      "module": "WDT",
+      "registers": {
+        "WDTCSR": {
+          "caption": "Watchdog Timer Control Register",
+          "offset": 130,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "WDIF": {
+              "mask": 128,
+              "caption": "Watchdog Timeout Interrupt Flag",
+              "values": {}
+            },
+            "WDIE": {
+              "mask": 64,
+              "caption": "Watchdog Timeout Interrupt Enable",
+              "values": {}
+            },
+            "WDP": {
+              "mask": 39,
+              "caption": "Watchdog Timer Prescaler Bits",
+              "values": {
+                "OSCILLATOR_CYCLES_2K": {
+                  "value": 0,
+                  "caption": "Oscillator Cycles 2K"
+                },
+                "OSCILLATOR_CYCLES_4K": {
+                  "value": 1,
+                  "caption": "Oscillator Cycles 4K"
+                },
+                "OSCILLATOR_CYCLES_8K": {
+                  "value": 2,
+                  "caption": "Oscillator Cycles 8K"
+                },
+                "OSCILLATOR_CYCLES_16K": {
+                  "value": 3,
+                  "caption": "Oscillator Cycles 16K"
+                },
+                "OSCILLATOR_CYCLES_32K": {
+                  "value": 4,
+                  "caption": "Oscillator Cycles 32K"
+                },
+                "OSCILLATOR_CYCLES_64K": {
+                  "value": 5,
+                  "caption": "Oscillator Cycles 64K"
+                },
+                "OSCILLATOR_CYCLES_128K": {
+                  "value": 6,
+                  "caption": "Oscillator Cycles 128K"
+                },
+                "OSCILLATOR_CYCLES_256K": {
+                  "value": 7,
+                  "caption": "Oscillator Cycles 256K"
+                },
+                "OSCILLATOR_CYCLES_512K": {
+                  "value": 8,
+                  "caption": "Oscillator Cycles 512K"
+                },
+                "OSCILLATOR_CYCLES_1024K": {
+                  "value": 9,
+                  "caption": "Oscillator Cycles 1024K"
+                }
+              }
+            },
+            "WDCE": {
+              "mask": 16,
+              "caption": "Watchdog Change Enable",
+              "values": {}
+            },
+            "WDE": {
+              "mask": 8,
+              "caption": "Watch Dog Enable",
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "EXINT": {
+      "module": "EXINT",
+      "registers": {
+        "EICRA": {
+          "caption": "External Interrupt Control Register A",
+          "offset": 137,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ISC2": {
+              "mask": 48,
+              "caption": "External Interrupt Sense Control Bit",
+              "values": {
+                "LOW_LEVEL_OF_INTX": {
+                  "value": 0,
+                  "caption": "Low Level of INTX"
+                },
+                "ANY_LOGICAL_CHANGE_OF_INTX": {
+                  "value": 1,
+                  "caption": "Any Logical Change of INTX"
+                },
+                "FALLING_EDGE_OF_INTX": {
+                  "value": 2,
+                  "caption": "Falling Edge of INTX"
+                },
+                "RISING_EDGE_OF_INTX": {
+                  "value": 3,
+                  "caption": "Rising Edge of INTX"
+                }
+              }
+            },
+            "ISC1": {
+              "mask": 12,
+              "caption": "External Interrupt Sense Control Bit",
+              "values": {
+                "LOW_LEVEL_OF_INTX": {
+                  "value": 0,
+                  "caption": "Low Level of INTX"
+                },
+                "ANY_LOGICAL_CHANGE_OF_INTX": {
+                  "value": 1,
+                  "caption": "Any Logical Change of INTX"
+                },
+                "FALLING_EDGE_OF_INTX": {
+                  "value": 2,
+                  "caption": "Falling Edge of INTX"
+                },
+                "RISING_EDGE_OF_INTX": {
+                  "value": 3,
+                  "caption": "Rising Edge of INTX"
+                }
+              }
+            },
+            "ISC0": {
+              "mask": 3,
+              "caption": "External Interrupt Sense Control Bit",
+              "values": {
+                "LOW_LEVEL_OF_INTX": {
+                  "value": 0,
+                  "caption": "Low Level of INTX"
+                },
+                "ANY_LOGICAL_CHANGE_OF_INTX": {
+                  "value": 1,
+                  "caption": "Any Logical Change of INTX"
+                },
+                "FALLING_EDGE_OF_INTX": {
+                  "value": 2,
+                  "caption": "Falling Edge of INTX"
+                },
+                "RISING_EDGE_OF_INTX": {
+                  "value": 3,
+                  "caption": "Rising Edge of INTX"
+                }
+              }
+            }
+          }
+        },
+        "EIMSK": {
+          "caption": "External Interrupt Mask Register",
+          "offset": 65,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "INT": {
+              "mask": 7,
+              "caption": "External Interrupt Request 2 Enable",
+              "values": {}
+            }
+          }
+        },
+        "EIFR": {
+          "caption": "External Interrupt Flag Register",
+          "offset": 64,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "INTF": {
+              "mask": 7,
+              "caption": "External Interrupt Flags",
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "ADC": {
+      "module": "ADC",
+      "registers": {
+        "ADMUX": {
+          "caption": "The ADC multiplexer Selection Register",
+          "offset": 40,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "REFS": {
+              "mask": 192,
+              "caption": "Reference Selection Bits",
+              "values": {
+                "AREF_INTERNAL_VREF_TURNED_OFF": {
+                  "value": 0,
+                  "caption": "AREF, Internal Vref turned off"
+                },
+                "AVCC_WITH_EXTERNAL_CAPACITOR_AT_AREF_PIN": {
+                  "value": 1,
+                  "caption": "AVCC with external capacitor at AREF pin"
+                },
+                "RESERVED": {
+                  "value": 2,
+                  "caption": "Reserved"
+                },
+                "INTERNAL_2_56V_VOLTAGE_REFERENCE_WITH_EXTERNAL_CAPACITOR_AT_AREF_PIN": {
+                  "value": 3,
+                  "caption": "Internal 2.56V Voltage Reference with external capacitor at AREF pin"
+                }
+              }
+            },
+            "ADLAR": {
+              "mask": 32,
+              "caption": "Left Adjust Result",
+              "values": {}
+            },
+            "MUX": {
+              "mask": 15,
+              "caption": "Analog Channel and Gain Selection Bits",
+              "values": {}
+            }
+          }
+        },
+        "ADCSRA": {
+          "caption": "The ADC Control and Status register",
+          "offset": 38,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ADEN": {
+              "mask": 128,
+              "caption": "ADC Enable",
+              "values": {}
+            },
+            "ADSC": {
+              "mask": 64,
+              "caption": "ADC Start Conversion",
+              "values": {}
+            },
+            "ADATE": {
+              "mask": 32,
+              "caption": "ADC Auto Trigger Enable",
+              "values": {}
+            },
+            "ADIF": {
+              "mask": 16,
+              "caption": "ADC Interrupt Flag",
+              "values": {}
+            },
+            "ADIE": {
+              "mask": 8,
+              "caption": "ADC Interrupt Enable",
+              "values": {}
+            },
+            "ADPS": {
+              "mask": 7,
+              "caption": "ADC  Prescaler Select Bits",
+              "values": {}
+            }
+          }
+        },
+        "ADC": {
+          "caption": "ADC Data Register  Bytes",
+          "offset": 76,
+          "size": 2,
+          "initval": 0,
+          "mask": 65535,
+          "bitfields": {}
+        },
+        "ADCSRB": {
+          "caption": "ADC Control and Status Register B",
+          "offset": 39,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ADHSM": {
+              "mask": 128,
+              "caption": "ADC High Speed Mode",
+              "values": {}
+            },
+            "ADNCDIS": {
+              "mask": 64,
+              "caption": "ADC Noise Canceller Disable",
+              "values": {}
+            },
+            "ADSSEN": {
+              "mask": 16,
+              "caption": "ADC Single Shot Enable on PSC's Synchronisation Signals",
+              "values": {}
+            },
+            "ADTS": {
+              "mask": 15,
+              "caption": "ADC Auto Trigger Sources",
+              "values": {
+                "FREE_RUNNING_MODE": {
+                  "value": 0,
+                  "caption": "Free Running mode"
+                },
+                "ANALOG_COMPARATOR": {
+                  "value": 1,
+                  "caption": "Analog Comparator"
+                },
+                "EXTERNAL_INTERRUPT_REQUEST_0": {
+                  "value": 2,
+                  "caption": "External Interrupt Request 0"
+                },
+                "TIMER_COUNTER0_COMPARE_MATCH_A": {
+                  "value": 3,
+                  "caption": "Timer/Counter0 Compare Match A"
+                },
+                "TIMER_COUNTER0_OVERFLOW": {
+                  "value": 4,
+                  "caption": "Timer/Counter0 Overflow"
+                },
+                "TIMER_COUNTER1_COMPARE_MATCH_B": {
+                  "value": 5,
+                  "caption": "Timer/Counter1 Compare Match B"
+                },
+                "TIMER_COUNTER1_OVERFLOW": {
+                  "value": 6,
+                  "caption": "Timer/Counter1 Overflow"
+                },
+                "TIMER_COUNTER1_CAPTURE_EVENT": {
+                  "value": 7,
+                  "caption": "Timer/Counter1 Capture Event"
+                },
+                "PSC0ASY_EVENT": {
+                  "value": 8,
+                  "caption": "PSC0ASY Event"
+                },
+                "PSC1ASY_EVENT": {
+                  "value": 9,
+                  "caption": "PSC1ASY Event"
+                },
+                "PSC2ASY_EVENT": {
+                  "value": 10,
+                  "caption": "PSC2ASY Event"
+                },
+                "ANALOG_COMPARATOR_1": {
+                  "value": 11,
+                  "caption": "Analog comparator 1"
+                },
+                "ANALOG_COMPARATOR_2": {
+                  "value": 12,
+                  "caption": "Analog comparator 2"
+                }
+              }
+            }
+          }
+        },
+        "DIDR0": {
+          "caption": "Digital Input Disable Register 0",
+          "offset": 119,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ADC7D": {
+              "mask": 128,
+              "caption": null,
+              "values": {}
+            },
+            "ADC6D": {
+              "mask": 64,
+              "caption": "ADC7 Digital input Disable",
+              "values": {}
+            },
+            "ADC5D": {
+              "mask": 32,
+              "caption": "ADC5 Digital input Disable",
+              "values": {}
+            },
+            "ADC4D": {
+              "mask": 16,
+              "caption": "ADC4 Digital input Disable",
+              "values": {}
+            },
+            "ADC3D": {
+              "mask": 8,
+              "caption": "ADC3 Digital input Disable",
+              "values": {}
+            },
+            "ADC2D": {
+              "mask": 4,
+              "caption": "ADC2 Digital input Disable",
+              "values": {}
+            },
+            "ADC1D": {
+              "mask": 2,
+              "caption": "ADC1 Digital input Disable",
+              "values": {}
+            },
+            "ADC0D": {
+              "mask": 1,
+              "caption": "ADC0 Digital input Disable",
+              "values": {}
+            }
+          }
+        },
+        "DIDR1": {
+          "caption": "Digital Input Disable Register 0",
+          "offset": 120,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ACMP1MD": {
+              "mask": 8,
+              "caption": null,
+              "values": {}
+            },
+            "AMP0POSD": {
+              "mask": 4,
+              "caption": null,
+              "values": {}
+            },
+            "ADC10D": {
+              "mask": 2,
+              "caption": null,
+              "values": {}
+            },
+            "ADC9D": {
+              "mask": 1,
+              "caption": null,
+              "values": {}
+            }
+          }
+        },
+        "AMP0CSR": {
+          "caption": null,
+          "offset": 121,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AMP0EN": {
+              "mask": 128,
+              "caption": null,
+              "values": {}
+            },
+            "AMP0IS": {
+              "mask": 64,
+              "caption": null,
+              "values": {}
+            },
+            "AMP0G": {
+              "mask": 48,
+              "caption": null,
+              "values": {}
+            },
+            "AMP0GS": {
+              "mask": 8,
+              "caption": null,
+              "values": {}
+            },
+            "AMP0TS": {
+              "mask": 3,
+              "caption": null,
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "AC": {
+      "module": "AC",
+      "registers": {
+        "AC3CON": {
+          "caption": "Analog Comparator3 Control Register",
+          "offset": 127,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AC3EN": {
+              "mask": 128,
+              "caption": "Analog Comparator3 Enable Bit",
+              "values": {}
+            },
+            "AC3IE": {
+              "mask": 64,
+              "caption": "Analog Comparator 3 Interrupt Enable Bit",
+              "values": {}
+            },
+            "AC3IS": {
+              "mask": 48,
+              "caption": "Analog Comparator 3  Interrupt Select Bit",
+              "values": {}
+            },
+            "AC3OEA": {
+              "mask": 8,
+              "caption": "Analog Comparator 3 Alternate Output Enable",
+              "values": {}
+            },
+            "AC3M": {
+              "mask": 7,
+              "caption": "Analog Comparator 3 Multiplexer Register",
+              "values": {}
+            }
+          }
+        },
+        "AC1CON": {
+          "caption": "Analog Comparator 1 Control Register",
+          "offset": 125,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AC1EN": {
+              "mask": 128,
+              "caption": "Analog Comparator 1 Enable Bit",
+              "values": {}
+            },
+            "AC1IE": {
+              "mask": 64,
+              "caption": "Analog Comparator 1 Interrupt Enable Bit",
+              "values": {}
+            },
+            "AC1IS": {
+              "mask": 48,
+              "caption": "Analog Comparator 1  Interrupt Select Bit",
+              "values": {
+                "INTERRUPT_ON_TOGGLE": {
+                  "value": 0,
+                  "caption": "Interrupt on Toggle"
+                },
+                "RESERVED": {
+                  "value": 1,
+                  "caption": "Reserved"
+                },
+                "INTERRUPT_ON_FALLING_EDGE": {
+                  "value": 2,
+                  "caption": "Interrupt on Falling Edge"
+                },
+                "INTERRUPT_ON_RISING_EDGE": {
+                  "value": 3,
+                  "caption": "Interrupt on Rising Edge"
+                }
+              }
+            },
+            "AC1M": {
+              "mask": 7,
+              "caption": "Analog Comparator 1 Multiplexer Register",
+              "values": {}
+            }
+          }
+        },
+        "AC2CON": {
+          "caption": "Analog Comparator 2 Control Register",
+          "offset": 126,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AC2EN": {
+              "mask": 128,
+              "caption": "Analog Comparator 2 Enable Bit",
+              "values": {}
+            },
+            "AC2IE": {
+              "mask": 64,
+              "caption": "Analog Comparator 2 Interrupt Enable Bit",
+              "values": {}
+            },
+            "AC2IS": {
+              "mask": 48,
+              "caption": "Analog Comparator 2  Interrupt Select Bit",
+              "values": {
+                "INTERRUPT_ON_TOGGLE": {
+                  "value": 0,
+                  "caption": "Interrupt on Toggle"
+                },
+                "RESERVED": {
+                  "value": 1,
+                  "caption": "Reserved"
+                },
+                "INTERRUPT_ON_FALLING_EDGE": {
+                  "value": 2,
+                  "caption": "Interrupt on Falling Edge"
+                },
+                "INTERRUPT_ON_RISING_EDGE": {
+                  "value": 3,
+                  "caption": "Interrupt on Rising Edge"
+                }
+              }
+            },
+            "AC2M": {
+              "mask": 7,
+              "caption": "Analog Comparator 2 Multiplexer Register",
+              "values": {}
+            }
+          }
+        },
+        "ACSR": {
+          "caption": "Analog Comparator Status Register",
+          "offset": 32,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AC3IF": {
+              "mask": 128,
+              "caption": "Analog Comparator 3 Interrupt Flag Bit",
+              "values": {}
+            },
+            "AC2IF": {
+              "mask": 64,
+              "caption": "Analog Comparator 2 Interrupt Flag Bit",
+              "values": {}
+            },
+            "AC1IF": {
+              "mask": 32,
+              "caption": "Analog Comparator 1  Interrupt Flag Bit",
+              "values": {}
+            },
+            "AC3O": {
+              "mask": 8,
+              "caption": "Analog Comparator 3 Output Bit",
+              "values": {}
+            },
+            "AC2O": {
+              "mask": 4,
+              "caption": "Analog Comparator 2 Output Bit",
+              "values": {}
+            },
+            "AC1O": {
+              "mask": 2,
+              "caption": "Analog Comparator 1 Output Bit",
+              "values": {}
+            }
+          }
+        },
+        "AC3ECON": {
+          "caption": null,
+          "offset": 124,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AC3OI": {
+              "mask": 32,
+              "caption": "Analog Comparator Output Invert",
+              "values": {}
+            },
+            "AC3OE": {
+              "mask": 16,
+              "caption": "Analog Comparator Output Enable",
+              "values": {}
+            },
+            "AC3H": {
+              "mask": 7,
+              "caption": "Analog Comparator Hysteresis Select",
+              "values": {}
+            }
+          }
+        },
+        "AC2ECON": {
+          "caption": null,
+          "offset": 123,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AC2OI": {
+              "mask": 32,
+              "caption": "Analog Comparator Output Invert",
+              "values": {}
+            },
+            "AC2OE": {
+              "mask": 16,
+              "caption": "Analog Comparator Output Enable",
+              "values": {}
+            },
+            "AC2H": {
+              "mask": 7,
+              "caption": "Analog Comparator Hysteresis Select",
+              "values": {}
+            }
+          }
+        },
+        "AC1ECON": {
+          "caption": null,
+          "offset": 122,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "AC1OI": {
+              "mask": 32,
+              "caption": "Analog Comparator Output Invert",
+              "values": {}
+            },
+            "AC1OE": {
+              "mask": 16,
+              "caption": "Analog Comparator Output Enable",
+              "values": {}
+            },
+            "AC1ICE": {
+              "mask": 8,
+              "caption": "Analog Comparator Interrupt Capture Enable",
+              "values": {}
+            },
+            "AC1H": {
+              "mask": 7,
+              "caption": "Analog Comparator Hysteresis Select",
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "CPU": {
+      "module": "CPU",
+      "registers": {
+        "SREG": {
+          "caption": "Status Register",
+          "offset": 95,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "I": {
+              "mask": 128,
+              "caption": "Global Interrupt Enable",
+              "values": {}
+            },
+            "T": {
+              "mask": 64,
+              "caption": "Bit Copy Storage",
+              "values": {}
+            },
+            "H": {
+              "mask": 32,
+              "caption": "Half Carry Flag",
+              "values": {}
+            },
+            "S": {
+              "mask": 16,
+              "caption": "Sign Bit",
+              "values": {}
+            },
+            "V": {
+              "mask": 8,
+              "caption": "Two's Complement Overflow Flag",
+              "values": {}
+            },
+            "N": {
+              "mask": 4,
+              "caption": "Negative Flag",
+              "values": {}
+            },
+            "Z": {
+              "mask": 2,
+              "caption": "Zero Flag",
+              "values": {}
+            },
+            "C": {
+              "mask": 1,
+              "caption": "Carry Flag",
+              "values": {}
+            }
+          }
+        },
+        "SP": {
+          "caption": "Stack Pointer ",
+          "offset": 93,
+          "size": 2,
+          "initval": 0,
+          "mask": 65535,
+          "bitfields": {}
+        },
+        "MCUCR": {
+          "caption": "MCU Control Register",
+          "offset": 85,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PUD": {
+              "mask": 16,
+              "caption": "Pull-up disable",
+              "values": {}
+            },
+            "RSTDIS": {
+              "mask": 8,
+              "caption": "Reset Pin Disable",
+              "values": {}
+            },
+            "CKRC81": {
+              "mask": 4,
+              "caption": "Frequency Selection of the Calibrated RC Oscillator",
+              "values": {}
+            },
+            "IVSEL": {
+              "mask": 2,
+              "caption": "Interrupt Vector Select",
+              "values": {}
+            },
+            "IVCE": {
+              "mask": 1,
+              "caption": "Interrupt Vector Change Enable",
+              "values": {}
+            }
+          }
+        },
+        "MCUSR": {
+          "caption": "MCU Status Register",
+          "offset": 84,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "WDRF": {
+              "mask": 8,
+              "caption": "Watchdog Reset Flag",
+              "values": {}
+            },
+            "BORF": {
+              "mask": 4,
+              "caption": "Brown-out Reset Flag",
+              "values": {}
+            },
+            "EXTRF": {
+              "mask": 2,
+              "caption": "External Reset Flag",
+              "values": {}
+            },
+            "PORF": {
+              "mask": 1,
+              "caption": "Power-on reset flag",
+              "values": {}
+            }
+          }
+        },
+        "OSCCAL": {
+          "caption": "Oscillator Calibration Value",
+          "offset": 136,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "OSCCAL": {
+              "mask": 255,
+              "caption": "Oscillator Calibration ",
+              "values": {}
+            }
+          }
+        },
+        "CLKPR": {
+          "caption": null,
+          "offset": 131,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "CLKPCE": {
+              "mask": 128,
+              "caption": null,
+              "values": {}
+            },
+            "CLKPS": {
+              "mask": 15,
+              "caption": null,
+              "values": {
+                "1": {
+                  "value": 0,
+                  "caption": "1"
+                },
+                "2": {
+                  "value": 1,
+                  "caption": "2"
+                },
+                "4": {
+                  "value": 2,
+                  "caption": "4"
+                },
+                "8": {
+                  "value": 3,
+                  "caption": "8"
+                },
+                "16": {
+                  "value": 4,
+                  "caption": "16"
+                },
+                "32": {
+                  "value": 5,
+                  "caption": "32"
+                },
+                "64": {
+                  "value": 6,
+                  "caption": "64"
+                },
+                "128": {
+                  "value": 7,
+                  "caption": "128"
+                },
+                "256": {
+                  "value": 8,
+                  "caption": "256"
+                }
+              }
+            }
+          }
+        },
+        "SMCR": {
+          "caption": "Sleep Mode Control Register",
+          "offset": 83,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "SM": {
+              "mask": 14,
+              "caption": "Sleep Mode Select bits",
+              "values": {
+                "IDLE": {
+                  "value": 0,
+                  "caption": "Idle"
+                },
+                "ADC": {
+                  "value": 1,
+                  "caption": "ADC Noise Reduction (If Available)"
+                },
+                "PDOWN": {
+                  "value": 2,
+                  "caption": "Power Down"
+                },
+                "VAL_0x03": {
+                  "value": 3,
+                  "caption": "Reserved"
+                },
+                "VAL_0x04": {
+                  "value": 4,
+                  "caption": "Reserved"
+                },
+                "VAL_0x05": {
+                  "value": 5,
+                  "caption": "Reserved"
+                },
+                "STDBY": {
+                  "value": 6,
+                  "caption": "Standby"
+                },
+                "VAL_0x07": {
+                  "value": 7,
+                  "caption": "Reserved"
+                }
+              }
+            },
+            "SE": {
+              "mask": 1,
+              "caption": "Sleep Enable",
+              "values": {}
+            }
+          }
+        },
+        "GPIOR2": {
+          "caption": "General Purpose IO Register 2",
+          "offset": 59,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "GPIOR": {
+              "mask": 255,
+              "caption": "General Purpose IO Register 2 bis",
+              "values": {}
+            }
+          }
+        },
+        "GPIOR1": {
+          "caption": "General Purpose IO Register 1",
+          "offset": 58,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "GPIOR": {
+              "mask": 255,
+              "caption": "General Purpose IO Register 1 bis",
+              "values": {}
+            }
+          }
+        },
+        "GPIOR0": {
+          "caption": "General Purpose IO Register 0",
+          "offset": 57,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "GPIOR07": {
+              "mask": 128,
+              "caption": "General Purpose IO Register 0 bit 7",
+              "values": {}
+            },
+            "GPIOR06": {
+              "mask": 64,
+              "caption": "General Purpose IO Register 0 bit 6",
+              "values": {}
+            },
+            "GPIOR05": {
+              "mask": 32,
+              "caption": "General Purpose IO Register 0 bit 5",
+              "values": {}
+            },
+            "GPIOR04": {
+              "mask": 16,
+              "caption": "General Purpose IO Register 0 bit 4",
+              "values": {}
+            },
+            "GPIOR03": {
+              "mask": 8,
+              "caption": "General Purpose IO Register 0 bit 3",
+              "values": {}
+            },
+            "GPIOR02": {
+              "mask": 4,
+              "caption": "General Purpose IO Register 0 bit 2",
+              "values": {}
+            },
+            "GPIOR01": {
+              "mask": 2,
+              "caption": "General Purpose IO Register 0 bit 1",
+              "values": {}
+            },
+            "GPIOR00": {
+              "mask": 1,
+              "caption": "General Purpose IO Register 0 bit 0",
+              "values": {}
+            }
+          }
+        },
+        "PLLCSR": {
+          "caption": "PLL Control And Status Register",
+          "offset": 135,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PLLF": {
+              "mask": 60,
+              "caption": null,
+              "values": {}
+            },
+            "PLLE": {
+              "mask": 2,
+              "caption": "PLL Enable",
+              "values": {}
+            },
+            "PLOCK": {
+              "mask": 1,
+              "caption": "PLL Lock Detector",
+              "values": {}
+            }
+          }
+        },
+        "PRR": {
+          "caption": "Power Reduction Register",
+          "offset": 134,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PRPSC2": {
+              "mask": 128,
+              "caption": "Power Reduction PSC2",
+              "values": {}
+            },
+            "PRPSCR": {
+              "mask": 32,
+              "caption": "Power Reduction PSC0",
+              "values": {}
+            },
+            "PRTIM1": {
+              "mask": 16,
+              "caption": "Power Reduction Timer/Counter1",
+              "values": {}
+            },
+            "PRSPI": {
+              "mask": 4,
+              "caption": "Power Reduction Serial Peripheral Interface",
+              "values": {}
+            },
+            "PRADC": {
+              "mask": 1,
+              "caption": "Power Reduction ADC",
+              "values": {}
+            }
+          }
+        },
+        "CLKCSR": {
+          "caption": null,
+          "offset": 132,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "CLKCCE": {
+              "mask": 128,
+              "caption": "Clock Control Change Enable",
+              "values": {}
+            },
+            "CLKRDY": {
+              "mask": 16,
+              "caption": "Clock Ready Flag",
+              "values": {}
+            },
+            "CLKC": {
+              "mask": 15,
+              "caption": "Clock Control",
+              "values": {}
+            }
+          }
+        },
+        "CLKSELR": {
+          "caption": null,
+          "offset": 133,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "COUT": {
+              "mask": 64,
+              "caption": "Clock OUT",
+              "values": {}
+            },
+            "CSUT": {
+              "mask": 48,
+              "caption": "Clock Start up Time",
+              "values": {}
+            },
+            "CKSEL": {
+              "mask": 15,
+              "caption": "Clock Source Select",
+              "values": {}
+            }
+          }
+        },
+        "BGCCR": {
+          "caption": "BandGap Current Calibration Register",
+          "offset": 129,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "BGCC": {
+              "mask": 15,
+              "caption": null,
+              "values": {}
+            }
+          }
+        },
+        "BGCRR": {
+          "caption": "BandGap Resistor Calibration Register",
+          "offset": 128,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "BGCR": {
+              "mask": 15,
+              "caption": null,
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "EEPROM": {
+      "module": "EEPROM",
+      "registers": {
+        "EEAR": {
+          "caption": "EEPROM Read/Write Access  Bytes",
+          "offset": 62,
+          "size": 2,
+          "initval": 0,
+          "mask": 511,
+          "bitfields": {}
+        },
+        "EEDR": {
+          "caption": "EEPROM Data Register",
+          "offset": 61,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        },
+        "EECR": {
+          "caption": "EEPROM Control Register",
+          "offset": 60,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "NVMBSY": {
+              "mask": 128,
+              "caption": "None Volatile Busy Memory Busy",
+              "values": {}
+            },
+            "EEPAGE": {
+              "mask": 64,
+              "caption": "EEPROM Page Access",
+              "values": {}
+            },
+            "EEPM": {
+              "mask": 48,
+              "caption": "EEPROM Programming Mode",
+              "values": {}
+            },
+            "EERIE": {
+              "mask": 8,
+              "caption": "EEPROM Ready Interrupt Enable",
+              "values": {}
+            },
+            "EEMWE": {
+              "mask": 4,
+              "caption": "EEPROM Master Write Enable",
+              "values": {}
+            },
+            "EEWE": {
+              "mask": 2,
+              "caption": "EEPROM Write Enable",
+              "values": {}
+            },
+            "EERE": {
+              "mask": 1,
+              "caption": "EEPROM Read Enable",
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "PSC0": {
+      "module": "PSC",
+      "registers": {
+        "PICR0": {
+          "caption": "PSC 0 Input Capture Register ",
+          "offset": 104,
+          "size": 2,
+          "initval": 0,
+          "mask": 36863,
+          "bitfields": {}
+        },
+        "PFRC0B": {
+          "caption": "PSC 0 Input B Control",
+          "offset": 99,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PCAE0B": {
+              "mask": 128,
+              "caption": "PSC 0 Capture Enable Input Part B",
+              "values": {}
+            },
+            "PISEL0B": {
+              "mask": 64,
+              "caption": "PSC 0 Input Select for Part B",
+              "values": {}
+            },
+            "PELEV0B": {
+              "mask": 32,
+              "caption": "PSC 0 Edge Level Selector on Input Part B",
+              "values": {}
+            },
+            "PFLTE0B": {
+              "mask": 16,
+              "caption": "PSC 0 Filter Enable on Input Part B",
+              "values": {}
+            },
+            "PRFM0B": {
+              "mask": 15,
+              "caption": "PSC 0 Retrigger and Fault Mode for Part B",
+              "values": {}
+            }
+          }
+        },
+        "PFRC0A": {
+          "caption": "PSC 0 Input A Control",
+          "offset": 98,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PCAE0A": {
+              "mask": 128,
+              "caption": "PSC 0 Capture Enable Input Part A",
+              "values": {}
+            },
+            "PISEL0A": {
+              "mask": 64,
+              "caption": "PSC 0 Input Select for Part A",
+              "values": {}
+            },
+            "PELEV0A": {
+              "mask": 32,
+              "caption": "PSC 0 Edge Level Selector on Input Part A",
+              "values": {}
+            },
+            "PFLTE0A": {
+              "mask": 16,
+              "caption": "PSC 0 Filter Enable on Input Part A",
+              "values": {}
+            },
+            "PRFM0A": {
+              "mask": 15,
+              "caption": "PSC 0 Retrigger and Fault Mode for Part A",
+              "values": {}
+            }
+          }
+        },
+        "PCTL0": {
+          "caption": "PSC 0 Control Register",
+          "offset": 50,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PPRE0": {
+              "mask": 192,
+              "caption": "PSC 0 Prescaler Selects",
+              "values": {}
+            },
+            "PBFM0": {
+              "mask": 36,
+              "caption": "PSC 0 Balance Flank Width Modulation",
+              "values": {}
+            },
+            "PAOC0B": {
+              "mask": 16,
+              "caption": "PSC 0 Asynchronous Output Control B",
+              "values": {}
+            },
+            "PAOC0A": {
+              "mask": 8,
+              "caption": "PSC 0 Asynchronous Output Control A",
+              "values": {}
+            },
+            "PCCYC0": {
+              "mask": 2,
+              "caption": "PSC0 Complete Cycle",
+              "values": {}
+            },
+            "PRUN0": {
+              "mask": 1,
+              "caption": "PSC 0 Run",
+              "values": {}
+            }
+          }
+        },
+        "PCNF0": {
+          "caption": "PSC 0 Configuration Register",
+          "offset": 49,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PFIFTY0": {
+              "mask": 128,
+              "caption": "PSC 0 Fifty",
+              "values": {}
+            },
+            "PALOCK0": {
+              "mask": 64,
+              "caption": "PSC 0 Autolock",
+              "values": {}
+            },
+            "PLOCK0": {
+              "mask": 32,
+              "caption": "PSC 0 Lock",
+              "values": {}
+            },
+            "PMODE0": {
+              "mask": 24,
+              "caption": "PSC 0 Mode",
+              "values": {}
+            },
+            "POP0": {
+              "mask": 4,
+              "caption": "PSC 0 Output Polarity",
+              "values": {}
+            },
+            "PCLKSEL0": {
+              "mask": 2,
+              "caption": "PSC 0 Input Clock Select",
+              "values": {}
+            }
+          }
+        },
+        "OCR0RB": {
+          "caption": "Output Compare RB Register ",
+          "offset": 68,
+          "size": 2,
+          "initval": 0,
+          "mask": 65535,
+          "bitfields": {}
+        },
+        "OCR0SB": {
+          "caption": "Output Compare SB Register ",
+          "offset": 66,
+          "size": 2,
+          "initval": 0,
+          "mask": 4095,
+          "bitfields": {}
+        },
+        "OCR0RA": {
+          "caption": "Output Compare RA Register ",
+          "offset": 74,
+          "size": 2,
+          "initval": 0,
+          "mask": 4095,
+          "bitfields": {}
+        },
+        "OCR0SA": {
+          "caption": "Output Compare SA Register ",
+          "offset": 96,
+          "size": 2,
+          "initval": 0,
+          "mask": 4095,
+          "bitfields": {}
+        },
+        "PSOC0": {
+          "caption": "PSC0 Synchro and Output Configuration",
+          "offset": 106,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PISEL0A1": {
+              "mask": 128,
+              "caption": "PSC Input Select",
+              "values": {}
+            },
+            "PISEL0B1": {
+              "mask": 64,
+              "caption": "PSC Input Select",
+              "values": {}
+            },
+            "PSYNC0": {
+              "mask": 48,
+              "caption": "Synchronisation out for ADC selection",
+              "values": {}
+            },
+            "POEN0B": {
+              "mask": 4,
+              "caption": "PSCOUT01 Output Enable",
+              "values": {}
+            },
+            "POEN0A": {
+              "mask": 1,
+              "caption": "PSCOUT00 Output Enable",
+              "values": {}
+            }
+          }
+        },
+        "PIM0": {
+          "caption": "PSC0 Interrupt Mask Register",
+          "offset": 47,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PEVE0B": {
+              "mask": 16,
+              "caption": "External Event B Interrupt Enable",
+              "values": {}
+            },
+            "PEVE0A": {
+              "mask": 8,
+              "caption": "External Event A Interrupt Enable",
+              "values": {}
+            },
+            "PEOEPE0": {
+              "mask": 2,
+              "caption": "End of Enhanced Cycle Enable",
+              "values": {}
+            },
+            "PEOPE0": {
+              "mask": 1,
+              "caption": "End of Cycle Interrupt Enable",
+              "values": {}
+            }
+          }
+        },
+        "PIFR0": {
+          "caption": "PSC0 Interrupt Flag Register",
+          "offset": 48,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "POAC0B": {
+              "mask": 128,
+              "caption": "PSC 0 Output A Activity",
+              "values": {}
+            },
+            "POAC0A": {
+              "mask": 64,
+              "caption": "PSC 0 Output A Activity",
+              "values": {}
+            },
+            "PEV0B": {
+              "mask": 16,
+              "caption": "External Event B Interrupt",
+              "values": {}
+            },
+            "PEV0A": {
+              "mask": 8,
+              "caption": "External Event A Interrupt",
+              "values": {}
+            },
+            "PRN0": {
+              "mask": 6,
+              "caption": "Ramp Number",
+              "values": {}
+            },
+            "PEOP0": {
+              "mask": 1,
+              "caption": "End of PSC0 Interrupt",
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "PSC2": {
+      "module": "PSC",
+      "registers": {
+        "PICR2H": {
+          "caption": "PSC 2 Input Capture Register High",
+          "offset": 109,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PCST2": {
+              "mask": 128,
+              "caption": "PSC 2 Capture Software Trigger Bit",
+              "values": {}
+            },
+            "PICR21": {
+              "mask": 12,
+              "caption": null,
+              "values": {}
+            },
+            "PICR2": {
+              "mask": 3,
+              "caption": null,
+              "values": {}
+            }
+          }
+        },
+        "PICR2L": {
+          "caption": "PSC 2 Input Capture Register Low",
+          "offset": 108,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        },
+        "PFRC2B": {
+          "caption": "PSC 2 Input B Control",
+          "offset": 103,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PCAE2B": {
+              "mask": 128,
+              "caption": "PSC 2 Capture Enable Input Part B",
+              "values": {}
+            },
+            "PISEL2B": {
+              "mask": 64,
+              "caption": "PSC 2 Input Select for Part B",
+              "values": {}
+            },
+            "PELEV2B": {
+              "mask": 32,
+              "caption": "PSC 2 Edge Level Selector on Input Part B",
+              "values": {}
+            },
+            "PFLTE2B": {
+              "mask": 16,
+              "caption": "PSC 2 Filter Enable on Input Part B",
+              "values": {}
+            },
+            "PRFM2B": {
+              "mask": 15,
+              "caption": "PSC 2 Retrigger and Fault Mode for Part B",
+              "values": {}
+            }
+          }
+        },
+        "PFRC2A": {
+          "caption": "PSC 2 Input B Control",
+          "offset": 102,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PCAE2A": {
+              "mask": 128,
+              "caption": "PSC 2 Capture Enable Input Part A",
+              "values": {}
+            },
+            "PISEL2A": {
+              "mask": 64,
+              "caption": "PSC 2 Input Select for Part A",
+              "values": {}
+            },
+            "PELEV2A": {
+              "mask": 32,
+              "caption": "PSC 2 Edge Level Selector on Input Part A",
+              "values": {}
+            },
+            "PFLTE2A": {
+              "mask": 16,
+              "caption": "PSC 2 Filter Enable on Input Part A",
+              "values": {}
+            },
+            "PRFM2A": {
+              "mask": 15,
+              "caption": "PSC 2 Retrigger and Fault Mode for Part A",
+              "values": {}
+            }
+          }
+        },
+        "PCTL2": {
+          "caption": "PSC 2 Control Register",
+          "offset": 54,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PPRE2": {
+              "mask": 192,
+              "caption": "PSC 2 Prescaler Selects",
+              "values": {}
+            },
+            "PBFM2": {
+              "mask": 32,
+              "caption": "Balance Flank Width Modulation",
+              "values": {}
+            },
+            "PAOC2B": {
+              "mask": 16,
+              "caption": "PSC 2 Asynchronous Output Control B",
+              "values": {}
+            },
+            "PAOC2A": {
+              "mask": 8,
+              "caption": "PSC 2 Asynchronous Output Control A",
+              "values": {}
+            },
+            "PARUN2": {
+              "mask": 4,
+              "caption": "PSC2 Auto Run",
+              "values": {}
+            },
+            "PCCYC2": {
+              "mask": 2,
+              "caption": "PSC2 Complete Cycle",
+              "values": {}
+            },
+            "PRUN2": {
+              "mask": 1,
+              "caption": "PSC 2 Run",
+              "values": {}
+            }
+          }
+        },
+        "PCNF2": {
+          "caption": "PSC 2 Configuration Register",
+          "offset": 53,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PFIFTY2": {
+              "mask": 128,
+              "caption": "PSC 2 Fifty",
+              "values": {}
+            },
+            "PALOCK2": {
+              "mask": 64,
+              "caption": "PSC 2 Autolock",
+              "values": {}
+            },
+            "PLOCK2": {
+              "mask": 32,
+              "caption": "PSC 2 Lock",
+              "values": {}
+            },
+            "PMODE2": {
+              "mask": 24,
+              "caption": "PSC 2 Mode",
+              "values": {}
+            },
+            "POP2": {
+              "mask": 4,
+              "caption": "PSC 2 Output Polarity",
+              "values": {}
+            },
+            "PCLKSEL2": {
+              "mask": 2,
+              "caption": "PSC 2 Input Clock Select",
+              "values": {}
+            },
+            "POME2": {
+              "mask": 1,
+              "caption": "PSC 2 Output Matrix Enable",
+              "values": {}
+            }
+          }
+        },
+        "PCNFE2": {
+          "caption": "PSC 2 Enhanced Configuration Register",
+          "offset": 112,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PASDLK2": {
+              "mask": 224,
+              "caption": null,
+              "values": {}
+            },
+            "PBFM21": {
+              "mask": 16,
+              "caption": null,
+              "values": {}
+            },
+            "PELEV2A1": {
+              "mask": 8,
+              "caption": null,
+              "values": {}
+            },
+            "PELEV2B1": {
+              "mask": 4,
+              "caption": null,
+              "values": {}
+            },
+            "PISEL2A1": {
+              "mask": 2,
+              "caption": null,
+              "values": {}
+            },
+            "PISEL2B1": {
+              "mask": 1,
+              "caption": null,
+              "values": {}
+            }
+          }
+        },
+        "OCR2RB": {
+          "caption": "Output Compare RB Register ",
+          "offset": 72,
+          "size": 2,
+          "initval": 0,
+          "mask": 65535,
+          "bitfields": {}
+        },
+        "OCR2SB": {
+          "caption": "Output Compare SB Register ",
+          "offset": 70,
+          "size": 2,
+          "initval": 0,
+          "mask": 4095,
+          "bitfields": {}
+        },
+        "OCR2RA": {
+          "caption": "Output Compare RA Register ",
+          "offset": 78,
+          "size": 2,
+          "initval": 0,
+          "mask": 4095,
+          "bitfields": {}
+        },
+        "OCR2SA": {
+          "caption": "Output Compare SA Register ",
+          "offset": 100,
+          "size": 2,
+          "initval": 0,
+          "mask": 4095,
+          "bitfields": {}
+        },
+        "POM2": {
+          "caption": "PSC 2 Output Matrix",
+          "offset": 111,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "POMV2B": {
+              "mask": 240,
+              "caption": "Output Matrix Output B Ramps",
+              "values": {}
+            },
+            "POMV2A": {
+              "mask": 15,
+              "caption": "Output Matrix Output A Ramps",
+              "values": {}
+            }
+          }
+        },
+        "PSOC2": {
+          "caption": "PSC2 Synchro and Output Configuration",
+          "offset": 110,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "POS2": {
+              "mask": 192,
+              "caption": "PSC 2 Output 23 Select",
+              "values": {}
+            },
+            "PSYNC2": {
+              "mask": 48,
+              "caption": "Synchronization Out for ADC Selection",
+              "values": {}
+            },
+            "POEN2D": {
+              "mask": 8,
+              "caption": "PSCOUT23 Output Enable",
+              "values": {}
+            },
+            "POEN2B": {
+              "mask": 4,
+              "caption": "PSCOUT21 Output Enable",
+              "values": {}
+            },
+            "POEN2C": {
+              "mask": 2,
+              "caption": "PSCOUT22 Output Enable",
+              "values": {}
+            },
+            "POEN2A": {
+              "mask": 1,
+              "caption": "PSCOUT20 Output Enable",
+              "values": {}
+            }
+          }
+        },
+        "PIM2": {
+          "caption": "PSC2 Interrupt Mask Register",
+          "offset": 51,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "PSEIE2": {
+              "mask": 32,
+              "caption": "PSC 2 Synchro Error Interrupt Enable",
+              "values": {}
+            },
+            "PEVE2B": {
+              "mask": 16,
+              "caption": "External Event B Interrupt Enable",
+              "values": {}
+            },
+            "PEVE2A": {
+              "mask": 8,
+              "caption": "External Event A Interrupt Enable",
+              "values": {}
+            },
+            "PEOEPE2": {
+              "mask": 2,
+              "caption": "End of Enhanced Cycle Interrupt Enable",
+              "values": {}
+            },
+            "PEOPE2": {
+              "mask": 1,
+              "caption": "End of Cycle Interrupt Enable",
+              "values": {}
+            }
+          }
+        },
+        "PIFR2": {
+          "caption": "PSC2 Interrupt Flag Register",
+          "offset": 52,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "POAC2B": {
+              "mask": 128,
+              "caption": "PSC 2 Output A Activity",
+              "values": {}
+            },
+            "POAC2A": {
+              "mask": 64,
+              "caption": "PSC 2 Output A Activity",
+              "values": {}
+            },
+            "PSEI2": {
+              "mask": 32,
+              "caption": "PSC 2 Synchro Error Interrupt",
+              "values": {}
+            },
+            "PEV2B": {
+              "mask": 16,
+              "caption": "External Event B Interrupt",
+              "values": {}
+            },
+            "PEV2A": {
+              "mask": 8,
+              "caption": "External Event A Interrupt",
+              "values": {}
+            },
+            "PRN2": {
+              "mask": 6,
+              "caption": "Ramp Number",
+              "values": {}
+            },
+            "PEOP2": {
+              "mask": 1,
+              "caption": "End of PSC2 Interrupt",
+              "values": {}
+            }
+          }
+        },
+        "PASDLY2": {
+          "caption": "Analog Synchronization Delay Register",
+          "offset": 113,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
+        }
+      },
+      "signals": []
+    },
+    "TC1": {
+      "module": "TC16",
+      "registers": {
+        "TIMSK1": {
+          "caption": "Timer/Counter Interrupt Mask Register",
+          "offset": 33,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ICIE1": {
+              "mask": 32,
+              "caption": "Timer/Counter1 Input Capture Interrupt Enable",
+              "values": {}
+            },
+            "TOIE1": {
+              "mask": 1,
+              "caption": "Timer/Counter1 Overflow Interrupt Enable",
+              "values": {}
+            }
+          }
+        },
+        "TIFR1": {
+          "caption": "Timer/Counter Interrupt Flag register",
+          "offset": 34,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ICF1": {
+              "mask": 32,
+              "caption": "Input Capture Flag 1",
+              "values": {}
+            },
+            "TOV1": {
+              "mask": 1,
+              "caption": "Timer/Counter1 Overflow Flag",
+              "values": {}
+            }
+          }
+        },
+        "TCCR1B": {
+          "caption": "Timer/Counter1 Control Register B",
+          "offset": 138,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "ICNC1": {
+              "mask": 128,
+              "caption": "Input Capture 1 Noise Canceler",
+              "values": {}
+            },
+            "ICES1": {
+              "mask": 64,
+              "caption": "Input Capture 1 Edge Select",
+              "values": {}
+            },
+            "WGM13": {
+              "mask": 16,
+              "caption": "Waveform Generation Mode",
+              "values": {}
+            },
+            "CS1": {
+              "mask": 7,
+              "caption": "Prescaler source of Timer/Counter 1",
+              "values": {
+                "NO_CLOCK_SOURCE_STOPPED": {
+                  "value": 0,
+                  "caption": "No Clock Source (Stopped)"
+                },
+                "RUNNING_NO_PRESCALING": {
+                  "value": 1,
+                  "caption": "Running, No Prescaling"
+                },
+                "RUNNING_CLK_8": {
+                  "value": 2,
+                  "caption": "Running, CLK/8"
+                },
+                "RUNNING_CLK_64": {
+                  "value": 3,
+                  "caption": "Running, CLK/64"
+                },
+                "RUNNING_CLK_256": {
+                  "value": 4,
+                  "caption": "Running, CLK/256"
+                },
+                "RUNNING_CLK_1024": {
+                  "value": 5,
+                  "caption": "Running, CLK/1024"
+                },
+                "RUNNING_EXTCLK_TN_FALLING_EDGE": {
+                  "value": 6,
+                  "caption": "Running, ExtClk Tn Falling Edge"
+                },
+                "RUNNING_EXTCLK_TN_RISING_EDGE": {
+                  "value": 7,
+                  "caption": "Running, ExtClk Tn Rising Edge"
+                }
+              }
+            }
+          }
+        },
+        "TCNT1": {
+          "caption": "Timer/Counter1  Bytes",
+          "offset": 90,
+          "size": 2,
+          "initval": 0,
+          "mask": 65535,
+          "bitfields": {}
+        },
+        "ICR1": {
+          "caption": "Timer/Counter1 Input Capture Register  Bytes",
+          "offset": 140,
+          "size": 2,
+          "initval": 0,
+          "mask": 65535,
+          "bitfields": {}
+        }
+      },
+      "signals": []
+    },
+    "BOOT_LOAD": {
+      "module": "BOOT_LOAD",
+      "registers": {
+        "SPMCSR": {
+          "caption": "Store Program Memory Control Register",
+          "offset": 87,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {
+            "SPMIE": {
+              "mask": 128,
+              "caption": "SPM Interrupt Enable",
+              "values": {}
+            },
+            "RWWSB": {
+              "mask": 64,
+              "caption": "Read While Write Section Busy",
+              "values": {}
+            },
+            "SIGRD": {
+              "mask": 32,
+              "caption": "Signature Row Read",
+              "values": {}
+            },
+            "RWWSRE": {
+              "mask": 16,
+              "caption": "Read While Write section read enable",
+              "values": {}
+            },
+            "BLBSET": {
+              "mask": 8,
+              "caption": "Boot Lock Bit Set",
+              "values": {}
+            },
+            "PGWRT": {
+              "mask": 4,
+              "caption": "Page Write",
+              "values": {}
+            },
+            "PGERS": {
+              "mask": 2,
+              "caption": "Page Erase",
+              "values": {}
+            },
+            "SPMEN": {
+              "mask": 1,
+              "caption": "Store Program Memory Enable",
+              "values": {}
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "FUSE": {
+      "module": "FUSE",
+      "registers": {
+        "EXTENDED": {
+          "caption": null,
+          "offset": 2,
+          "size": 1,
+          "initval": 253,
+          "mask": 255,
+          "bitfields": {
+            "PSC2RB": {
+              "mask": 128,
+              "caption": "PSC2 Reset Behavior",
+              "values": {}
+            },
+            "PSC2RBA": {
+              "mask": 64,
+              "caption": "PSC2 Reset Behavior for 22 and 23",
+              "values": {}
+            },
+            "PSC0RB": {
+              "mask": 32,
+              "caption": "PSC0 Reset Behavior",
+              "values": {}
+            },
+            "PSCRV": {
+              "mask": 16,
+              "caption": "PSC Reset Value",
+              "values": {}
+            },
+            "PSCINRB": {
+              "mask": 8,
+              "caption": "PSC2 and PSC0 input Reset Behavior",
+              "values": {}
+            },
+            "BODLEVEL": {
+              "mask": 7,
+              "caption": "Brown-out Detector Trigger Level",
+              "values": {
+                "DISABLED": {
+                  "value": 7,
+                  "caption": "Brown-out detection disabled"
+                },
+                "1V8": {
+                  "value": 6,
+                  "caption": "Brown-out detection at VCC=1.8 V"
+                },
+                "2V7": {
+                  "value": 5,
+                  "caption": "Brown-out detection at VCC=2.7 V"
+                },
+                "4V3": {
+                  "value": 4,
+                  "caption": "Brown-out detection at VCC=4.3 V"
+                },
+                "2V3": {
+                  "value": 3,
+                  "caption": "Brown-out detection at VCC=2.3 V"
+                },
+                "2V2": {
+                  "value": 2,
+                  "caption": "Brown-out detection at VCC=2.2 V"
+                },
+                "1V9": {
+                  "value": 1,
+                  "caption": "Brown-out detection at VCC=1.9 V"
+                },
+                "2V0": {
+                  "value": 0,
+                  "caption": "Brown-out detection at VCC=2.0 V"
+                }
+              }
+            }
+          }
+        },
+        "HIGH": {
+          "caption": null,
+          "offset": 1,
+          "size": 1,
+          "initval": 217,
+          "mask": 255,
+          "bitfields": {
+            "RSTDISBL": {
+              "mask": 128,
+              "caption": "Reset Disabled (Enable PE0 as I/O pin)",
+              "values": {}
+            },
+            "DWEN": {
+              "mask": 64,
+              "caption": "Debug Wire enable",
+              "values": {}
+            },
+            "SPIEN": {
+              "mask": 32,
+              "caption": "Serial program downloading (SPI) enabled",
+              "values": {}
+            },
+            "WDTON": {
+              "mask": 16,
+              "caption": "Watch-dog Timer always on",
+              "values": {}
+            },
+            "EESAVE": {
+              "mask": 8,
+              "caption": "Preserve EEPROM through the Chip Erase cycle",
+              "values": {}
+            },
+            "BOOTSZ": {
+              "mask": 6,
+              "caption": "Select Boot Size",
+              "values": {
+                "128W_0F80": {
+                  "value": 3,
+                  "caption": "Boot Flash size=128 words Boot address=$0F80"
+                },
+                "256W_0F00": {
+                  "value": 2,
+                  "caption": "Boot Flash size=256 words Boot address=$0F00"
+                },
+                "512W_0E00": {
+                  "value": 1,
+                  "caption": "Boot Flash size=512 words Boot address=$0E00"
+                },
+                "1024W_0C00": {
+                  "value": 0,
+                  "caption": "Boot Flash size=1024 words Boot address=$0C00"
+                }
+              }
+            },
+            "BOOTRST": {
+              "mask": 1,
+              "caption": "Select Reset Vector",
+              "values": {}
+            }
+          }
+        },
+        "LOW": {
+          "caption": null,
+          "offset": 0,
+          "size": 1,
+          "initval": 98,
+          "mask": 255,
+          "bitfields": {
+            "CKDIV8": {
+              "mask": 128,
+              "caption": "Divide clock by 8 internally",
+              "values": {}
+            },
+            "CKOUT": {
+              "mask": 64,
+              "caption": "Clock output on PORTD1",
+              "values": {}
+            },
+            "SUT_CKSEL": {
+              "mask": 63,
+              "caption": "Select Clock Source",
+              "values": {
+                "EXTCLK_PLLIN_RC_8MHZ_6CK_14CK_0MS": {
+                  "value": 0,
+                  "caption": "Ext. CK; PLLin: RC8; SUT: 6CK/14CK+0ms; [CKSEL=0000 SUT=00]"
+                },
+                "EXTCLK_PLLIN_RC_8MHZ_6CK_14CK_4MS1": {
+                  "value": 16,
+                  "caption": "Ext. CK; PLLin: RC8 MHz; SUT:6 CK/14CK+4.1 ms; [CKSEL=0000 SUT=01]"
+                },
+                "EXTCLK_PLLIN_RC_8MHZ_6CK_14CK_65MS": {
+                  "value": 32,
+                  "caption": "Ext. CK; PLLin: RC8 MHz; SUT:6 CK/14CK+65 ms; [CKSEL=0000 SUT=10]"
+                },
+                "RC_8MHZ_PLLIN_RC_8MHZ_6CK_14CK_0MS": {
+                  "value": 2,
+                  "caption": "RC8 MHz; PLLin: RC8; SUT: 6CK/14CK+0ms; [CKSEL=0010 SUT=00]"
+                },
+                "RC_8MHZ_PLLIN_RC_8MHZ_6CK_14CK_4MS1": {
+                  "value": 18,
+                  "caption": "RC8 MHz; PLLin: RC8; SUT: 6CK/14CK+4.1 ms; [CKSEL=0010 SUT=01]"
+                },
+                "RC_8MHZ_PLLIN_RC_8MHZ_6CK_14CK_65MS": {
+                  "value": 34,
+                  "caption": "RC8 MHz; PLLin: RC8; SUT: 6CK/14CK+65 ms;  [CKSEL=0010 SUT=10]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_258CK_14CK_4MS1": {
+                  "value": 8,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 258CK/14CK+4.1 ms; [CKSEL=1000 SUT=00]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_258CK_14CK_65MS": {
+                  "value": 24,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 258CK/14CK+65 ms; [CKSEL=1000 SUT=01]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                  "value": 40,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=1000 SUT=10]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_1KCK_14CK_4MS1": {
+                  "value": 56,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1000 SUT=11]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_1KCK_14CK_65MS": {
+                  "value": 9,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 1KCK/14CK+65 ms; [CKSEL=1001 SUT=00]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_16KCK_14CK_0MS": {
+                  "value": 25,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 16KCK/14CK+0 ms; [CKSEL=1001 SUT=01]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_16KCK_14CK_4MS1": {
+                  "value": 41,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1001 SUT=10]"
+                },
+                "XOSC_PLLIN_RC_8MHZ_16KCK_14CK_65MS": {
+                  "value": 57,
+                  "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 16KCK/14CK+65 ms;  [CKSEL=1001 SUT=11]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_258CK_14CK_4MS1": {
+                  "value": 10,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 258CK/14CK+4.1 ms; [CKSEL=1010 SUT=00]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_258CK_14CK_65MS": {
+                  "value": 26,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 258CK/14CK+65 ms; [CKSEL=1010 SUT=01]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                  "value": 42,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=1010 SUT=10]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_1KCK_14CK_4MS1": {
+                  "value": 58,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1010 SUT=11]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_1KCK_14CK_65MS": {
+                  "value": 11,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 1KCK/14CK+65 ms;  [CKSEL=1011 SUT=00]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_16KCK_14CK_0MS": {
+                  "value": 27,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 16KCK/14CK+0 ms; [CKSEL=1011 SUT=01]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_16KCK_14CK_4MS1": {
+                  "value": 43,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1011 SUT=10]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_16KCK_14CK_65MS": {
+                  "value": 59,
+                  "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 16KCK/14CK+65 ms;  [CKSEL=1011 SUT=11]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_258CK_14CK_4MS1": {
+                  "value": 12,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 258CK/14CK+4.1 ms; [CKSEL=1100 SUT=00]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_258CK_14CK_65MS": {
+                  "value": 28,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 258CK/14CK+65 ms;  [CKSEL=1100 SUT=01]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_1KCK_14CK_0MS": {
+                  "value": 44,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 1KCK/14CK+0 ms; [CKSEL=1100 SUT=10]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_1KCK_14CK_4MS1": {
+                  "value": 60,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1100 SUT=11]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_1KCK_14CK_65MS": {
+                  "value": 13,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 1KCK/14CK+65 ms;  [CKSEL=1101 SUT=00"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_16KCK_14CK_0MS": {
+                  "value": 29,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 16KCK/14CK+0 ms; [CKSEL=1101 SUT=01]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_16KCK_14CK_4MS1": {
+                  "value": 45,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1101 SUT=10]"
+                },
+                "XOSC_3MHZ_8MHZ_PLLIN_XOSC_16KCK_14CK_65MS": {
+                  "value": 61,
+                  "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 16KCK/14CK+65 ms;  [CKSEL=1101 SUT=11]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_258CK_14CK_4MS1": {
+                  "value": 14,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 258CK/14CK+4.1 ms; [CKSEL=1110 SUT=00]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_258CK_14CK_65MS": {
+                  "value": 30,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 258CK/14CK+65 ms;  [CKSEL=1110 SUT=01]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                  "value": 46,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=1110 SUT=10]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_1KCK_14CK_4MS1": {
+                  "value": 62,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1110 SUT=11]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_1KCK_14CK_65MS": {
+                  "value": 15,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 1KCK/14CK+65 ms; [CKSEL=1111 SUT=00]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_16KCK_14CK_0MS": {
+                  "value": 31,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 16KCK/14CK+0 ms; [CKSEL=1111 SUT=01]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_16KCK_14CK_4MS1": {
+                  "value": 47,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1111 SUT=10]"
+                },
+                "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_16KCK_14CK_65MS": {
+                  "value": 63,
+                  "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 16KCK/14CK+65 ms;  [CKSEL=1111 SUT=11]"
+                },
+                "WDOSC_128KHZ_1KCK_14CK_0MS": {
+                  "value": 3,
+                  "caption": "WD128 KHz; SUT: 1KCK/14CK+0 ms; [CKSEL=0011 SUT=00]"
+                },
+                "WDOSC_128KHZ_1KCK_14CK_4MS1": {
+                  "value": 19,
+                  "caption": "WD128 KHz; SUT: 1KCK/14CK+4.1 ms; [CKSEL=0011 SUT=01]"
+                },
+                "WDOSC_128KHZ_1KCK_14CK_65MS": {
+                  "value": 35,
+                  "caption": "WD128 KHz; SUT: 1KCK/14CK+65 ms; [CKSEL=0011 SUT=10]"
+                },
+                "WDOSC_128KHZ_16KCK_14CK_0MS": {
+                  "value": 51,
+                  "caption": "WD128 KHz; SUT: 16KCK/14CK+0 ms; [CKSEL=0011 SUT=11]"
+                },
+                "PLLCLK_DIV4_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                  "value": 1,
+                  "caption": "PLL/4; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=0001 SUT=00]"
+                },
+                "PLLCLK_DIV4_PLLIN_RC_8MHZ_1KCK_14CK_4MS": {
+                  "value": 17,
+                  "caption": "PLL/4; PLLin: RC8; SUT: 1KCK/14CK+4 ms;   [CKSEL=0001 SUT=01]"
+                },
+                "PLLCLK_DIV4_PLLIN_RC_8MHZ_1KCK_14CK_64MS": {
+                  "value": 33,
+                  "caption": "PLL/4; PLLin: RC8; SUT: 1KCK/14CK+64 ms;   [CKSEL=0001 SUT=10]"
+                },
+                "PLLCLK_DIV4_PLLIN_EXTCLK_16KCK_14CK_0MS": {
+                  "value": 5,
+                  "caption": "PLL/4; PLLin: Ext. CK; SUT: 16KCK/14CK+0 ms; [CKSEL=0101 SUT=00]"
+                },
+                "PLLCLK_DIV4_PLLIN_EXTCLK_16KCK_14CK_4MS": {
+                  "value": 37,
+                  "caption": "PLL/4; PLLin: Ext. CK; SUT: 16KCK/14CK+4 ms; [CKSEL=0101 SUT=10]"
+                },
+                "PLLCLK_DIV4_PLLIN_EXTCLK_16KCK_14CK_64MS": {
+                  "value": 53,
+                  "caption": "PLL/4; PLLin: Ext. CK; SUT: 16KCK/14CK+64 ms; [CKSEL=0101 SUT=11]"
+                },
+                "PLLCLK_DIV4_PLLIN_XOSC_1KCK_14CK_0MS": {
+                  "value": 4,
+                  "caption": "PLL/4; PLLin: XOSC; SUT: 1KCK/14CK+0 ms; [CKSEL=0100 SUT=00]"
+                },
+                "PLLCLK_DIV4_PLLIN_XOSC_1KCK_14CK_4MS": {
+                  "value": 20,
+                  "caption": "PLL/4; PLLin: XOSC; SUT: 1KCK/14CK+4 ms; [CKSEL=0100 SUT=01]"
+                },
+                "PLLCLK_DIV4_PLLIN_XOSC_1KCK_14CK_64MS": {
+                  "value": 36,
+                  "caption": "PLL/4; PLLin: XOSC; SUT: 1KCK/14CK+64 ms; [CKSEL=0100 SUT=10]"
+                },
+                "PLLCLK_DIV4_PLLIN_XOSC_16KCK_14CK_0MS": {
+                  "value": 52,
+                  "caption": "PLL/4; PLLin: XOSC; SUT: 16KCK/14CK+0 ms; [CKSEL=0100 SUT=11]"
+                },
+                "RC_1MHZ_1KCK_14CK_0MS": {
+                  "value": 6,
+                  "caption": "RC 1 MHz; SUT: 1KCK/14CK+0 ms; [CKSEL=0110 SUT=00]"
+                },
+                "RC_1MHZ_1KCK_14CK_4MS1": {
+                  "value": 22,
+                  "caption": "RC 1 MHz; SUT: 1KCK/14CK+4.1 ms; [CKSEL=0110 SUT=01]"
+                },
+                "RC_1MHZ_1KCK_14CK_65MS": {
+                  "value": 38,
+                  "caption": "RC 1 MHz; SUT: 1KCK/14CK+65 ms;  [CKSEL=0110 SUT=10]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "signals": []
+    },
+    "LOCKBIT": {
+      "module": "LOCKBIT",
+      "registers": {
+        "LOCKBIT": {
+          "caption": null,
+          "offset": 0,
+          "size": 1,
+          "initval": 255,
+          "mask": 255,
+          "bitfields": {
+            "LB": {
+              "mask": 3,
+              "caption": "Memory Lock",
+              "values": {
+                "PROG_VER_DISABLED": {
+                  "value": 0,
+                  "caption": "Further programming and verification disabled"
+                },
+                "PROG_DISABLED": {
+                  "value": 2,
+                  "caption": "Further programming disabled"
+                },
+                "NO_LOCK": {
+                  "value": 3,
+                  "caption": "No memory lock features enabled"
+                }
+              }
+            },
+            "BLB0": {
+              "mask": 12,
+              "caption": "Boot Loader Protection Mode",
+              "values": {
+                "LPM_SPM_DISABLE": {
+                  "value": 0,
+                  "caption": "LPM and SPM prohibited in Application Section"
+                },
+                "LPM_DISABLE": {
+                  "value": 1,
+                  "caption": "LPM prohibited in Application Section"
+                },
+                "SPM_DISABLE": {
+                  "value": 2,
+                  "caption": "SPM prohibited in Application Section"
+                },
+                "NO_LOCK": {
+                  "value": 3,
+                  "caption": "No lock on SPM and LPM in Application Section"
+                }
+              }
+            },
+            "BLB1": {
+              "mask": 48,
+              "caption": "Boot Loader Protection Mode",
+              "values": {
+                "LPM_SPM_DISABLE": {
+                  "value": 0,
+                  "caption": "LPM and SPM prohibited in Boot Section"
+                },
+                "LPM_DISABLE": {
+                  "value": 1,
+                  "caption": "LPM prohibited in Boot Section"
+                },
+                "SPM_DISABLE": {
+                  "value": 2,
+                  "caption": "SPM prohibited in Boot Section"
+                },
+                "NO_LOCK": {
+                  "value": 3,
+                  "caption": "No lock on SPM and LPM in Boot Section"
+                }
+              }
+            }
+          }
+        }
+      },
+      "signals": []
+    }
+  },
+  "configuration": {
+    "fuses": {
+      "EXTENDED": {
+        "caption": null,
+        "offset": 2,
+        "size": 1,
+        "initval": 253,
+        "mask": 255,
+        "bitfields": {
+          "PSC2RB": {
+            "mask": 128,
+            "caption": "PSC2 Reset Behavior",
+            "values": {}
+          },
+          "PSC2RBA": {
+            "mask": 64,
+            "caption": "PSC2 Reset Behavior for 22 and 23",
+            "values": {}
+          },
+          "PSC0RB": {
+            "mask": 32,
+            "caption": "PSC0 Reset Behavior",
+            "values": {}
+          },
+          "PSCRV": {
+            "mask": 16,
+            "caption": "PSC Reset Value",
+            "values": {}
+          },
+          "PSCINRB": {
+            "mask": 8,
+            "caption": "PSC2 and PSC0 input Reset Behavior",
+            "values": {}
+          },
+          "BODLEVEL": {
+            "mask": 7,
+            "caption": "Brown-out Detector Trigger Level",
+            "values": {
+              "DISABLED": {
+                "value": 7,
+                "caption": "Brown-out detection disabled"
+              },
+              "1V8": {
+                "value": 6,
+                "caption": "Brown-out detection at VCC=1.8 V"
+              },
+              "2V7": {
+                "value": 5,
+                "caption": "Brown-out detection at VCC=2.7 V"
+              },
+              "4V3": {
+                "value": 4,
+                "caption": "Brown-out detection at VCC=4.3 V"
+              },
+              "2V3": {
+                "value": 3,
+                "caption": "Brown-out detection at VCC=2.3 V"
+              },
+              "2V2": {
+                "value": 2,
+                "caption": "Brown-out detection at VCC=2.2 V"
+              },
+              "1V9": {
+                "value": 1,
+                "caption": "Brown-out detection at VCC=1.9 V"
+              },
+              "2V0": {
+                "value": 0,
+                "caption": "Brown-out detection at VCC=2.0 V"
+              }
+            }
+          }
+        }
+      },
+      "HIGH": {
+        "caption": null,
+        "offset": 1,
+        "size": 1,
+        "initval": 217,
+        "mask": 255,
+        "bitfields": {
+          "RSTDISBL": {
+            "mask": 128,
+            "caption": "Reset Disabled (Enable PE0 as I/O pin)",
+            "values": {}
+          },
+          "DWEN": {
+            "mask": 64,
+            "caption": "Debug Wire enable",
+            "values": {}
+          },
+          "SPIEN": {
+            "mask": 32,
+            "caption": "Serial program downloading (SPI) enabled",
+            "values": {}
+          },
+          "WDTON": {
+            "mask": 16,
+            "caption": "Watch-dog Timer always on",
+            "values": {}
+          },
+          "EESAVE": {
+            "mask": 8,
+            "caption": "Preserve EEPROM through the Chip Erase cycle",
+            "values": {}
+          },
+          "BOOTSZ": {
+            "mask": 6,
+            "caption": "Select Boot Size",
+            "values": {
+              "128W_0F80": {
+                "value": 3,
+                "caption": "Boot Flash size=128 words Boot address=$0F80"
+              },
+              "256W_0F00": {
+                "value": 2,
+                "caption": "Boot Flash size=256 words Boot address=$0F00"
+              },
+              "512W_0E00": {
+                "value": 1,
+                "caption": "Boot Flash size=512 words Boot address=$0E00"
+              },
+              "1024W_0C00": {
+                "value": 0,
+                "caption": "Boot Flash size=1024 words Boot address=$0C00"
+              }
+            }
+          },
+          "BOOTRST": {
+            "mask": 1,
+            "caption": "Select Reset Vector",
+            "values": {}
+          }
+        }
+      },
+      "LOW": {
+        "caption": null,
+        "offset": 0,
+        "size": 1,
+        "initval": 98,
+        "mask": 255,
+        "bitfields": {
+          "CKDIV8": {
+            "mask": 128,
+            "caption": "Divide clock by 8 internally",
+            "values": {}
+          },
+          "CKOUT": {
+            "mask": 64,
+            "caption": "Clock output on PORTD1",
+            "values": {}
+          },
+          "SUT_CKSEL": {
+            "mask": 63,
+            "caption": "Select Clock Source",
+            "values": {
+              "EXTCLK_PLLIN_RC_8MHZ_6CK_14CK_0MS": {
+                "value": 0,
+                "caption": "Ext. CK; PLLin: RC8; SUT: 6CK/14CK+0ms; [CKSEL=0000 SUT=00]"
+              },
+              "EXTCLK_PLLIN_RC_8MHZ_6CK_14CK_4MS1": {
+                "value": 16,
+                "caption": "Ext. CK; PLLin: RC8 MHz; SUT:6 CK/14CK+4.1 ms; [CKSEL=0000 SUT=01]"
+              },
+              "EXTCLK_PLLIN_RC_8MHZ_6CK_14CK_65MS": {
+                "value": 32,
+                "caption": "Ext. CK; PLLin: RC8 MHz; SUT:6 CK/14CK+65 ms; [CKSEL=0000 SUT=10]"
+              },
+              "RC_8MHZ_PLLIN_RC_8MHZ_6CK_14CK_0MS": {
+                "value": 2,
+                "caption": "RC8 MHz; PLLin: RC8; SUT: 6CK/14CK+0ms; [CKSEL=0010 SUT=00]"
+              },
+              "RC_8MHZ_PLLIN_RC_8MHZ_6CK_14CK_4MS1": {
+                "value": 18,
+                "caption": "RC8 MHz; PLLin: RC8; SUT: 6CK/14CK+4.1 ms; [CKSEL=0010 SUT=01]"
+              },
+              "RC_8MHZ_PLLIN_RC_8MHZ_6CK_14CK_65MS": {
+                "value": 34,
+                "caption": "RC8 MHz; PLLin: RC8; SUT: 6CK/14CK+65 ms;  [CKSEL=0010 SUT=10]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_258CK_14CK_4MS1": {
+                "value": 8,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 258CK/14CK+4.1 ms; [CKSEL=1000 SUT=00]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_258CK_14CK_65MS": {
+                "value": 24,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 258CK/14CK+65 ms; [CKSEL=1000 SUT=01]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                "value": 40,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=1000 SUT=10]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_1KCK_14CK_4MS1": {
+                "value": 56,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1000 SUT=11]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_1KCK_14CK_65MS": {
+                "value": 9,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 1KCK/14CK+65 ms; [CKSEL=1001 SUT=00]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_16KCK_14CK_0MS": {
+                "value": 25,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 16KCK/14CK+0 ms; [CKSEL=1001 SUT=01]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_16KCK_14CK_4MS1": {
+                "value": 41,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1001 SUT=10]"
+              },
+              "XOSC_PLLIN_RC_8MHZ_16KCK_14CK_65MS": {
+                "value": 57,
+                "caption": "XOSC.9-3MHz; PLLin: RC8; SUT: 16KCK/14CK+65 ms;  [CKSEL=1001 SUT=11]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_258CK_14CK_4MS1": {
+                "value": 10,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 258CK/14CK+4.1 ms; [CKSEL=1010 SUT=00]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_258CK_14CK_65MS": {
+                "value": 26,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 258CK/14CK+65 ms; [CKSEL=1010 SUT=01]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                "value": 42,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=1010 SUT=10]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_1KCK_14CK_4MS1": {
+                "value": 58,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1010 SUT=11]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_1KCK_14CK_65MS": {
+                "value": 11,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 1KCK/14CK+65 ms;  [CKSEL=1011 SUT=00]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_16KCK_14CK_0MS": {
+                "value": 27,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 16KCK/14CK+0 ms; [CKSEL=1011 SUT=01]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_16KCK_14CK_4MS1": {
+                "value": 43,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1011 SUT=10]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_RC_8MHZ_16KCK_14CK_65MS": {
+                "value": 59,
+                "caption": "XOSC3-8MHz; PLLin: RC8; SUT: 16KCK/14CK+65 ms;  [CKSEL=1011 SUT=11]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_258CK_14CK_4MS1": {
+                "value": 12,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 258CK/14CK+4.1 ms; [CKSEL=1100 SUT=00]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_258CK_14CK_65MS": {
+                "value": 28,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 258CK/14CK+65 ms;  [CKSEL=1100 SUT=01]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_1KCK_14CK_0MS": {
+                "value": 44,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 1KCK/14CK+0 ms; [CKSEL=1100 SUT=10]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_1KCK_14CK_4MS1": {
+                "value": 60,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1100 SUT=11]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_1KCK_14CK_65MS": {
+                "value": 13,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 1KCK/14CK+65 ms;  [CKSEL=1101 SUT=00"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_16KCK_14CK_0MS": {
+                "value": 29,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 16KCK/14CK+0 ms; [CKSEL=1101 SUT=01]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_16KCK_14CK_4MS1": {
+                "value": 45,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1101 SUT=10]"
+              },
+              "XOSC_3MHZ_8MHZ_PLLIN_XOSC_16KCK_14CK_65MS": {
+                "value": 61,
+                "caption": "XOSC3-8MHz; PLLin: XOSC; SUT: 16KCK/14CK+65 ms;  [CKSEL=1101 SUT=11]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_258CK_14CK_4MS1": {
+                "value": 14,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 258CK/14CK+4.1 ms; [CKSEL=1110 SUT=00]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_258CK_14CK_65MS": {
+                "value": 30,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 258CK/14CK+65 ms;  [CKSEL=1110 SUT=01]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                "value": 46,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=1110 SUT=10]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_1KCK_14CK_4MS1": {
+                "value": 62,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 1KCK/14CK+4.1 ms; [CKSEL=1110 SUT=11]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_1KCK_14CK_65MS": {
+                "value": 15,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 1KCK/14CK+65 ms; [CKSEL=1111 SUT=00]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_16KCK_14CK_0MS": {
+                "value": 31,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 16KCK/14CK+0 ms; [CKSEL=1111 SUT=01]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_16KCK_14CK_4MS1": {
+                "value": 47,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 16KCK/14CK+4.1 ms; [CKSEL=1111 SUT=10]"
+              },
+              "XOSC_8MHZ_16MHZ_PLLIN_RC_8MHZ_16KCK_14CK_65MS": {
+                "value": 63,
+                "caption": "XOSC8-16MHz; PLLin: RC8; SUT: 16KCK/14CK+65 ms;  [CKSEL=1111 SUT=11]"
+              },
+              "WDOSC_128KHZ_1KCK_14CK_0MS": {
+                "value": 3,
+                "caption": "WD128 KHz; SUT: 1KCK/14CK+0 ms; [CKSEL=0011 SUT=00]"
+              },
+              "WDOSC_128KHZ_1KCK_14CK_4MS1": {
+                "value": 19,
+                "caption": "WD128 KHz; SUT: 1KCK/14CK+4.1 ms; [CKSEL=0011 SUT=01]"
+              },
+              "WDOSC_128KHZ_1KCK_14CK_65MS": {
+                "value": 35,
+                "caption": "WD128 KHz; SUT: 1KCK/14CK+65 ms; [CKSEL=0011 SUT=10]"
+              },
+              "WDOSC_128KHZ_16KCK_14CK_0MS": {
+                "value": 51,
+                "caption": "WD128 KHz; SUT: 16KCK/14CK+0 ms; [CKSEL=0011 SUT=11]"
+              },
+              "PLLCLK_DIV4_PLLIN_RC_8MHZ_1KCK_14CK_0MS": {
+                "value": 1,
+                "caption": "PLL/4; PLLin: RC8; SUT: 1KCK/14CK+0 ms; [CKSEL=0001 SUT=00]"
+              },
+              "PLLCLK_DIV4_PLLIN_RC_8MHZ_1KCK_14CK_4MS": {
+                "value": 17,
+                "caption": "PLL/4; PLLin: RC8; SUT: 1KCK/14CK+4 ms;   [CKSEL=0001 SUT=01]"
+              },
+              "PLLCLK_DIV4_PLLIN_RC_8MHZ_1KCK_14CK_64MS": {
+                "value": 33,
+                "caption": "PLL/4; PLLin: RC8; SUT: 1KCK/14CK+64 ms;   [CKSEL=0001 SUT=10]"
+              },
+              "PLLCLK_DIV4_PLLIN_EXTCLK_16KCK_14CK_0MS": {
+                "value": 5,
+                "caption": "PLL/4; PLLin: Ext. CK; SUT: 16KCK/14CK+0 ms; [CKSEL=0101 SUT=00]"
+              },
+              "PLLCLK_DIV4_PLLIN_EXTCLK_16KCK_14CK_4MS": {
+                "value": 37,
+                "caption": "PLL/4; PLLin: Ext. CK; SUT: 16KCK/14CK+4 ms; [CKSEL=0101 SUT=10]"
+              },
+              "PLLCLK_DIV4_PLLIN_EXTCLK_16KCK_14CK_64MS": {
+                "value": 53,
+                "caption": "PLL/4; PLLin: Ext. CK; SUT: 16KCK/14CK+64 ms; [CKSEL=0101 SUT=11]"
+              },
+              "PLLCLK_DIV4_PLLIN_XOSC_1KCK_14CK_0MS": {
+                "value": 4,
+                "caption": "PLL/4; PLLin: XOSC; SUT: 1KCK/14CK+0 ms; [CKSEL=0100 SUT=00]"
+              },
+              "PLLCLK_DIV4_PLLIN_XOSC_1KCK_14CK_4MS": {
+                "value": 20,
+                "caption": "PLL/4; PLLin: XOSC; SUT: 1KCK/14CK+4 ms; [CKSEL=0100 SUT=01]"
+              },
+              "PLLCLK_DIV4_PLLIN_XOSC_1KCK_14CK_64MS": {
+                "value": 36,
+                "caption": "PLL/4; PLLin: XOSC; SUT: 1KCK/14CK+64 ms; [CKSEL=0100 SUT=10]"
+              },
+              "PLLCLK_DIV4_PLLIN_XOSC_16KCK_14CK_0MS": {
+                "value": 52,
+                "caption": "PLL/4; PLLin: XOSC; SUT: 16KCK/14CK+0 ms; [CKSEL=0100 SUT=11]"
+              },
+              "RC_1MHZ_1KCK_14CK_0MS": {
+                "value": 6,
+                "caption": "RC 1 MHz; SUT: 1KCK/14CK+0 ms; [CKSEL=0110 SUT=00]"
+              },
+              "RC_1MHZ_1KCK_14CK_4MS1": {
+                "value": 22,
+                "caption": "RC 1 MHz; SUT: 1KCK/14CK+4.1 ms; [CKSEL=0110 SUT=01]"
+              },
+              "RC_1MHZ_1KCK_14CK_65MS": {
+                "value": 38,
+                "caption": "RC 1 MHz; SUT: 1KCK/14CK+65 ms;  [CKSEL=0110 SUT=10]"
+              }
+            }
+          }
+        }
+      }
+    },
+    "lockbits": {
+      "LOCKBIT": {
+        "caption": null,
+        "offset": 0,
+        "size": 1,
+        "initval": 255,
+        "mask": 255,
+        "bitfields": {
+          "LB": {
+            "mask": 3,
+            "caption": "Memory Lock",
+            "values": {
+              "PROG_VER_DISABLED": {
+                "value": 0,
+                "caption": "Further programming and verification disabled"
+              },
+              "PROG_DISABLED": {
+                "value": 2,
+                "caption": "Further programming disabled"
+              },
+              "NO_LOCK": {
+                "value": 3,
+                "caption": "No memory lock features enabled"
+              }
+            }
+          },
+          "BLB0": {
+            "mask": 12,
+            "caption": "Boot Loader Protection Mode",
+            "values": {
+              "LPM_SPM_DISABLE": {
+                "value": 0,
+                "caption": "LPM and SPM prohibited in Application Section"
+              },
+              "LPM_DISABLE": {
+                "value": 1,
+                "caption": "LPM prohibited in Application Section"
+              },
+              "SPM_DISABLE": {
+                "value": 2,
+                "caption": "SPM prohibited in Application Section"
+              },
+              "NO_LOCK": {
+                "value": 3,
+                "caption": "No lock on SPM and LPM in Application Section"
+              }
+            }
+          },
+          "BLB1": {
+            "mask": 48,
+            "caption": "Boot Loader Protection Mode",
+            "values": {
+              "LPM_SPM_DISABLE": {
+                "value": 0,
+                "caption": "LPM and SPM prohibited in Boot Section"
+              },
+              "LPM_DISABLE": {
+                "value": 1,
+                "caption": "LPM prohibited in Boot Section"
+              },
+              "SPM_DISABLE": {
+                "value": 2,
+                "caption": "SPM prohibited in Boot Section"
+              },
+              "NO_LOCK": {
+                "value": 3,
+                "caption": "No lock on SPM and LPM in Boot Section"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

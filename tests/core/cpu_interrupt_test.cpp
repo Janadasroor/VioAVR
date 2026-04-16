@@ -54,13 +54,13 @@ TEST_CASE("CPU Interrupt Handling Test")
     using vioavr::core::devices::atmega328;
 
     MemoryBus bus {atmega328};
-    Timer8 timer0 {"TIMER0", atmega328};
+    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 
     // Timer0 compare match A vector index is 14, word address = 14 * 2 = 28
     // Flash layout: mainline at 0-13, padding 14-27, ISR at 28-29
-    constexpr u16 isr_word_address = atmega328.timer0.compare_a_vector_index * 2U;
+    constexpr u16 isr_word_address = atmega328.timers8[0].compare_a_vector_index * 2U;
     std::vector<u16> flash_words(30, kNop);
 
     // Mainline code at word addresses 0-13
@@ -68,7 +68,7 @@ TEST_CASE("CPU Interrupt Handling Test")
     flash_words[1] = encode_out(0x27U, 16U);   // 1 OCR0A (I/O 0x27 = mem 0x47)
     flash_words[2] = encode_ldi(19U, 0x02U);   // 2 OCIE0A (bit 1)
     flash_words[3] = encode_sts(19U);           // 3 STS address low byte
-    flash_words[4] = atmega328.timer0.timsk_address; // 4 TIMSK0 address
+    flash_words[4] = atmega328.timers8[0].timsk_address; // 4 TIMSK0 address
     flash_words[5] = encode_ldi(20U, 0x01U);   // 5 CS00
     flash_words[6] = encode_out(0x25U, 20U);   // 6 TCCR0B (0x45 -> 0x25)
     flash_words[7] = kSei;                      // 7

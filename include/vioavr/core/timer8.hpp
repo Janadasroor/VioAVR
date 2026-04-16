@@ -29,6 +29,7 @@ public:
 
     explicit Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept;
 
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }
 
     [[nodiscard]] std::string_view name() const noexcept override;

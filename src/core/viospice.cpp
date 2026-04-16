@@ -10,6 +10,8 @@
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/watchdog_timer.hpp"
+#include "vioavr/core/spi.hpp"
+#include "vioavr/core/twi.hpp"
 #include <map>
 
 namespace vioavr::core {
@@ -77,7 +79,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // 4. Instantiate and Register Other Peripherals
     for (u8 i = 0; i < device.uart_count; ++i) {
-        auto uart = std::make_unique<Uart>(device, i);
+        auto uart = std::make_unique<Uart>("UART" + std::to_string(i), device.uarts[i]);
         bus_.attach_peripheral(*uart.release());
     }
 
@@ -107,8 +109,18 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     }
 
     for (u8 i = 0; i < device.eeprom_count; ++i) {
-        auto eeprom = std::make_unique<Eeprom>("EEPROM" + std::to_string(i), device);
+        auto eeprom = std::make_unique<Eeprom>("EEPROM" + std::to_string(i), device.eeproms[i]);
         bus_.attach_peripheral(*eeprom.release());
+    }
+
+    for (u8 i = 0; i < device.spi_count; ++i) {
+        auto spi = std::make_unique<Spi>("SPI" + std::to_string(i), device.spis[i]);
+        bus_.attach_peripheral(*spi.release());
+    }
+
+    for (u8 i = 0; i < device.twi_count; ++i) {
+        auto twi = std::make_unique<Twi>("TWI" + std::to_string(i), device.twis[i]);
+        bus_.attach_peripheral(*twi.release());
     }
 
     for (u8 i = 0; i < device.wdt_count; ++i) {

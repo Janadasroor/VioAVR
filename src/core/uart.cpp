@@ -5,8 +5,8 @@
 
 namespace vioavr::core {
 
-Uart::Uart(const DeviceDescriptor& device, u8 index) noexcept
-    : name_(device.uarts[index].udr_address != 0 ? "UART" + std::to_string(index) : ""), desc_(device.uarts[index])
+Uart::Uart(std::string_view name, const UartDescriptor& descriptor) noexcept
+    : name_(name), desc_(descriptor)
 {
     const std::array<u16, 6> addrs = {
         desc_.udr_address, desc_.ucsra_address, 

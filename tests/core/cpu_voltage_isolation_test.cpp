@@ -29,24 +29,24 @@ TEST_CASE("Pin Change Voltage Isolation Test")
     bus.reset();
 
     // Setup
-    bus.write_data(atmega328.pin_change_interrupt_0.pcmsk_address, 0x04U);
-    bus.write_data(atmega328.pin_change_interrupt_0.pcicr_address, 0x01U);
+    bus.write_data(atmega328.pcints[0].pcmsk_address, 0x04U);
+    bus.write_data(atmega328.pcints[0].pcicr_address, 0x01U);
 
     // Initial state: check pcifr is cleared
-    CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x00U);
+    CHECK(bus.read_data(atmega328.pcints[0].pcifr_address) == 0x00U);
 
     // Set voltage LOW, tick
     port_b.set_input_voltage(2U, 0.2);
     bus.tick_peripherals(1U);
-    CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x00U);
+    CHECK(bus.read_data(atmega328.pcints[0].pcifr_address) == 0x00U);
 
     // Set voltage still LOW (hysteresis), tick
     port_b.set_input_voltage(2U, 0.4);
     bus.tick_peripherals(1U);
-    CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x00U);
+    CHECK(bus.read_data(atmega328.pcints[0].pcifr_address) == 0x00U);
 
     // Set voltage HIGH, tick - should trigger
     port_b.set_input_voltage(2U, 0.8);
     bus.tick_peripherals(1U);
-    CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x01U);
+    CHECK(bus.read_data(atmega328.pcints[0].pcifr_address) == 0x01U);
 }

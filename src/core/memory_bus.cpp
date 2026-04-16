@@ -39,6 +39,7 @@ void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
     Logger::info("Attaching peripheral to memory bus: " + std::string(peripheral.name()));
     peripherals_.push_back(&peripheral);
     Logger::debug("MemoryBus: peripherals size is now " + std::to_string(peripherals_.size()));
+    peripheral.set_memory_bus(this);
 
     for (const auto& range : peripheral.mapped_ranges()) {
         Logger::debug("Mapping peripheral '" + std::string(peripheral.name()) + "' to range [0x" + 

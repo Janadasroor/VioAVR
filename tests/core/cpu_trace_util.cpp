@@ -28,9 +28,9 @@ int main(int argc, char** argv) {
     
     // Attach peripherals for "new features"
     PinMux pin_mux {8};
-    Adc adc {"ADC", devices::atmega328.adc, pin_mux, 6U};
-    Timer8 timer0 {"TIMER0", devices::atmega328};
-    AnalogComparator ac {"AC", devices::atmega328.ac, pin_mux, 7U}; 
+    Adc adc {"ADC", devices::atmega328.adcs[0], pin_mux, 6U};
+    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
+    AnalogComparator ac {"AC", devices::atmega328.acs[0], pin_mux, 7U}; 
     AvrCpu cpu_for_wdt {bus}; // Used to pass to WDT for reset
 
     // Connect auto-triggers
@@ -38,8 +38,8 @@ int main(int argc, char** argv) {
     adc.connect_timer_compare_auto_trigger(timer0);
     adc.connect_comparator_auto_trigger(ac);
 
-    WatchdogTimer wdt {"WDT", devices::atmega328, cpu_for_wdt};
-    Eeprom eeprom {"EEPROM", devices::atmega328};
+    WatchdogTimer wdt {"WDT", devices::atmega328.wdts[0], cpu_for_wdt};
+    Eeprom eeprom {"EEPROM", devices::atmega328.eeproms[0]};
 
     bus.attach_peripheral(adc);
     bus.attach_peripheral(timer0);
@@ -77,12 +77,12 @@ int main(int argc, char** argv) {
         }
 
         // Selected I/O registers
-        std::cout << "," << (int)bus.read_data(devices::atmega328.timer0.tcnt_address)
-                  << "," << (int)bus.read_data(devices::atmega328.adc.adcsra_address)
-                  << "," << (int)bus.read_data(devices::atmega328.ac.acsr_address)
+        std::cout << "," << (int)bus.read_data(devices::atmega328.timers8[0].tcnt_address)
+                  << "," << (int)bus.read_data(devices::atmega328.adcs[0].adcsra_address)
+                  << "," << (int)bus.read_data(devices::atmega328.acs[0].acsr_address)
                   << "," << (int)bus.read_data(devices::atmega328.spmcsr_address)
-                  << "," << (int)bus.read_data(devices::atmega328.wdt.wdtcsr_address)
-                  << "," << (int)bus.read_data(devices::atmega328.eeprom.eecr_address)
+                  << "," << (int)bus.read_data(devices::atmega328.wdts[0].wdtcsr_address)
+                  << "," << (int)bus.read_data(devices::atmega328.eeproms[0].eecr_address)
                   << std::endl;
 
         cpu.step();

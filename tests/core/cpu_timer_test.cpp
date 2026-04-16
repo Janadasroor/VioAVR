@@ -52,18 +52,18 @@ TEST_CASE("Timer0 basic functionality")
     using namespace vioavr::core::devices;
 
     MemoryBus bus {atmega328};
-    Timer8 timer0 {"TIMER0", atmega328};
+    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x03U),
-            encode_sts(16U), atmega328.timer0.ocra_address,
+            encode_sts(16U), atmega328.timers8[0].ocra_address,
             encode_ldi(22U, 0x01U),  // CS00
             encode_out(0x25U, 22U),  // TCCR0B
-            encode_sts(22U), atmega328.timer0.tcnt_address, // Placeholder to use STS for TCNT
-            // Actually let's just use the addresses from atmega328.timer0
+            encode_sts(22U), atmega328.timers8[0].tcnt_address, // Placeholder to use STS for TCNT
+            // Actually let's just use the addresses from atmega328.timers8[0]
         },
         .entry_word = 0U
     });
@@ -71,15 +71,15 @@ TEST_CASE("Timer0 basic functionality")
     // Re-writing the test to be more robust with new addresses
     std::vector<u16> code = {
         encode_ldi(16U, 0x03U),
-        encode_sts(16U), atmega328.timer0.ocra_address,
+        encode_sts(16U), atmega328.timers8[0].ocra_address,
         encode_ldi(17U, 0x01U),
-        encode_sts(17U), atmega328.timer0.tccrb_address,
+        encode_sts(17U), atmega328.timers8[0].tccrb_address,
         // Wait a few cycles
         0x0000, 0x0000, 0x0000,
         // Read TCNT0
-        0x9100, atmega328.timer0.tcnt_address, // LDS R16, TCNT0
+        0x9100, atmega328.timers8[0].tcnt_address, // LDS R16, TCNT0
         // Read TIFR0
-        0x9110, atmega328.timer0.tifr_address, // LDS R17, TIFR0
+        0x9110, atmega328.timers8[0].tifr_address, // LDS R17, TIFR0
         0x0000
     };
     bus.load_flash(code);

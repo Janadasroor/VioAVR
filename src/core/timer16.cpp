@@ -102,50 +102,52 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
     const u8 cs = tccrb_ & desc_.cs_mask;
     if (cs == 0) return; // Stopped
 
-    // External Clocking (CS=110 falling, 111 rising)
-    if (cs >= 6) {
-        if (bus_) {
-            const u8 current_pin_state = (bus_->read_data(desc_.t1_pin_address) >> desc_.t1_pin_bit) & 0x01U;
-            const bool rising_edge = (cs == 7);
-            const bool edge = rising_edge ? (last_t1_state_ == 0 && current_pin_state == 1)
-                                          : (last_t1_state_ == 1 && current_pin_state == 0);
-
-            if (edge) {
-                perform_tick();
-            }
-            last_t1_state_ = current_pin_state;
-        }
-        return;
-    }
-
-    static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
-    const u16 divisor = prescalers[cs];
-
     for (u64 cycle = 0; cycle < elapsed_cycles; ++cycle) {
-        // Sample occurs at the BEGINNING of the cycle boundary
         bool should_tick = false;
-        if (++cycle_accumulator_ >= divisor) {
-            cycle_accumulator_ = 0;
-            should_tick = true;
+        
+        // 1. Handle Clocking
+        if (cs <= 5) {
+            static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
+            const u16 divisor = prescalers[cs];
+            if (++cycle_accumulator_ >= divisor) {
+                cycle_accumulator_ = 0;
+                should_tick = true;
+            }
+        } else {
+            // External Clocking (CS=110 falling, 111 rising)
+            if (bus_ && desc_.t_pin_address != 0U) {
+                const u8 current_pin_state = (bus_->read_data(desc_.t_pin_address) >> desc_.t_pin_bit) & 0x01U;
+                const bool rising_edge = (cs == 7);
+                const bool edge = rising_edge ? (last_t1_state_ == 0 && current_pin_state == 1)
+                                              : (last_t1_state_ == 1 && current_pin_state == 0);
+                if (edge) should_tick = true;
+                last_t1_state_ = current_pin_state;
+            }
         }
 
+        // 2. Handle Input Capture
         bool event_triggered = false;
-        // Check for ICP edge if connected (sample every cycle)
-        if (pin_icp_) {
-            const u8 current_raw_state = (pin_icp_->port->read(pin_icp_->port->pin_address()) >> pin_icp_->bit) & 0x01U;
-            
-            // Initialization: use first sample as baseline if noise canceler was just reset
+        u8 current_raw_state = 0xFFU;
+
+        if (bus_ && desc_.icp_pin_address != 0U) {
+            current_raw_state = (bus_->read_data(desc_.icp_pin_address) >> desc_.icp_pin_bit) & 0x01U;
+        } else if (pin_icp_) {
+            current_raw_state = (pin_icp_->port->read(pin_icp_->port->pin_address()) >> pin_icp_->bit) & 0x01U;
+        }
+
+        if (current_raw_state != 0xFFU) {
+            // Initialization: use first sample as baseline
             if (noise_canceler_counter_ == 0) {
                 noise_canceler_register_ = current_raw_state;
                 noise_canceler_counter_ = 1;
                 last_icp_state_ = current_raw_state;
             }
 
-            if (tccrb_ & desc_.icnc1_mask) {
+            if (tccrb_ & desc_.icnc_mask) {
                 if (current_raw_state == noise_canceler_register_) {
                     if (noise_canceler_counter_ < 4) {
                         if (++noise_canceler_counter_ == 4) {
-                            const bool rising_edge = (tccrb_ & desc_.ices1_mask) != 0;
+                            const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
                             if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
                             else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
                             last_icp_state_ = current_raw_state;
@@ -156,13 +158,14 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
                     noise_canceler_counter_ = 1;
                 }
             } else {
-                const bool rising_edge = (tccrb_ & desc_.ices1_mask) != 0;
+                const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
                 if (rising_edge && last_icp_state_ == 0 && current_raw_state == 1) event_triggered = true;
                 else if (!rising_edge && last_icp_state_ == 1 && current_raw_state == 0) event_triggered = true;
                 last_icp_state_ = current_raw_state;
             }
         }
 
+        // 3. Execution order: Compare Match -> TCNT Increment -> Input Capture
         if (should_tick) {
             handle_matches();
             perform_tick();
@@ -317,6 +320,7 @@ void Timer16::perform_tick() noexcept
     const bool is_fast_pwm = (mode_ == Mode::fast_pwm_8bit || mode_ == Mode::fast_pwm_9bit ||
                               mode_ == Mode::fast_pwm_10bit || mode_ == Mode::fast_pwm_icr ||
                               mode_ == Mode::fast_pwm_ocr);
+
 
     if (is_phase_correct) {
         if (counting_up_) {

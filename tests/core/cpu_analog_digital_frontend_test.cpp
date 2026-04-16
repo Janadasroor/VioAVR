@@ -30,7 +30,7 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
     GpioPort port_b {"PORTB", pinb, ddrb, portb};
     port_b.bind_input_signal(2U, signals, 0U); // PB2 bound to signal 0 (0.20V)
     
-    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupt, pin_mux, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupts[0], pin_mux, 4U};
     exti.bind_int0_signal(signals, 1U); // INT0 bound to signal 1 (0.80V)
     
     PinChangeInterruptDescriptor pci0_desc { .pcicr_address = 0x68U, .pcifr_address = 0x3BU, .pcmsk_address = 0x6BU, .pcicr_enable_mask = 0x01U, .pcifr_flag_mask = 0x01U, .vector_index = 3U };
@@ -42,10 +42,10 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
     bus.reset();
 
     // Configure interrupts
-    bus.write_data(atmega328.ext_interrupt.eicra_address, 0x02U);          // INT0 falling edge
-    bus.write_data(atmega328.ext_interrupt.eimsk_address, 0x01U);          // INT0 enable
-    bus.write_data(atmega328.pin_change_interrupt_0.pcicr_address, 0x01U); // PCIE0 enable
-    bus.write_data(atmega328.pin_change_interrupt_0.pcmsk_address, 0x04U); // PCINT2 (PB2) enable
+    bus.write_data(atmega328.ext_interrupts[0].eicra_address, 0x02U);          // INT0 falling edge
+    bus.write_data(atmega328.ext_interrupts[0].eimsk_address, 0x01U);          // INT0 enable
+    bus.write_data(atmega328.pcints[0].pcicr_address, 0x01U); // PCIE0 enable
+    bus.write_data(atmega328.pcints[0].pcmsk_address, 0x04U); // PCINT2 (PB2) enable
 
     SUBCASE("Initial State") {
         CHECK((port_b.sample_levels() & 0x04U) == 0U);
@@ -64,10 +64,10 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
         signals.set_voltage(0U, 0.80);
         bus.tick_peripherals(1U);
         CHECK((port_b.sample_levels() & 0x04U) != 0U);
-        CHECK(bus.read_data(atmega328.pin_change_interrupt_0.pcifr_address) == 0x01U);
+        CHECK(bus.read_data(atmega328.pcints[0].pcifr_address) == 0x01U);
 
         // Step 4: Clear PCIF
-        bus.write_data(atmega328.pin_change_interrupt_0.pcifr_address, 0x01U);
+        bus.write_data(atmega328.pcints[0].pcifr_address, 0x01U);
         InterruptRequest request {};
         CHECK_FALSE(bus.pending_interrupt_request(request));
 
@@ -76,7 +76,7 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
         bus.tick_peripherals(1U);
         
         CHECK(bus.pending_interrupt_request(request));
-        CHECK(request.vector_index == atmega328.ext_interrupt.int0_vector_index);
-        CHECK(bus.read_data(atmega328.ext_interrupt.eifr_address) == 0x01U);
+        CHECK(request.vector_index == atmega328.ext_interrupts[0].vector_indices[0]);
+        CHECK(bus.read_data(atmega328.ext_interrupts[0].eifr_address) == 0x01U);
     }
 }

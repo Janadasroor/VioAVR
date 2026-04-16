@@ -16,9 +16,13 @@ enum class ClockDomain : u8 {
     none = 0x00
 };
 
+class MemoryBus;
+
 class IoPeripheral {
 public:
     virtual ~IoPeripheral() = default;
+
+    virtual void set_memory_bus(MemoryBus* bus) noexcept { (void)bus; }
 
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
     [[nodiscard]] virtual std::span<const AddressRange> mapped_ranges() const noexcept = 0;

@@ -61,9 +61,9 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
 
     PinMux pin_mux(8);
     MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328.adc, pin_mux, 6U, 4U};
+    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
-    Timer8 timer0 {"TIMER0", atmega328};
+    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
 
     adc0.connect_timer_compare_auto_trigger(timer0);
     adc0.set_channel_voltage(0U, 0.60); // 0.60V -> Expected result 614
@@ -81,18 +81,18 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x00U),                     // 0
-            encode_sts(16U), atmega328.adc.admux_address, // 1, 2
+            encode_sts(16U), atmega328.adcs[0].admux_address, // 1, 2
             encode_ldi(17U, 0x03U),                     // 3 (ADTS=3)
-            encode_sts(17U), atmega328.adc.adcsrb_address, // 4, 5
+            encode_sts(17U), atmega328.adcs[0].adcsrb_address, // 4, 5
             encode_ldi(18U, 0x0CU),                     // 6 (Value 12)
             encode_out(0x27U, 18U),                     // 7 (OCR0A)
             encode_ldi(18U, 0x01U),                     // 8 (Start Timer)
             encode_out(0x25U, 18U),                     // 9 (TCCRB at 0x45)
             encode_ldi(18U, 0xA0U),                     // 10 (ADEN | ADATE)
-            encode_sts(18U), atmega328.adc.adcsra_address, // 11, 12
-            encode_lds(19U), atmega328.adc.adcsra_address, // 13, 14
-            encode_lds(20U), atmega328.adc.adcl_address,   // 15, 16
-            encode_lds(21U), atmega328.adc.adch_address,   // 17, 18
+            encode_sts(18U), atmega328.adcs[0].adcsra_address, // 11, 12
+            encode_lds(19U), atmega328.adcs[0].adcsra_address, // 13, 14
+            encode_lds(20U), atmega328.adcs[0].adcl_address,   // 15, 16
+            encode_lds(21U), atmega328.adcs[0].adch_address,   // 17, 18
             0x0000U
         },
         .entry_word = 0U
@@ -126,12 +126,12 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
         
         // Now ADC should be converting. Conversion takes 4 cycles.
         // ADSC should be set.
-        // CHECK((bus.read_data(atmega328.adc.adcsra_address) & 0x40U) != 0U);
+        // CHECK((bus.read_data(atmega328.adcs[0].adcsra_address) & 0x40U) != 0U);
 
         // Tick 4 more for conversion
         cpu.run(4);
         
-        const auto status = bus.read_data(atmega328.adc.adcsra_address);
+        const auto status = bus.read_data(atmega328.adcs[0].adcsra_address);
         // CHECK((status & 0x10U) != 0U); // ADIF set
 
         // Read results
