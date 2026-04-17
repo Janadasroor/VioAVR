@@ -49,6 +49,7 @@ void Psc::reset() noexcept {
     down_counting_ = false;
     fault_active_ = false;
     last_fault_level_ = false;
+    fault_pending_restart_ = false;
     output_a_ = false;
     output_b_ = false;
 }
@@ -76,12 +77,16 @@ u8 Psc::read(u16 address) noexcept {
 
 void Psc::write(u16 address, u8 value) noexcept {
     if (address == desc_.pctl_address) {
-        pctl_ = value;
-        if (!(value & 0x80)) {
+        bool run = (value & 0x80);
+        if (run && !(pctl_ & 0x80)) {
+            // Start
             counter_ = 0;
             down_counting_ = false;
             fault_active_ = false;
+        } else if (!run) {
+            fault_active_ = false;
         }
+        pctl_ = value;
     } else if (address == desc_.psoc_address) {
         psoc_ = value;
     } else if (address == desc_.pconf_address) {
@@ -115,18 +120,30 @@ void Psc::write(u16 address, u8 value) noexcept {
 }
 
 void Psc::tick(u64 elapsed_cycles) noexcept {
-    if (!(pctl_ & 0x80) || fault_active_) return; // PRUN or Faulted
+    if (!(pctl_ & 0x80)) return; // PRUN must be set
 
     u8 mode = (pctl_ >> 4) & 0x03;
     bool is_centered = (mode == 0x01);
 
     for (u64 i = 0; i < elapsed_cycles; ++i) {
+        if (fault_active_) {
+            // In some modes, we wait for end-of-cycle to clear fault?
+            // Cycle counting continues in part of 'Fill' mode?
+            // Simplified: If mode is Stop, we do nothing.
+            u8 prfm = (pfrc0a_ >> 6) & 0x03;
+            if (prfm == 0x00) break; // Latch Stop
+        }
+
         if (down_counting_) {
             counter_--;
             if (counter_ == 0) {
                 down_counting_ = false;
                 pifr_ |= 0x01; // PEV
                 notify_adc();
+                
+                // End of cycle clears fault in some modes
+                u8 prfm = (pfrc0a_ >> 6) & 0x03;
+                if (prfm == 0x01) fault_active_ = false; 
             }
         } else {
             counter_++;
@@ -138,6 +155,9 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                     counter_ = 0;
                     pifr_ |= 0x01; // PEV
                     notify_adc();
+                    
+                    u8 prfm = (pfrc0a_ >> 6) & 0x03;
+                    if (prfm == 0x01) fault_active_ = false;
                 }
             }
         }
@@ -159,7 +179,7 @@ void Psc::notify_fault(bool level) noexcept {
 }
 
 void Psc::handle_fault(bool level) noexcept {
-    u8 pflt = (pfrc0a_ >> 4) & 0x03; // Simplified trigger mapping
+    u8 pflt = (pfrc0a_ >> 4) & 0x03;
     bool triggered = false;
     
     if (pflt == 0x01 && last_fault_level_ && !level) triggered = true; // Fall
@@ -169,37 +189,52 @@ void Psc::handle_fault(bool level) noexcept {
     if (triggered && !fault_active_) {
         pifr_ |= 0x08; // PCAP flag
         fault_active_ = true;
-        update_outputs();
+        
+        // Retrigger immediately?
+        u8 prfm = (pfrc0a_ >> 6) & 0x03;
+        if (prfm == 0x01 || prfm == 0x02) {
+             counter_ = 0;
+             down_counting_ = false;
+        }
     }
+    
+    // In retrigger mode, fault can clear when the signal is gone?
+    // Lacking full specs, we assume latching for now unless PRFM allows recovery.
+    
     last_fault_level_ = level;
+    update_outputs();
 }
 
 void Psc::update_outputs() noexcept {
     if (!(pctl_ & 0x80)) {
-        output_a_ = false;
-        output_b_ = false;
+        output_a_ = output_b_ = false;
         return;
     }
+
+    bool pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
+    bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
 
     if (fault_active_) {
-        // Simple safe levels from PSOC (bits 0 and 2 often)
-        output_a_ = (psoc_ & 0x01) != 0;
-        output_b_ = (psoc_ & 0x04) != 0;
-        return;
-    }
+        // Safe level is usually the POL value
+        output_a_ = (psoc_ & 0x01) && (psoc_ & 0x02);
+        output_b_ = (psoc_ & 0x04) && (psoc_ & 0x08);
+    } else {
+        bool en_a = (psoc_ & 0x01);
+        bool inv_a = (psoc_ & 0x02);
+        output_a_ = en_a && (pulse_a ^ inv_a);
 
-    // Normal operation: Pulse A [SA, RA], Pulse B [SB, RB]
-    // Note: This is an simplified one-ramp active-high logic
-    output_a_ = (counter_ >= ocrsa_ && counter_ < ocrra_);
-    output_b_ = (counter_ >= ocrsb_ && counter_ < ocrrb_);
+        bool en_b = (psoc_ & 0x04);
+        bool inv_b = (psoc_ & 0x08);
+        output_b_ = en_b && (pulse_b ^ inv_b);
+    }
 }
 
 bool Psc::pending_interrupt_request(InterruptRequest& req) const noexcept {
-    if ((pifr_ & 0x01) && (pim_ & 0x01)) { // PEV
+    if ((pifr_ & 0x01) && (pim_ & 0x01)) {
         req.vector_index = desc_.ec_vector_index;
         return true;
     }
-    if ((pifr_ & 0x08) && (pim_ & 0x08)) { // PCAP (Capture/Fault)
+    if ((pifr_ & 0x08) && (pim_ & 0x08)) {
         req.vector_index = desc_.capt_vector_index;
         return true;
     }
