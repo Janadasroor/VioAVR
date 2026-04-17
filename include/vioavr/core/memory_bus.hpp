@@ -7,6 +7,7 @@
 #include "vioavr/core/tracing.hpp"
 #include "vioavr/core/types.hpp"
 
+#include <array>
 #include <span>
 #include <vector>
 
@@ -128,6 +129,7 @@ private:
     u32 loaded_program_words_ {};
     u32 reset_word_address_ {};
     std::vector<u16> flash_page_buffer_;
+    std::array<u8, 16> fuses_ {};
 
     // SPM timing state
     u32 spm_busy_cycles_left_ {0U};

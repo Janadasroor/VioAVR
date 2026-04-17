@@ -33,7 +33,8 @@ private:
 
     std::string_view name_;
     EepromDescriptor desc_;
-    std::array<AddressRange, 1> ranges_;
+    std::array<AddressRange, 2> ranges_ {};
+    u8 ranges_count_ {1U};
     u16 size_;
 
     std::vector<u8> storage_;

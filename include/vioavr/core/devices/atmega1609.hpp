@@ -11,6 +11,15 @@ inline constexpr DeviceDescriptor atmega1609 {
     .interrupt_vector_count = 43U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 64U,
+    .io_range = { 0x0U, 0x3FU },
+    .extended_io_range = { 0x40U, 0x10FFU },
+
+    .mapped_flash = { 0x4000U, 0x4000U },
+    .mapped_eeprom = { 0x1400U, 0x100U },
+    .mapped_fuses = { 0x1280U, 0xAU },
+    .mapped_signatures = { 0x1100U, 0x3U },
+    .mapped_user_signatures = { 0x1300U, 0x20U },
+
     .spl_address = 0x3DU,
     .sph_address = 0x3EU,
     .sreg_address = 0x3FU,
@@ -133,8 +142,11 @@ inline constexpr DeviceDescriptor atmega1609 {
             .pr_address = 0, .pr_bit = 255
         } }},
     
-    .eeprom_count = 0U,
-    .eeproms = {{  }},
+    .eeprom_count = 1U,
+    .eeproms = {{ {
+                .size = 0x100U,
+                .mapped_data = { 0x1400U, 0x100U }
+            } }},
     
     .wdt_count = 1U,
     .wdts = {{ {

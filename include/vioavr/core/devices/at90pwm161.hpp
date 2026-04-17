@@ -11,6 +11,15 @@ inline constexpr DeviceDescriptor at90pwm161 {
     .interrupt_vector_count = 20U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 128U,
+    .io_range = { 0x20U, 0x5FU },
+    .extended_io_range = { 0x60U, 0xFFU },
+
+    .mapped_flash = { 0x0U, 0x0U },
+    .mapped_eeprom = { 0x0U, 0x0U },
+    .mapped_fuses = { 0x0U, 0x0U },
+    .mapped_signatures = { 0x0U, 0x0U },
+    .mapped_user_signatures = { 0x0U, 0x0U },
+
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
@@ -98,7 +107,9 @@ inline constexpr DeviceDescriptor at90pwm161 {
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x0U, .focb_mask = 0x0U, .focc_mask = 0x0U,
             .pr_address = 134, .pr_bit = 4,
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer1_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer1_compare_b,
+            .compare_c_trigger_source = AdcAutoTriggerSource::timer1_compare_c,
             .overflow_trigger_source = AdcAutoTriggerSource::timer1_overflow,
             .capture_trigger_source = AdcAutoTriggerSource::timer1_capture
         } }},
@@ -133,7 +144,8 @@ inline constexpr DeviceDescriptor at90pwm161 {
             .eecr_address = 0x3CU, .eedr_address = 0x3DU, .eearl_address = 0x3EU, .eearh_address = 0x3FU,
             .eecr_reset = 0x0U,
             .vector_index = 18U,
-            .size = 0x200U
+            .size = 0x200U,
+            .mapped_data = { 0x0U, 0x0U }
         } }},
     
     .wdt_count = 1U,
@@ -179,6 +191,7 @@ inline constexpr DeviceDescriptor at90pwm161 {
     .dac_count = 1U,
     .dacs = {{ {
             .dacon_address = 0x76U, .dacl_address = 0x58U, .dach_address = 0x59U,
+            .daen_mask = 0x1U, .daate_mask = 0x80U, .dats_mask = 0x70U, .dacoe_mask = 0x0U,
             .pr_address = 0, .pr_bit = 255
         } }},
 

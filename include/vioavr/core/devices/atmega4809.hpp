@@ -11,6 +11,15 @@ inline constexpr DeviceDescriptor atmega4809 {
     .interrupt_vector_count = 43U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 128U,
+    .io_range = { 0x0U, 0x3FU },
+    .extended_io_range = { 0x40U, 0x10FFU },
+
+    .mapped_flash = { 0x4000U, 0xC000U },
+    .mapped_eeprom = { 0x1400U, 0x100U },
+    .mapped_fuses = { 0x1280U, 0xAU },
+    .mapped_signatures = { 0x1100U, 0x3U },
+    .mapped_user_signatures = { 0x1300U, 0x40U },
+
     .spl_address = 0x3DU,
     .sph_address = 0x3EU,
     .sreg_address = 0x3FU,
@@ -28,6 +37,7 @@ inline constexpr DeviceDescriptor atmega4809 {
     .xmcrb_address = 0x0U,
     .xmem = {0},
     .pradc_bit = 0xFFU,
+
     .prusart0_bit = 0xFFU,
     .prspi_bit = 0xFFU,
     .prtwi_bit = 0xFFU,
@@ -133,8 +143,11 @@ inline constexpr DeviceDescriptor atmega4809 {
             .pr_address = 0, .pr_bit = 255
         } }},
     
-    .eeprom_count = 0U,
-    .eeproms = {{  }},
+    .eeprom_count = 1U,
+    .eeproms = {{ {
+                .size = 0x100U,
+                .mapped_data = { 0x1400U, 0x100U }
+            } }},
     
     .wdt_count = 1U,
     .wdts = {{ {
@@ -159,6 +172,9 @@ inline constexpr DeviceDescriptor atmega4809 {
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,
+
+    .signature = { 0x1EU, 0x96U, 0x51U },
+    .fuses = { 0x0U, 0x0U, 0x7EU, 0xFFU, 0xFFU, 0xF6U, 0xFFU, 0x0U, 0x0U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
 
     .port_count = 9U,
     .ports = {{

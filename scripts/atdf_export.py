@@ -148,6 +148,14 @@ def parse_atdf(file_path):
                 for reg_name, reg_def in rg_data['registers'].items():
                     data['configuration'][target_key][reg_name] = reg_def
 
+    # 7. Extract Properties (Signatures, etc.)
+    data['properties'] = {}
+    for prop in root.findall(".//property"):
+        name = prop.attrib.get('name')
+        value = prop.attrib.get('value')
+        if name and value:
+            data['properties'][name] = value
+
     return data
 
 def main():

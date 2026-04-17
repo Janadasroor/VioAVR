@@ -16727,5 +16727,15 @@
         }
       }
     }
+  },
+  "properties": {
+    "BREAK_PIN": "PF6",
+    "BREAK_PIN_ALT": "PF2",
+    "FUSE_ENABLED_VALUE": "1",
+    "HV_IMPLEMENTATION": "1",
+    "PROGMEM_OFFSET": "0x00004000",
+    "SIGNATURE0": "0x1E",
+    "SIGNATURE1": "0x96",
+    "SIGNATURE2": "0x51"
   }
 }

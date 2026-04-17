@@ -19,6 +19,7 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
 void MemoryBus::reset() noexcept
 {
     std::ranges::fill(data_, 0U);
+    fuses_ = device_.fuses;
     spm_busy_cycles_left_ = 0U;
     flash_rww_busy_ = false;
     // Do NOT clear loaded_program_words_ here, it should survive reset
@@ -71,6 +72,34 @@ void MemoryBus::load_image(const HexImage& image)
 u8 MemoryBus::read_data(const u16 address) noexcept
 {
     u8 value = 0U;
+
+    // 1. Check for Unified Memory Map aliases
+    if (device_.mapped_flash.size > 0 && 
+        address >= device_.mapped_flash.data_start && 
+        address < device_.mapped_flash.data_start + device_.mapped_flash.size) {
+        const u32 offset = address - device_.mapped_flash.data_start;
+        const u32 word_addr = offset >> 1;
+        if (word_addr < flash_.size()) {
+            const u16 word = flash_[word_addr];
+            return (offset & 1) ? static_cast<u8>(word >> 8) : static_cast<u8>(word & 0xFF);
+        }
+    }
+
+    if (device_.mapped_fuses.size > 0 &&
+        address >= device_.mapped_fuses.data_start &&
+        address < device_.mapped_fuses.data_start + device_.mapped_fuses.size) {
+        const u32 offset = address - device_.mapped_fuses.data_start;
+        return (offset < fuses_.size()) ? fuses_[offset] : 0xFFU;
+    }
+
+    if (device_.mapped_signatures.size > 0 &&
+        address >= device_.mapped_signatures.data_start &&
+        address < device_.mapped_signatures.data_start + device_.mapped_signatures.size) {
+        const u32 offset = address - device_.mapped_signatures.data_start;
+        return (offset < device_.signature.size()) ? device_.signature[offset] : 0xFFU;
+    }
+
+    // 2. Standard Peripheral/Memory dispatch
     if (IoPeripheral* peripheral = find_peripheral(address); peripheral != nullptr) {
         value = peripheral->read(address);
     } else if (address < data_.size()) {

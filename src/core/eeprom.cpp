@@ -25,14 +25,24 @@ Eeprom::Eeprom(std::string_view name, const EepromDescriptor& descriptor) noexce
     : name_(name), desc_(descriptor), size_(descriptor.size)
 {
     storage_.resize(size_, 0xFFU);
-    ranges_[0] = {desc_.eecr_address, static_cast<u16>(desc_.eecr_address + (desc_.eearh_address > 0 ? 3U : 2U))};
+    if (desc_.eecr_address != 0U) {
+        ranges_[0] = {desc_.eecr_address, static_cast<u16>(desc_.eearh_address > 0 ? desc_.eearh_address : desc_.eecr_address + 3U)};
+        ranges_count_ = 1U;
+    } else {
+        ranges_count_ = 0U;
+    }
+    
+    if (desc_.mapped_data.size > 0) {
+        ranges_[ranges_count_] = {desc_.mapped_data.data_start, static_cast<u16>(desc_.mapped_data.data_start + desc_.mapped_data.size - 1U)};
+        ranges_count_++;
+    }
 }
 
 std::string_view Eeprom::name() const noexcept { return name_; }
 
 std::span<const AddressRange> Eeprom::mapped_ranges() const noexcept
 {
-    return {ranges_.data(), ranges_.size()};
+    return {ranges_.data(), ranges_count_};
 }
 
 void Eeprom::reset() noexcept
@@ -80,6 +90,13 @@ u8 Eeprom::read(const u16 address) noexcept
     if (address == desc_.eearh_address) {
         return static_cast<u8>((eear_ >> 8U) & 0xFFU);
     }
+
+    // Unified Data Map Read
+    if (desc_.mapped_data.size > 0 && address >= desc_.mapped_data.data_start && address < desc_.mapped_data.data_start + desc_.mapped_data.size) {
+        const u16 offset = address - desc_.mapped_data.data_start;
+        return (offset < storage_.size()) ? storage_[offset] : 0xFFU;
+    }
+
     return 0U;
 }
 
