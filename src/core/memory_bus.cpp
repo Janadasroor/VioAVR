@@ -268,6 +268,23 @@ u8 MemoryBus::get_wait_states(const u16 address) const noexcept
     return (xmem_ != nullptr) ? xmem_->get_wait_states(address) : 0U;
 }
 
+bool MemoryBus::should_stall_cpu(u32 pc_word) const noexcept {
+    if (spm_busy_cycles_left_ == 0U) return false;
+
+    // Non-RWW devices (e.g., ATmega328P) always halt during SPM operations.
+    if (device_.flash_rww_end_word == 0U) return true;
+
+    // Programming the NRWW (typically bootloader) section always halts the CPU.
+    const u32 program_word = spm_address_ >> 1U;
+    if (program_word > device_.flash_rww_end_word) return true;
+
+    // Programming the RWW (typically application) section only halts the CPU if it's
+    // executing from within that same RWW section.
+    if (pc_word <= device_.flash_rww_end_word) return true;
+
+    return false;
+}
+
 void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data) noexcept {
     if (spm_busy_cycles_left_ > 0U) {
         return;

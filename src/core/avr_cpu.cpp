@@ -182,6 +182,12 @@ void AvrCpu::step()
         return;
     }
 
+    if (bus_->should_stall_cpu(program_counter_)) {
+        advance_cycles(1U);
+        synchronize_if_needed();
+        return;
+    }
+
     const DecodedInstruction instruction = fetch();
     Logger::debug("Step PC=" + std::to_string(instruction.word_address) + " Opcode=" + std::to_string(instruction.opcode));
     decode_and_execute(instruction);
@@ -569,7 +575,7 @@ bool AvrCpu::service_interrupt_if_needed()
     interrupt_pending_ = false;
     state_ = CpuState::running;
     ++interrupt_depth_;
-    advance_cycles(4U);
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
     return true;
 }
 
@@ -1668,7 +1674,7 @@ void AvrCpu::execute_rcall(const DecodedInstruction& instruction)
     }
     push_pc(instruction.word_address + 1U);
     program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
-    advance_cycles(3U);
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 4U : 3U);
 }
 
 void AvrCpu::execute_rjmp(const DecodedInstruction& instruction)
@@ -1725,7 +1731,7 @@ void AvrCpu::execute_icall(const DecodedInstruction& instruction)
 {
     push_pc(instruction.word_address + 1U);
     program_counter_ = static_cast<u32>(z_pointer());
-    advance_cycles(3U);
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 4U : 3U);
 }
 
 void AvrCpu::execute_eicall(const DecodedInstruction& instruction)
@@ -1742,14 +1748,14 @@ void AvrCpu::execute_call(const DecodedInstruction& instruction)
                         instruction.words[1]);
     push_pc(instruction.word_address + instruction.word_size);
     program_counter_ = target;
-    advance_cycles(4U);
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
 }
 
 void AvrCpu::execute_ret(const DecodedInstruction& instruction)
 {
     (void)instruction;
     program_counter_ = pop_pc();
-    advance_cycles(4U);
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
 }
 
 void AvrCpu::execute_reti(const DecodedInstruction& instruction)
@@ -1761,7 +1767,7 @@ void AvrCpu::execute_reti(const DecodedInstruction& instruction)
         --interrupt_depth_;
     }
     interrupt_delay_ = 1U;
-    advance_cycles(4U);
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
 }
 
 void AvrCpu::execute_bclr(const DecodedInstruction& instruction)

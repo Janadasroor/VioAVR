@@ -11,6 +11,7 @@ class Usb final : public IoPeripheral {
 public:
     Usb(std::string_view name, const UsbDescriptor& desc) noexcept;
 
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
@@ -42,6 +43,9 @@ public:
     void simulate_vbus_event(bool high) noexcept;
     void simulate_setup_packet(const SetupPacket& setup) noexcept;
     void simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept;
+    void simulate_in_token(u8 ep_idx) noexcept;
+
+    [[nodiscard]] std::vector<u8> get_endpoint_data(u8 ep_idx) const noexcept;
 
 private:
     void update_ueint() noexcept;
@@ -62,7 +66,12 @@ private:
 
     std::string_view name_;
     UsbDescriptor desc_;
+    MemoryBus* bus_ {};
     std::array<AddressRange, 5> ranges_;
+
+    u64 cycle_accumulator_ {0};
+    u32 frame_cycles_ {0}; // 1ms worth of cycles for SOF
+    u16 frame_number_ {0};
 
     u8 uhwcon_ {};
     u8 usbcon_ {};

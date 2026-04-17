@@ -17,8 +17,8 @@ Xmem::Xmem(const DeviceDescriptor& desc, CpuControl& cpu_control) noexcept
     }
     
     // Internal SRAM ends at data_end_address()
-    // External SRAM can go up to 64KB (0xFFFF)
-    memory_.resize(0x10000); 
+    // External SRAM can go up to 64KB (0xFFFF) or 128KB with XMBK
+    memory_.resize(0x20000); 
 }
 
 std::string_view Xmem::name() const noexcept { return "XMEM"; }
@@ -51,14 +51,46 @@ u8 Xmem::read_external(u16 address) noexcept {
     if (!enabled() || address >= memory_.size() || address <= desc_.data_end_address()) {
         return 0U; 
     }
-    return memory_[address];
+    
+    const u16 mask = get_address_mask();
+    u32 final_address = address & mask;
+    
+    if (xmcrb_ & desc_.xmem.xmbk_mask) {
+        final_address += 0x10000U;
+    }
+    
+    if (final_address >= memory_.size()) return 0U;
+    return memory_[final_address];
 }
 
 void Xmem::write_external(u16 address, u8 value) noexcept {
     if (!enabled() || address >= memory_.size() || address <= desc_.data_end_address()) {
         return;
     }
-    memory_[address] = value;
+    
+    const u16 mask = get_address_mask();
+    u32 final_address = address & mask;
+    
+    if (xmcrb_ & desc_.xmem.xmbk_mask) {
+        final_address += 0x10000U;
+    }
+    
+    if (final_address < memory_.size()) {
+        memory_[final_address] = value;
+    }
+}
+
+u16 Xmem::get_address_mask() const noexcept {
+    u8 xmm_bits = (xmcrb_ & desc_.xmem.xmm_mask);
+    u8 mask_val = desc_.xmem.xmm_mask;
+    if (mask_val > 0) {
+        while (!(mask_val & 1)) { mask_val >>= 1; xmm_bits >>= 1; }
+    }
+    
+    if (xmm_bits == 0) return 0xFFFFU;
+    if (xmm_bits > 8) xmm_bits = 8;
+    
+    return 0xFFFFU >> xmm_bits;
 }
 
 bool Xmem::enabled() const noexcept {

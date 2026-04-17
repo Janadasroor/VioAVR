@@ -29,7 +29,8 @@ inline constexpr DeviceDescriptor atmega2560 {
     .xmem = {
             .xmcra_address = 0x74U, .xmcrb_address = 0x75U,
             .mcucr_address = 0x55U, .sre_mask = 0x80U,
-            .srl_mask = 112, .srw0_mask = 3, .srw1_mask = 12
+            .srl_mask = 112, .srw0_mask = 3, .srw1_mask = 12,
+            .xmm_mask = 7, .xmbk_mask = 128
         },
     .pradc_bit = 0x1U,
     .prusart0_bit = 0x4U,

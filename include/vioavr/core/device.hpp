@@ -170,6 +170,8 @@ struct XmemDescriptor {
     u8 srl_mask {0x70U}; 
     u8 srw0_mask {0x03U}; 
     u8 srw1_mask {0x0CU}; 
+    u8 xmm_mask {0x07U};  // Released pins
+    u8 xmbk_mask {0x80U}; // Memory bank
 };
 
 struct TwiDescriptor {
@@ -270,6 +272,17 @@ struct UsbDescriptor {
     u8 gen_vector_index {};
     u8 com_vector_index {};
     u16 pllcsr_address {};
+    
+    // Bitmasks
+    u8 usbcon_usbe_mask {0x80U};
+    u8 usbcon_frzclk_mask {0x20U};
+    u8 udint_sofi_mask {0x04U};
+    u8 udint_eorsti_mask {0x08U};
+    u8 ueintx_txini_mask {0x01U};
+    u8 ueintx_rxstpi_mask {0x08U};
+    u8 ueintx_rxouti_mask {0x04U};
+    u8 udaddr_adden_mask {0x80U};
+
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
 };
@@ -459,6 +472,10 @@ struct DeviceDescriptor {
 
     u8 port_count {0U};
     std::array<PortDescriptor, 16> ports {};
+
+    [[nodiscard]] constexpr u8 pc_width_bytes() const noexcept {
+        return (flash_words > 65536U) ? 3U : 2U;
+    }
 
     [[nodiscard]] constexpr u16 data_end_address() const noexcept
     {

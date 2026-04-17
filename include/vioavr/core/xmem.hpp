@@ -28,6 +28,7 @@ public:
 
     // CPU queries this to add wait states
     [[nodiscard]] u8 get_wait_states(u16 address) const noexcept;
+    [[nodiscard]] u16 get_address_mask() const noexcept;
 
 private:
     const DeviceDescriptor& desc_;
