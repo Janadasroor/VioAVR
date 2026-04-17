@@ -10,25 +10,34 @@ inline constexpr DeviceDescriptor atmega2560 {
     .eeprom_bytes = 0U,
     .interrupt_vector_count = 57U,
     .interrupt_vector_size = 4U,
+    .flash_page_size = 256U,
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
     .rampz_address = 0x5BU,
     .eind_address = 0x5CU,
-    .spmcsr_address = 0x0U,
+    .spmcsr_address = 0x57U,
     .prr_address = 0x65U,
     .prr0_address = 0x64U,
     .prr1_address = 0x65U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .pllcsr_address = 0x0U,
     .xmcra_address = 0x74U,
     .xmcrb_address = 0x75U,
     .xmem = {
             .xmcra_address = 0x74U, .xmcrb_address = 0x75U,
-            .mcucr_address = 0x55U, .sre_mask = 0x80U
+            .mcucr_address = 0x55U, .sre_mask = 0x80U,
+            .srl_mask = 112, .srw0_mask = 3, .srw1_mask = 12
         },
-    
+    .pradc_bit = 0x1U,
+    .prusart0_bit = 0x4U,
+    .prspi_bit = 0x4U,
+    .prtwi_bit = 0x80U,
+    .prtimer0_bit = 0x20U,
+    .prtimer1_bit = 0x8U,
+    .prtimer2_bit = 0x40U,
     .adc_count = 1U,
     .adcs = {{ {
             .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
@@ -39,16 +48,14 @@ inline constexpr DeviceDescriptor atmega2560 {
             .adc_pin_bit = {{ 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }},
             .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }},
             .adsc_mask = 0x40U, .adate_mask = 0x20U, .adif_mask = 0x10U, .adie_mask = 0x8U, .aden_mask = 0x80U, .adlar_mask = 0x20U,
-            .pr_address = 0x64U, .pr_bit = 0x1U
+            .pr_address = 100, .pr_bit = 1
         } }},
-    
     .ac_count = 1U,
     .acs = {{ {
             .acsr_address = 0x50U, .didr1_address = 0x7FU, .vector_index = 28U,
             .ain0_pin_address = 0x2CU, .ain0_pin_bit = 2U, .ain1_pin_address = 0x2CU, .ain1_pin_bit = 3U,
             .aci_mask = 0x10U, .acie_mask = 0x8U
         } }},
-    
     .timer8_count = 2U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U,
@@ -64,7 +71,8 @@ inline constexpr DeviceDescriptor atmega2560 {
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x4U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x64U, .pr_bit = 0x20U
+            .foca_mask = 0x80U, .focb_mask = 0x40U,
+            .pr_address = 100, .pr_bit = 32
         },
         {
             .tcnt_address = 0xB2U, .ocra_address = 0xB3U, .ocrb_address = 0xB4U, .tifr_address = 0x37U, .timsk_address = 0x70U, .tccra_address = 0xB0U, .tccrb_address = 0xB1U, .assr_address = 0xB6U,
@@ -80,9 +88,9 @@ inline constexpr DeviceDescriptor atmega2560 {
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x4U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x64U, .pr_bit = 0x40U
+            .foca_mask = 0x80U, .focb_mask = 0x40U,
+            .pr_address = 100, .pr_bit = 64
         } }},
-    
     .timer16_count = 4U,
     .timers16 = {{ {
             .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .ocrc_address = 0x8CU, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
@@ -101,7 +109,8 @@ inline constexpr DeviceDescriptor atmega2560 {
             .compare_b_enable_mask = 0x4U,
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x64U, .pr_bit = 0x8U
+            .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
+            .pr_address = 100, .pr_bit = 8
         },
         {
             .tcnt_address = 0x94U, .ocra_address = 0x98U, .ocrb_address = 0x9AU, .ocrc_address = 0x9CU, .icr_address = 0x96U, .tifr_address = 0x38U, .timsk_address = 0x71U, .tccra_address = 0x90U, .tccrb_address = 0x91U, .tccrc_address = 0x92U,
@@ -120,7 +129,8 @@ inline constexpr DeviceDescriptor atmega2560 {
             .compare_b_enable_mask = 0x4U,
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x65U, .pr_bit = 0x8U
+            .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
+            .pr_address = 101, .pr_bit = 8
         },
         {
             .tcnt_address = 0xA4U, .ocra_address = 0xA8U, .ocrb_address = 0xAAU, .ocrc_address = 0xACU, .icr_address = 0xA6U, .tifr_address = 0x39U, .timsk_address = 0x72U, .tccra_address = 0xA0U, .tccrb_address = 0xA1U, .tccrc_address = 0xA2U,
@@ -139,7 +149,8 @@ inline constexpr DeviceDescriptor atmega2560 {
             .compare_b_enable_mask = 0x4U,
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x65U, .pr_bit = 0x10U
+            .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
+            .pr_address = 101, .pr_bit = 16
         },
         {
             .tcnt_address = 0x124U, .ocra_address = 0x128U, .ocrb_address = 0x12AU, .ocrc_address = 0x12CU, .icr_address = 0x126U, .tifr_address = 0x3AU, .timsk_address = 0x73U, .tccra_address = 0x120U, .tccrb_address = 0x121U, .tccrc_address = 0x122U,
@@ -158,8 +169,11 @@ inline constexpr DeviceDescriptor atmega2560 {
             .compare_b_enable_mask = 0x4U,
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x65U, .pr_bit = 0x20U
+            .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
+            .pr_address = 101, .pr_bit = 32
         } }},
+    .timer10_count = 0U,
+    .timers10 = {{  }},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -176,7 +190,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 0x65U, .pr_bit = 0x4U
+            .pr_address = 101, .pr_bit = 4
         },
         {
             .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xCAU, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
@@ -186,7 +200,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 0x65U, .pr_bit = 0x4U
+            .pr_address = 101, .pr_bit = 4
         },
         {
             .udr_address = 0xD6U, .ucsra_address = 0xD0U, .ucsrb_address = 0xD1U, .ucsrc_address = 0xD2U, .ubrrl_address = 0xD4U, .ubrrh_address = 0xD5U,
@@ -196,7 +210,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 0x65U, .pr_bit = 0x4U
+            .pr_address = 101, .pr_bit = 4
         },
         {
             .udr_address = 0x136U, .ucsra_address = 0x130U, .ucsrb_address = 0x131U, .ucsrc_address = 0x132U, .ubrrl_address = 0x134U, .ubrrh_address = 0x135U,
@@ -206,7 +220,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 0x65U, .pr_bit = 0x4U
+            .pr_address = 101, .pr_bit = 4
         } }},
     
     .pcint_count = 3U,
@@ -237,7 +251,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .spcr_address = 0x4CU, .spsr_address = 0x4DU, .spdr_address = 0x4EU,
             .spcr_reset = 0x0U, .spsr_reset = 0x0U, .vector_index = 24U,
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
-            .pr_address = 0x64U, .pr_bit = 0x4U
+            .pr_address = 100, .pr_bit = 4
         } }},
     
     .twi_count = 1U,
@@ -245,7 +259,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .twbr_address = 0xB8U, .twsr_address = 0xB9U, .twar_address = 0xBAU, .twdr_address = 0xBBU, .twcr_address = 0xBCU, .twamr_address = 0xBDU,
             .vector_index = 39U,
             .twint_mask = 0x80U, .twen_mask = 0x4U, .twie_mask = 0x1U, .twsto_mask = 0x10U, .twsta_mask = 0x20U, .twea_mask = 0x40U,
-            .pr_address = 0x64U, .pr_bit = 0x80U
+            .pr_address = 100, .pr_bit = 128
         } }},
     
     .eeprom_count = 1U,
@@ -263,6 +277,9 @@ inline constexpr DeviceDescriptor atmega2560 {
 
     .can_count = 0U,
     .cans = {{  }},
+    
+    .usb_count = 0U,
+    .usbs = {{  }},
 
     .port_count = 11U,
     .ports = {{

@@ -159,6 +159,9 @@ struct XmemDescriptor {
     u16 xmcrb_address {0U};
     u16 mcucr_address {0U};
     u8 sre_mask {0x80U};
+    u8 srl_mask {0x70U}; 
+    u8 srw0_mask {0x03U}; 
+    u8 srw1_mask {0x0CU}; 
 };
 
 struct TwiDescriptor {
@@ -239,6 +242,8 @@ struct UsbDescriptor {
     u16 udint_address {};
     u16 udien_address {};
     u16 udaddr_address {};
+    u16 udfnum_address {};
+    u16 udmfn_address {};
     u16 uenum_address {};
     u16 uerst_address {};
     u16 ueint_address {};
@@ -252,7 +257,9 @@ struct UsbDescriptor {
     u16 uecfg1x_address {};
     u16 uesta0x_address {};
     u16 uesta1x_address {};
-    u8 vector_index {};
+    u8 gen_vector_index {};
+    u8 com_vector_index {};
+    u16 pllcsr_address {};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
 };

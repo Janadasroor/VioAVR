@@ -26,6 +26,8 @@ public:
     void load_flash(std::span<const u16> words);
     void load_image(const HexImage& image);
 
+    void execute_spm(u8 command, u32 address, u16 data) noexcept;
+
     [[nodiscard]] constexpr const DeviceDescriptor& device() const noexcept
     {
         return device_;
@@ -124,5 +126,6 @@ private:
     std::vector<IoPeripheral*> dispatch_table_ {};
     u32 loaded_program_words_ {};
     u32 reset_word_address_ {};
+    std::vector<u16> flash_page_buffer_;
 };
 }  // namespace vioavr::core

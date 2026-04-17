@@ -78,6 +78,11 @@ public:
         return program_counter_;
     }
 
+    void set_program_counter(u32 value) noexcept
+    {
+        program_counter_ = value;
+    }
+
     [[nodiscard]] constexpr u16 stack_pointer() const noexcept
     {
         return stack_pointer_;

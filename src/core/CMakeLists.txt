@@ -32,6 +32,7 @@ target_sources(vioavr_core
         uart.cpp
         watchdog_timer.cpp
         usb.cpp
+        pll.cpp
         xmem.cpp
 )
 

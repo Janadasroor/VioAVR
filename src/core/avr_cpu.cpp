@@ -1546,47 +1546,14 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
 
     const u32 z = z_pointer();
     const u16 data = static_cast<u16>(gpr_[0] | (static_cast<u16>(gpr_[1]) << 8U));
-    const u16 page_size_words = bus_->device().flash_page_size / 2U;
 
-    if (temp_flash_page_buffer_.size() < page_size_words) {
-        temp_flash_page_buffer_.resize(page_size_words, 0xFFFFU);
-    }
-
-    if ((spmcsr & 0x02U) != 0U) { // Page Erase (PGERS)
-        const u32 page_start_word = (z >> 1U) & ~(static_cast<u32>(page_size_words) - 1U);
-        for (u32 i = 0U; i < page_size_words; ++i) {
-            bus_->write_program_word(page_start_word + i, 0xFFFFU);
-        }
-        if (page_start_word < bus_->device().flash_rww_end_word) {
-            rww_section_busy_ = true;
-            bus_->set_flash_rww_busy(true);
-        }
-        advance_cycles(4U);
-    } else if ((spmcsr & 0x04U) != 0U) { // Page Write (PGWRT)
-        const u32 page_start_word = (z >> 1U) & ~(static_cast<u32>(page_size_words) - 1U);
-        for (u32 i = 0U; i < page_size_words; ++i) {
-            bus_->write_program_word(page_start_word + i, temp_flash_page_buffer_[i]);
-        }
-        temp_flash_page_buffer_.assign(page_size_words, 0xFFFFU);
-        if (page_start_word < bus_->device().flash_rww_end_word) {
-            rww_section_busy_ = true;
-            bus_->set_flash_rww_busy(true);
-        }
-        advance_cycles(4U);
-    } else if (rwwsre) { // RWWSRE
-        rww_section_busy_ = false;
-        bus_->set_flash_rww_busy(false);
-        advance_cycles(4U);
-    } else { // Fill Temporary Page Buffer
-        const u32 word_offset = (z >> 1U) & (static_cast<u32>(page_size_words) - 1U);
-        temp_flash_page_buffer_[word_offset] = data;
-        advance_cycles(1U);
-    }
-
-    write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xE0U));
-    spm_lock_timeout_ = 0U;
+    bus_->execute_spm(spmcsr, z, data);
     
-    // PC advancement
+    // Clear SPMEN after execution
+    write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xFEU));
+    spm_lock_timeout_ = 0U;
+
+    advance_cycles(1U);
     program_counter_ = instruction.word_address + 1U;
 }
 

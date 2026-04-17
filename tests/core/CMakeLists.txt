@@ -86,6 +86,11 @@ set(TEST_SOURCES
     cpu_timer10_pfc_test.cpp
     cpu_adc_differential_test.cpp
     usb_basic_test.cpp
+    usb_interrupt_test.cpp
+    usb_enumeration_test.cpp
+    pll_test.cpp
+    spm_test.cpp
+    xmem_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

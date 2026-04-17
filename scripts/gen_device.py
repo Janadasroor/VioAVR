@@ -254,12 +254,14 @@ def generate_header(data, output_dir):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         return f"""{{
             .uhwcon_address = {hx(r('UHWCON')['offset'])}, .usbcon_address = {hx(r('USBCON')['offset'])}, .usbsta_address = {hx(r('USBSTA')['offset'])}, .usbint_address = {hx(r('USBINT')['offset'])},
-            .udcon_address = {hx(r('UDCON')['offset'])}, .udint_address = {hx(r('UDINT')['offset'])}, .udien_address = {hx(r('UDIEN')['offset'])}, .udaddr_address = {hx(r('UDADDR')['offset'])},
+            .udcon_address = {hx(r('UDCON')['offset'])}, .udint_address = {hx(r('UDINT')['offset'])}, .udien_address = {hx(r('UDIEN')['offset'])}, .udaddr_address = {hx(r('UDADDR')['offset'])}, .udfnum_address = {hx(r('UDFNUM')['offset'])}, .udmfn_address = {hx(r('UDMFN')['offset'])},
             .uenum_address = {hx(r('UENUM')['offset'])}, .uerst_address = {hx(r('UERST')['offset'])}, .ueint_address = {hx(r('UEINT')['offset'])},
             .ueintx_address = {hx(r('UEINTX')['offset'])}, .ueienx_address = {hx(r('UEIENX')['offset'])}, .uedatx_address = {hx(r('UEDATX')['offset'])},
             .uebclx_address = {hx(r('UEBCLX')['offset'])}, .uebchx_address = {hx(r('UEBCHX')['offset'])}, .ueconx_address = {hx(r('UECONX')['offset'])},
             .uecfg0x_address = {hx(r('UECFG0X')['offset'])}, .uecfg1x_address = {hx(r('UECFG1X')['offset'])}, .uesta0x_address = {hx(r('UESTA0X')['offset'])}, .uesta1x_address = {hx(r('UESTA1X')['offset'])},
-            .vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB' in (i.get('name') or i.get('caption') or '').upper()), 0)}U,
+            .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB_GEN' in (i.get('name') or '').upper()), 10)}U,
+            .com_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB_COM' in (i.get('name') or '').upper()), 11)}U,
+            .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))},
             .pr_address = {get_pr_info(data, 'PRUSB')[0]}, .pr_bit = {get_pr_info(data, 'PRUSB')[1]}
         }}"""
 
@@ -354,9 +356,13 @@ def generate_header(data, output_dir):
         xmcrb = r('XMCRB')
         mcucr = r('MCUCR')
         sre_mask = b('XMCRA', 'SRE') or b('MCUCR', 'SRE') or 0x80
+        srl_mask = b('XMCRA', 'SRL') or (hx(0x70) if xmcra['offset'] else 0)
+        srw0_mask = b('XMCRA', 'SRW0') or (hx(0x03) if xmcra['offset'] else 0)
+        srw1_mask = b('XMCRA', 'SRW1') or (hx(0x0C) if xmcra['offset'] else 0)
         return f"""{{
             .xmcra_address = {hx(xmcra['offset'])}, .xmcrb_address = {hx(xmcrb['offset'])},
-            .mcucr_address = {hx(mcucr['offset'])}, .sre_mask = {hx(sre_mask)}
+            .mcucr_address = {hx(mcucr['offset'])}, .sre_mask = {hx(sre_mask)},
+            .srl_mask = {srl_mask}, .srw0_mask = {srw0_mask}, .srw1_mask = {srw1_mask}
         }}"""
 
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
@@ -374,6 +380,10 @@ def generate_header(data, output_dir):
     timers10_str = ",\n        ".join(gen_timer10(n, d) for n, d in groups['TC10'])
     usbs_str = ",\n        ".join(gen_usb(n, d) for n, d in groups['USB_DEVICE'])
     
+    xmem_data = (groups['EXTERNAL_MEMORY'][0][1] if groups['EXTERNAL_MEMORY'] 
+                 else data['peripherals'].get('CPU', {}))
+    xmem_str = gen_xmem(xmem_data)
+
     ports_str = ",\n        ".join(f'{{ "{p["name"]}", {hx(p["pin"])}, {hx(p["ddr"])}, {hx(p["port"])} }}' for p in ports_raw)
 
     content = f"""#pragma once
@@ -388,12 +398,13 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .eeprom_bytes = {eeprom['size']}U,
     .interrupt_vector_count = {len(data['interrupts'])}U,
     .interrupt_vector_size = {4 if flash['size'] > 4096 else 2}U,
+    .flash_page_size = {flash['pagesize']}U,
     .spl_address = {get_reg_addr(cpu, 'SPL|SP')},
     .sph_address = {get_reg_addr(cpu, 'SPH|SP', True)},
     .sreg_address = {get_reg_addr(cpu, 'SREG')},
     .rampz_address = {get_reg_addr(cpu, 'RAMPZ')},
     .eind_address = {get_reg_addr(cpu, 'EIND')},
-    .spmcsr_address = {hx(r_cpu('SPMCSR')['offset']) if r_cpu('SPMCSR') else '0x0U'},
+    .spmcsr_address = {hx(get_reg(data['peripherals'].get('CPU', {}), 'SPMCSR')['offset']) if get_reg(data['peripherals'].get('CPU', {}), 'SPMCSR') else hx(get_reg(data['peripherals'].get('BOOT_LOAD', {}), 'SPMCSR')['offset']) if get_reg(data['peripherals'].get('BOOT_LOAD', {}), 'SPMCSR') else '0x0U'},
     .prr_address = {hx(r_cpu('PRR')['offset']) if r_cpu('PRR') else '0x0U'},
     .prr0_address = {hx(r_cpu('PRR0')['offset']) if r_cpu('PRR0') else '0x0U'},
     .prr1_address = {hx(r_cpu('PRR1')['offset']) if r_cpu('PRR1') else '0x0U'},
@@ -403,7 +414,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))},
     .xmcra_address = {hx(r_cpu('XMCRA')['offset']) if r_cpu('XMCRA') else '0x0U'},
     .xmcrb_address = {hx(r_cpu('XMCRB')['offset']) if r_cpu('XMCRB') else '0x0U'},
-    .xmem = {gen_xmem(groups['EXTERNAL_MEMORY'][0][1]) if groups['EXTERNAL_MEMORY'] else '{0}'},
+    .xmem = {xmem_str if r_cpu('XMCRA') else '{0}'},
     .pradc_bit = {hx(get_pr_info(data, 'PRADC')[1])},
     .prusart0_bit = {hx(get_pr_info(data, 'PRUSART0|PRUSART')[1])},
     .prspi_bit = {hx(get_pr_info(data, 'PRSPI')[1])},

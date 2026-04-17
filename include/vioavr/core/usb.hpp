@@ -22,7 +22,30 @@ public:
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
     [[nodiscard]] ClockDomain clock_domain() const noexcept override { return ClockDomain::io; }
 
+    void force_general_interrupt(u8 mask) noexcept { udint_ |= mask; }
+    void force_endpoint_interrupt(u8 ep_idx, u8 mask) noexcept {
+        if (ep_idx < endpoints_.size()) {
+            endpoints_[ep_idx].interrupt_flags |= mask;
+            update_ueint();
+        }
+    }
+
+    struct SetupPacket {
+        u8 bmRequestType;
+        u8 bRequest;
+        u16 wValue;
+        u16 wIndex;
+        u16 wLength;
+    };
+
+    void simulate_usb_reset() noexcept;
+    void simulate_vbus_event(bool high) noexcept;
+    void simulate_setup_packet(const SetupPacket& setup) noexcept;
+    void simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept;
+
 private:
+    void update_ueint() noexcept;
+
     struct Endpoint {
         u8 control {};
         u8 config0 {};
