@@ -12,6 +12,7 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
     flash_.resize(device_.flash_words, 0U);
     data_.resize(static_cast<std::size_t>(device_.data_end_address()) + 1U, 0U);
     dispatch_table_.resize(data_.size(), nullptr);
+    flash_page_buffer_.resize(device_.flash_page_size / 2U, 0xFFFFU);
     reset();
 }
 
@@ -230,6 +231,33 @@ void MemoryBus::write_program_word(const u32 word_address, const u16 value) noex
 u8 MemoryBus::get_wait_states(const u16 address) const noexcept
 {
     return (xmem_ != nullptr) ? xmem_->get_wait_states(address) : 0U;
+}
+
+void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data) noexcept {
+    const u32 word_addr = address >> 1;
+    const u32 page_mask = ~(static_cast<u32>(device_.flash_page_size) - 1U);
+    const u32 page_start = word_addr & page_mask;
+
+    if (command & 0x02U) { // Page Erase
+        for (u32 i = 0; i < device_.flash_page_size; ++i) {
+            if (page_start + i < flash_.size()) {
+                flash_[page_start + i] = 0xFFFFU;
+            }
+        }
+    } else if (command & 0x04U) { // Page Write
+        for (u32 i = 0; i < device_.flash_page_size; ++i) {
+            if (page_start + i < flash_.size()) {
+                flash_[page_start + i] = flash_page_buffer_[i];
+            }
+        }
+    } else if (command & 0x01U) { // Fill Page Buffer (assuming SPMEN active)
+        const u32 offset = word_addr % device_.flash_page_size;
+        if (offset < flash_page_buffer_.size()) {
+            flash_page_buffer_[offset] = data;
+        }
+    } else if (command & 0x10U) { // RWWSRE
+        flash_rww_busy_ = false;
+    }
 }
 
 }  // namespace vioavr::core

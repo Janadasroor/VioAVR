@@ -10,25 +10,30 @@ inline constexpr DeviceDescriptor at90can128 {
     .eeprom_bytes = 0U,
     .interrupt_vector_count = 37U,
     .interrupt_vector_size = 4U,
+    .flash_page_size = 256U,
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
     .rampz_address = 0x5BU,
     .eind_address = 0x0U,
-    .spmcsr_address = 0x0U,
+    .spmcsr_address = 0x57U,
     .prr_address = 0x0U,
     .prr0_address = 0x0U,
     .prr1_address = 0x0U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .pllcsr_address = 0x0U,
     .xmcra_address = 0x74U,
     .xmcrb_address = 0x75U,
-    .xmem = {
-            .xmcra_address = 0x74U, .xmcrb_address = 0x75U,
-            .mcucr_address = 0x55U, .sre_mask = 0x80U
-        },
-    
+    .xmem = {0},
+    .pradc_bit = 0xFFU,
+    .prusart0_bit = 0xFFU,
+    .prspi_bit = 0xFFU,
+    .prtwi_bit = 0xFFU,
+    .prtimer0_bit = 0xFFU,
+    .prtimer1_bit = 0xFFU,
+    .prtimer2_bit = 0xFFU,
     .adc_count = 1U,
     .adcs = {{ {
             .adcl_address = 0x7AU, .adch_address = 0x7AU, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
@@ -39,16 +44,14 @@ inline constexpr DeviceDescriptor at90can128 {
             .adc_pin_bit = {{ 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U }},
             .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }},
             .adsc_mask = 0x40U, .adate_mask = 0x20U, .adif_mask = 0x10U, .adie_mask = 0x8U, .aden_mask = 0x80U, .adlar_mask = 0x20U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .pr_address = 0, .pr_bit = 255
         } }},
-    
     .ac_count = 1U,
     .acs = {{ {
             .acsr_address = 0x50U, .didr1_address = 0x7FU, .vector_index = 24U,
             .ain0_pin_address = 0x2CU, .ain0_pin_bit = 2U, .ain1_pin_address = 0x2CU, .ain1_pin_bit = 3U,
             .aci_mask = 0x10U, .acie_mask = 0x8U
         } }},
-    
     .timer8_count = 2U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x0U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x0U, .assr_address = 0x0U,
@@ -64,7 +67,8 @@ inline constexpr DeviceDescriptor at90can128 {
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x0U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .foca_mask = 0x0U, .focb_mask = 0x0U,
+            .pr_address = 0, .pr_bit = 255
         },
         {
             .tcnt_address = 0xB2U, .ocra_address = 0xB3U, .ocrb_address = 0x0U, .tifr_address = 0x37U, .timsk_address = 0x70U, .tccra_address = 0xB0U, .tccrb_address = 0x0U, .assr_address = 0xB6U,
@@ -80,9 +84,9 @@ inline constexpr DeviceDescriptor at90can128 {
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x0U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .foca_mask = 0x0U, .focb_mask = 0x0U,
+            .pr_address = 0, .pr_bit = 255
         } }},
-    
     .timer16_count = 2U,
     .timers16 = {{ {
             .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .ocrc_address = 0x8CU, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
@@ -101,7 +105,8 @@ inline constexpr DeviceDescriptor at90can128 {
             .compare_b_enable_mask = 0x4U,
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
+            .pr_address = 0, .pr_bit = 255
         },
         {
             .tcnt_address = 0x94U, .ocra_address = 0x98U, .ocrb_address = 0x9AU, .ocrc_address = 0x9CU, .icr_address = 0x96U, .tifr_address = 0x38U, .timsk_address = 0x71U, .tccra_address = 0x90U, .tccrb_address = 0x91U, .tccrc_address = 0x92U,
@@ -120,8 +125,11 @@ inline constexpr DeviceDescriptor at90can128 {
             .compare_b_enable_mask = 0x4U,
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
+            .pr_address = 0, .pr_bit = 255
         } }},
+    .timer10_count = 0U,
+    .timers10 = {{  }},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -138,7 +146,7 @@ inline constexpr DeviceDescriptor at90can128 {
             .tx_vector_index = 23U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .pr_address = 0, .pr_bit = 255
         },
         {
             .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xCAU, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
@@ -148,7 +156,7 @@ inline constexpr DeviceDescriptor at90can128 {
             .tx_vector_index = 23U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .pr_address = 0, .pr_bit = 255
         } }},
     
     .pcint_count = 0U,
@@ -159,7 +167,7 @@ inline constexpr DeviceDescriptor at90can128 {
             .spcr_address = 0x4CU, .spsr_address = 0x4DU, .spdr_address = 0x4EU,
             .spcr_reset = 0x0U, .spsr_reset = 0x0U, .vector_index = 20U,
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .pr_address = 0, .pr_bit = 255
         } }},
     
     .twi_count = 1U,
@@ -167,7 +175,7 @@ inline constexpr DeviceDescriptor at90can128 {
             .twbr_address = 0xB8U, .twsr_address = 0xB9U, .twar_address = 0xBAU, .twdr_address = 0xBBU, .twcr_address = 0xBCU, .twamr_address = 0x0U,
             .vector_index = 35U,
             .twint_mask = 0x80U, .twen_mask = 0x4U, .twie_mask = 0x1U, .twsto_mask = 0x10U, .twsta_mask = 0x20U, .twea_mask = 0x40U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .pr_address = 0, .pr_bit = 255
         } }},
     
     .eeprom_count = 1U,
@@ -190,8 +198,11 @@ inline constexpr DeviceDescriptor at90can128 {
             .canit_vector_index = 18U,
             .ovrit_vector_index = 19U,
             .mob_count = 15U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .pr_address = 0, .pr_bit = 255
         } }},
+    
+    .usb_count = 0U,
+    .usbs = {{  }},
 
     .port_count = 7U,
     .ports = {{

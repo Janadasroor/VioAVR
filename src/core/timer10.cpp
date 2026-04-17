@@ -60,7 +60,8 @@ void Timer10::tick(u64 elapsed_cycles) noexcept {
     if (bus_ && desc_.pllcsr_address) {
         u8 pllcsr = bus_->read_data(desc_.pllcsr_address);
         bool pcke = (pllcsr & 0x04U); 
-        clock_ratio_ = pcke ? 8 : 1;
+        bool plock = (pllcsr & 0x01U);
+        clock_ratio_ = (pcke && plock) ? 8 : 1;
     }
 
     u64 timer_ticks = elapsed_cycles * clock_ratio_;
