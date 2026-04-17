@@ -37,6 +37,7 @@ target_sources(vioavr_core
         xmem.cpp
         psc.cpp
         dac.cpp
+        nvm_ctrl.cpp
 )
 
 target_include_directories(vioavr_core

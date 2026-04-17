@@ -110,7 +110,11 @@ public:
 
     void set_xmem(class Xmem* xmem) noexcept { xmem_ = xmem; }
     [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
+    void set_nvm_ctrl(class NvmCtrl* nvm_ctrl) noexcept { nvm_ctrl_ = nvm_ctrl; }
+    [[nodiscard]] class NvmCtrl* nvm_ctrl() const noexcept { return nvm_ctrl_; }
     
+    void execute_nvm_command(u8 command, u32 address, u16 data) noexcept;
+
     [[nodiscard]] u8 get_wait_states(u16 address) const noexcept;
 
 private:
@@ -124,6 +128,7 @@ private:
     std::vector<u8> data_;
     bool flash_rww_busy_ {false};
     Xmem* xmem_ {nullptr};
+    class NvmCtrl* nvm_ctrl_ {nullptr};
     std::vector<IoPeripheral*> peripherals_ {};
     std::vector<IoPeripheral*> dispatch_table_ {};
     u32 loaded_program_words_ {};

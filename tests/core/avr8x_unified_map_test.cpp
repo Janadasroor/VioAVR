@@ -1,6 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/machine.hpp"
+#include "vioavr/core/nvm_ctrl.hpp"
 #include "vioavr/core/devices/atmega4809.hpp"
 
 namespace {
@@ -53,4 +55,40 @@ TEST_CASE("AVR8X Unified Map - EEPROM Aliasing") {
     
     // Note: In a real simulation, we'd attach it. 
     // For this core test, we just verify the address routing if attached.
+}
+
+TEST_CASE("AVR8X NVMCTRL - Flash Page Write Integration") {
+    Machine machine{atmega4809};
+    // Load a dummy NOP program so the CPU is in 'running' state
+    std::vector<u16> dummy_flash(1024, 0x0000U); // NOPs
+    machine.bus().load_flash(dummy_flash);
+    
+    machine.reset();
+    auto& bus = machine.bus();
+    
+    // 1. Fill Page Buffer via Mapped Flash (0x4000)
+    // We write 0xDEAD to word 0 of the page
+    bus.write_data(0x4000, 0xADU);
+    bus.write_data(0x4001, 0xDEU);
+    
+    // 2. Set NVM ADDR register (0x1004 in 4809 metadata, wait, let's check)
+    // Actually our gen_device said CTRLA=0x1000, ADDR=0x1008
+    bus.write_data(0x1008, 0x00U); // ADDRL
+    bus.write_data(0x1009, 0x00U); // ADDRH
+    
+    // 3. Issue PAGEWRITE command to CTRLA (0x1000)
+    // Command 1 = PAGEWRITE
+    bus.write_data(0x1000, 0x01U);
+    
+    // 4. Verify NVMCTRL is busy (STATUS at 0x1002, FBUSY is bit 0)
+    CHECK((bus.read_data(0x1002) & 0x01U) == 0x01U);
+    
+    // 5. Tick simulation (64000 cycles is the default timing we set)
+    machine.run(70000);
+    
+    // 6. Verify NVMCTRL is no longer busy
+    CHECK((bus.read_data(0x1002) & 0x01U) == 0x00U);
+    
+    // 7. Verify Flash word 0 was modified
+    CHECK(bus.flash_words()[0] == 0xDEADU);
 }

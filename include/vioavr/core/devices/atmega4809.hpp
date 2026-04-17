@@ -123,6 +123,18 @@ inline constexpr DeviceDescriptor atmega4809 {
             .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
             .pr_address = 0, .pr_bit = 255
         } }},
+
+    .nvm_ctrl_count = 1U,
+    .nvm_ctrls = {{ {
+            .ctrla_address = 0x1000U,
+            .ctrlb_address = 0x1001U,
+            .status_address = 0x1002U,
+            .intctrl_address = 0x1003U,
+            .intflags_address = 0x1004U,
+            .addr_address = 0x1008U,
+            .data_address = 0x1006U,
+            .vector_index = 0U
+        } }},
     
     .pcint_count = 0U,
     .pcints = {{  }},

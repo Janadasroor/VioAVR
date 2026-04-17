@@ -14,6 +14,7 @@
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/dac.hpp"
+#include "vioavr/core/nvm_ctrl.hpp"
 
 namespace vioavr::core {
 
@@ -164,6 +165,15 @@ void Machine::initialize_peripherals()
         auto ac = std::make_unique<AnalogComparator>("AC", device_.acs[i], *pin_mux_, i);
         bus_->attach_peripheral(*ac);
         owned_peripherals_.push_back(std::move(ac));
+    }
+
+    // 12. NVM Controller
+    for (u8 i = 0; i < device_.nvm_ctrl_count; ++i) {
+        auto nvm = std::make_unique<NvmCtrl>(device_.nvm_ctrls[i]);
+        nvm->set_bus(*bus_);
+        if (i == 0) bus_->set_nvm_ctrl(nvm.get());
+        bus_->attach_peripheral(*nvm);
+        owned_peripherals_.push_back(std::move(nvm));
     }
 }
 
