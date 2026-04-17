@@ -26,7 +26,7 @@ TEST_CASE("ADC Descriptor and Trigger Logic Test")
         adc0.write(atmega328.adcs[0].adcsrb_address, 0x01U); // Comparator trigger select
         adc0.write(atmega328.adcs[0].adcsra_address, 0xA0U); // ADEN | ADATE
         
-        adc0.notify_auto_trigger(Adc::AutoTriggerSource::comparator);
+        adc0.notify_auto_trigger(Adc::AutoTriggerSource::analog_comparator);
         
         // ADSC (bit 6) should be set
         CHECK((adc0.adcsra() & 0x40U) != 0U);
@@ -37,7 +37,7 @@ TEST_CASE("ADC Descriptor and Trigger Logic Test")
         adc0.write(atmega328.adcs[0].adcsrb_address, 0x04U); // Timer0 Overflow trigger select
         adc0.write(atmega328.adcs[0].adcsra_address, 0xA0U);
         
-        adc0.notify_auto_trigger(Adc::AutoTriggerSource::timer_overflow);
+        adc0.notify_auto_trigger(Adc::AutoTriggerSource::timer0_overflow);
         CHECK((adc0.adcsra() & 0x40U) != 0U);
     }
 
@@ -46,7 +46,7 @@ TEST_CASE("ADC Descriptor and Trigger Logic Test")
         adc0.write(atmega328.adcs[0].adcsrb_address, 0x06U); // DIFFERENT trigger select
         adc0.write(atmega328.adcs[0].adcsra_address, 0xA0U);
         
-        adc0.notify_auto_trigger(Adc::AutoTriggerSource::timer_overflow);
+        adc0.notify_auto_trigger(Adc::AutoTriggerSource::timer0_overflow);
         // ADSC should NOT be set because the trigger source doesn't match the selection
         CHECK((adc0.adcsra() & 0x40U) == 0U);
     }

@@ -514,7 +514,7 @@ void Timer16::handle_compare_match_b() noexcept
 { 
     tifr_ |= desc_.compare_b_enable_mask; 
     apply_pin_action(pin_b_, get_pin_action_b());
-    if (adc_) adc_->notify_auto_trigger(Adc::AutoTriggerSource::timer1_compare_b);
+    if (adc_) adc_->notify_auto_trigger(desc_.compare_b_trigger_source);
 }
 
 void Timer16::handle_compare_match_c() noexcept 
@@ -527,14 +527,14 @@ void Timer16::handle_compare_match_c() noexcept
 
 void Timer16::handle_overflow() noexcept { 
     tifr_ |= desc_.overflow_enable_mask; 
-    if (adc_) adc_->notify_auto_trigger(Adc::AutoTriggerSource::timer1_overflow);
+    if (adc_) adc_->notify_auto_trigger(desc_.overflow_trigger_source);
 }
 
 void Timer16::handle_input_capture() noexcept
 {
     icr_ = tcnt_;
     tifr_ |= desc_.capture_enable_mask;
-    if (adc_) adc_->notify_auto_trigger(Adc::AutoTriggerSource::timer1_capture);
+    if (adc_) adc_->notify_auto_trigger(desc_.capture_trigger_source);
 }
 
 void Timer16::connect_adc_auto_trigger(Adc& adc) noexcept {

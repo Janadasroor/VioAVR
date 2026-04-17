@@ -22,6 +22,7 @@ TEST_CASE("USB Protocol Fidelity - IN Transaction Flow")
 
     usb.reset();
     host.set_vbus(true);
+    bus.write_data(0x49U, 0x01U); // Lock PLL
     bus.write_data(atmega32u4.usbs[0].usbcon_address, 0x80); // USBE=1
 
     // 1. Configure EP1 as IN
@@ -61,6 +62,7 @@ TEST_CASE("USB Protocol Fidelity - SOF Timing")
     UsbHostSim host {usb};
 
     usb.reset();
+    bus.write_data(0x49U, 0x01U); // Lock PLL
     bus.write_data(atmega32u4.usbs[0].usbcon_address, 0xA0); // USBE=1, FRZCLK=1
     // FRZCLK is 1, SOF should NOT trigger
     

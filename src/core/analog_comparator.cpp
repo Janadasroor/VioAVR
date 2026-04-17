@@ -153,7 +153,7 @@ void AnalogComparator::evaluate_output() noexcept {
 void AnalogComparator::raise_interrupt_flag() noexcept {
     acsr_ |= kAciMask;
     if (auto_trigger_adc_ && (acsr_ & kAcicMask)) {
-        auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::comparator);
+        auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::analog_comparator);
     }
     if (input_capture_timer_ && (acsr_ & kAcicMask)) {
         input_capture_timer_->notify_input_capture(output_high_);

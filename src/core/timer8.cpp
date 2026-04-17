@@ -371,7 +371,7 @@ void Timer8::handle_compare_match_a() noexcept
     apply_pin_action(pin_a_, action);
 
     if (adc_compare_trigger_) {
-        adc_compare_trigger_->notify_auto_trigger(Adc::AutoTriggerSource::timer_compare);
+        adc_compare_trigger_->notify_auto_trigger(desc_.compare_a_trigger_source);
     }
 }
 
@@ -385,7 +385,7 @@ void Timer8::handle_overflow() noexcept
 {
     tifr_ |= desc_.overflow_enable_mask;
     if (adc_overflow_trigger_) {
-        adc_overflow_trigger_->notify_auto_trigger(Adc::AutoTriggerSource::timer_overflow);
+        adc_overflow_trigger_->notify_auto_trigger(desc_.overflow_trigger_source);
     }
 }
 

@@ -16,17 +16,7 @@ class MemoryBus;
 
 class Adc final : public IoPeripheral {
 public:
-    enum class AutoTriggerSource : u8 {
-        none = 0,
-        free_running = 0,
-        comparator = 1,
-        external_interrupt_0 = 2,
-        timer_compare = 3,
-        timer_overflow = 4,
-        timer1_compare_b = 5,
-        timer1_overflow = 6,
-        timer1_capture = 7
-    };
+    using AutoTriggerSource = AdcAutoTriggerSource;
 
     Adc(std::string_view name,
         const AdcDescriptor& descriptor,

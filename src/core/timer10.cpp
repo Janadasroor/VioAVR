@@ -1,4 +1,5 @@
 #include "vioavr/core/timer10.hpp"
+#include "vioavr/core/adc.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include <iostream>
@@ -147,6 +148,7 @@ void Timer10::connect_compare_output_b(GpioPort& port, u8 bit) noexcept { pin_b_
 void Timer10::connect_compare_output_b_inverted(GpioPort& port, u8 bit) noexcept { pin_b_neg_ = {&port, bit}; }
 void Timer10::connect_compare_output_d(GpioPort& port, u8 bit) noexcept { pin_d_ = {&port, bit}; }
 void Timer10::connect_compare_output_d_inverted(GpioPort& port, u8 bit) noexcept { pin_d_neg_ = {&port, bit}; }
+void Timer10::connect_adc_auto_trigger(Adc& adc) noexcept { adc_ = &adc; }
 
 bool Timer10::power_reduction_enabled() const noexcept {
     if (bus_ && desc_.pr_address) {
@@ -206,6 +208,7 @@ void Timer10::apply_pin_level(std::optional<BoundPin> pin, bool high) noexcept {
 
 void Timer10::handle_compare_match_a() noexcept {
     tifr_ |= 0x40U;
+    if (adc_) adc_->notify_auto_trigger(desc_.compare_a_trigger_source);
     u8 com = (tccra_ >> 6) & 0x03;
     if (com == 2) { // Non-inverting
         if (up_direction_) {
@@ -236,6 +239,7 @@ void Timer10::handle_compare_match_a() noexcept {
 
 void Timer10::handle_compare_match_b() noexcept {
     tifr_ |= 0x20U;
+    if (adc_) adc_->notify_auto_trigger(desc_.compare_b_trigger_source);
     u8 com = (tccra_ >> 4) & 0x03;
     if (com == 2) {
         if (up_direction_) {
@@ -266,6 +270,7 @@ void Timer10::handle_compare_match_b() noexcept {
 
 void Timer10::handle_compare_match_d() noexcept {
     tifr_ |= 0x80U;
+    if (adc_) adc_->notify_auto_trigger(desc_.compare_d_trigger_source);
     u8 com = (tccrd_ >> 4) & 0x03;
     if (com == 2) {
         if (up_direction_) {
@@ -296,6 +301,7 @@ void Timer10::handle_compare_match_d() noexcept {
 
 void Timer10::handle_overflow() noexcept {
     tifr_ |= 0x04U;
+    if (adc_) adc_->notify_auto_trigger(desc_.overflow_trigger_source);
     
     u8 wgm = tccrd_ & 0x03U;
     if (wgm != 1) { // Not Phase Correct -> Fast PWM pins set at BOTTOM/TOP

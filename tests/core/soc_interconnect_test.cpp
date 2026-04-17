@@ -54,7 +54,7 @@ TEST_CASE("SoC: Analog Comparator Triggers ADC") {
     bus.attach_peripheral(ac);
     
     ac.connect_adc_auto_trigger(adc);
-    adc.select_auto_trigger_source(Adc::AutoTriggerSource::comparator);
+    adc.select_auto_trigger_source(Adc::AutoTriggerSource::analog_comparator);
     
     bus.write_data(devices::atmega32u4.adcs[0].adcsra_address, 0xA0); 
     bus.write_data(devices::atmega32u4.acs[0].acsr_address, 0x04); 
