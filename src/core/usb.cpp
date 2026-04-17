@@ -1,4 +1,5 @@
 #include "vioavr/core/usb.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -45,12 +46,19 @@ void Usb::reset() noexcept {
         ep.read_idx = 0;
         ep.write_idx = 0;
         ep.byte_count = 0;
+        ep.data_toggle = false;
+        ep.bank_busy = false;
     }
 }
 
 void Usb::tick(u64 elapsed_cycles) noexcept {
     if (!(usbcon_ & desc_.usbcon_usbe_mask)) return; // USBE must be 1
     if (usbcon_ & desc_.usbcon_frzclk_mask) return; // FRZCLK must be 0
+    
+    // On many AVRs, USB clock requires PLL to be locked
+    if (bus_ && desc_.pllcsr_address) {
+        if (!(bus_->read_data(desc_.pllcsr_address) & 0x01U)) return; // PLOCK bit
+    }
 
     cycle_accumulator_ += elapsed_cycles;
     while (cycle_accumulator_ >= frame_cycles_) {
@@ -154,6 +162,13 @@ void Usb::write(u16 address, u8 value) noexcept {
         
         if (cleared_bits & desc_.ueintx_txini_mask) { // TXINI cleared
             // Software acknowledged TXINI, SIE should now send the data
+            ep.bank_busy = true;
+        }
+        if (cleared_bits & desc_.ueintx_rxstpi_mask) { // RXSTPI cleared
+            ep.bank_busy = false; // Readiness for next setup
+        }
+        if (cleared_bits & desc_.ueintx_rxouti_mask) { // RXOUTI cleared
+            ep.bank_busy = false; // Readiness for next out
         }
         
         update_ueint();
@@ -231,7 +246,9 @@ void Usb::simulate_setup_packet(const SetupPacket& setup) noexcept {
     ep.read_idx = 0;
     ep.write_idx = 8;
     ep.byte_count = 8;
-    ep.interrupt_flags |= 0x08U; // RXSTPI
+    ep.interrupt_flags |= desc_.ueintx_rxstpi_mask; // RXSTPI
+    ep.bank_busy = true; 
+    ep.data_toggle = false; // SETUP always resets to DATA0? No, but typically.
     update_ueint();
 }
 
@@ -244,7 +261,9 @@ void Usb::simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept {
         ep.write_idx = (ep.write_idx + 1) % ep.fifo.size();
     }
     ep.byte_count += static_cast<u16>(to_copy);
-    ep.interrupt_flags |= 0x04U; // RXOUTI
+    ep.interrupt_flags |= desc_.ueintx_rxouti_mask; // RXOUTI
+    ep.bank_busy = true;
+    ep.data_toggle = !ep.data_toggle;
     update_ueint();
 }
 
@@ -252,12 +271,14 @@ void Usb::simulate_in_token(u8 ep_idx) noexcept {
     if (ep_idx >= endpoints_.size()) return;
     auto& ep = endpoints_[ep_idx];
     
-    // If bank is 'busy' (data loaded but TXINI=0), mark it as sent/ready
-    if (!(ep.interrupt_flags & desc_.ueintx_txini_mask)) {
+    // If bank is 'busy' (data loaded and TXINI cleared by SW), send it
+    if (ep.bank_busy && !(ep.interrupt_flags & desc_.ueintx_txini_mask)) {
         ep.read_idx = 0;
         ep.write_idx = 0;
         ep.byte_count = 0;
-        ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI
+        ep.bank_busy = false;
+        ep.data_toggle = !ep.data_toggle;
+        ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI (Handshake ACK)
         update_ueint();
     }
 }

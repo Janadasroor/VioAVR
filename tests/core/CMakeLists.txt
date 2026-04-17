@@ -101,6 +101,7 @@ set(TEST_SOURCES
     eeprom_fidelity_test.cpp
     spm_fidelity_test.cpp
     instruction_timing_fidelity_test.cpp
+    pin_mux_priority_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

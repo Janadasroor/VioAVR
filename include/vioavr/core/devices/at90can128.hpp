@@ -7,7 +7,7 @@ inline constexpr DeviceDescriptor at90can128 {
     .name = "AT90CAN128",
     .flash_words = 65536U,
     .sram_bytes = 4096U,
-    .eeprom_bytes = 0U,
+    .eeprom_bytes = 4096U,
     .interrupt_vector_count = 37U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 256U,
@@ -26,7 +26,12 @@ inline constexpr DeviceDescriptor at90can128 {
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x74U,
     .xmcrb_address = 0x75U,
-    .xmem = {0},
+    .xmem = {
+            .xmcra_address = 0x74U, .xmcrb_address = 0x75U,
+            .mcucr_address = 0x55U, .sre_mask = 0x80U,
+            .srl_mask = 112, .srw0_mask = 3, .srw1_mask = 12,
+            .xmm_mask = 7, .xmbk_mask = 128
+        },
     .pradc_bit = 0xFFU,
     .prusart0_bit = 0xFFU,
     .prspi_bit = 0xFFU,
@@ -34,9 +39,15 @@ inline constexpr DeviceDescriptor at90can128 {
     .prtimer0_bit = 0xFFU,
     .prtimer1_bit = 0xFFU,
     .prtimer2_bit = 0xFFU,
+    .smcr_sm_mask = 0xEU,
+    .smcr_se_mask = 0x1U,
+    .flash_rww_end_word = 0xF000U,
+    .spl_reset = 0x0U,
+    .sph_reset = 0x0U,
+    .sreg_reset = 0x0U,
     .adc_count = 1U,
     .adcs = {{ {
-            .adcl_address = 0x7AU, .adch_address = 0x7AU, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
+            .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
             .vector_index = 25U,
             .adcsra_reset = 0x0U, .adcsrb_reset = 0x0U, .admux_reset = 0x0U,
             .didr0_address = 0x7EU,
@@ -44,7 +55,8 @@ inline constexpr DeviceDescriptor at90can128 {
             .adc_pin_bit = {{ 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U }},
             .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }},
             .adsc_mask = 0x40U, .adate_mask = 0x20U, .adif_mask = 0x10U, .adie_mask = 0x8U, .aden_mask = 0x80U, .adlar_mask = 0x20U,
-            .pr_address = 0, .pr_bit = 255
+            .pr_address = 0, .pr_bit = 255,
+            .mux_table = {{ { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false }, { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false} }}
         } }},
     .ac_count = 1U,
     .acs = {{ {
@@ -181,20 +193,23 @@ inline constexpr DeviceDescriptor at90can128 {
     .eeprom_count = 1U,
     .eeproms = {{ {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
-            .vector_index = 26U
+            .eecr_reset = 0x0U,
+            .vector_index = 26U,
+            .size = 0x1000U
         } }},
     
     .wdt_count = 1U,
     .wdts = {{ {
             .wdtcsr_address = 0x60U,
+            .wdtcsr_reset = 0x0U,
             .vector_index = 0U,
-            .wdie_mask = 0x0U, .wde_mask = 0x8U
+            .wdie_mask = 0x0U, .wde_mask = 0x8U, .wdce_mask = 0x10U
         } }},
 
     .can_count = 1U,
     .cans = {{ {
             .cangcon_address = 0xD8U, .cangsta_address = 0xD9U, .cangit_address = 0xDAU, .cangie_address = 0xDBU, .canen1_address = 0xDDU, .canen2_address = 0xDCU, .canie1_address = 0xDFU, .canie2_address = 0xDEU, .cansit1_address = 0xE1U, .cansit2_address = 0xE0U, .canbt1_address = 0xE2U, .canbt2_address = 0xE3U, .canbt3_address = 0xE4U, .cantcon_address = 0xE5U,
-            .cantim_address = 0xE6U, .canttc_address = 0xE8U, .cantec_address = 0xEAU, .canrec_address = 0xEBU, .canhpmob_address = 0xECU, .canpage_address = 0xEDU, .canstmob_address = 0xEEU, .cancdmob_address = 0xEFU, .canidt_address = 0xF0U, .canidm_address = 0xF4U, .canstm_address = 0xEEU, .canmsg_address = 0xFAU,
+            .cantim_address = 0xE6U, .canttc_address = 0xE8U, .cantec_address = 0xEAU, .canrec_address = 0xEBU, .canhpmob_address = 0xECU, .canpage_address = 0xEDU, .canstmob_address = 0xEEU, .cancdmob_address = 0xEFU, .canidt_address = 0xF0U, .canidm_address = 0xF4U, .canstm_address = 0xF8U, .canmsg_address = 0xFAU,
             .canit_vector_index = 18U,
             .ovrit_vector_index = 19U,
             .mob_count = 15U,
@@ -203,6 +218,10 @@ inline constexpr DeviceDescriptor at90can128 {
     
     .usb_count = 0U,
     .usbs = {{  }},
+
+    .fuse_address = 0x0U,
+    .lockbit_address = 0x0U,
+    .signature_address = 0x0U,
 
     .port_count = 7U,
     .ports = {{

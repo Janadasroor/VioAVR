@@ -401,10 +401,13 @@ def generate_header(data, output_dir):
         srl_mask = b('XMCRA', 'SRL') or (hx(0x70) if xmcra['offset'] else 0)
         srw0_mask = b('XMCRA', 'SRW0') or (hx(0x03) if xmcra['offset'] else 0)
         srw1_mask = b('XMCRA', 'SRW1') or (hx(0x0C) if xmcra['offset'] else 0)
+        xmm_mask = b('XMCRB', 'XMM') or (hx(0x07) if xmcrb['offset'] else 0)
+        xmbk_mask = b('XMCRB', 'XMBK') or (hx(0x80) if xmcrb['offset'] else 0)
         return f"""{{
             .xmcra_address = {hx(xmcra['offset'])}, .xmcrb_address = {hx(xmcrb['offset'])},
             .mcucr_address = {hx(mcucr['offset'])}, .sre_mask = {hx(sre_mask)},
-            .srl_mask = {srl_mask}, .srw0_mask = {srw0_mask}, .srw1_mask = {srw1_mask}
+            .srl_mask = {srl_mask}, .srw0_mask = {srw0_mask}, .srw1_mask = {srw1_mask},
+            .xmm_mask = {xmm_mask}, .xmbk_mask = {xmbk_mask}
         }}"""
 
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])

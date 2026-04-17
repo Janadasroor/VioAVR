@@ -5,6 +5,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
@@ -103,7 +104,7 @@ TEST_CASE("Timer16 basic functionality")
     }
 
     SUBCASE("Input Capture") {
-        GpioPort port {"PORTB", 0x23, 0x24, 0x25};
+        vioavr::core::PinMux pm_port { 10 }; GpioPort port { "PORTB", 0x23, 0x24, 0x25, pm_port };
         bus.attach_peripheral(port);
         timer1.connect_input_capture(port, 0);
         

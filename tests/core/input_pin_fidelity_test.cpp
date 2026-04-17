@@ -2,6 +2,7 @@
 #include "doctest.h"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
@@ -14,8 +15,8 @@ TEST_CASE("GPIO Input Pin Fidelity Test") {
     AvrCpu cpu {bus};
 
     // 1. Setup Port B and Port D
-    GpioPort portb {"PORTB", 0x23U, 0x24U, 0x25U};
-    GpioPort portd {"PORTD", 0x29U, 0x2AU, 0x2BU};
+    vioavr::core::PinMux pm_portb { 10 }; GpioPort portb { "PORTB", 0x23U, 0x24U, 0x25U, pm_portb };
+    vioavr::core::PinMux pm_portd { 10 }; GpioPort portd { "PORTD", 0x29U, 0x2AU, 0x2BU, pm_portd };
     bus.attach_peripheral(portb);
     bus.attach_peripheral(portd);
 

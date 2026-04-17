@@ -1,25 +1,29 @@
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
 
-GpioPort::GpioPort(const std::string_view name, const u16 base_address) noexcept
-    : name_(name),
-      ranges_({AddressRange{base_address, static_cast<u16>(base_address + 2U)}, {}, {}}),
-      pin_addr_(base_address),
-      ddr_addr_(static_cast<u16>(base_address + 1U)),
-      port_addr_(static_cast<u16>(base_address + 2U)),
-      num_ranges_(1U)
-{}
+GpioPort::GpioPort(const std::string_view name, const u16 base_address, PinMux& pin_mux) noexcept
+    : GpioPort(name, base_address, static_cast<u16>(base_address + 1U), static_cast<u16>(base_address + 2U), pin_mux)
+{
+}
 
-GpioPort::GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 port_address) noexcept
+GpioPort::GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 port_address, PinMux& pin_mux) noexcept
     : name_(name),
       ranges_({AddressRange{pin_address, pin_address}, AddressRange{ddr_address, ddr_address}, AddressRange{port_address, port_address}}),
       pin_addr_(pin_address),
       ddr_addr_(ddr_address),
       port_addr_(port_address),
-      num_ranges_(3U)
-{}
+      num_ranges_(3U),
+      pin_mux_(&pin_mux)
+{
+    // Infer port index from name (e.g., "PORTA" -> 0)
+    if (name.length() >= 5 && name.starts_with("PORT")) {
+        port_idx_ = static_cast<u8>(name[4] - 'A');
+        pin_mux_->register_port(pin_address, port_idx_);
+    }
+}
 
 std::string_view GpioPort::name() const noexcept
 {
@@ -136,9 +140,36 @@ void GpioPort::set_input_levels(const u8 levels) noexcept
 
 void GpioPort::update_pin_latched() noexcept
 {
-    // Pin logic: for inputs (DDR=0), we take the external levels
-    // For outputs (DDR=1), we typically return what we're driving
-    const u8 next_pin = static_cast<u8>((external_levels_ & ~ddr_) | (port_ & ddr_));
+    u8 next_pin = 0;
+    for (u8 i = 0; i < 8; ++i) {
+        bool is_out = (ddr_ & (1 << i));
+        bool level = (port_ & (1 << i));
+        bool pullup = !is_out && level;
+
+        // Notify PinMux of GPIO's intended state
+        if (pin_mux_) {
+            pin_mux_->update_pin(port_idx_, i, PinOwner::gpio, is_out, level, pullup);
+            
+            // Read back effective state
+            auto state = pin_mux_->get_state(port_idx_, i);
+            if (state.is_output) {
+                if (state.drive_level) next_pin |= (1 << i);
+            } else {
+                // If it's an input, it reads the external level
+                // (PinMux should ideally let us set the external level)
+                if (external_levels_ & (1 << i)) next_pin |= (1 << i);
+            }
+        } else {
+            // Fallback if no PinMux
+            if (is_out) {
+                if (level) next_pin |= (1 << i);
+            } else {
+                if (external_levels_ & (1 << i)) next_pin |= (1 << i);
+                else if (pullup) next_pin |= (1 << i);
+            }
+        }
+    }
+
     if (next_pin != pin_latched_) {
         pin_latched_ = next_pin;
     }

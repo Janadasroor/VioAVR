@@ -6,11 +6,12 @@
 #include <array>
 
 namespace vioavr::core {
+class PinMux;
 
 class GpioPort final : public IoPeripheral {
 public:
-    GpioPort(std::string_view name, u16 base_address) noexcept;
-    GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 port_address) noexcept;
+    GpioPort(std::string_view name, u16 base_address, PinMux& pin_mux) noexcept;
+    GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 port_address, PinMux& pin_mux) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -40,12 +41,14 @@ private:
     void apply_pin_voltage(u8 bit_index, double voltage, DigitalThresholdConfig threshold) noexcept;
     void update_pin_latched() noexcept;
 
+    PinMux* pin_mux_ {};
     std::string_view name_;
     std::array<AddressRange, 3> ranges_;
     u16 pin_addr_;
     u16 ddr_addr_;
     u16 port_addr_;
     u8 num_ranges_ {0};
+    u8 port_idx_ {0xFFU};
 
     u8 ddr_ {};
     u8 port_ {};

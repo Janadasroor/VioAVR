@@ -5,6 +5,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer10.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega32u4.hpp"
 
 namespace {
@@ -19,7 +20,7 @@ TEST_CASE("Timer10 Phase Correct PWM Fidelity")
     timer4.set_bus(bus);
     bus.attach_peripheral(timer4);
     
-    GpioPort portc {"PORTC", 0x26, 0x27, 0x28};
+    vioavr::core::PinMux pm_portc { 10 }; GpioPort portc { "PORTC", 0x26, 0x27, 0x28, pm_portc };
     bus.attach_peripheral(portc);
     timer4.connect_compare_output_a(portc, 7);
     bus.write_data(0x27, 0x80); // DDRC7 = 1

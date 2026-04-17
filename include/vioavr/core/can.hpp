@@ -24,9 +24,9 @@ public:
 
     // Simulation hooks
     struct CanMessage {
-        u32 id;
-        bool ide;
-        bool rtr;
+        u32 id {0};
+        bool ide {false};
+        bool rtr {false};
         std::vector<u8> data;
     };
 

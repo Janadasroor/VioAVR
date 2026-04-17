@@ -6,6 +6,7 @@
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
 #include "vioavr/core/logger.hpp"
 
@@ -33,7 +34,7 @@ TEST_CASE("Timer16 Input Capture Noise Canceler Fidelity")
     timer1.set_bus(bus);
     bus.attach_peripheral(timer1);
     AvrCpu cpu {bus};
-    GpioPort port {"PORTB", 0x23, 0x24, 0x25};
+    vioavr::core::PinMux pm_port { 10 }; GpioPort port { "PORTB", 0x23, 0x24, 0x25, pm_port };
     bus.attach_peripheral(port);
     timer1.connect_input_capture(port, 0);
 

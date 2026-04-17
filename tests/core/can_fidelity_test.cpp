@@ -12,6 +12,7 @@ TEST_CASE("CAN: Basic MOb Page Access and RX Simulation") {
     const auto& desc = devices::at90can128.cans[0];
     
     can.reset();
+    can.write(desc.cangcon_address, 0x02); // Enable CAN (ENA=1)
     
     // 1. Select MOb 0
     can.write(desc.canpage_address, 0x00);

@@ -6,6 +6,7 @@
 #include "vioavr/core/cpu_control.hpp"
 #include "vioavr/core/timer10.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega32u4.hpp"
 
 namespace {
@@ -24,7 +25,7 @@ TEST_CASE("Timer10 Dead-Time Fidelity")
     auto cpu_ctrl = std::make_shared<CpuControl>(cpu, atmega32u4);
     bus.attach_peripheral(*cpu_ctrl);
 
-    GpioPort portc {"PORTC", 0x26, 0x27, 0x28}; // PC7=OC4A, PC6=~OC4A
+    vioavr::core::PinMux pm_portc { 10 }; GpioPort portc { "PORTC", 0x26, 0x27, 0x28, pm_portc }; // PC7=OC4A, PC6=~OC4A
     bus.attach_peripheral(portc);
     timer4.connect_compare_output_a(portc, 7);
     timer4.connect_compare_output_a_inverted(portc, 6);

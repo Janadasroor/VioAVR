@@ -27,7 +27,7 @@ TEST_CASE("CPU Voltage and Ext/PinChange Interrupt Test")
     
     PinMux pin_mux {8};
     MemoryBus bus {atmega328};
-    GpioPort port_b {"PORTB", pinb, ddrb, portb};
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
     ExtInterrupt exti {"EXTINT", atmega328.ext_interrupts[0], pin_mux, 4U};
     
     // PCICR=0x68, PCIFR=0x3B, PCMSK0=0x6B (from ATmega328P datasheet)
