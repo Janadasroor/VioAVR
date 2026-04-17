@@ -3,6 +3,7 @@
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/psc.hpp"
+#include "vioavr/core/dac.hpp"
 #include "vioavr/core/logger.hpp"
 
 #include <cmath>
@@ -223,7 +224,7 @@ void AnalogComparator::raise_interrupt_flag() noexcept {
     }
 
     for (auto* psc : psc_fault_listeners_) {
-        psc->notify_fault(source_id_);
+        psc->notify_fault(output_high_);
     }
 }
 

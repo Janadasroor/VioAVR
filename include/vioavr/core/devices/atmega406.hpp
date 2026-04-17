@@ -7,44 +7,55 @@ inline constexpr DeviceDescriptor atmega406 {
     .name = "ATmega406",
     .flash_words = 20480U,
     .sram_bytes = 2048U,
-    .eeprom_bytes = 0U,
+    .eeprom_bytes = 512U,
     .interrupt_vector_count = 23U,
     .interrupt_vector_size = 4U,
+    .flash_page_size = 128U,
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
     .rampz_address = 0x0U,
     .eind_address = 0x0U,
-    .spmcsr_address = 0x0U,
-    .prr_address = 0x64U,
+    .spmcsr_address = 0x57U,
+    .prr_address = 0x0U,
     .prr0_address = 0x64U,
     .prr1_address = 0x0U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
-    .xmem = {
-            .xmcra_address = 0x0U, .xmcrb_address = 0x0U,
-            .mcucr_address = 0x55U, .sre_mask = 0x80U
-        },
-    
+    .xmem = {0},
+    .pradc_bit = 0xFFU,
+    .prusart0_bit = 0xFFU,
+    .prspi_bit = 0xFFU,
+    .prtwi_bit = 0x3U,
+    .prtimer0_bit = 0x1U,
+    .prtimer1_bit = 0x2U,
+    .prtimer2_bit = 0xFFU,
+    .smcr_sm_mask = 0xEU,
+    .smcr_se_mask = 0x1U,
+    .flash_rww_end_word = 0x4800U,
+    .spl_reset = 0x0U,
+    .sph_reset = 0x0U,
+    .sreg_reset = 0x0U,
     .adc_count = 1U,
     .adcs = {{ {
-            .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x0U, .adcsrb_address = 0x0U, .admux_address = 0x7CU,
+            .adcl_address = 0x0U, .adch_address = 0x0U, .adcsra_address = 0x0U, .adcsrb_address = 0x0U, .admux_address = 0x0U,
             .vector_index = 17U,
             .adcsra_reset = 0x0U, .adcsrb_reset = 0x0U, .admux_reset = 0x0U,
             .didr0_address = 0x0U,
             .adc_pin_address = {{ 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U }},
             .adc_pin_bit = {{ 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U }},
-            .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare_a, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }},
+            .auto_trigger_map = {{ AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none }},
             .adsc_mask = 0x0U, .adate_mask = 0x0U, .adif_mask = 0x0U, .adie_mask = 0x0U, .aden_mask = 0x0U, .adlar_mask = 0x0U,
-            .pr_address = 0x0U, .pr_bit = 0xFFU
+            .adts_mask = 0x7U,
+            .pr_address = 0, .pr_bit = 255,
+            .mux_table = {{ { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false }, { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false} }}
         } }},
-    
     .ac_count = 0U,
     .acs = {{  }},
-    
     .timer8_count = 1U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U,
@@ -60,9 +71,11 @@ inline constexpr DeviceDescriptor atmega406 {
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x4U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x64U, .pr_bit = 0x2U
+            .foca_mask = 0x80U, .focb_mask = 0x40U,
+            .pr_address = 100, .pr_bit = 1,
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
+            .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
         } }},
-    
     .timer16_count = 1U,
     .timers16 = {{ {
             .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x0U, .ocrc_address = 0x0U, .icr_address = 0x0U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x0U, .tccrb_address = 0x81U, .tccrc_address = 0x0U,
@@ -81,8 +94,14 @@ inline constexpr DeviceDescriptor atmega406 {
             .compare_b_enable_mask = 0x0U,
             .compare_c_enable_mask = 0x0U,
             .overflow_enable_mask = 0x1U,
-            .pr_address = 0x64U, .pr_bit = 0x4U
+            .foca_mask = 0x0U, .focb_mask = 0x0U, .focc_mask = 0x0U,
+            .pr_address = 100, .pr_bit = 2,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer1_compare_b,
+            .overflow_trigger_source = AdcAutoTriggerSource::timer1_overflow,
+            .capture_trigger_source = AdcAutoTriggerSource::timer1_capture
         } }},
+    .timer10_count = 0U,
+    .timers10 = {{  }},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -117,24 +136,40 @@ inline constexpr DeviceDescriptor atmega406 {
             .twbr_address = 0xB8U, .twsr_address = 0xB9U, .twar_address = 0xBAU, .twdr_address = 0xBBU, .twcr_address = 0xBCU, .twamr_address = 0xBDU,
             .vector_index = 15U,
             .twint_mask = 0x80U, .twen_mask = 0x4U, .twie_mask = 0x1U, .twsto_mask = 0x10U, .twsta_mask = 0x20U, .twea_mask = 0x40U,
-            .pr_address = 0x64U, .pr_bit = 0x8U
+            .pr_address = 100, .pr_bit = 3
         } }},
     
     .eeprom_count = 1U,
     .eeproms = {{ {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
-            .vector_index = 21U
+            .eecr_reset = 0x0U,
+            .vector_index = 21U,
+            .size = 0x200U
         } }},
     
     .wdt_count = 1U,
     .wdts = {{ {
             .wdtcsr_address = 0x60U,
+            .wdtcsr_reset = 0x0U,
             .vector_index = 8U,
-            .wdie_mask = 0x40U, .wde_mask = 0x8U
+            .wdie_mask = 0x40U, .wde_mask = 0x8U, .wdce_mask = 0x10U
         } }},
 
     .can_count = 0U,
     .cans = {{  }},
+    
+    .usb_count = 0U,
+    .usbs = {{  }},
+
+    .psc_count = 0U,
+    .pscs = {{  }},
+
+    .dac_count = 0U,
+    .dacs = {{  }},
+
+    .fuse_address = 0x0U,
+    .lockbit_address = 0x0U,
+    .signature_address = 0x0U,
 
     .port_count = 4U,
     .ports = {{

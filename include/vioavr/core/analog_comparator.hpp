@@ -11,6 +11,7 @@ namespace vioavr::core {
 
 class Adc;
 class Dac;
+class Timer16;
 
 class AnalogComparator final : public IoPeripheral {
 public:

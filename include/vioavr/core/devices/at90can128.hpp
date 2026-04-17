@@ -61,10 +61,12 @@ inline constexpr DeviceDescriptor at90can128 {
         } }},
     .ac_count = 1U,
     .acs = {{ {
-            .acsr_address = 0x50U, .didr1_address = 0x7FU, .vector_index = 24U,
-            .ain0_pin_address = 0x2CU, .ain0_pin_bit = 2U, .ain1_pin_address = 0x2CU, .ain1_pin_bit = 3U,
-            .aci_mask = 0x10U, .acie_mask = 0x8U
-        } }},
+                .acsr_address = 0x50U, .accon_address = 0, .didr_address = 0x7FU,
+                .vector_index = 24U,
+                .aip_pin_address = 0x2CU, .aip_pin_bit = 2U, .aim_pin_address = 0x2CU, .aim_pin_bit = 3U,
+                .acd_mask = 0x80U, .acbg_mask = 0x40U, .aco_mask = 0x20U,
+                .acif_mask = 0x10U, .acie_mask = 0x8U, .acic_mask = 0x4U, .acis_mask = 0x3U
+            } }},
     .timer8_count = 2U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x0U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x0U, .assr_address = 0x0U,
@@ -229,6 +231,12 @@ inline constexpr DeviceDescriptor at90can128 {
     
     .usb_count = 0U,
     .usbs = {{  }},
+
+    .psc_count = 0U,
+    .pscs = {{  }},
+
+    .dac_count = 0U,
+    .dacs = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,

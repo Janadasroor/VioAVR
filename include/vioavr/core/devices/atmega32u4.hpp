@@ -27,13 +27,13 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
     .xmem = {0},
-    .pradc_bit = 0x1U,
-    .prusart0_bit = 0x2U,
-    .prspi_bit = 0x4U,
-    .prtwi_bit = 0x80U,
-    .prtimer0_bit = 0x20U,
-    .prtimer1_bit = 0x8U,
-    .prtimer2_bit = 0x40U,
+    .pradc_bit = 0x0U,
+    .prusart0_bit = 0x1U,
+    .prspi_bit = 0x2U,
+    .prtwi_bit = 0x7U,
+    .prtimer0_bit = 0x5U,
+    .prtimer1_bit = 0x3U,
+    .prtimer2_bit = 0x6U,
     .smcr_sm_mask = 0xEU,
     .smcr_se_mask = 0x1U,
     .flash_rww_end_word = 0x3800U,
@@ -51,15 +51,17 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare_a, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture, AdcAutoTriggerSource::timer4_overflow, AdcAutoTriggerSource::timer4_compare_a, AdcAutoTriggerSource::timer4_compare_b, AdcAutoTriggerSource::timer4_compare_d, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none, AdcAutoTriggerSource::none }},
             .adsc_mask = 0x40U, .adate_mask = 0x20U, .adif_mask = 0x10U, .adie_mask = 0x8U, .aden_mask = 0x80U, .adlar_mask = 0x20U,
             .adts_mask = 0xFU,
-            .pr_address = 100, .pr_bit = 1,
+            .pr_address = 100, .pr_bit = 0,
             .mux_table = {{ { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false }, { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false }, { 0, 1, 10.0f, true }, { 0, 1, 40.0f, true }, { 1, 1, 10.0f, true }, { 1, 1, 40.0f, true }, { 4, 1, 10.0f, true }, { 4, 1, 40.0f, true }, { 5, 1, 10.0f, true }, { 5, 1, 40.0f, true }, { 6, 1, 10.0f, true }, { 6, 1, 40.0f, true }, { 2, 1, 10.0f, true }, { 3, 1, 10.0f, true }, { 2, 1, 40.0f, true }, { 3, 1, 40.0f, true }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, { 14, 0, 1.0f, false }, { 15, 0, 1.0f, false }, { 8, 0, 1.0f, false }, { 9, 0, 1.0f, false }, { 10, 0, 1.0f, false }, { 11, 0, 1.0f, false }, { 12, 0, 1.0f, false }, { 13, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, { 13, 0, 1.0f, false }, { 0, 1, 200.0f, true }, { 0, 1, 200.0f, true }, { 1, 1, 200.0f, true }, {0xFFU, 0, 1.0f, false}, { 4, 5, 10.0f, true }, { 4, 5, 40.0f, true }, { 4, 5, 200.0f, true }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false} }}
         } }},
     .ac_count = 1U,
     .acs = {{ {
-            .acsr_address = 0x50U, .didr1_address = 0x7FU, .vector_index = 28U,
-            .ain0_pin_address = 0x2CU, .ain0_pin_bit = 6U, .ain1_pin_address = 0x0U, .ain1_pin_bit = 0U,
-            .aci_mask = 0x10U, .acie_mask = 0x8U
-        } }},
+                .acsr_address = 0x50U, .accon_address = 0, .didr_address = 0x7FU,
+                .vector_index = 28U,
+                .aip_pin_address = 0x2CU, .aip_pin_bit = 6U, .aim_pin_address = 0x0U, .aim_pin_bit = 0U,
+                .acd_mask = 0x80U, .acbg_mask = 0x40U, .aco_mask = 0x20U,
+                .acif_mask = 0x10U, .acie_mask = 0x8U, .acic_mask = 0x4U, .acis_mask = 0x3U
+            } }},
     .timer8_count = 1U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U,
@@ -76,7 +78,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .compare_b_enable_mask = 0x4U,
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U,
-            .pr_address = 100, .pr_bit = 32,
+            .pr_address = 100, .pr_bit = 5,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
             .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
         } }},
@@ -99,7 +101,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
-            .pr_address = 100, .pr_bit = 8,
+            .pr_address = 100, .pr_bit = 3,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer1_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer1_overflow,
             .capture_trigger_source = AdcAutoTriggerSource::timer1_capture
@@ -122,7 +124,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .compare_c_enable_mask = 0x8U,
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x20U,
-            .pr_address = 101, .pr_bit = 8,
+            .pr_address = 101, .pr_bit = 3,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer3_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer3_overflow,
             .capture_trigger_source = AdcAutoTriggerSource::timer3_capture
@@ -139,7 +141,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .compare_b_vector_index = 39U,
             .compare_d_vector_index = 40U,
             .overflow_vector_index = 41U,
-            .pr_address = 101, .pr_bit = 16,
+            .pr_address = 101, .pr_bit = 4,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer4_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer4_compare_b,
             .compare_d_trigger_source = AdcAutoTriggerSource::timer4_compare_d,
@@ -161,7 +163,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 100, .pr_bit = 2
+            .pr_address = 101, .pr_bit = 0
         } }},
     
     .pcint_count = 1U,
@@ -178,7 +180,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .spcr_address = 0x4CU, .spsr_address = 0x4DU, .spdr_address = 0x4EU,
             .spcr_reset = 0x0U, .spsr_reset = 0x0U, .vector_index = 24U,
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
-            .pr_address = 100, .pr_bit = 4
+            .pr_address = 100, .pr_bit = 2
         } }},
     
     .twi_count = 1U,
@@ -186,7 +188,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .twbr_address = 0xB8U, .twsr_address = 0xB9U, .twar_address = 0xBAU, .twdr_address = 0xBBU, .twcr_address = 0xBCU, .twamr_address = 0xBDU,
             .vector_index = 36U,
             .twint_mask = 0x80U, .twen_mask = 0x4U, .twie_mask = 0x1U, .twsto_mask = 0x10U, .twsta_mask = 0x20U, .twea_mask = 0x40U,
-            .pr_address = 100, .pr_bit = 128
+            .pr_address = 100, .pr_bit = 7
         } }},
     
     .eeprom_count = 1U,
@@ -221,7 +223,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .pllcsr_address = 0x49U,
             .usbcon_usbe_mask = 0x80U, .usbcon_frzclk_mask = 0x20U,
             .udint_sofi_mask = 0x4U,
-            .pr_address = 101, .pr_bit = 128
+            .pr_address = 101, .pr_bit = 7
         } }},
 
     .psc_count = 0U,
