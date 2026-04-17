@@ -8,6 +8,8 @@
 namespace vioavr::core {
 class GpioPort;
 class MemoryBus;
+class Adc;
+class Dac;
 
 class Timer8 final : public IoPeripheral {
 public:
@@ -50,6 +52,7 @@ public:
     void connect_compare_output_b(GpioPort& port, u8 bit) noexcept;
     void connect_adc_auto_trigger(class Adc& adc) noexcept;
     void connect_adc_overflow_auto_trigger(class Adc& adc) noexcept;
+    void connect_dac_auto_trigger(class Dac& dac) noexcept;
 
     [[nodiscard]] constexpr u8 interrupt_flags() const noexcept { return tifr_; }
     [[nodiscard]] constexpr u8 interrupt_mask() const noexcept { return timsk_; }
@@ -109,6 +112,7 @@ private:
     u64 cycle_accumulator_ {};
     class Adc* adc_compare_trigger_ {};
     class Adc* adc_overflow_trigger_ {};
+    class Dac* dac_trigger_ {};
 };
 
 }  // namespace vioavr::core

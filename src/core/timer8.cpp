@@ -3,6 +3,7 @@
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/dac.hpp"
 #include <algorithm>
 #include <vector>
 
@@ -355,6 +356,11 @@ u8 Timer8::get_top() const noexcept
     }
 }
 
+void Timer8::connect_dac_auto_trigger(Dac& dac) noexcept
+{
+    dac_trigger_ = &dac;
+}
+
 void Timer8::handle_compare_match_a() noexcept
 {
     tifr_ |= desc_.compare_a_enable_mask;
@@ -373,6 +379,9 @@ void Timer8::handle_compare_match_a() noexcept
     if (adc_compare_trigger_) {
         adc_compare_trigger_->notify_auto_trigger(desc_.compare_a_trigger_source);
     }
+    if (dac_trigger_) {
+        dac_trigger_->notify_auto_trigger(desc_.compare_a_trigger_source);
+    }
 }
 
 void Timer8::handle_compare_match_b() noexcept
@@ -386,6 +395,9 @@ void Timer8::handle_overflow() noexcept
     tifr_ |= desc_.overflow_enable_mask;
     if (adc_overflow_trigger_) {
         adc_overflow_trigger_->notify_auto_trigger(desc_.overflow_trigger_source);
+    }
+    if (dac_trigger_) {
+        dac_trigger_->notify_auto_trigger(desc_.overflow_trigger_source);
     }
 }
 

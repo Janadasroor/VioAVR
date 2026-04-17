@@ -26,6 +26,8 @@ public:
     // DAC outputs a voltage [0.0, 1.0] relative to reference
     [[nodiscard]] double output_voltage() const noexcept { return voltage_; }
 
+    void notify_auto_trigger(AdcAutoTriggerSource source) noexcept;
+
 private:
     std::string_view name_;
     const DacDescriptor& desc_;
@@ -34,6 +36,7 @@ private:
 
     u8 dacon_ {0};
     u16 data_ {0};
+    u16 buffer_value_ {0};
     double voltage_ {0.0};
 
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
