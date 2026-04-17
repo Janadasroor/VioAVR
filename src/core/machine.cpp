@@ -209,6 +209,13 @@ void Machine::wire_peripherals()
         for (auto& p : owned_peripherals_) {
             if (auto* ac = dynamic_cast<AnalogComparator*>(p.get())) {
                 adc->connect_comparator_auto_trigger(*ac);
+                
+                // Also wire AC to PSC for fault protection
+                for (auto& p2 : owned_peripherals_) {
+                    if (auto* psc = dynamic_cast<Psc*>(p2.get())) {
+                        ac->connect_psc_fault(*psc);
+                    }
+                }
             }
             if (auto* t8 = dynamic_cast<Timer8*>(p.get())) {
                 adc->connect_timer_compare_auto_trigger(*t8);
