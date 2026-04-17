@@ -9,16 +9,6 @@
 
 namespace vioavr::core {
 
-namespace {
-constexpr u8 kAcdMask = 0x80U;
-constexpr u8 kAcbgMask = 0x40U;
-constexpr u8 kAcoMask = 0x20U;
-constexpr u8 kAciMask = 0x10U;
-constexpr u8 kAcieMask = 0x08U;
-constexpr u8 kAcicMask = 0x04U;
-constexpr u8 kAcisMask = 0x03U;
-}
-
 AnalogComparator::AnalogComparator(std::string_view name,
                                    const AnalogComparatorDescriptor& descriptor,
                                    PinMux& pin_mux,
@@ -27,28 +17,36 @@ AnalogComparator::AnalogComparator(std::string_view name,
     : name_(name),
       desc_(descriptor),
       pin_mux_(&pin_mux),
-      range_({descriptor.acsr_address, descriptor.acsr_address}),
       source_id_(source_id),
       hysteresis_(hysteresis)
 {
+    // Map multiple registers if they exist
+    mapped_ranges_.push_back({desc_.acsr_address, desc_.acsr_address});
+    if (desc_.accon_address && desc_.accon_address != desc_.acsr_address) {
+        mapped_ranges_.push_back({desc_.accon_address, desc_.accon_address});
+    }
+    if (desc_.didr_address && desc_.didr_address != desc_.acsr_address && desc_.didr_address != desc_.accon_address) {
+        mapped_ranges_.push_back({desc_.didr_address, desc_.didr_address});
+    }
 }
 
 std::string_view AnalogComparator::name() const noexcept { return name_; }
 
 std::span<const AddressRange> AnalogComparator::mapped_ranges() const noexcept {
-    return {&range_, 1};
+    return {mapped_ranges_.data(), mapped_ranges_.size()};
 }
 
 void AnalogComparator::reset() noexcept {
     acsr_ = 0x00U;
-    didr1_ = 0x00U;
+    accon_ = 0x00U;
+    didr_ = 0x00U;
     output_high_ = false;
     pending_ = false;
     update_pin_ownership();
 }
 
 void AnalogComparator::tick(u64) noexcept {
-    if (acsr_ & kAcdMask) return;
+    if (is_disabled()) return;
     refresh_bound_inputs();
     evaluate_output();
 }
@@ -56,32 +54,44 @@ void AnalogComparator::tick(u64) noexcept {
 u8 AnalogComparator::read(u16 address) noexcept {
     if (address == desc_.acsr_address) {
         u8 val = acsr_;
-        if (output_high_) val |= kAcoMask;
+        if (output_high_) val |= desc_.aco_mask;
         return val;
     }
-    if (address == desc_.didr1_address) return didr1_;
+    if (address == desc_.accon_address) return accon_;
+    if (address == desc_.didr_address) return didr_;
     return 0x00U;
 }
 
 void AnalogComparator::write(u16 address, u8 value) noexcept {
     if (address == desc_.acsr_address) {
         const u8 old_acsr = acsr_;
-        acsr_ = (value & ~desc_.aci_mask);
-        if (value & desc_.aci_mask) acsr_ &= ~desc_.aci_mask; // ACI is cleared by writing 1
+        // Clear flag if writing 1
+        if (value & desc_.acif_mask) {
+            acsr_ &= ~desc_.acif_mask;
+        }
+        // Update other bits except flag and read-only output
+        const u8 mask = ~(desc_.acif_mask | desc_.aco_mask);
+        acsr_ = (acsr_ & ~mask) | (value & mask);
 
-        if ((old_acsr & kAcdMask) && !(acsr_ & kAcdMask)) {
-            update_pin_ownership();
-        } else if (!(old_acsr & kAcdMask) && (acsr_ & kAcdMask)) {
+        if ((old_acsr ^ acsr_) & desc_.acd_mask) {
             update_pin_ownership();
         }
-    } else if (address == desc_.didr1_address) {
-        didr1_ = value;
+    } else if (address == desc_.accon_address) {
+        accon_ = value;
+        update_pin_ownership();
+    } else if (address == desc_.didr_address) {
+        didr_ = value;
         update_pin_ownership();
     }
 }
 
 bool AnalogComparator::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    if ((acsr_ & desc_.acie_mask) && (acsr_ & desc_.aci_mask)) {
+    if ((acsr_ & desc_.acie_mask) && (acsr_ & desc_.acif_mask)) {
+        request.vector_index = desc_.vector_index;
+        return true;
+    }
+    // Also check ACCON if it has IE bits
+    if (desc_.accon_address && (accon_ & desc_.acie_mask) && (acsr_ & desc_.acif_mask)) {
         request.vector_index = desc_.vector_index;
         return true;
     }
@@ -90,7 +100,7 @@ bool AnalogComparator::pending_interrupt_request(InterruptRequest& request) cons
 
 bool AnalogComparator::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
-        acsr_ &= ~desc_.aci_mask;
+        acsr_ &= ~desc_.acif_mask;
         return true;
     }
     return false;
@@ -114,6 +124,14 @@ void AnalogComparator::connect_psc_fault(Psc& psc) noexcept {
     psc_fault_listeners_.push_back(&psc);
 }
 
+void AnalogComparator::connect_dac(const Dac& dac) noexcept {
+    dac_ = &dac;
+}
+
+void AnalogComparator::connect_adc(const Adc& adc) noexcept {
+    source_adc_ = &adc;
+}
+
 void AnalogComparator::set_positive_input_voltage(double normalized_voltage) noexcept {
     positive_input_ = normalized_voltage;
     evaluate_output();
@@ -125,16 +143,51 @@ void AnalogComparator::set_negative_input_voltage(double normalized_voltage) noe
 }
 
 void AnalogComparator::refresh_bound_inputs() noexcept {
-    if (!signal_bank_) return;
-    positive_input_ = signal_bank_->voltage(positive_channel_);
-    negative_input_ = signal_bank_->voltage(negative_channel_);
+    // If not PWM or no ACCON, use simple pin binding
+    if (!desc_.accon_address) {
+        if (signal_bank_) {
+            positive_input_ = signal_bank_->voltage(positive_channel_);
+            negative_input_ = signal_bank_->voltage(negative_channel_);
+        }
+        return;
+    }
+
+    // AT90PWM Complex Muxing logic
+    const u8 mux = accon_ & 0x07U;
+    const double bandgap = 0.22; // 1.1V / 5.0V
+    
+    // Resolve Positive Input
+    switch(mux) {
+        case 3: positive_input_ = bandgap; break;
+        case 4: if (dac_) positive_input_ = dac_->output_voltage(); break;
+        case 6: // ADC Mux output (Positive)
+            // Note: Adc class needs a getter for current mux voltage
+            // For now, positive_input_ remains unchanged or uses a pin
+            break;
+        default: // 0, 1, 2, 5
+            if (signal_bank_) positive_input_ = signal_bank_->voltage(positive_channel_);
+            break;
+    }
+
+    // Resolve Negative Input
+    switch(mux) {
+        case 0: if (signal_bank_) negative_input_ = signal_bank_->voltage(negative_channel_); break;
+        case 1: negative_input_ = bandgap; break;
+        case 2: if (dac_) negative_input_ = dac_->output_voltage(); break;
+        case 5: // ADC Mux output (Negative)
+            break;
+        default: // 3, 4, 6
+            if (signal_bank_) negative_input_ = signal_bank_->voltage(negative_channel_);
+            break;
+    }
 }
 
 void AnalogComparator::evaluate_output() noexcept {
-    if (acsr_ & kAcdMask) {
+    if (is_disabled()) {
         output_high_ = false;
         return;
     }
+
     const bool was_high = output_high_;
     const double diff = positive_input_ - negative_input_;
 
@@ -145,51 +198,56 @@ void AnalogComparator::evaluate_output() noexcept {
     }
 
     if (was_high != output_high_) {
-        for (auto* psc : psc_fault_listeners_) {
-            psc->notify_fault(output_high_);
-        }
-
         const u8 mode = interrupt_mode();
         bool trigger = false;
-        if (mode == 0) trigger = true; // Toggle
-        else if (mode == 2) trigger = !output_high_; // Falling
-        else if (mode == 3) trigger = output_high_; // Rising
-
+        switch (mode) {
+            case 0: trigger = true; break; // Toggle
+            case 2: trigger = !output_high_; break; // Falling
+            case 3: trigger = output_high_; break; // Rising
+            default: break;
+        }
         if (trigger) raise_interrupt_flag();
     }
 }
 
 void AnalogComparator::raise_interrupt_flag() noexcept {
-    acsr_ |= kAciMask;
-    if (auto_trigger_adc_ && (acsr_ & kAcicMask)) {
-        auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::analog_comparator);
+    if (acsr_ & desc_.acif_mask) return;
+    acsr_ |= desc_.acif_mask;
+
+    if (auto_trigger_adc_ && (acsr_ & desc_.acic_mask)) {
+        auto_trigger_adc_->notify_auto_trigger(AdcAutoTriggerSource::analog_comparator);
     }
-    if (input_capture_timer_ && (acsr_ & kAcicMask)) {
+
+    if (input_capture_timer_ && (acsr_ & desc_.acic_mask)) {
         input_capture_timer_->notify_input_capture(output_high_);
+    }
+
+    for (auto* psc : psc_fault_listeners_) {
+        psc->notify_fault(source_id_);
     }
 }
 
 u8 AnalogComparator::interrupt_mode() const noexcept {
-    return acsr_ & kAcisMask;
+    u8 reg = desc_.accon_address ? accon_ : acsr_;
+    if (!desc_.acis_mask) return 0;
+    return (reg & desc_.acis_mask) >> (__builtin_ctz(desc_.acis_mask));
+}
+
+bool AnalogComparator::is_disabled() const noexcept {
+    if (acsr_ & desc_.acd_mask) return true;
+    if (desc_.accon_address && (accon_ & desc_.acd_mask)) return true;
+    return false;
 }
 
 void AnalogComparator::update_pin_ownership() noexcept {
     if (!pin_mux_) return;
-
-    const bool enabled = !(acsr_ & kAcdMask);
     
-    // AIN0
-    if (enabled && (didr1_ & 1U) && desc_.ain0_pin_address != 0) {
-        pin_mux_->claim_pin_by_address(desc_.ain0_pin_address, desc_.ain0_pin_bit, PinOwner::comparator);
-    } else if (desc_.ain0_pin_address != 0) {
-        pin_mux_->release_pin_by_address(desc_.ain0_pin_address, desc_.ain0_pin_bit, PinOwner::comparator);
-    }
-
-    // AIN1
-    if (enabled && (didr1_ & 2U) && desc_.ain1_pin_address != 0) {
-        pin_mux_->claim_pin_by_address(desc_.ain1_pin_address, desc_.ain1_pin_bit, PinOwner::comparator);
-    } else if (desc_.ain1_pin_address != 0) {
-        pin_mux_->release_pin_by_address(desc_.ain1_pin_address, desc_.ain1_pin_bit, PinOwner::comparator);
+    if (is_disabled()) {
+        pin_mux_->release_pin_by_address(desc_.aip_pin_address, desc_.aip_pin_bit, PinOwner::comparator);
+        pin_mux_->release_pin_by_address(desc_.aim_pin_address, desc_.aim_pin_bit, PinOwner::comparator);
+    } else {
+        pin_mux_->claim_pin_by_address(desc_.aip_pin_address, desc_.aip_pin_bit, PinOwner::comparator);
+        pin_mux_->claim_pin_by_address(desc_.aim_pin_address, desc_.aim_pin_bit, PinOwner::comparator);
     }
 }
 

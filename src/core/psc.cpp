@@ -77,9 +77,8 @@ u8 Psc::read(u16 address) noexcept {
 
 void Psc::write(u16 address, u8 value) noexcept {
     if (address == desc_.pctl_address) {
-        bool run = (value & 0x80);
-        if (run && !(pctl_ & 0x80)) {
-            // Start
+        bool run = (value & desc_.prun_mask);
+        if (run && !(pctl_ & desc_.prun_mask)) {
             counter_ = 0;
             down_counting_ = false;
             fault_active_ = false;
@@ -120,28 +119,30 @@ void Psc::write(u16 address, u8 value) noexcept {
 }
 
 void Psc::tick(u64 elapsed_cycles) noexcept {
-    if (!(pctl_ & 0x80)) return; // PRUN must be set
+    if (!(pctl_ & desc_.prun_mask)) return;
 
-    u8 mode = (pctl_ >> 4) & 0x03;
-    bool is_centered = (mode == 0x01);
+    u8 mode_val = (pconf_ & desc_.mode_mask);
+    // Modes vary: One Ramp, Two Ramp, etc.
+    // 0 is usually One-Ramp.
+    bool is_two_ramp = false;
+    // Map bits to mode.
+    // In AT90PWM1: PMODE=1 is Two-Ramp, PMODE=3 is Centered?
+    // Actually, I'll use a simplified check based on any non-zero PMODE for now.
+    if (mode_val != 0) is_two_ramp = true;
 
     for (u64 i = 0; i < elapsed_cycles; ++i) {
         if (fault_active_) {
-            // In some modes, we wait for end-of-cycle to clear fault?
-            // Cycle counting continues in part of 'Fill' mode?
-            // Simplified: If mode is Stop, we do nothing.
             u8 prfm = (pfrc0a_ >> 6) & 0x03;
-            if (prfm == 0x00) break; // Latch Stop
+            if (prfm == 0x00) break; 
         }
 
         if (down_counting_) {
             counter_--;
             if (counter_ == 0) {
                 down_counting_ = false;
-                pifr_ |= 0x01; // PEV
+                pifr_ |= desc_.ec_flag_mask;
                 notify_adc();
                 
-                // End of cycle clears fault in some modes
                 u8 prfm = (pfrc0a_ >> 6) & 0x03;
                 if (prfm == 0x01) fault_active_ = false; 
             }
@@ -149,11 +150,11 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
             counter_++;
             const u16 top = ocrrb_;
             if (counter_ >= top && top > 0) {
-                if (is_centered) {
+                if (is_two_ramp) {
                     down_counting_ = true;
                 } else {
                     counter_ = 0;
-                    pifr_ |= 0x01; // PEV
+                    pifr_ |= desc_.ec_flag_mask;
                     notify_adc();
                     
                     u8 prfm = (pfrc0a_ >> 6) & 0x03;
@@ -182,15 +183,14 @@ void Psc::handle_fault(bool level) noexcept {
     u8 pflt = (pfrc0a_ >> 4) & 0x03;
     bool triggered = false;
     
-    if (pflt == 0x01 && last_fault_level_ && !level) triggered = true; // Fall
-    else if (pflt == 0x02 && !last_fault_level_ && level) triggered = true; // Rise
-    else if (pflt == 0x03 && !level) triggered = true; // Low level
+    if (pflt == 0x01 && last_fault_level_ && !level) triggered = true; 
+    else if (pflt == 0x02 && !last_fault_level_ && level) triggered = true; 
+    else if (pflt == 0x03 && !level) triggered = true; 
 
     if (triggered && !fault_active_) {
-        pifr_ |= 0x08; // PCAP flag
+        pifr_ |= desc_.capt_flag_mask; 
         fault_active_ = true;
         
-        // Retrigger immediately?
         u8 prfm = (pfrc0a_ >> 6) & 0x03;
         if (prfm == 0x01 || prfm == 0x02) {
              counter_ = 0;
@@ -198,15 +198,12 @@ void Psc::handle_fault(bool level) noexcept {
         }
     }
     
-    // In retrigger mode, fault can clear when the signal is gone?
-    // Lacking full specs, we assume latching for now unless PRFM allows recovery.
-    
     last_fault_level_ = level;
     update_outputs();
 }
 
 void Psc::update_outputs() noexcept {
-    if (!(pctl_ & 0x80)) {
+    if (!(pctl_ & desc_.prun_mask)) {
         output_a_ = output_b_ = false;
         return;
     }
@@ -215,7 +212,6 @@ void Psc::update_outputs() noexcept {
     bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
 
     if (fault_active_) {
-        // Safe level is usually the POL value
         output_a_ = (psoc_ & 0x01) && (psoc_ & 0x02);
         output_b_ = (psoc_ & 0x04) && (psoc_ & 0x08);
     } else {
@@ -230,11 +226,11 @@ void Psc::update_outputs() noexcept {
 }
 
 bool Psc::pending_interrupt_request(InterruptRequest& req) const noexcept {
-    if ((pifr_ & 0x01) && (pim_ & 0x01)) {
+    if ((pifr_ & desc_.ec_flag_mask) && (pim_ & desc_.ec_flag_mask)) {
         req.vector_index = desc_.ec_vector_index;
         return true;
     }
-    if ((pifr_ & 0x08) && (pim_ & 0x08)) {
+    if ((pifr_ & desc_.capt_flag_mask) && (pim_ & desc_.capt_flag_mask)) {
         req.vector_index = desc_.capt_vector_index;
         return true;
     }
@@ -243,8 +239,8 @@ bool Psc::pending_interrupt_request(InterruptRequest& req) const noexcept {
 
 bool Psc::consume_interrupt_request(InterruptRequest& req) noexcept {
     if (pending_interrupt_request(req)) {
-        if (req.vector_index == desc_.ec_vector_index) pifr_ &= ~0x01;
-        else pifr_ &= ~0x08;
+        if (req.vector_index == desc_.ec_vector_index) pifr_ &= ~desc_.ec_flag_mask;
+        else pifr_ &= ~desc_.capt_flag_mask;
         return true;
     }
     return false;
