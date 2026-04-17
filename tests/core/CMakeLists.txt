@@ -81,6 +81,7 @@ set(TEST_SOURCES
     math_fidelity_test.cpp
     atmega2560_timers_test.cpp
     can_fidelity_test.cpp
+    can_protocol_fidelity_test.cpp
     cpu_timer10_fidelity_test.cpp
     cpu_timer10_deadtime_test.cpp
     cpu_timer10_pfc_test.cpp
@@ -88,6 +89,8 @@ set(TEST_SOURCES
     usb_basic_test.cpp
     usb_interrupt_test.cpp
     usb_enumeration_test.cpp
+    usb_set_address_fidelity_test.cpp
+    usb_protocol_fidelity_test.cpp
     pll_test.cpp
     spm_test.cpp
     xmem_fidelity_test.cpp
@@ -97,6 +100,7 @@ set(TEST_SOURCES
     power_management_test.cpp
     eeprom_fidelity_test.cpp
     spm_fidelity_test.cpp
+    instruction_timing_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

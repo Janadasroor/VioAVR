@@ -90,15 +90,25 @@ void CanBus::reset() noexcept {
 
 void CanBus::tick(u64 elapsed_cycles) noexcept {
     // Basic timer logic
-    if (cangcon_ & 0x01) { // ENA (actually ENA bit in CANCON?)
-        // In AT90CAN, bit 1 is ENA, but bit 0 is SWRES?
-        // Let's check GCON bits: bit 7: ABRQ, bit 4: OVRQ, bit 3: TTC, bit 2: SYNTTC, bit 1: LISTEN, bit 0: ENA?
-        // No! bit 0 is SWRES. Bit 1: ENA.
+    if (cangcon_ & 0x02U) { // ENA bit 1 is enable for AT90CAN
+        // T_Q = (BRP + 1) * (1 / F_CPU)
+        // BRP is bits 5:0 of CANBT1
+        u32 brp = (canbt1_ & 0x3FU);
+        u32 cycles_per_tq = brp + 1;
         
-        // Wait! Let's check GCON bits in JSON/Datasheet.
-        // GCON bits: [7] ABRQ, [6] RESERVED, [5] RESERVED, [4] OVRQ, [3] TTC, [2] SYNTTC, [1] LISTEN, [0] SWRES
-        // CON bit 1: ENA? No, ENA is bit 0 of CANGCON in some AVRs.
-        // Actually for AT90CAN, bit 1 is ENA, bit 0 is SWRES.
+        timer_prescaler_cycles_ += static_cast<u32>(elapsed_cycles);
+        while (timer_prescaler_cycles_ >= cycles_per_tq) {
+            timer_prescaler_cycles_ -= cycles_per_tq;
+            
+            // CANTIM increments every TQ * (number of segments)?
+            // Actually, CANTIM increments every CAN timer clock.
+            // Simplified: increment every TQ for now.
+            cantim_++;
+            if (cantim_ == 0) { // Overflow
+                cangit_ |= 0x01U; // OVRIT
+                evaluate_interrupts();
+            }
+        }
     }
 }
 
@@ -117,45 +127,70 @@ u8 CanBus::read(u16 address) noexcept {
     if (address == desc_.canbt2_address) return canbt2_;
     if (address == desc_.canbt3_address) return canbt3_;
     if (address == desc_.cantcon_address) return cantcon_;
-    if (address == desc_.cantim_address) return static_cast<u8>(cantim_ & 0xFF);
-    if (address == desc_.cantim_address + 1) return static_cast<u8>(cantim_ >> 8);
-    if (address == desc_.canttc_address) return static_cast<u8>(canttc_ & 0xFF);
-    if (address == desc_.canttc_address + 1) return static_cast<u8>(canttc_ >> 8);
+    
+    // 16-bit Timer read logic (standard AVR temp register pattern)
+    if (address == desc_.cantim_address) {
+        timer_temp_ = static_cast<u8>(cantim_ >> 8U);
+        return static_cast<u8>(cantim_ & 0xFFU);
+    }
+    if (address == desc_.cantim_address + 1) return timer_temp_;
+    
+    if (address == desc_.canttc_address) {
+        timer_temp_ = static_cast<u8>(canttc_ >> 8U);
+        return static_cast<u8>(canttc_ & 0xFFU);
+    }
+    if (address == desc_.canttc_address + 1) return timer_temp_;
+
     if (address == desc_.cantec_address) return cantec_;
     if (address == desc_.canrec_address) return canrec_;
     if (address == desc_.canhpmob_address) return canhpmob_;
     if (address == desc_.canpage_address) return canpage_;
     
     // Paged access
-    u8 current_mob_idx = (canpage_ >> 4);
+    u8 current_mob_idx = (canpage_ >> 4U);
     if (current_mob_idx < mobs_.size()) {
         auto& mob = mobs_[current_mob_idx];
         if (address == desc_.canstmob_address) return mob.canstmob;
         if (address == desc_.cancdmob_address) return mob.cancdmob;
-        if (address >= desc_.canidt_address && address < desc_.canidt_address + 4) {
+        if (address >= desc_.canidt_address && address < desc_.canidt_address + 4U) {
             return mob.canidtags[address - desc_.canidt_address];
         }
-        if (address >= desc_.canidm_address && address < desc_.canidm_address + 4) {
+        if (address >= desc_.canidm_address && address < desc_.canidm_address + 4U) {
             return mob.canidmasks[address - desc_.canidm_address];
         }
+        if (address == desc_.canstm_address) {
+            timer_temp_ = static_cast<u8>(mob.canstm >> 8U);
+            return static_cast<u8>(mob.canstm & 0xFFU);
+        }
+        if (address == desc_.canstm_address + 1) return timer_temp_;
+
         if (address == desc_.canmsg_address) {
-            u8 data_idx = (canpage_ & 0x07);
+            u8 data_idx = (canpage_ & 0x07U);
             u8 val = mob.data[data_idx];
-            // Auto-increment data index in CANPAGE
-            canpage_ = (canpage_ & 0xF8) | ((data_idx + 1) & 0x07);
+            // Auto-increment INDX bit if AINC is 0 (AINC=0 means auto-increment!)
+            if (!(canpage_ & 0x08U)) {
+                canpage_ = (canpage_ & 0xF8U) | ((data_idx + 1U) & 0x07U);
+            }
             return val;
         }
     }
     
-    return 0;
+    return 0U;
 }
 
 void CanBus::write(u16 address, u8 value) noexcept {
     if (address == desc_.cangcon_address) {
         cangcon_ = value;
-        if (value & 0x01) reset(); // SWRES
+        if (value & 0x01U) reset(); // SWRES
     } else if (address == desc_.cangie_address) {
         cangie_ = value;
+        evaluate_interrupts();
+    } else if (address == desc_.canie1_address) {
+        canie1_ = value;
+        evaluate_interrupts();
+    } else if (address == desc_.canie2_address) {
+        canie2_ = value;
+        evaluate_interrupts();
     } else if (address == desc_.canbt1_address) {
         canbt1_ = value;
     } else if (address == desc_.canbt2_address) {
@@ -164,41 +199,78 @@ void CanBus::write(u16 address, u8 value) noexcept {
         canbt3_ = value;
     } else if (address == desc_.canpage_address) {
         canpage_ = value;
+    } else if (address == desc_.cangit_address) {
+        // CANGIT bits are cleared by writing 1
+        cangit_ &= ~value;
+        evaluate_interrupts();
+    } else if (address == desc_.cantcon_address) {
+        cantcon_ = value;
     }
     
     // Paged access
-    u8 current_mob_idx = (canpage_ >> 4);
+    u8 current_mob_idx = (canpage_ >> 4U);
     if (current_mob_idx < mobs_.size()) {
         auto& mob = mobs_[current_mob_idx];
-        if (address == desc_.canstmob_address) mob.canstmob = value;
+        if (address == desc_.canstmob_address) {
+            // CANSTMOB bits are cleared by writing 0! (Standard CAN protocol)
+            mob.canstmob &= value;
+            evaluate_interrupts();
+        }
         else if (address == desc_.cancdmob_address) {
             mob.cancdmob = value;
-            // Trigger transmission or reception based on CONMOB (bits 7:6)
-            u8 conmob = (value >> 6);
-            if (conmob == 0x01) { // Transmission
-                // Mock success for now
-                mob.canstmob |= 0x40; // TXOK
-                canit_pending_ = true;
+            // Update CANEN
+            if (current_mob_idx < 8) canen2_ |= (1 << current_mob_idx);
+            else canen1_ |= (1 << (current_mob_idx - 8));
+
+            // Trigger transmission simulation if CONMOB=01
+            if ((value >> 6U) == 0x01U) {
+                // TBD: Add to Tx queue or process immediately
+                mob.canstmob |= 0x40U; // TXOK
+                cangit_ |= 0x10U; // CANIT bit for TXOK
                 evaluate_interrupts();
             }
         }
-        else if (address >= desc_.canidt_address && address < desc_.canidt_address + 4) {
+        else if (address >= desc_.canidt_address && address < desc_.canidt_address + 4U) {
             mob.canidtags[address - desc_.canidt_address] = value;
         }
-        else if (address >= desc_.canidm_address && address < desc_.canidm_address + 4) {
+        else if (address >= desc_.canidm_address && address < desc_.canidm_address + 4U) {
             mob.canidmasks[address - desc_.canidm_address] = value;
         }
         else if (address == desc_.canmsg_address) {
-            u8 data_idx = (canpage_ & 0x07);
+            u8 data_idx = (canpage_ & 0x07U);
             mob.data[data_idx] = value;
-            canpage_ = (canpage_ & 0xF8) | ((data_idx + 1) & 0x07);
+            if (!(canpage_ & 0x08U)) {
+                canpage_ = (canpage_ & 0xF8U) | ((data_idx + 1U) & 0x07U);
+            }
         }
     }
 }
 
 void CanBus::evaluate_interrupts() noexcept {
-    // Simplified interrupt evaluation
-    // Check if any MOB has interrupt pending and CANIE is set
+    bool it_pending = false;
+    cansit1_ = 0;
+    cansit2_ = 0;
+
+    for (size_t i = 0; i < mobs_.size(); ++i) {
+        if (mobs_[i].canstmob & 0xFEU) { // Any bit except DLCW?
+            // This MOb has a pending status interrupt.
+            // Check if MOb interrupt is enabled
+            bool enabled = false;
+            if (i < 8) {
+                cansit2_ |= (1 << i);
+                if (canie2_ & (1 << i)) enabled = true;
+            } else {
+                cansit1_ |= (1 << (i - 8));
+                if (canie1_ & (1 << (i - 8))) enabled = true;
+            }
+            if (enabled) it_pending = true;
+        }
+    }
+
+    // General interrupts
+    if (cangit_ & cangie_) it_pending = true;
+
+    canit_pending_ = it_pending && (cangie_ & 0x01U); // ENIT
 }
 
 bool CanBus::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -210,29 +282,81 @@ bool CanBus::pending_interrupt_request(InterruptRequest& request) const noexcept
 }
 
 bool CanBus::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (canit_pending_ && request.vector_index == desc_.canit_vector_index) {
-        // Clear pending? No, usually handled by reading registers or clearing bits
-        return true;
-    }
+    if (pending_interrupt_request(request)) return true;
     return false;
 }
 
-void CanBus::inject_message(const CanMessage& msg) noexcept {
-    // Receive simulation
-    for (auto& mob : mobs_) {
-        u8 conmob = (mob.cancdmob >> 6);
-        if (conmob == 0x02) { // Reception
-            // Compare ID with tag/mask
-            // For now, simple match
-            for (size_t i = 0; i < std::min<size_t>(msg.data.size(), 8U); ++i) {
-                mob.data[i] = msg.data[i];
+void CanBus::receive_message(const CanMessage& msg) noexcept {
+    // 1. Check if CAN is enabled
+    if (!(cangcon_ & 0x02U)) return; // ENA bit 1
+
+    // 2. Iterate through MObs to find a match (Priority: lowest index first)
+    for (size_t i = 0; i < mobs_.size(); ++i) {
+        auto& mob = mobs_[i];
+        u8 conmob = (mob.cancdmob >> 6U);
+        
+        // Mode must be Receiver (10) or Frame Listen (11)
+        if (conmob != 0x02U && conmob != 0x03U) continue;
+
+        // Check IDE (Identifier Extension) consistency
+        bool mob_ide = (mob.cancdmob & 0x10U); // bit 4 is IDE
+        if (mob_ide != msg.ide) continue;
+
+        // ID Comparison
+        bool match = true;
+        if (msg.ide) {
+            // Extended ID (29 bits)
+            // Tags: IDT1(28:21), IDT2(20:13), IDT3(12:5), IDT4(4:0)
+            // Memory mapping in desc_ puts IDT4 at offset 0, IDT1 at offset 3
+            u32 mob_id = (static_cast<u32>(mob.canidtags[3]) << 21U) |
+                         (static_cast<u32>(mob.canidtags[2]) << 13U) |
+                         (static_cast<u32>(mob.canidtags[1]) << 5U) |
+                         (static_cast<u32>(mob.canidtags[0] >> 3U));
+            
+            u32 mob_mask = (static_cast<u32>(mob.canidmasks[3]) << 21U) |
+                           (static_cast<u32>(mob.canidmasks[2]) << 13U) |
+                           (static_cast<u32>(mob.canidmasks[1]) << 5U) |
+                           (static_cast<u32>(mob.canidmasks[0] >> 3U));
+            
+            if ((msg.id & mob_mask) != (mob_id & mob_mask)) match = false;
+        } else {
+            // Standard ID (11 bits)
+            // Tags: IDT1(10:3), IDT2(2:0)
+            u32 mob_id = (static_cast<u32>(mob.canidtags[3]) << 3U) |
+                         (static_cast<u32>(mob.canidtags[2] >> 5U));
+            
+            u32 mob_mask = (static_cast<u32>(mob.canidmasks[3]) << 3U) |
+                           (static_cast<u32>(mob.canidmasks[2] >> 5U));
+            
+            if ((msg.id & mob_mask) != (mob_id & mob_mask)) match = false;
+        }
+
+        if (match) {
+            // MOb Match found!
+            // Update Data
+            size_t dlc = (mob.cancdmob & 0x0FU);
+            for (size_t d = 0; d < std::min<size_t>(msg.data.size(), dlc); ++d) {
+                mob.data[d] = msg.data[d];
             }
-            mob.canstmob |= 0x20; // RXOK
-            canit_pending_ = true;
+            
+            // Update Status
+            mob.canstmob |= 0x20U; // RXOK
+            if (msg.data.size() != dlc) mob.canstmob |= 0x80U; // DLCW
+
+            cangit_ |= 0x20U; // RXOK bit in CANGIT
+            
+            // Disable MOb after reception unless in Listen mode? 
+            // Actually, in AT90CAN, CONMOB is cleared after RXOK.
+            mob.cancdmob &= 0x3FU; 
+            
             evaluate_interrupts();
             return;
         }
     }
+}
+
+void CanBus::inject_message(const CanMessage& msg) noexcept {
+    receive_message(msg);
 }
 
 } // namespace vioavr::core

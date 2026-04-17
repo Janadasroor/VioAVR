@@ -32,6 +32,8 @@ void Usb::reset() noexcept {
     uenum_ = 0;
     uerst_ = 0;
     ueint_ = 0;
+    cycle_accumulator_ = 0;
+    frame_cycles_ = 16000; // Default to 16MHz -> 1ms = 16k cycles
     for (auto& ep : endpoints_) {
         ep.control = 0;
         ep.config0 = 0;
@@ -46,8 +48,17 @@ void Usb::reset() noexcept {
     }
 }
 
-void Usb::tick(u64) noexcept {
-    // Basic USB logic (e.g. state transitions) would go here
+void Usb::tick(u64 elapsed_cycles) noexcept {
+    if (!(usbcon_ & desc_.usbcon_usbe_mask)) return; // USBE must be 1
+    if (usbcon_ & desc_.usbcon_frzclk_mask) return; // FRZCLK must be 0
+
+    cycle_accumulator_ += elapsed_cycles;
+    while (cycle_accumulator_ >= frame_cycles_) {
+        cycle_accumulator_ -= frame_cycles_;
+        
+        frame_number_ = (frame_number_ + 1) & 0x7FFU;
+        udint_ |= desc_.udint_sofi_mask; // SOFI
+    }
 }
 
 u8 Usb::read(u16 address) noexcept {
@@ -59,6 +70,8 @@ u8 Usb::read(u16 address) noexcept {
     if (address == desc_.udint_address) return udint_;
     if (address == desc_.udien_address) return udien_;
     if (address == desc_.udaddr_address) return udaddr_;
+    if (address == desc_.udfnum_address) return static_cast<u8>(frame_number_ & 0xFFU);
+    if (address == desc_.udfnum_address + 1) return static_cast<u8>((frame_number_ >> 8U) & 0x07U);
     if (address == desc_.uenum_address) return uenum_;
     if (address == desc_.uerst_address) return uerst_;
     if (address == desc_.ueint_address) return ueint_;
@@ -96,21 +109,53 @@ void Usb::write(u16 address, u8 value) noexcept {
     else if (address == desc_.usbsta_address) usbsta_ = value;
     else if (address == desc_.usbint_address) usbint_ = value;
     else if (address == desc_.udcon_address) udcon_ = value;
-    else if (address == desc_.udint_address) udint_ = value;
+    else if (address == desc_.udint_address) udint_ &= value; // Clear on write 0
     else if (address == desc_.udien_address) udien_ = value;
     else if (address == desc_.udaddr_address) udaddr_ = value;
     else if (address == desc_.uenum_address) uenum_ = value;
-    else if (address == desc_.uerst_address) uerst_ = value;
+    else if (address == desc_.uerst_address) {
+        uerst_ = value;
+        for (u8 i = 0; i < endpoints_.size(); ++i) {
+            if (value & (1U << i)) {
+                endpoints_[i].read_idx = 0;
+                endpoints_[i].write_idx = 0;
+                endpoints_[i].byte_count = 0;
+                // Note: bit is not automatically cleared by hardware
+            }
+        }
+    }
     
     u8 ep_idx = uenum_ & 0x07U;
     if (ep_idx >= endpoints_.size()) return;
     auto& ep = endpoints_[ep_idx];
 
-    if (address == desc_.ueconx_address) ep.control = value;
+    if (address == desc_.ueconx_address) {
+        ep.control = value;
+        if (value & 0x01U) { // EPEN
+            ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI - Ready to be loaded
+            update_ueint();
+        }
+    }
     else if (address == desc_.uecfg0x_address) ep.config0 = value;
-    else if (address == desc_.uecfg1x_address) ep.config1 = value;
+    else if (address == desc_.uecfg1x_address) {
+        ep.config1 = value;
+        // EPSIZE bits [6:4]
+        u8 size_idx = (value >> 4U) & 0x07U;
+        u16 size = 8U << size_idx;
+        if (size > 512) size = 512;
+        ep.fifo.resize(size);
+        ep.read_idx = 0;
+        ep.write_idx = 0;
+        ep.byte_count = 0;
+    }
     else if (address == desc_.ueintx_address) {
+        u8 cleared_bits = ep.interrupt_flags & (~value);
         ep.interrupt_flags &= value; // Clear on write 0
+        
+        if (cleared_bits & desc_.ueintx_txini_mask) { // TXINI cleared
+            // Software acknowledged TXINI, SIE should now send the data
+        }
+        
         update_ueint();
     }
     else if (address == desc_.ueienx_address) {
@@ -136,7 +181,8 @@ void Usb::update_ueint() noexcept {
 }
 
 bool Usb::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    if (! (usbcon_ & 0x80U)) return false; // USBE must be set
+    if (!(usbcon_ & desc_.usbcon_usbe_mask)) return false; 
+    if (usbcon_ & desc_.usbcon_frzclk_mask) return false;   
 
     // General Interrupt (USB_GEN)
     if (udint_ & udien_) {
@@ -200,6 +246,35 @@ void Usb::simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept {
     ep.byte_count += static_cast<u16>(to_copy);
     ep.interrupt_flags |= 0x04U; // RXOUTI
     update_ueint();
+}
+
+void Usb::simulate_in_token(u8 ep_idx) noexcept {
+    if (ep_idx >= endpoints_.size()) return;
+    auto& ep = endpoints_[ep_idx];
+    
+    // If bank is 'busy' (data loaded but TXINI=0), mark it as sent/ready
+    if (!(ep.interrupt_flags & desc_.ueintx_txini_mask)) {
+        ep.read_idx = 0;
+        ep.write_idx = 0;
+        ep.byte_count = 0;
+        ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI
+        update_ueint();
+    }
+}
+
+std::vector<u8> Usb::get_endpoint_data(u8 ep_idx) const noexcept {
+    if (ep_idx >= endpoints_.size()) return {};
+    const auto& ep = endpoints_[ep_idx];
+    if (ep.byte_count == 0) return {};
+    
+    std::vector<u8> data;
+    data.reserve(ep.byte_count);
+    size_t idx = ep.read_idx;
+    for (u16 i = 0; i < ep.byte_count; ++i) {
+        data.push_back(ep.fifo[idx]);
+        idx = (idx + 1) % ep.fifo.size();
+    }
+    return data;
 }
 
 } // namespace vioavr::core

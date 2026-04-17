@@ -73,6 +73,7 @@ private:
     bool canit_pending_ {false};
     bool ovrit_pending_ {false};
     u32 timer_prescaler_cycles_ {};
+    u8 timer_temp_ {0U};
 
     void evaluate_interrupts() noexcept;
     void receive_message(const CanMessage& msg) noexcept;
