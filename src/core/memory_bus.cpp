@@ -1,6 +1,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/xmem.hpp"
+#include "vioavr/core/nvm_ctrl.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -130,6 +131,26 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         trace_hook_->on_memory_write(address, value);
     }
 
+    // 1. Check for Unified Memory Map aliases (Page Buffer writes)
+    if (device_.mapped_flash.size > 0 && 
+        address >= device_.mapped_flash.data_start && 
+        address < device_.mapped_flash.data_start + device_.mapped_flash.size) {
+        const u32 offset = address - device_.mapped_flash.data_start;
+        const u32 word_addr = offset >> 1;
+        const u32 page_offset = word_addr % device_.flash_page_size;
+        
+        if (page_offset < flash_page_buffer_.size()) {
+            u16 word = flash_page_buffer_[page_offset];
+            if (offset & 1) {
+                word = (word & 0x00FFU) | (static_cast<u16>(value) << 8U);
+            } else {
+                word = (word & 0xFF00U) | static_cast<u16>(value);
+            }
+            flash_page_buffer_[page_offset] = word;
+            return;
+        }
+    }
+
     if (IoPeripheral* peripheral = find_peripheral(address); peripheral != nullptr) {
         peripheral->write(address, value);
         return;
@@ -173,14 +194,20 @@ void MemoryBus::tick_peripherals(const u64 elapsed_cycles, const u8 active_domai
             const u32 page_mask = ~(static_cast<u32>(device_.flash_page_size) - 1U);
             const u32 page_start = word_addr & page_mask;
 
-            if (command & 0x02U) { // Page Erase
+            const bool is_nvm = (nvm_ctrl_ != nullptr);
+            const bool is_erase = is_nvm ? (command == 2 || command == 3) : (command & 0x02U);
+            const bool is_write = is_nvm ? (command == 1 || command == 3) : (command & 0x04U);
+
+            if (is_erase) { // Page Erase
                 for (u32 i = 0; i < device_.flash_page_size; ++i) {
                     if (page_start + i < flash_.size()) {
                         flash_[page_start + i] = 0xFFFFU;
                     }
                 }
                 flash_rww_busy_ = true;
-            } else if (command & 0x04U) { // Page Write
+            }
+            
+            if (is_write) { // Page Write
                  for (u32 i = 0; i < device_.flash_page_size; ++i) {
                     if (page_start + i < flash_.size()) {
                         flash_[page_start + i] = flash_page_buffer_[i];
@@ -194,7 +221,13 @@ void MemoryBus::tick_peripherals(const u64 elapsed_cycles, const u8 active_domai
                 data_[device_.spmcsr_address] &= ~0x1FU;
             }
 
-            Logger::debug("MemoryBus: SPM finished at 0x" + std::to_string(address));        } else {
+            Logger::debug("MemoryBus: SPM/NVM finished at 0x" + std::to_string(address));
+            
+            if (nvm_ctrl_) {
+                nvm_ctrl_->set_busy(false, false);
+                nvm_ctrl_->clear_command();
+            }
+        } else {
             spm_busy_cycles_left_ -= static_cast<u32>(elapsed_cycles);
         }
     }
@@ -344,6 +377,28 @@ void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data)
         }
         return;
     }
+}
+
+void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept {
+    if (spm_busy_cycles_left_ > 0U) {
+        return;
+    }
+
+    spm_command_ = command;
+    spm_address_ = address;
+    spm_data_ = data;
+    
+    // NVMCTRL commands (AVR8X)
+    // 1: PAGEWRITE, 2: PAGEERASE, 3: PAGEERASEWRITE, 5: CHIPERASE, etc.
+    spm_busy_cycles_left_ = 64000U; // ~4ms at 16MHz
+
+    if (nvm_ctrl_) {
+        bool flash_busy = (command >= 1 && command <= 5);
+        bool ee_busy = (command == 6);
+        nvm_ctrl_->set_busy(flash_busy, ee_busy);
+    }
+
+    Logger::debug("MemoryBus: NVM command " + std::to_string(command) + " started at 0x" + std::to_string(address));
 }
 
 }  // namespace vioavr::core

@@ -253,6 +253,19 @@ struct EepromDescriptor {
     u8 vector_index {};
     u16 size {};
     MappedMemoryDescriptor mapped_data {};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
+struct NvmCtrlDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 status_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 addr_address {}; 
+    u16 data_address {}; 
+    u8 vector_index {};
 };
 
 struct WdtDescriptor {
@@ -559,6 +572,9 @@ struct DeviceDescriptor {
 
     u8 uart_count {0U};
     std::array<UartDescriptor, 8> uarts {};
+
+    u8 nvm_ctrl_count {0U};
+    std::array<NvmCtrlDescriptor, 1> nvm_ctrls {};
 
     u8 pcint_count {0U};
     std::array<PinChangeInterruptDescriptor, 8> pcints {};

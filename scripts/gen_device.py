@@ -114,7 +114,8 @@ def generate_header(data, header_path):
     groups = {
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
-        'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': []
+        'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
+        'NVMCTRL': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -589,6 +590,19 @@ def generate_header(data, header_path):
             .xmm_mask = {xmm_mask}, .xmbk_mask = {xmbk_mask}
         }}"""
 
+    def gen_nvm_ctrl(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])},
+            .ctrlb_address = {hx(r('CTRLB')['offset'])},
+            .status_address = {hx(r('STATUS')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])},
+            .intflags_address = {hx(r('INTFLAGS')['offset'])},
+            .addr_address = {hx(r('ADDR')['offset'])},
+            .data_address = {hx(r('DATA')['offset'])},
+            .vector_index = {p_data.get('interrupts', {}).get('EEREADY', {}).get('index', next((i['index'] for i in data.get('interrupts', []) if 'EEREADY' in (i.get('name') or '').upper() or 'NVM' in (i.get('name') or '').upper()), 0))}U
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
@@ -620,6 +634,8 @@ def generate_header(data, header_path):
     usbs_str = ",\n        ".join(gen_usb(n, d) for n, d in groups['USB_DEVICE'])
     pscs_str = ",\n        ".join(gen_psc(n, d) for n, d in groups['PSC'])
     dacs_str = ",\n        ".join(gen_dac(n, d) for n, d in groups['DAC'])
+    nvm_ctrls_descriptors = [gen_nvm_ctrl(n, d) for n, d in groups['NVMCTRL']]
+    nvm_ctrls_str = ",\n        ".join(nvm_ctrls_descriptors)
     
     xmem_data = (groups['EXTERNAL_MEMORY'][0][1] if groups['EXTERNAL_MEMORY'] 
                  else data['peripherals'].get('CPU', {}))
@@ -646,6 +662,7 @@ def generate_header(data, header_path):
 
     # Extract properties and configuration
     props = data.get('properties', {})
+    
     sigs = [hx(props.get(f'SIGNATURE{i}', '0xFF')) for i in range(3)]
     
     # Extract fuses (try to find individual regs or 16-bit space)
@@ -724,6 +741,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .uart_count = {len(groups['USART'])}U,
     .uarts = {{{{ {uarts_str} }}}},
+
+    .nvm_ctrl_count = {len(groups['NVMCTRL'])}U,
+    .nvm_ctrls = {{{{ {nvm_ctrls_str} }}}},
     
     .pcint_count = {len(groups['PCINT'])}U,
     .pcints = {{{{ {pcints_str} }}}},
