@@ -35,6 +35,7 @@ target_sources(vioavr_core
         usb.cpp
         pll.cpp
         xmem.cpp
+        psc.cpp
 )
 
 target_include_directories(vioavr_core

@@ -307,26 +307,26 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
         if (msg.ide) {
             // Extended ID (29 bits)
             // Tags: IDT1(MSB), IDT2, IDT3, IDT4(LSB)
-            // IDT1: ID28:21, IDT2: ID20:13, IDT3: ID12:5, IDT4: ID4:0 + RTRTAG + RB1TAG + RB0TAG
-            u32 mob_id = (static_cast<u32>(mob.canidtags[0]) << 21U) |
-                         (static_cast<u32>(mob.canidtags[1]) << 13U) |
-                         (static_cast<u32>(mob.canidtags[2]) << 5U) |
-                         (static_cast<u32>(mob.canidtags[3] >> 3U));
+            // IDT1: ID28:21 (Index 3), IDT2: ID20:13 (Index 2), IDT3: ID12:5 (Index 1), IDT4: ID4:0 + RTRTAG... (Index 0)
+            u32 mob_id = (static_cast<u32>(mob.canidtags[3]) << 21U) |
+                         (static_cast<u32>(mob.canidtags[2]) << 13U) |
+                         (static_cast<u32>(mob.canidtags[1]) << 5U) |
+                         (static_cast<u32>(mob.canidtags[0] >> 3U));
             
-            u32 mob_mask = (static_cast<u32>(mob.canidmasks[0]) << 21U) |
-                           (static_cast<u32>(mob.canidmasks[1]) << 13U) |
-                           (static_cast<u32>(mob.canidmasks[2]) << 5U) |
-                           (static_cast<u32>(mob.canidmasks[3] >> 3U));
+            u32 mob_mask = (static_cast<u32>(mob.canidmasks[3]) << 21U) |
+                           (static_cast<u32>(mob.canidmasks[2]) << 13U) |
+                           (static_cast<u32>(mob.canidmasks[1]) << 5U) |
+                           (static_cast<u32>(mob.canidmasks[0] >> 3U));
             
             if ((msg.id & mob_mask) != (mob_id & mob_mask)) match = false;
         } else {
             // Standard ID (11 bits)
-            // Tags: IDT1(ID10:3), IDT2(ID2:0 + RTRTAG + IDE + RB0TAG)
-            u32 mob_id = (static_cast<u32>(mob.canidtags[0]) << 3U) |
-                         (static_cast<u32>(mob.canidtags[1] >> 5U));
+            // Tags: IDT1(ID10:3) (Index 3), IDT2(ID2:0 + RTRTAG + IDE + RB0TAG) (Index 2)
+            u32 mob_id = (static_cast<u32>(mob.canidtags[3]) << 3U) |
+                         (static_cast<u32>(mob.canidtags[2] >> 5U));
             
-            u32 mob_mask = (static_cast<u32>(mob.canidmasks[0]) << 3U) |
-                           (static_cast<u32>(mob.canidmasks[1] >> 5U));
+            u32 mob_mask = (static_cast<u32>(mob.canidmasks[3]) << 3U) |
+                           (static_cast<u32>(mob.canidmasks[2] >> 5U));
             
             if ((msg.id & mob_mask) != (mob_id & mob_mask)) match = false;
         }

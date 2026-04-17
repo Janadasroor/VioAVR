@@ -12,6 +12,7 @@
 #include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/watchdog_timer.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
+#include "vioavr/core/psc.hpp"
 
 namespace vioavr::core {
 
@@ -97,6 +98,13 @@ void Machine::initialize_peripherals()
         auto spi = std::make_unique<Spi>("SPI", device_.spis[i]);
         bus_->attach_peripheral(*spi);
         owned_peripherals_.push_back(std::move(spi));
+    }
+
+    // 6. PSC
+    for (u8 i = 0; i < device_.psc_count; ++i) {
+        auto psc = std::make_unique<Psc>("PSC", device_.pscs[i]);
+        bus_->attach_peripheral(*psc);
+        owned_peripherals_.push_back(std::move(psc));
     }
 
     // 6. TWI
@@ -195,10 +203,11 @@ void Machine::wire_peripherals()
                 adc->connect_comparator_auto_trigger(*ac);
             }
             if (auto* t8 = dynamic_cast<Timer8*>(p.get())) {
-                // Connect Timer0 to ADC trigger if it exists
-                // Note: ATmega328P uses Timer0 for some triggers.
                 adc->connect_timer_compare_auto_trigger(*t8);
                 adc->connect_timer_overflow_auto_trigger(*t8);
+            }
+            if (auto* psc = dynamic_cast<Psc*>(p.get())) {
+                psc->connect_adc_trigger(*adc);
             }
         }
     }
