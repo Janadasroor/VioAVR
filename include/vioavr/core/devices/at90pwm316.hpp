@@ -11,6 +11,15 @@ inline constexpr DeviceDescriptor at90pwm316 {
     .interrupt_vector_count = 32U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 128U,
+    .io_range = { 0x20U, 0x5FU },
+    .extended_io_range = { 0x60U, 0xFFU },
+
+    .mapped_flash = { 0x0U, 0x0U },
+    .mapped_eeprom = { 0x0U, 0x0U },
+    .mapped_fuses = { 0x0U, 0x0U },
+    .mapped_signatures = { 0x0U, 0x0U },
+    .mapped_user_signatures = { 0x0U, 0x0U },
+
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
@@ -94,6 +103,7 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .foca_mask = 0x80U, .focb_mask = 0x40U,
             .pr_address = 100, .pr_bit = 3,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer0_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
         } }},
     .timer16_count = 1U,
@@ -116,7 +126,9 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x0U,
             .pr_address = 100, .pr_bit = 4,
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer1_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer1_compare_b,
+            .compare_c_trigger_source = AdcAutoTriggerSource::timer1_compare_c,
             .overflow_trigger_source = AdcAutoTriggerSource::timer1_overflow,
             .capture_trigger_source = AdcAutoTriggerSource::timer1_capture
         } }},
@@ -160,7 +172,8 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
             .eecr_reset = 0x0U,
             .vector_index = 26U,
-            .size = 0x200U
+            .size = 0x200U,
+            .mapped_data = { 0x0U, 0x0U }
         } }},
     
     .wdt_count = 1U,
@@ -217,7 +230,8 @@ inline constexpr DeviceDescriptor at90pwm316 {
 
     .dac_count = 1U,
     .dacs = {{ {
-            .dacon_address = 0xAAU, .dacl_address = 0x0U, .dach_address = 0x0U,
+            .dacon_address = 0xAAU, .dacl_address = 0xABU, .dach_address = 0xACU,
+            .daen_mask = 0x1U, .daate_mask = 0x80U, .dats_mask = 0x70U, .dacoe_mask = 0x2U,
             .pr_address = 0, .pr_bit = 255
         } }},
 

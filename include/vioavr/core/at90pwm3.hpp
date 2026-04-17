@@ -11,6 +11,15 @@ inline constexpr DeviceDescriptor at90pwm3 {
     .interrupt_vector_count = 32U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 64U,
+    .io_range = { 0x20U, 0x5FU },
+    .extended_io_range = { 0x60U, 0xFFU },
+
+    .mapped_flash = { 0x0U, 0x0U },
+    .mapped_eeprom = { 0x0U, 0x0U },
+    .mapped_fuses = { 0x0U, 0x0U },
+    .mapped_signatures = { 0x0U, 0x0U },
+    .mapped_user_signatures = { 0x0U, 0x0U },
+
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
@@ -163,7 +172,8 @@ inline constexpr DeviceDescriptor at90pwm3 {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
             .eecr_reset = 0x0U,
             .vector_index = 26U,
-            .size = 0x200U
+            .size = 0x200U,
+            .mapped_data = { 0x0U, 0x0U }
         } }},
     
     .wdt_count = 1U,

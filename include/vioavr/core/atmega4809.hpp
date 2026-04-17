@@ -3,18 +3,18 @@
 
 namespace vioavr::core::devices {
 
-inline constexpr DeviceDescriptor atmega3208 {
-    .name = "ATmega3208",
-    .flash_words = 16384U,
-    .sram_bytes = 4096U,
+inline constexpr DeviceDescriptor atmega4809 {
+    .name = "ATmega4809",
+    .flash_words = 24576U,
+    .sram_bytes = 6144U,
     .eeprom_bytes = 256U,
-    .interrupt_vector_count = 39U,
+    .interrupt_vector_count = 43U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 128U,
     .io_range = { 0x0U, 0x3FU },
     .extended_io_range = { 0x40U, 0x10FFU },
 
-    .mapped_flash = { 0x4000U, 0x8000U },
+    .mapped_flash = { 0x4000U, 0xC000U },
     .mapped_eeprom = { 0x1400U, 0x100U },
     .mapped_fuses = { 0x1280U, 0xAU },
     .mapped_signatures = { 0x1100U, 0x3U },
@@ -45,7 +45,7 @@ inline constexpr DeviceDescriptor atmega3208 {
     .prtimer2_bit = 0xFFU,
     .smcr_sm_mask = 0x0U,
     .smcr_se_mask = 0x0U,
-    .flash_rww_end_word = 0x4000U,
+    .flash_rww_end_word = 0x6000U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -81,8 +81,18 @@ inline constexpr DeviceDescriptor atmega3208 {
     .ext_interrupt_count = 0U,
     .ext_interrupts = {{  }},
 
-    .uart_count = 3U,
+    .uart_count = 4U,
     .uarts = {{ {
+            .udr_address = 0x0U, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x0U, .ubrrh_address = 0x0U,
+            .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
+            .rx_vector_index = 0U,
+            .udre_vector_index = 0U,
+            .tx_vector_index = 0U,
+            .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
+            .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
+            .pr_address = 0, .pr_bit = 255
+        },
+        {
             .udr_address = 0x0U, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x0U, .ubrrh_address = 0x0U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
             .rx_vector_index = 0U,

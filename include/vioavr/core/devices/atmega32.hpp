@@ -11,6 +11,15 @@ inline constexpr DeviceDescriptor atmega32 {
     .interrupt_vector_count = 21U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 128U,
+    .io_range = { 0x20U, 0x5FU },
+    .extended_io_range = { 0x60U, 0x5FU },
+
+    .mapped_flash = { 0x0U, 0x0U },
+    .mapped_eeprom = { 0x0U, 0x0U },
+    .mapped_fuses = { 0x0U, 0x0U },
+    .mapped_signatures = { 0x0U, 0x0U },
+    .mapped_user_signatures = { 0x0U, 0x0U },
+
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
@@ -80,6 +89,7 @@ inline constexpr DeviceDescriptor atmega32 {
             .foca_mask = 0x0U, .focb_mask = 0x0U,
             .pr_address = 0, .pr_bit = 255,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer0_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
         },
         {
@@ -98,8 +108,9 @@ inline constexpr DeviceDescriptor atmega32 {
             .overflow_enable_mask = 0x40U,
             .foca_mask = 0x0U, .focb_mask = 0x0U,
             .pr_address = 0, .pr_bit = 255,
-            .compare_a_trigger_source = AdcAutoTriggerSource::none,
-            .overflow_trigger_source = AdcAutoTriggerSource::none
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer2_compare_a,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer2_compare_b,
+            .overflow_trigger_source = AdcAutoTriggerSource::timer2_overflow
         } }},
     .timer16_count = 1U,
     .timers16 = {{ {
@@ -121,7 +132,9 @@ inline constexpr DeviceDescriptor atmega32 {
             .overflow_enable_mask = 0x4U,
             .foca_mask = 0x0U, .focb_mask = 0x0U, .focc_mask = 0x0U,
             .pr_address = 0, .pr_bit = 255,
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer1_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer1_compare_b,
+            .compare_c_trigger_source = AdcAutoTriggerSource::timer1_compare_c,
             .overflow_trigger_source = AdcAutoTriggerSource::timer1_overflow,
             .capture_trigger_source = AdcAutoTriggerSource::timer1_capture
         } }},
@@ -170,7 +183,8 @@ inline constexpr DeviceDescriptor atmega32 {
             .eecr_address = 0x3CU, .eedr_address = 0x3DU, .eearl_address = 0x3EU, .eearh_address = 0x3FU,
             .eecr_reset = 0x0U,
             .vector_index = 0U,
-            .size = 0x400U
+            .size = 0x400U,
+            .mapped_data = { 0x0U, 0x0U }
         } }},
     
     .wdt_count = 1U,

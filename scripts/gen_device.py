@@ -77,10 +77,15 @@ def get_pr_info(data, bit_regex):
                     return reg['offset'], bit_idx
     return 0, 0xFF
 
-def generate_header(data, output_dir):
+def get_mapping(data, mem_type):
+    for m in data['memories'].get('data', []):
+        if m['type'] == mem_type or (mem_type == 'flash' and m['name'] == 'MAPPED_PROGMEM'):
+             return hx(m['start']), hx(m['size'])
+    return "0x0U", "0x0U"
+
+def generate_header(data, header_path):
     name = data['name']
     safe_name = name.lower().replace('-', '_')
-    header_path = output_dir / f"{safe_name}.hpp"
     
     # 1. Build Port Map for PinMux
     port_map = {}
@@ -546,11 +551,13 @@ def generate_header(data, output_dir):
 
     def gen_eeprom(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        m_eeprom = get_mapping(data, 'eeprom')
         return f"""{{
             .eecr_address = {hx(r('EECR')['offset'])}, .eedr_address = {hx(r('EEDR')['offset'])}, .eearl_address = {get_reg_addr(p_data, 'EEARL|EEAR')}, .eearh_address = {get_reg_addr(p_data, 'EEARH|EEAR', True)},
             .eecr_reset = {hx(r('EECR')['initval'])},
             .vector_index = {next((i['index'] for i in data['interrupts'] if 'EE_READY' in i['name']), 0)}U,
-            .size = {hx(eeprom['size'])}
+            .size = {hx(eeprom['size'])},
+            .mapped_data = {{ {m_eeprom[0]}, {m_eeprom[1]} }}
         }}"""
 
     def gen_wdt(p_name, p_data):
@@ -599,7 +606,15 @@ def generate_header(data, output_dir):
     cans_str = ",\n        ".join(gen_can(n, d) for n, d in groups['CAN'])
     pcints_str = ",\n        ".join(gen_pcint(n, d) for n, d in groups['PCINT'])
     ext_ints_str = ",\n        ".join(gen_ext_int(n, d) for n, d in groups['EXINT'])
-    eeproms_str = ",\n        ".join(gen_eeprom(n, d) for n, d in groups['EEPROM'])
+    eeprom_descriptors = [gen_eeprom(n, d) for n, d in groups['EEPROM']]
+    if not eeprom_descriptors and eeprom['size'] > 0:
+        m_eeprom = get_mapping(data, 'eeprom')
+        if m_eeprom[0] != "0x0U":
+            eeprom_descriptors.append(f"""{{
+                .size = {hx(eeprom['size'])},
+                .mapped_data = {{ {m_eeprom[0]}, {m_eeprom[1]} }}
+            }}""")
+    eeproms_str = ",\n        ".join(eeprom_descriptors)
     wdts_str = ",\n        ".join(gen_wdt(n, d) for n, d in groups['WDT'])
     timers10_str = ",\n        ".join(gen_timer10(n, d) for n, d in groups['TC10'])
     usbs_str = ",\n        ".join(gen_usb(n, d) for n, d in groups['USB_DEVICE'])
@@ -616,6 +631,31 @@ def generate_header(data, output_dir):
     boot_sections = [m for m in data['memories'].get('prog', []) if 'BOOT_SECTION' in m['name']]
     rww_end_word = (min(m['start'] for m in boot_sections) // 2) if boot_sections else (flash['size'] // 2)
 
+    # Address ranges
+    io_seg = next((m for m in data['memories'].get('data', []) if m.get('type') == 'io'), {'start': 0x20, 'size': 0x40})
+    io_start = io_seg['start']
+    io_end = io_start + 0x3F # Default 64 regs
+    ext_io_start = io_end + 1
+    ext_io_end = io_start + io_seg['size'] - 1
+
+    m_flash = get_mapping(data, 'flash')
+    m_eeprom = get_mapping(data, 'eeprom')
+    m_fuses = get_mapping(data, 'fuses')
+    m_sigs = get_mapping(data, 'signatures')
+    m_usigs = get_mapping(data, 'user_signatures')
+
+    # Extract properties and configuration
+    props = data.get('properties', {})
+    sigs = [hx(props.get(f'SIGNATURE{i}', '0xFF')) for i in range(3)]
+    
+    # Extract fuses (try to find individual regs or 16-bit space)
+    fuses_data = [0xFF] * 16
+    for f_name, f_reg in data.get('configuration', {}).get('fuses', {}).items():
+        off = f_reg.get('offset', 0)
+        if off < 16:
+            fuses_data[off] = f_reg.get('initval', 0xFF)
+    fuses_str = ", ".join(hx(v) for v in fuses_data)
+
     content = f"""#pragma once
 #include "vioavr/core/device.hpp"
 
@@ -629,6 +669,15 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .interrupt_vector_count = {len(data['interrupts'])}U,
     .interrupt_vector_size = {4 if flash['size'] > 4096 else 2}U,
     .flash_page_size = {flash['pagesize']}U,
+    .io_range = {{ {hx(io_start)}, {hx(io_end)} }},
+    .extended_io_range = {{ {hx(ext_io_start)}, {hx(ext_io_end)} }},
+
+    .mapped_flash = {{ {m_flash[0]}, {m_flash[1]} }},
+    .mapped_eeprom = {{ {m_eeprom[0]}, {m_eeprom[1]} }},
+    .mapped_fuses = {{ {m_fuses[0]}, {m_fuses[1]} }},
+    .mapped_signatures = {{ {m_sigs[0]}, {m_sigs[1]} }},
+    .mapped_user_signatures = {{ {m_usigs[0]}, {m_usigs[1]} }},
+
     .spl_address = {get_reg_addr(cpu, 'SPL|SP')},
     .sph_address = {get_reg_addr(cpu, 'SPH|SP', True)},
     .sreg_address = {get_reg_addr(cpu, 'SREG')},
@@ -646,6 +695,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .xmcrb_address = {hx(r_cpu('XMCRB')['offset']) if r_cpu('XMCRB') else '0x0U'},
     .xmem = {xmem_str if r_cpu('XMCRA') else '{0}'},
     .pradc_bit = {hx(get_pr_info(data, 'PRADC')[1])},
+
     .prusart0_bit = {hx(get_pr_info(data, 'PRUSART0|PRUSART')[1])},
     .prspi_bit = {hx(get_pr_info(data, 'PRSPI')[1])},
     .prtwi_bit = {hx(get_pr_info(data, 'PRTWI')[1])},
@@ -684,7 +734,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .twi_count = {len(groups['TWI'])}U,
     .twis = {{{{ {twis_str} }}}},
     
-    .eeprom_count = {len(groups['EEPROM'])}U,
+    .eeprom_count = {len(eeprom_descriptors)}U,
     .eeproms = {{{{ {eeproms_str} }}}},
     
     .wdt_count = {len(groups['WDT'])}U,
@@ -704,7 +754,10 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .fuse_address = {hx(next((m['start'] for m in data['memories'].get('fuses', [])), 0))},
     .lockbit_address = {hx(next((m['start'] for m in data['memories'].get('lockbits', [])), 0))},
-    .signature_address = {hx(next((m['start'] for m in data['memories'].get('signatures', [])), 0))},
+    .signature_address = {hx(next((m['start'] for m in data['memories'].get('fuses', []) if m['type'] == 'signatures'), 0)) if next((m['start'] for m in data['memories'].get('fuses', []) if m['type'] == 'signatures'), None) is not None else hx(next((m['start'] for m in data['memories'].get('signatures', [])), 0))},
+
+    .signature = {{ {", ".join(sigs)} }},
+    .fuses = {{ {fuses_str} }},
 
     .port_count = {len(ports_raw)}U,
     .ports = {{{{
@@ -726,9 +779,7 @@ def main():
     try:
         with open(args.input, 'r') as f:
             data = json.load(f)
-        generate_header(data, Path(args.output).parent)
-        # Note: generate_header internally determines the filename from data['name']
-        # I should probably refactor generate_header to take the full output path.
+        generate_header(data, Path(args.output))
         print(f"Generated header for {data['name']} at {args.output}")
     except Exception as e:
         print(f"Error: {e}")

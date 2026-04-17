@@ -14,7 +14,9 @@ enum class AdcAutoTriggerSource : u8 {
     external_interrupt_0,
     timer0_compare_a,
     timer0_compare_b,
+    timer0_compare_c,
     timer0_overflow,
+    timer0_capture,
     timer1_compare_a,
     timer1_compare_b,
     timer1_compare_c,
@@ -22,7 +24,9 @@ enum class AdcAutoTriggerSource : u8 {
     timer1_capture,
     timer2_compare_a,
     timer2_compare_b,
+    timer2_compare_c,
     timer2_overflow,
+    timer2_capture,
     timer3_compare_a,
     timer3_compare_b,
     timer3_compare_c,
@@ -235,6 +239,11 @@ struct TwiDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct MappedMemoryDescriptor {
+    u16 data_start {0U};
+    u16 size {0U};
+};
+
 struct EepromDescriptor {
     u16 eecr_address {};
     u16 eedr_address {};
@@ -243,6 +252,7 @@ struct EepromDescriptor {
     u8 eecr_reset {0x00U};
     u8 vector_index {};
     u16 size {};
+    MappedMemoryDescriptor mapped_data {};
 };
 
 struct WdtDescriptor {
@@ -478,6 +488,7 @@ struct PortDescriptor {
     u16 port_address {};
 };
 
+
 struct DeviceDescriptor {
     std::string_view name {};
     u32 flash_words {};
@@ -489,6 +500,13 @@ struct DeviceDescriptor {
     AddressRange register_file_range {0x0000, 0x001F};
     AddressRange io_range {0x0020, 0x005F};
     AddressRange extended_io_range {0x0060, 0x00FF};
+
+    // Unified Memory Map Support (AVR8X / megaAVR-0)
+    MappedMemoryDescriptor mapped_flash {};
+    MappedMemoryDescriptor mapped_eeprom {};
+    MappedMemoryDescriptor mapped_fuses {};
+    MappedMemoryDescriptor mapped_signatures {};
+    MappedMemoryDescriptor mapped_user_signatures {};
     u16 spl_address {0x005DU};
     u16 sph_address {0x005EU};
     u16 sreg_address {0x005FU};
@@ -572,6 +590,9 @@ struct DeviceDescriptor {
     u16 fuse_address {0x0000U};
     u16 lockbit_address {0x0000U};
     u16 signature_address {0x0000U};
+
+    std::array<u8, 3> signature { 0xFFU, 0xFFU, 0xFFU };
+    std::array<u8, 16> fuses { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
 
     u8 port_count {0U};
     std::array<PortDescriptor, 16> ports {};
