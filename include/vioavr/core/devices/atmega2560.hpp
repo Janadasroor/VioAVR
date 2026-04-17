@@ -7,7 +7,7 @@ inline constexpr DeviceDescriptor atmega2560 {
     .name = "ATmega2560",
     .flash_words = 131072U,
     .sram_bytes = 8192U,
-    .eeprom_bytes = 0U,
+    .eeprom_bytes = 4096U,
     .interrupt_vector_count = 57U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 256U,
@@ -17,7 +17,7 @@ inline constexpr DeviceDescriptor atmega2560 {
     .rampz_address = 0x5BU,
     .eind_address = 0x5CU,
     .spmcsr_address = 0x57U,
-    .prr_address = 0x65U,
+    .prr_address = 0x0U,
     .prr0_address = 0x64U,
     .prr1_address = 0x65U,
     .smcr_address = 0x53U,
@@ -33,12 +33,18 @@ inline constexpr DeviceDescriptor atmega2560 {
             .xmm_mask = 7, .xmbk_mask = 128
         },
     .pradc_bit = 0x1U,
-    .prusart0_bit = 0x4U,
+    .prusart0_bit = 0x2U,
     .prspi_bit = 0x4U,
     .prtwi_bit = 0x80U,
     .prtimer0_bit = 0x20U,
     .prtimer1_bit = 0x8U,
     .prtimer2_bit = 0x40U,
+    .smcr_sm_mask = 0xEU,
+    .smcr_se_mask = 0x1U,
+    .flash_rww_end_word = 0x1F000U,
+    .spl_reset = 0x0U,
+    .sph_reset = 0x0U,
+    .sreg_reset = 0x0U,
     .adc_count = 1U,
     .adcs = {{ {
             .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
@@ -49,7 +55,8 @@ inline constexpr DeviceDescriptor atmega2560 {
             .adc_pin_bit = {{ 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }},
             .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }},
             .adsc_mask = 0x40U, .adate_mask = 0x20U, .adif_mask = 0x10U, .adie_mask = 0x8U, .aden_mask = 0x80U, .adlar_mask = 0x20U,
-            .pr_address = 100, .pr_bit = 1
+            .pr_address = 100, .pr_bit = 1,
+            .mux_table = {{ { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false }, { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, { 16, 0, 1.0f, false }, { 17, 0, 1.0f, false }, { 8, 0, 1.0f, false }, { 9, 0, 1.0f, false }, { 10, 0, 1.0f, false }, { 11, 0, 1.0f, false }, { 12, 0, 1.0f, false }, { 13, 0, 1.0f, false }, { 14, 0, 1.0f, false }, { 15, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false} }}
         } }},
     .ac_count = 1U,
     .acs = {{ {
@@ -191,7 +198,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 101, .pr_bit = 4
+            .pr_address = 100, .pr_bit = 2
         },
         {
             .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xCAU, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
@@ -201,7 +208,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 101, .pr_bit = 4
+            .pr_address = 100, .pr_bit = 2
         },
         {
             .udr_address = 0xD6U, .ucsra_address = 0xD0U, .ucsrb_address = 0xD1U, .ucsrc_address = 0xD2U, .ubrrl_address = 0xD4U, .ubrrh_address = 0xD5U,
@@ -211,7 +218,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 101, .pr_bit = 4
+            .pr_address = 100, .pr_bit = 2
         },
         {
             .udr_address = 0x136U, .ucsra_address = 0x130U, .ucsrb_address = 0x131U, .ucsrc_address = 0x132U, .ubrrl_address = 0x134U, .ubrrh_address = 0x135U,
@@ -221,7 +228,7 @@ inline constexpr DeviceDescriptor atmega2560 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 101, .pr_bit = 4
+            .pr_address = 100, .pr_bit = 2
         } }},
     
     .pcint_count = 3U,
@@ -266,14 +273,17 @@ inline constexpr DeviceDescriptor atmega2560 {
     .eeprom_count = 1U,
     .eeproms = {{ {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
-            .vector_index = 30U
+            .eecr_reset = 0x0U,
+            .vector_index = 30U,
+            .size = 0x1000U
         } }},
     
     .wdt_count = 1U,
     .wdts = {{ {
             .wdtcsr_address = 0x60U,
+            .wdtcsr_reset = 0x0U,
             .vector_index = 12U,
-            .wdie_mask = 0x40U, .wde_mask = 0x8U
+            .wdie_mask = 0x40U, .wde_mask = 0x8U, .wdce_mask = 0x10U
         } }},
 
     .can_count = 0U,
@@ -281,6 +291,10 @@ inline constexpr DeviceDescriptor atmega2560 {
     
     .usb_count = 0U,
     .usbs = {{  }},
+
+    .fuse_address = 0x0U,
+    .lockbit_address = 0x0U,
+    .signature_address = 0x0U,
 
     .port_count = 11U,
     .ports = {{

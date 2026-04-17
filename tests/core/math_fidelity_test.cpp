@@ -2,6 +2,7 @@
 #include "doctest.h"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
@@ -13,8 +14,8 @@ TEST_CASE("AVR Math Fidelity Test") {
     MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
 
-    GpioPort portb {"PORTB", 0x23U, 0x24U, 0x25U};
-    GpioPort portc {"PORTC", 0x26U, 0x27U, 0x28U};
+    vioavr::core::PinMux pm_portb { 10 }; GpioPort portb { "PORTB", 0x23U, 0x24U, 0x25U, pm_portb };
+    vioavr::core::PinMux pm_portc { 10 }; GpioPort portc { "PORTC", 0x26U, 0x27U, 0x28U, pm_portc };
     bus.attach_peripheral(portb);
     bus.attach_peripheral(portc);
 

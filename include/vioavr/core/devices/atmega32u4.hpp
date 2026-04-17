@@ -34,7 +34,12 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .prtimer0_bit = 0x20U,
     .prtimer1_bit = 0x8U,
     .prtimer2_bit = 0x40U,
-    .flash_rww_end_word = 0x37FFU,
+    .smcr_sm_mask = 0xEU,
+    .smcr_se_mask = 0x1U,
+    .flash_rww_end_word = 0x3800U,
+    .spl_reset = 0x0U,
+    .sph_reset = 0x0U,
+    .sreg_reset = 0x0U,
     .adc_count = 1U,
     .adcs = {{ {
             .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
@@ -174,6 +179,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .eeprom_count = 1U,
     .eeproms = {{ {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
+            .eecr_reset = 0x0U,
             .vector_index = 30U,
             .size = 0x400U
         } }},
@@ -181,8 +187,9 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .wdt_count = 1U,
     .wdts = {{ {
             .wdtcsr_address = 0x60U,
+            .wdtcsr_reset = 0x0U,
             .vector_index = 12U,
-            .wdie_mask = 0x40U, .wde_mask = 0x8U
+            .wdie_mask = 0x40U, .wde_mask = 0x8U, .wdce_mask = 0x10U
         } }},
 
     .can_count = 0U,
@@ -201,6 +208,10 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .pllcsr_address = 0x49U,
             .pr_address = 101, .pr_bit = 128
         } }},
+
+    .fuse_address = 0x0U,
+    .lockbit_address = 0x0U,
+    .signature_address = 0x0U,
 
     .port_count = 5U,
     .ports = {{

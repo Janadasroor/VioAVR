@@ -17,8 +17,8 @@ TEST_CASE("External Interrupt Fidelity Test") {
     PinMux pin_mux {3};
 
     // 1. Setup Port B and Port D
-    GpioPort portb {"PORTB", 0x23U, 0x24U, 0x25U};
-    GpioPort portd {"PORTD", 0x29U, 0x2AU, 0x2BU};
+    vioavr::core::PinMux pm_portb { 10 }; GpioPort portb { "PORTB", 0x23U, 0x24U, 0x25U, pm_portb };
+    vioavr::core::PinMux pm_portd { 10 }; GpioPort portd { "PORTD", 0x29U, 0x2AU, 0x2BU, pm_portd };
     ExtInterrupt exint {"EXINT", atmega328p.ext_interrupts[0], pin_mux, 0};
     
     // Connect PinMux to Bus and Port

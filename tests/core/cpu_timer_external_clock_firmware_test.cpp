@@ -3,6 +3,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
@@ -53,7 +54,7 @@ TEST_CASE("Timer0 External Clock Logic Firmware Test")
     const u16 ddr_addr  = atmega328p.ports[2].ddr_address;
     const u16 pin_addr  = atmega328p.ports[2].pin_address;
     
-    GpioPort port_d {"PORTD", pin_addr, ddr_addr, port_addr};
+    vioavr::core::PinMux pm_port_d { 10 }; GpioPort port_d { "PORTD", pin_addr, ddr_addr, port_addr, pm_port_d };
     Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
     
     bus.attach_peripheral(port_d);

@@ -3,6 +3,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/sync_engine.hpp"
@@ -48,7 +49,7 @@ TEST_CASE("Timer0 GPIO Toggle Test")
     constexpr auto portb = static_cast<vioavr::core::u16>(0x25U);
 
     MemoryBus bus {atmega328};
-    GpioPort port_b {"PORTB", pinb, ddrb, portb};
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
     Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
 
     timer0.connect_compare_output_a(port_b, 0U);

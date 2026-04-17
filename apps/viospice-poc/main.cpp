@@ -4,6 +4,7 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/sync_engine.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/logger.hpp"
 
 #include <iostream>
@@ -55,9 +56,10 @@ int main() {
     out << "Scenario: ATmega328 PB0 toggling every 50ms -> Virtual RC Filter (R=10k, C=10uF)" << std::endl;
     out << "--------------------------------------------------------------------------------" << std::endl;
 
+    PinMux pin_mux {5};
     MemoryBus bus {devices::atmega328};
     AvrCpu cpu {bus};
-    auto gpio_b = std::make_unique<GpioPort>("PORTB", 0x23, 0x24, 0x25); 
+    auto gpio_b = std::make_unique<GpioPort>("PORTB", 0x23, 0x24, 0x25, pin_mux); 
     bus.attach_peripheral(*gpio_b);
 
     const u64 quantum = 10000;

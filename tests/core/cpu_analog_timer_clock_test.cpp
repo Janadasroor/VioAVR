@@ -3,6 +3,7 @@
 #include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
@@ -23,7 +24,7 @@ TEST_CASE("Analog Signal to Timer0 External Clock Transition Test")
     signals.set_voltage(0U, 0.20); // LOW
 
     MemoryBus bus {atmega328};
-    GpioPort port_b {"PORTB", pinb, ddrb, portb};
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
     port_b.bind_input_signal(0U, signals, 0U); // PB0 bound to signal 0
     
     Timer8 timer0 {"TIMER0", atmega328.timers8[0]};

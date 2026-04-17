@@ -3,6 +3,8 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/usb.hpp"
+#include "vioavr/core/devices/atmega32u4.hpp"
 #include "usb_host_sim.hpp"
 
 namespace {

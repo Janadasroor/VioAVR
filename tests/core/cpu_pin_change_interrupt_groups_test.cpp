@@ -2,6 +2,7 @@
 #include "doctest.h"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
@@ -13,9 +14,9 @@ TEST_CASE("Pin change interrupt groups share PCICR/PCIFR and keep separate PCMSK
     using vioavr::core::devices::atmega328p;
 
     MemoryBus bus {atmega328p};
-    GpioPort port_b {"PORTB", 0x23U, 0x24U, 0x25U};
-    GpioPort port_c {"PORTC", 0x26U, 0x27U, 0x28U};
-    GpioPort port_d {"PORTD", 0x29U, 0x2AU, 0x2BU};
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", 0x23U, 0x24U, 0x25U, pm_port_b };
+    vioavr::core::PinMux pm_port_c { 10 }; GpioPort port_c { "PORTC", 0x26U, 0x27U, 0x28U, pm_port_c };
+    vioavr::core::PinMux pm_port_d { 10 }; GpioPort port_d { "PORTD", 0x29U, 0x2AU, 0x2BU, pm_port_d };
     PinChangeInterruptSharedState shared {};
     PinChangeInterrupt pci0 {"PCINT0", atmega328p.pcints[0], port_b, shared, true};
     PinChangeInterrupt pci1 {"PCINT1", atmega328p.pcints[1], port_c, shared, false};

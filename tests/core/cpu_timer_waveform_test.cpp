@@ -4,6 +4,7 @@
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 using namespace vioavr::core;
@@ -94,9 +95,9 @@ TEST_CASE("Timer8 Fast PWM Mode Pin Toggle")
     // Non-inverting mode (COM0A=2): OC0A cleared on compare match, set at BOTTOM
     Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
     MemoryBus bus {atmega328};
-    GpioPort port_d {"PORTD", atmega328.ports[2].pin_address,
+    vioavr::core::PinMux pm_port_d { 10 }; GpioPort port_d { "PORTD", atmega328.ports[2].pin_address,
                                  atmega328.ports[2].ddr_address,
-                                 atmega328.ports[2].port_address};
+                                 atmega328.ports[2].port_address, pm_port_d };
     bus.attach_peripheral(port_d);
     bus.attach_peripheral(timer0);
     timer0.connect_compare_output_a(port_d, 6); // OC0A = PD6
@@ -255,9 +256,9 @@ TEST_CASE("Timer16 Fast PWM 10-bit Mode")
     // Period = 1024 ticks (WGM=7: WGM13:0 = 0111)
     Timer16 timer1 {"TIMER1", atmega328.timers16[0]};
     MemoryBus bus {atmega328};
-    GpioPort port_b {"PORTB", atmega328.ports[0].pin_address,
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", atmega328.ports[0].pin_address,
                                  atmega328.ports[0].ddr_address,
-                                 atmega328.ports[0].port_address};
+                                 atmega328.ports[0].port_address, pm_port_b };
     bus.attach_peripheral(port_b);
     bus.attach_peripheral(timer1);
     timer1.connect_compare_output_a(port_b, 1); // OC1A = PB1

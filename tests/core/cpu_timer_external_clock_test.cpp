@@ -2,6 +2,7 @@
 #include "doctest.h"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
@@ -19,7 +20,7 @@ TEST_CASE("Timer0 External Clock Logic Test")
     
     MemoryBus bus {atmega328p};
     // Standard T0 pin for ATmega328 is PIND4 (0x10)
-    GpioPort port_d {"PORTD", pind, ddrd, portd};
+    vioavr::core::PinMux pm_port_d { 10 }; GpioPort port_d { "PORTD", pind, ddrd, portd, pm_port_d };
     Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
     
     bus.attach_peripheral(port_d);

@@ -27,7 +27,7 @@ TEST_CASE("Analog-Digital Frontend Integration Test")
 
     PinMux pin_mux {8};
     MemoryBus bus {atmega328};
-    GpioPort port_b {"PORTB", pinb, ddrb, portb};
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
     port_b.bind_input_signal(2U, signals, 0U); // PB2 bound to signal 0 (0.20V)
     
     ExtInterrupt exti {"EXTINT", atmega328.ext_interrupts[0], pin_mux, 4U};

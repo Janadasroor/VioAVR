@@ -36,7 +36,8 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             desc.name, 
             desc.pin_address, 
             desc.ddr_address, 
-            desc.port_address
+            desc.port_address,
+            pin_mux_
         );
         port_by_pin_addr[desc.pin_address] = port.get();
         port_list.push_back(port.get());

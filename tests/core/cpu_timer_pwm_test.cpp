@@ -5,6 +5,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
 using namespace vioavr::core;
@@ -58,7 +59,7 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
     MemoryBus bus {devices::atmega328};
     Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
     bus.attach_peripheral(timer0);
-    GpioPort portb {"PORTB", 0x23, 0x24, 0x25};
+    vioavr::core::PinMux pm_portb { 10 }; GpioPort portb { "PORTB", 0x23, 0x24, 0x25, pm_portb };
     bus.attach_peripheral(portb);
     timer0.connect_compare_output_a(portb, 6); 
     AvrCpu cpu {bus};

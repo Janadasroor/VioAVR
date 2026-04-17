@@ -2,6 +2,7 @@
 #include "doctest.h"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
 
@@ -15,7 +16,7 @@ TEST_CASE("GPIO Threshold and Hysteresis Test")
     constexpr auto portb_addr = static_cast<u16>(0x25U);
 
     MemoryBus bus {atmega328};
-    GpioPort port_b {"PORTB", pinb_addr, ddrb_addr, portb_addr};
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb_addr, ddrb_addr, portb_addr, pm_port_b };
     bus.attach_peripheral(port_b);
     bus.reset();
 

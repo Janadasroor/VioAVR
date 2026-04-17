@@ -62,6 +62,8 @@ private:
         size_t read_idx {0};
         size_t write_idx {0};
         u16 byte_count {0};
+        bool data_toggle {false}; // DATA0/DATA1 toggle
+        bool bank_busy {false};   // Bank is owned by SIE for transmission
     };
 
     std::string_view name_;
