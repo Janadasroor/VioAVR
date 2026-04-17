@@ -132,8 +132,9 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
 
     for (u64 i = 0; i < elapsed_cycles; ++i) {
         if (fault_active_) {
-            u8 prfm = (pfrc0a_ >> 6) & 0x03;
-            if (prfm == 0x00) break; 
+            u8 prfm = (pfrc0a_ & 0x0F);
+            // PRFM 7 is Halt. If halted, we don't tick the counter.
+            if (prfm == 0x07) break; 
         }
 
         if (down_counting_) {
@@ -143,8 +144,11 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                 pifr_ |= desc_.ec_flag_mask;
                 notify_adc();
                 
-                u8 prfm = (pfrc0a_ >> 6) & 0x03;
-                if (prfm == 0x01) fault_active_ = false; 
+                // Clear cycle-by-cycle fault at end of period?
+                // PRFM 4: Deactivate outputs without changing timing. 
+                // This usually clears at next RELOAD.
+                u8 prfm = (pfrc0a_ & 0x0F);
+                if (prfm == 0x04) fault_active_ = false;
             }
         } else {
             counter_++;
@@ -157,8 +161,8 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                     pifr_ |= desc_.ec_flag_mask;
                     notify_adc();
                     
-                    u8 prfm = (pfrc0a_ >> 6) & 0x03;
-                    if (prfm == 0x01) fault_active_ = false;
+                    u8 prfm = (pfrc0a_ & 0x0F);
+                    if (prfm == 0x04) fault_active_ = false;
                 }
             }
         }
@@ -180,21 +184,31 @@ void Psc::notify_fault(bool level) noexcept {
 }
 
 void Psc::handle_fault(bool level) noexcept {
-    u8 pflt = (pfrc0a_ >> 4) & 0x03;
+    // PELEV0A is bit 5
+    bool pelev = (pfrc0a_ & 0x20);
     bool triggered = false;
     
-    if (pflt == 0x01 && last_fault_level_ && !level) triggered = true; 
-    else if (pflt == 0x02 && !last_fault_level_ && level) triggered = true; 
-    else if (pflt == 0x03 && !level) triggered = true; 
+    // If PELEV is 0, fault is active when level is HIGH (Pos > Neg in AC)
+    // If PELEV is 1, fault is active when level is LOW
+    if (!pelev && level) triggered = true;
+    else if (pelev && !level) triggered = true;
 
     if (triggered && !fault_active_) {
         pifr_ |= desc_.capt_flag_mask; 
         fault_active_ = true;
         
-        u8 prfm = (pfrc0a_ >> 6) & 0x03;
-        if (prfm == 0x01 || prfm == 0x02) {
+        // PRFM logic (bits 3:0)
+        u8 prfm = (pfrc0a_ & 0x0F);
+        if (prfm == 1 || prfm == 2 || prfm == 5 || prfm == 6) {
+             // Retrigger or Stop & Reset modes
              counter_ = 0;
              down_counting_ = false;
+        }
+    } else if (!triggered && fault_active_) {
+        // Clear fault if in purely level-sensitive mode without "latched" behavior
+        u8 prfm = (pfrc0a_ & 0x0F);
+        if (prfm == 0x03) { // Stop signal, Execute Opposite while Fault active
+             fault_active_ = false;
         }
     }
     
@@ -212,8 +226,10 @@ void Psc::update_outputs() noexcept {
     bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
 
     if (fault_active_) {
-        output_a_ = (psoc_ & 0x01) && (psoc_ & 0x02);
-        output_b_ = (psoc_ & 0x04) && (psoc_ & 0x08);
+        // Simple Deactivation for now (Low level)
+        // In real PWM hardware this is more complex (POM etc)
+        output_a_ = false;
+        output_b_ = false;
     } else {
         bool en_a = (psoc_ & 0x01);
         bool inv_a = (psoc_ & 0x02);

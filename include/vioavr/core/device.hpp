@@ -42,6 +42,9 @@ enum class AdcAutoTriggerSource : u8 {
     psc0_sync,
     psc1_sync,
     psc2_sync,
+    analog_comparator_1,
+    analog_comparator_2,
+    analog_comparator_3,
     unsupported = 0xFFU
 };
 
