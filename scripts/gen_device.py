@@ -138,6 +138,7 @@ def generate_header(data, output_dir):
     regs = cpu.get('registers', {})
     r_cpu = lambda n: get_reg(cpu, n)
     b_cpu = lambda n, b_re: get_bit(r_cpu(n), b_re)
+    gen_pllcsr = lambda: hx((get_reg(data['peripherals'].get('PLL', {}), 'PLLCSR') or r_cpu('PLLCSR') or {'offset': 0})['offset'])
     
     # 5. Header Content Generation
     def gen_uart(p_name, p_data):
@@ -233,7 +234,7 @@ def generate_header(data, output_dir):
             .ocra_pin_address = {pa_a}, .ocra_pin_bit = {pa_b}U, .ocra_neg_pin_address = {pan_a}, .ocra_neg_pin_bit = {pan_b}U,
             .ocrb_pin_address = {pb_a}, .ocrb_pin_bit = {pb_b}U, .ocrb_neg_pin_address = {pbn_a}, .ocrb_neg_pin_bit = {pbn_b}U,
             .ocrd_pin_address = {pd_a}, .ocrd_pin_bit = {pd_b}U, .ocrd_neg_pin_address = {pdn_a}, .ocrd_neg_pin_bit = {pdn_b}U,
-            .tccra_address = {hx(r('TCCR.*A')['offset'])}, .tccrb_address = {hx(r('TCCR.*B')['offset'])}, .tccrc_address = {hx(r('TCCR.*C')['offset'])}, .tccrd_address = {hx(r('TCCR.*D')['offset'])}, .tccre_address = {hx(r('TCCR.*E')['offset'])}, .dt4_address = {hx(r('DT4')['offset'])}, .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))}, .timsk_address = {hx(r('TIMSK.*')['offset'])}, .tifr_address = {hx(r('TIFR.*')['offset'])},
+            .tccra_address = {hx(r('TCCR.*A')['offset'])}, .tccrb_address = {hx(r('TCCR.*B')['offset'])}, .tccrc_address = {hx(r('TCCR.*C')['offset'])}, .tccrd_address = {hx(r('TCCR.*D')['offset'])}, .tccre_address = {hx(r('TCCR.*E')['offset'])}, .dt4_address = {hx(r('DT4')['offset'])}, .pllcsr_address = {gen_pllcsr()}, .timsk_address = {hx(r('TIMSK.*')['offset'])}, .tifr_address = {hx(r('TIFR.*')['offset'])},
             .tccra_reset = {hx(r('TCCR.*A')['initval'])}, .tccrb_reset = {hx(r('TCCR.*B')['initval'])}, .tccrc_reset = {hx(r('TCCR.*C')['initval'])}, .tccrd_reset = {hx(r('TCCR.*D')['initval'])}, .tccre_reset = {hx(r('TCCR.*E')['initval'])},
             .compare_a_vector_index = {next((i['index'] for i in data.get('interrupts', []) if (f'OC{idx}A' in (i.get('name') or '').upper()) or (f'TIMER{idx}_COMPA' in (i.get('name') or '').upper())), 0)}U,
             .compare_b_vector_index = {next((i['index'] for i in data.get('interrupts', []) if (f'OC{idx}B' in (i.get('name') or '').upper()) or (f'TIMER{idx}_COMPB' in (i.get('name') or '').upper())), 0)}U,
@@ -349,7 +350,7 @@ def generate_header(data, output_dir):
             .uecfg0x_address = {hx(r('UECFG0X')['offset'])}, .uecfg1x_address = {hx(r('UECFG1X')['offset'])}, .uesta0x_address = {hx(r('UESTA0X')['offset'])}, .uesta1x_address = {hx(r('UESTA1X')['offset'])},
             .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB_GEN' in (i.get('name') or '').upper()), 10)}U,
             .com_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB_COM' in (i.get('name') or '').upper()), 11)}U,
-            .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))},
+            .pllcsr_address = {gen_pllcsr()},
             .usbcon_usbe_mask = {hx(b('USBCON', 'USBE'))}, .usbcon_frzclk_mask = {hx(b('USBCON', 'FRZCLK'))},
             .udint_sofi_mask = {hx(b('UDINT', 'SOFI'))},
             .pr_address = {get_pr_info(data, 'PRUSB')[0]}, .pr_bit = {get_pr_info(data, 'PRUSB')[1]}
@@ -534,7 +535,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .smcr_address = {hx(r_cpu('SMCR')['offset']) if r_cpu('SMCR') else '0x0U'},
     .mcusr_address = {hx(r_cpu('MCUSR')['offset']) if r_cpu('MCUSR') else '0x0U'},
     .mcucr_address = {hx(r_cpu('MCUCR')['offset']) if r_cpu('MCUCR') else '0x0U'},
-    .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))},
+    .pllcsr_address = {gen_pllcsr()},
     .xmcra_address = {hx(r_cpu('XMCRA')['offset']) if r_cpu('XMCRA') else '0x0U'},
     .xmcrb_address = {hx(r_cpu('XMCRB')['offset']) if r_cpu('XMCRB') else '0x0U'},
     .xmem = {xmem_str if r_cpu('XMCRA') else '{0}'},

@@ -13,13 +13,12 @@ TEST_CASE("PSC Fidelity - Basic PWM Cycle") {
     Psc psc {"PSC0", desc};
     psc.reset();
     
-    // Set OCR0RA = 500 for period
-    // Write 500 (0x1F4)
-    psc.write(desc.ocrra_address, 0xF4);
-    psc.write(desc.ocrra_address + 1, 0x01);
+    // Period = 500 (OCR0RB)
+    psc.write(desc.ocrrb_address, 0xF4);
+    psc.write(desc.ocrrb_address + 1, 0x01);
     
-    CHECK(psc.read(desc.ocrra_address) == 0xF4);
-    CHECK(psc.read(desc.ocrra_address + 1) == 0x01);
+    CHECK(psc.read(desc.ocrrb_address) == 0xF4);
+    CHECK(psc.read(desc.ocrrb_address + 1) == 0x01);
 
     // Enable PSC (PRUN = 1)
     psc.write(desc.pctl_address, 0x80);
@@ -30,7 +29,7 @@ TEST_CASE("PSC Fidelity - Basic PWM Cycle") {
     
     // Tick 1 more
     psc.tick(1);
-    CHECK((psc.read(desc.pifr_address) & 0x01) != 0); // PEV flag set at 500
+    CHECK((psc.read(desc.pifr_address) & 0x01) != 0); // PEV flag set at wrap
 }
 
 TEST_CASE("PSC Fidelity - 12-bit Register Access (TEMP Buffer)") {
@@ -55,9 +54,9 @@ TEST_CASE("PSC Fidelity - Interrupt Logic") {
     Psc psc {"PSC0", desc};
     psc.reset();
     
-    // Configure Period
-    psc.write(desc.ocrra_address, 10);
-    psc.write(desc.ocrra_address + 1, 0);
+    // Configure Period (OCR0RB)
+    psc.write(desc.ocrrb_address, 10);
+    psc.write(desc.ocrrb_address + 1, 0);
     
     // Enable PSC
     psc.write(desc.pctl_address, 0x80);
@@ -75,4 +74,25 @@ TEST_CASE("PSC Fidelity - Interrupt Logic") {
     // Clear flag by writing 1 to PIFR bit 0
     psc.write(desc.pifr_address, 0x01);
     CHECK(psc.pending_interrupt_request(req) == false);
+}
+
+TEST_CASE("PSC Fidelity - Center Aligned Mode") {
+    const auto& desc = at90pwm1.pscs[0];
+    Psc psc {"PSC0", desc};
+    psc.reset();
+    
+    // Period = 10 (OCR0RB)
+    psc.write(desc.ocrrb_address, 10);
+    psc.write(desc.ocrrb_address + 1, 0);
+    
+    // Enable PSC (PRUN=1) and Center-Aligned (PMODE=1) -> 0x90
+    psc.write(desc.pctl_address, 0x90);
+    
+    // Up count to Top (10)
+    psc.tick(10);
+    CHECK((psc.read(desc.pifr_address) & 0x01) == 0); 
+    
+    // Down count to Bottom (0)
+    psc.tick(10);
+    CHECK((psc.read(desc.pifr_address) & 0x01) != 0); // PEV event triggered at bottom
 }

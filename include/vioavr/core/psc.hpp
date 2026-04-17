@@ -53,6 +53,9 @@ private:
 
     class Adc* adc_trigger_ {nullptr};
 
+    bool down_counting_ {false};
+
+    void notify_adc() noexcept;
     void evaluate_interrupts() noexcept;
 };
 
