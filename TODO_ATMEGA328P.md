@@ -28,18 +28,19 @@ Until this file is mostly complete, `ATmega328P` is the priority device. New MCU
   Files: `include/vioavr/core/devices/atmega328p.hpp`, `scripts/gen_device.py`, `atmega/atdf/ATmega328P.atdf`
 - [x] Confirm flash, SRAM, EEPROM, and vector count/ordering
   Status: `atdf/header-verified`
-- [ ] Confirm IO ranges, `SPL`, `SPH`, and `SREG` addresses explicitly in generated/runtime use
-  Status: `needs-datasheet`
-- [ ] Extend generation to capture reset values for key registers where practical
-  Status: `needs-datasheet`
-- [ ] Extend generation to capture more chip metadata needed by runtime models
+- [x] Confirm IO ranges, `SPL`, `SPH`, and `SREG` addresses explicitly in generated/runtime use
   Status: `atdf/header-verified`
-  Examples: pin roles, timer output pins, capture pin, reset pin, sleep capabilities, boot/reset metadata
-- [ ] Remove hard-coded `ATmega328P` peripheral addresses from CLI setup and rely on descriptor-backed construction
+- [x] Extend generation to capture reset values for key registers where practical
+  Status: `atdf/header-verified`
+- [x] Extend generation to capture more chip metadata needed by runtime models
+  Status: `atdf/header-verified`
+  Examples: pin roles, timer output pins, capture pin, reset pin, sleep capabilities, boot/reset metadata, RWW boundaries, signature/fuses/lockbits
+- [x] Remove hard-coded `ATmega328P` peripheral addresses from CLI setup and rely on descriptor-backed construction
   Status: `repo-verified`
   Files: `apps/vioavr-cli/main.cpp`
-- [ ] Build one canonical `ATmega328P` machine factory used by tests, CLI, and embedding APIs
-  Status: `implementation-target`
+- [x] Build one canonical `ATmega328P` machine factory used by tests, CLI, and embedding APIs
+  Status: `repo-verified`
+  Files: `src/core/machine.cpp`, `include/vioavr/core/machine.hpp`
   Candidate files: `src/core/`, `include/vioavr/core/`
 
 ## Phase 1: Reset, Boot, Sleep, And Interrupt Correctness

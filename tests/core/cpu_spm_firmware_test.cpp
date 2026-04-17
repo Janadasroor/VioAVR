@@ -18,6 +18,10 @@ constexpr u16 encode_sts(u8 source) {
     return static_cast<u16>(0x9200U | (static_cast<u16>(source & 0x1FU) << 4U));
 }
 
+constexpr u16 encode_lds(const u8 destination) {
+    return static_cast<u16>(0x9000U | (static_cast<u16>(destination) << 4U));
+}
+
 constexpr u16 kSpm = 0x95E8U;
 constexpr u16 kLpmZ = 0x9004U;
 
@@ -89,7 +93,8 @@ TEST_CASE("CPU SPM (Store Program Memory) Firmware Lifecycle Test")
     flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
     flash[pc++] = kSpm;
     // Wait for SPM done
-    flash[pc++] = encode_lds(16, spmcsr_addr); flash[pc++] = 0xFD00; flash[pc++] = 0xCFFD;
+    flash[pc++] = static_cast<u16>(0xB000U | (((spmcsr_addr - 0x20U) & 0x30U) << 5U) | (16U << 4U) | ((spmcsr_addr - 0x20U) & 0x0FU)); // IN R16, SPMCSR
+    flash[pc++] = 0xFD00; flash[pc++] = 0xCFFD;
 
     // Must clear RWWSB before next operation on RWW section
     flash[pc++] = encode_ldi(16, 0x11); // SELFPRGEN | RWWSRE
@@ -100,6 +105,10 @@ TEST_CASE("CPU SPM (Store Program Memory) Firmware Lifecycle Test")
     flash[pc++] = encode_ldi(16, 0x05); // SELFPRGEN | PGWRT
     flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
     flash[pc++] = kSpm;
+
+    // Wait for SPM done
+    flash[pc++] = static_cast<u16>(0xB000U | (((spmcsr_addr - 0x20U) & 0x30U) << 5U) | (16U << 4U) | ((spmcsr_addr - 0x20U) & 0x0FU)); // IN R16, SPMCSR
+    flash[pc++] = 0xFD00; flash[pc++] = 0xCFFD;
     
     // Final RWWSRE to allow reading back from RWW section
     flash[pc++] = encode_ldi(16, 0x11); // SELFPRGEN | RWWSRE
@@ -112,7 +121,7 @@ TEST_CASE("CPU SPM (Store Program Memory) Firmware Lifecycle Test")
     flash[pc++] = encode_ldi(16, 0x02); flash[pc++] = encode_mov(30, 16);
     flash[pc++] = 0x9034; // LPM r3, Z
     
-    flash[pc++] = 0x0000U; // NOP
+    flash[pc++] = 0x9598U; // BREAK
     
     bus.load_image(HexImage {
         .flash_words = flash,
@@ -124,7 +133,7 @@ TEST_CASE("CPU SPM (Store Program Memory) Firmware Lifecycle Test")
     // Clear and fill word 0, word 1, erase, write, verify.
     // Total instructions ~40. But Erase and Write take 64k cycles each!
     // Plus JMP. 150,000 cycles is needed.
-    cpu.run(150000);
+    cpu.run(500000);
 
     CHECK(cpu.registers()[2] == 0x22U);
     CHECK(cpu.registers()[3] == 0x44U);
