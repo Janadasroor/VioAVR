@@ -80,14 +80,22 @@ struct AdcDescriptor {
 
 struct AnalogComparatorDescriptor {
     u16 acsr_address {};
-    u16 didr1_address {};
+    u16 accon_address {}; // E.g. AC0CON, AC1CON
+    u16 didr_address {};  // E.g. DIDR1
     u8 vector_index {};
-    u16 ain0_pin_address {};
-    u8 ain0_pin_bit {};
-    u16 ain1_pin_address {};
-    u8 ain1_pin_bit {};
-    u8 aci_mask {0x10U};
-    u8 acie_mask {0x08U};
+    u16 aip_pin_address {};
+    u8 aip_pin_bit {};
+    u16 aim_pin_address {};
+    u8 aim_pin_bit {};
+    
+    // Status/Control masks (can be in ACSR or ACCON)
+    u8 acd_mask {0x80U};  // Disable bit
+    u8 acbg_mask {0x40U}; // Bandgap select
+    u8 aco_mask {0x20U};  // Output bit
+    u8 acif_mask {0x10U}; // Flag bit
+    u8 acie_mask {0x08U}; // Enable interrupt bit
+    u8 acic_mask {0x04U}; // Input capture bit
+    u8 acis_mask {0x03U}; // Mode select bits
 };
 
 struct Timer8Descriptor {
@@ -336,6 +344,12 @@ struct PscDescriptor {
     u8 gen_vector_index {};
     u8 ec_vector_index {};
     u8 capt_vector_index {};
+
+    u8 prun_mask {0x01U};
+    u8 mode_mask {0x18U};
+    u8 clksel_mask {0x02U};
+    u8 ec_flag_mask {0x01U};
+    u8 capt_flag_mask {0x08U};
     
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};

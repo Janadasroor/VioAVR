@@ -20,10 +20,10 @@ TEST_CASE("PSC Fidelity - Basic PWM Cycle") {
     psc.write(desc.ocrrb_address + 1, 0x01);
     
     // Enable PSC (PRUN = 1)
-    psc.write(desc.pctl_address, 0x80);
+    psc.write(desc.pctl_address, desc.prun_mask);
     
     psc.tick(500);
-    CHECK((psc.read(desc.pifr_address) & 0x01) != 0); 
+    CHECK((psc.read(desc.pifr_address) & desc.ec_flag_mask) != 0); 
 }
 
 TEST_CASE("PSC Fidelity - 12-bit Register Access (TEMP Buffer)") {
@@ -46,8 +46,8 @@ TEST_CASE("PSC Fidelity - Interrupt Logic") {
     
     psc.write(desc.ocrrb_address, 10);
     psc.write(desc.ocrrb_address + 1, 0);
-    psc.write(desc.pctl_address, 0x80);
-    psc.write(desc.pim_address, 0x01);
+    psc.write(desc.pctl_address, desc.prun_mask);
+    psc.write(desc.pim_address, desc.ec_flag_mask);
     
     psc.tick(10);
     InterruptRequest req;
@@ -62,12 +62,14 @@ TEST_CASE("PSC Fidelity - Center Aligned Mode") {
     
     psc.write(desc.ocrrb_address, 10);
     psc.write(desc.ocrrb_address + 1, 0);
-    psc.write(desc.pctl_address, 0x90); // PMODE=1
+    // Mode = 3 for Center Aligned in AT90PWM1 (bits [4:3] = 0x18)
+    psc.write(desc.pconf_address, 0x18); 
+    psc.write(desc.pctl_address, desc.prun_mask); 
     
     psc.tick(10);
-    CHECK((psc.read(desc.pifr_address) & 0x01) == 0); 
+    CHECK((psc.read(desc.pifr_address) & desc.ec_flag_mask) == 0); 
     psc.tick(10);
-    CHECK((psc.read(desc.pifr_address) & 0x01) != 0);
+    CHECK((psc.read(desc.pifr_address) & desc.ec_flag_mask) != 0);
 }
 
 TEST_CASE("PSC Fidelity - Analog Comparator Fault Protection") {
@@ -78,7 +80,7 @@ TEST_CASE("PSC Fidelity - Analog Comparator Fault Protection") {
     psc.reset();
     psc.write(psc_desc.ocrrb_address, 100);
     psc.write(psc_desc.ocrrb_address + 1, 0);
-    psc.write(psc_desc.pctl_address, 0x80); 
+    psc.write(psc_desc.pctl_address, psc_desc.prun_mask); 
     
     psc.write(psc_desc.psoc_address, 0x0C); 
     psc.write(psc_desc.pfrc0a_address, 0x30); 
@@ -95,7 +97,7 @@ TEST_CASE("PSC Fidelity - Analog Comparator Fault Protection") {
     ac.set_positive_input_voltage(0.3);
     ac.tick(1);
     
-    CHECK((psc.read(psc_desc.pifr_address) & 0x08) != 0); 
+    CHECK((psc.read(psc_desc.pifr_address) & psc_desc.capt_flag_mask) != 0); 
     CHECK(psc.read_output_b() == true);
 }
 
@@ -109,7 +111,7 @@ TEST_CASE("PSC Fidelity - Output Polarity") {
     psc.write(desc.ocrra_address + 1, 0);
     psc.write(desc.ocrrb_address, 10);
     psc.write(desc.ocrrb_address + 1, 0);
-    psc.write(desc.pctl_address, 0x80); 
+    psc.write(desc.pctl_address, desc.prun_mask); 
     
     CHECK(psc.read_output_a() == true);
     CHECK(psc.read_output_b() == false);

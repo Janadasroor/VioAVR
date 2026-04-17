@@ -61,14 +61,20 @@ def get_pad_info(port_map, periph, sig_name, reg_type='PORT'):
     return "0x0U", 0
  
 def get_pr_info(data, bit_regex):
-    p = re.compile(bit_regex, re.IGNORECASE)
+    p = re.compile(f"^(?:{bit_regex})$", re.IGNORECASE)
     cpu = data['peripherals'].get('CPU', data['peripherals'].get('CPU_REGISTERS', {}))
     for r_name in ['PRR', 'PRR0', 'PRR1', 'PRR2']:
         reg = get_reg(cpu, r_name)
         if reg:
             for b_name, b_data in reg.get('bitfields', {}).items():
                 if p.fullmatch(b_name) or p.search(b_name):
-                    return reg['offset'], b_data['mask']
+                    # Convert mask to bit index
+                    mask = b_data['mask']
+                    bit_idx = 0
+                    while mask > 1:
+                        mask >>= 1
+                        bit_idx += 1
+                    return reg['offset'], bit_idx
     return 0, 0xFF
 
 def generate_header(data, output_dir):
@@ -272,12 +278,12 @@ def generate_header(data, output_dir):
             for mux, (p, n, g) in diffs.items():
                 entries[mux] = f"{{ {p}, {n}, {g}f, true }}"
         
-        # ATmega2560 Specifics
-        elif "2560" in mcu_name or "1280" in mcu_name:
-            for i in range(8): entries[0x20+i] = f"{{ {8+i}, 0, 1.0f, false }}"
-            entries[0x1E] = "{ 16, 0, 1.0f, false }" # Vbg (Internal index 16 for mega)
-            entries[0x1F] = "{ 17, 0, 1.0f, false }" # GND
-            # mega2560 has unique diff pairs, skipped for brevity but would go here
+        # AT90PWM Specifics (Simplified)
+        elif "PWM" in mcu_name:
+            # Mostly single-ended 0-10
+            for i in range(11): entries[i] = f"{{ {i}, 0, 1.0f, false }}"
+            entries[0x0E] = "{ 11, 0, 1.0f, false }" # Vbg
+            entries[0x0F] = "{ 12, 0, 1.0f, false }" # GND
             
         return f"{{{{ {', '.join(entries)} }}}}"
 
@@ -288,6 +294,16 @@ def generate_header(data, output_dir):
         pins_addr, pins_bit = [], []
         for i in range(16):
             a, b_bit = get_pad_info(port_map, p_data, f'ADC{i}', 'PIN')
+            # Fallback for AT90PWM where signals are missing
+            if a == "0x0U" and "PWM" in data['name'].upper():
+                if i < 8: # ADC0-7 -> PORTB0-7
+                    port_info = port_map.get('B', {})
+                    a = hx(port_info.get('PIN', 0))
+                    b_bit = i
+                elif i < 11: # ADC8-10 -> PORTD0-2
+                    port_info = port_map.get('D', {})
+                    a = hx(port_info.get('PIN', 0))
+                    b_bit = i - 8
             pins_addr.append(a)
             pins_bit.append(str(b_bit) + "U")
         
@@ -296,33 +312,56 @@ def generate_header(data, output_dir):
         adts_bf = adts_reg.get('bitfields', {}).get('ADTS', {})
         vals = adts_bf.get('values', {})
         mapping = ["AdcAutoTriggerSource::none"] * 16
-        for trigger_name, info in vals.items():
-            v = info['value']
-            if v >= 16: continue
-            n = trigger_name.upper()
-            if "FREE" in n: mapping[v] = "AdcAutoTriggerSource::free_running"
-            elif "COMPARATOR" in n: mapping[v] = "AdcAutoTriggerSource::analog_comparator"
-            elif "EXT_INT0" in n or ("EXTERNAL" in n and "0" in n): mapping[v] = "AdcAutoTriggerSource::external_interrupt_0"
-            elif any(x in n for x in ["T0", "TIMER_COUNTER0", "TIMER0"]):
-                if "A" in n.split('_')[-2:] or "COMPA" in n: mapping[v] = "AdcAutoTriggerSource::timer0_compare_a"
-                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer0_overflow"
-            elif any(x in n for x in ["T1", "TIMER_COUNTER1", "TIMER1"]):
-                if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer1_compare_b"
-                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer1_overflow"
-                elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer1_capture"
-            elif any(x in n for x in ["T3", "TIMER_COUNTER3", "TIMER3"]):
-                if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer3_compare_b"
-                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer3_overflow"
-                elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer3_capture"
-            elif any(x in n for x in ["T4", "TIMER_COUNTER4", "TIMER4"]):
-                if "A" in n.split('_')[-2:] or "COMPARE_A" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_a"
-                elif "B" in n.split('_')[-2:] or "COMPARE_B" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_b"
-                elif "D" in n.split('_')[-2:] or "COMPARE_D" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_d"
-                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer4_overflow"
-            elif any(x in n for x in ["T5", "TIMER_COUNTER5", "TIMER5"]):
-                if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer5_compare_b"
-                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer5_overflow"
-                elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer5_capture"
+        
+        # Fallback for AT90PWM1/2/3 where ADTS is missing or split
+        if not vals and "PWM" in data['name'].upper():
+            mapping[0] = "AdcAutoTriggerSource::free_running"
+            mapping[1] = "AdcAutoTriggerSource::analog_comparator"
+            mapping[2] = "AdcAutoTriggerSource::external_interrupt_0"
+            mapping[3] = "AdcAutoTriggerSource::timer0_compare_a"
+            mapping[4] = "AdcAutoTriggerSource::timer0_overflow"
+            mapping[5] = "AdcAutoTriggerSource::timer1_compare_b"
+            mapping[6] = "AdcAutoTriggerSource::timer1_overflow"
+            mapping[7] = "AdcAutoTriggerSource::timer1_capture"
+            mapping[8] = "AdcAutoTriggerSource::psc0_sync"
+            mapping[9] = "AdcAutoTriggerSource::psc1_sync"
+            mapping[10] = "AdcAutoTriggerSource::psc2_sync"
+            mapping[11] = "AdcAutoTriggerSource::analog_comparator_1"
+            mapping[12] = "AdcAutoTriggerSource::analog_comparator_2"
+        else:
+            for trigger_name, info in vals.items():
+                v = info['value']
+                if v >= 16: continue
+                n = trigger_name.upper()
+                if "FREE" in n: mapping[v] = "AdcAutoTriggerSource::free_running"
+                elif "COMPARATOR" in n: mapping[v] = "AdcAutoTriggerSource::analog_comparator"
+                elif "EXT_INT0" in n or ("EXTERNAL" in n and "0" in n): mapping[v] = "AdcAutoTriggerSource::external_interrupt_0"
+                elif any(x in n for x in ["T0", "TIMER_COUNTER0", "TIMER0"]):
+                    if "A" in n.split('_')[-2:] or "COMPA" in n: mapping[v] = "AdcAutoTriggerSource::timer0_compare_a"
+                    elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer0_overflow"
+                elif any(x in n for x in ["T1", "TIMER_COUNTER1", "TIMER1"]):
+                    if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer1_compare_b"
+                    elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer1_overflow"
+                    elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer1_capture"
+                elif any(x in n for x in ["T3", "TIMER_COUNTER3", "TIMER3"]):
+                    if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer3_compare_b"
+                    elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer3_overflow"
+                    elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer3_capture"
+                elif "PSC0" in n: mapping[v] = "AdcAutoTriggerSource::psc0_sync"
+                elif "PSC1" in n: mapping[v] = "AdcAutoTriggerSource::psc1_sync"
+                elif "PSC2" in n: mapping[v] = "AdcAutoTriggerSource::psc2_sync"
+                elif "AC1" in n: mapping[v] = "AdcAutoTriggerSource::analog_comparator_1"
+                elif "AC2" in n: mapping[v] = "AdcAutoTriggerSource::analog_comparator_2"
+                elif "AC3" in n: mapping[v] = "AdcAutoTriggerSource::analog_comparator_3"
+                elif any(x in n for x in ["T4", "TIMER_COUNTER4", "TIMER4"]):
+                    if "A" in n.split('_')[-2:] or "COMPARE_A" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_a"
+                    elif "B" in n.split('_')[-2:] or "COMPARE_B" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_b"
+                    elif "D" in n.split('_')[-2:] or "COMPARE_D" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_d"
+                    elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer4_overflow"
+                elif any(x in n for x in ["T5", "TIMER_COUNTER5", "TIMER5"]):
+                    if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer5_compare_b"
+                    elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer5_overflow"
+                    elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer5_capture"
 
         return f"""{{
             .adcl_address = {get_reg_addr(p_data, 'ADCL|ADC')}, .adch_address = {get_reg_addr(p_data, 'ADCH|ADC', True)}, .adcsra_address = {hx(r('ADCSRA')['offset'])}, .adcsrb_address = {hx(r('ADCSRB')['offset'])}, .admux_address = {hx(r('ADMUX')['offset'])},
@@ -367,7 +406,9 @@ def generate_header(data, output_dir):
             .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
             .ec_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
             .capt_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_CAPT' in (i.get('name') or '').upper()), 11)}U,
-            .pr_address = {get_pr_info(data, f'PRPSC{idx}|PRPSC')[0]}, .pr_bit = {get_pr_info(data, f'PRPSC{idx}|PRPSC')[1]}
+            .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'PCLKSEL'))},
+            .ec_flag_mask = {hx(get_bit(r('PIFR.*'), '^PEOP.*') or get_bit(r('PIFR.*'), 'PEV.*'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), '^PCAP.*') or get_bit(r('PIFR.*'), 'PEV.*A'))},
+            .pr_address = {get_pr_info(data, f'PRPSC{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRPSC{idx}')[1]}
         }}"""
 
     def gen_dac(p_name, p_data):
@@ -380,13 +421,56 @@ def generate_header(data, output_dir):
     def gen_ac(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         b = lambda n, b_re: get_bit(r(n), b_re)
-        a0_a, a0_b = get_pad_info(port_map, p_data, 'AIN0', 'PIN')
-        a1_a, a1_b = get_pad_info(port_map, p_data, 'AIN1', 'PIN')
-        return f"""{{
-            .acsr_address = {hx(r('ACSR')['offset'])}, .didr1_address = {hx(r('DIDR1')['offset'])}, .vector_index = {next((i['index'] for i in data['interrupts'] if (i.get('name') or '') and 'ANALOG_COMP' in i['name']), 0)}U,
-            .ain0_pin_address = {a0_a}, .ain0_pin_bit = {a0_b}U, .ain1_pin_address = {a1_a}, .ain1_pin_bit = {a1_b}U,
-            .aci_mask = {hx(b('ACSR', 'ACI'))}, .acie_mask = {hx(b('ACSR', 'ACIE'))}
-        }}"""
+        
+        # Check for multiple comparators (AT90PWM style)
+        sub_comps = []
+        for i in range(4):
+            reg_name = f'AC{i}CON'
+            if r(reg_name).get('offset'):
+                sub_comps.append(i)
+        
+        if not sub_comps:
+            # Standard single AC (e.g. 328P)
+            aip_a, aip_b = get_pad_info(port_map, p_data, 'AIN0', 'PIN')
+            aim_a, aim_b = get_pad_info(port_map, p_data, 'AIN1', 'PIN')
+            return f"""{{
+                .acsr_address = {hx(r('ACSR')['offset'])}, .accon_address = 0, .didr_address = {hx(r('DIDR1')['offset'])},
+                .vector_index = {next((i['index'] for i in data['interrupts'] if 'ANALOG_COMP' in (i.get('name') or '').upper()), 0)}U,
+                .aip_pin_address = {aip_a}, .aip_pin_bit = {aip_b}U, .aim_pin_address = {aim_a}, .aim_pin_bit = {aim_b}U,
+                .acd_mask = {hx(b('ACSR', 'ACD'))}, .acbg_mask = {hx(b('ACSR', 'ACBG'))}, .aco_mask = {hx(b('ACSR', 'ACO'))},
+                .acif_mask = {hx(b('ACSR', 'ACI'))}, .acie_mask = {hx(b('ACSR', 'ACIE'))}, .acic_mask = {hx(b('ACSR', 'ACIC'))}, .acis_mask = {hx(b('ACSR', 'ACIS'))}
+            }}"""
+        else:
+            # Multi AC
+            results = []
+            for i in sub_comps:
+                reg_name = f'AC{i}CON'
+                # PWM specific pin mapping fallback
+                aip_a, aip_b = "0x0U", 0
+                aim_a, aim_b = "0x0U", 0
+                if "PWM" in data['name'].upper():
+                    # Heuristic for AT90PWM1/2/3
+                    pb = port_map.get('B', {})
+                    pd = port_map.get('D', {})
+                    if i == 0: # AC0: PB2, PB3
+                        aip_a, aip_b = hx(pb.get('PIN', 0)), 2
+                        aim_a, aim_b = hx(pb.get('PIN', 0)), 3
+                    elif i == 1: # AC1: PD2, PD3
+                        aip_a, aip_b = hx(pd.get('PIN', 0)), 2
+                        aim_a, aim_b = hx(pd.get('PIN', 0)), 3
+                    elif i == 2: # AC2: PB? (Not in AT90PWM1, but in 3)
+                        aip_a, aip_b = hx(pb.get('PIN', 0)), 4
+                        aim_a, aim_b = hx(pb.get('PIN', 0)), 5
+                
+                results.append(f"""{{
+                    .acsr_address = {hx(r('ACSR')['offset'])}, .accon_address = {hx(r(reg_name)['offset'])}, .didr_address = {hx(r('DIDR1')['offset'])},
+                    .vector_index = {next((idx['index'] for idx in data['interrupts'] if f'ANALOG_COMP_{i}' in (idx.get('name') or '').upper() or 'ANALOG_COMP' in (idx.get('name') or '').upper()), 0)}U,
+                    .aip_pin_address = {aip_a}, .aip_pin_bit = {aip_b}U, .aim_pin_address = {aim_a}, .aim_pin_bit = {aim_b}U,
+                    .acd_mask = {hx(b(reg_name, f'AC{i}EN'))}, .acbg_mask = 0x0, .aco_mask = {hx(b('ACSR', f'AC{i}O'))},
+                    .acif_mask = {hx(b('ACSR', f'AC{i}IF'))}, .acie_mask = {hx(b(reg_name, f'AC{i}IE'))}, .acic_mask = 0x0, .acis_mask = {hx(b(reg_name, f'AC{i}IS'))}
+                }}""")
+            # HACK: Return multiple descriptors as one string to be splatted by the caller
+            return " , ".join(results)
 
     def gen_spi(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
@@ -486,8 +570,15 @@ def generate_header(data, output_dir):
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
-    adcs_str = ",\n        ".join(gen_adc(n, d) for n, d in groups['ADC'])
-    acs_str = ",\n        ".join(gen_ac(n, d) for n, d in groups['AC'])
+    adcs_descriptors = [gen_adc(n, d) for n, d in groups['ADC']]
+    acs_descriptors = []
+    for n, d in groups['AC']:
+        res = gen_ac(n, d)
+        if " , " in res: acs_descriptors.extend(res.split(" , "))
+        else: acs_descriptors.append(res)
+
+    adcs_str = ",\n        ".join(adcs_descriptors)
+    acs_str = ",\n        ".join(acs_descriptors)
     spis_str = ",\n        ".join(gen_spi(n, d) for n, d in groups['SPI'])
     twis_str = ",\n        ".join(gen_twi(n, d) for n, d in groups['TWI'])
     cans_str = ",\n        ".join(gen_can(n, d) for n, d in groups['CAN'])
@@ -552,9 +643,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .spl_reset = {hx(r_cpu('SPL|SP')['initval'])},
     .sph_reset = {hx(r_cpu('SPH|SP')['initval'] if r_cpu('SPH|SP') and r_cpu('SPH|SP')['size'] > 1 else 0)},
     .sreg_reset = {hx(r_cpu('SREG')['initval'])},
-    .adc_count = {len(groups['ADC'])}U,
+    .adc_count = {len(adcs_descriptors)}U,
     .adcs = {{{{ {adcs_str} }}}},
-    .ac_count = {len(groups['AC'])}U,
+    .ac_count = {len(acs_descriptors)}U,
     .acs = {{{{ {acs_str} }}}},
     .timer8_count = {len(groups['TC8'] + groups['TC8_ASYNC'])}U,
     .timers8 = {{{{ {timers8_str} }}}},

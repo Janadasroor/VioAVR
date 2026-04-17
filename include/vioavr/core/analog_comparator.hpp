@@ -5,10 +5,12 @@
 #include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/device.hpp"
 
+#include <vector>
+
 namespace vioavr::core {
 
 class Adc;
-class Timer16;
+class Dac;
 
 class AnalogComparator final : public IoPeripheral {
 public:
@@ -32,11 +34,13 @@ public:
     void connect_adc_auto_trigger(Adc& adc) noexcept;
     void connect_timer_input_capture(Timer16& timer) noexcept;
     void connect_psc_fault(class Psc& psc) noexcept;
+    void connect_dac(const class Dac& dac) noexcept;
+    void connect_adc(const class Adc& adc) noexcept;
     void set_positive_input_voltage(double normalized_voltage) noexcept;
     void set_negative_input_voltage(double normalized_voltage) noexcept;
 
-    [[nodiscard]] constexpr u8 acsr() const noexcept { return acsr_; }
     [[nodiscard]] constexpr bool output_high() const noexcept { return output_high_; }
+    [[nodiscard]] bool is_disabled() const noexcept;
 
 private:
     void refresh_bound_inputs() noexcept;
@@ -48,21 +52,24 @@ private:
     std::string_view name_;
     AnalogComparatorDescriptor desc_;
     PinMux* pin_mux_ {};
-    AddressRange range_;
+    std::vector<AddressRange> mapped_ranges_;
     u8 source_id_;
     double hysteresis_;
     const AnalogSignalBank* signal_bank_ {};
     u8 positive_channel_ {};
     u8 negative_channel_ {};
     Adc* auto_trigger_adc_ {};
+    const Adc* source_adc_ {};
+    const Dac* dac_ {};
     Timer16* input_capture_timer_ {};
     std::vector<class Psc*> psc_fault_listeners_ {};
     double positive_input_ {};
     double negative_input_ {};
-    u8 acsr_ {};
-    u8 didr1_ {};
-    bool output_high_ {};
-    bool pending_ {};
+    u8 acsr_ {0x00U};
+    u8 accon_ {0x00U};
+    u8 didr_ {0x00U};
+    bool output_high_ {false};
+    bool pending_ {false};
 };
 
 }  // namespace vioavr::core
