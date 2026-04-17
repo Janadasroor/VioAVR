@@ -141,6 +141,7 @@ struct Timer8Descriptor {
 
     // ADC Triggering
     AdcAutoTriggerSource compare_a_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource compare_b_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource overflow_trigger_source {AdcAutoTriggerSource::none};
 };
 
@@ -362,6 +363,10 @@ struct DacDescriptor {
     u16 dacon_address {};
     u16 dacl_address {};
     u16 dach_address {};
+    u8 daen_mask {};
+    u8 daate_mask {};
+    u8 dats_mask {};
+    u8 dacoe_mask {};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
 };
@@ -412,7 +417,9 @@ struct Timer16Descriptor {
     u8 pr_bit {0xFFU};
 
     // ADC Triggering
+    AdcAutoTriggerSource compare_a_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource compare_b_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource compare_c_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource overflow_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource capture_trigger_source {AdcAutoTriggerSource::none};
 };

@@ -48,10 +48,42 @@ void Dac::write(u16 address, u8 value) noexcept {
         dacon_ = value;
         update_voltage();
     } else if (address == desc_.dacl_address) {
-        data_ = (data_ & 0xFF00) | value;
-        update_voltage();
+        buffer_value_ = (buffer_value_ & 0xFF00) | value;
+        if (!(dacon_ & desc_.daate_mask)) {
+            data_ = buffer_value_;
+            update_voltage();
+        }
     } else if (address == desc_.dach_address) {
-        data_ = (data_ & 0x00FF) | (static_cast<u16>(value & 0x03) << 8);
+        buffer_value_ = (buffer_value_ & 0x00FF) | (static_cast<u16>(value & 0x03) << 8);
+        if (!(dacon_ & desc_.daate_mask)) {
+            data_ = buffer_value_;
+            update_voltage();
+        }
+    }
+}
+
+void Dac::notify_auto_trigger(AdcAutoTriggerSource source) noexcept {
+    if (!(dacon_ & desc_.daate_mask)) return;
+    
+    // Simple 1:1 mapping for common sources for now
+    // DATS (bits 6:4) selector.
+    u8 trigger_val = (dacon_ & desc_.dats_mask) >> 4;
+    
+    bool triggered = false;
+    switch (trigger_val) {
+        case 0: triggered = (source == AdcAutoTriggerSource::analog_comparator); break;
+        case 1: triggered = (source == AdcAutoTriggerSource::analog_comparator_1); break;
+        case 2: triggered = (source == AdcAutoTriggerSource::external_interrupt_0); break;
+        case 3: triggered = (source == AdcAutoTriggerSource::timer0_compare_a); break;
+        case 4: triggered = (source == AdcAutoTriggerSource::timer0_overflow); break;
+        case 5: triggered = (source == AdcAutoTriggerSource::timer1_compare_b); break;
+        case 6: triggered = (source == AdcAutoTriggerSource::timer1_overflow); break;
+        case 7: triggered = (source == AdcAutoTriggerSource::timer1_capture); break;
+        default: break;
+    }
+
+    if (triggered) {
+        data_ = buffer_value_;
         update_voltage();
     }
 }
@@ -62,7 +94,7 @@ bool Dac::power_reduction_enabled() const noexcept {
 }
 
 void Dac::update_voltage() noexcept {
-    if (power_reduction_enabled() || !(dacon_ & 0x01)) { // Assuming DAEN is bit 0
+    if (power_reduction_enabled() || !(dacon_ & desc_.daen_mask)) {
         voltage_ = 0.0;
         return;
     }

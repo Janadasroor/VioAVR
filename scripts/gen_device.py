@@ -188,8 +188,9 @@ def generate_header(data, output_dir):
             .overflow_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'TOIE') or b(f'TIMSK{idx}|TIMSK', f'TOIE{idx}') or b('TIMSK', 'TOIE'))},
             .foca_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*A'))}, .focb_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*B'))},
             .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]},
-            .compare_a_trigger_source = {"AdcAutoTriggerSource::timer0_compare_a" if idx == "0" else "AdcAutoTriggerSource::none"},
-            .overflow_trigger_source = {"AdcAutoTriggerSource::timer0_overflow" if idx == "0" else "AdcAutoTriggerSource::none"}
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer{idx}_compare_a,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer{idx}_compare_b,
+            .overflow_trigger_source = AdcAutoTriggerSource::timer{idx}_overflow
         }}"""
     
     def gen_timer16(p_name, p_data):
@@ -220,9 +221,11 @@ def generate_header(data, output_dir):
             .overflow_enable_mask = {hx(b('TIMSK.*', 'TOIE'))},
             .foca_mask = {hx(b('TCCR.*C', 'FOC.*A'))}, .focb_mask = {hx(b('TCCR.*C', 'FOC.*B'))}, .focc_mask = {hx(b('TCCR.*C', 'FOC.*C'))},
             .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]},
-            .compare_b_trigger_source = {f"AdcAutoTriggerSource::timer{idx}_compare_b" if idx in ['1', '3', '4', '5'] else "AdcAutoTriggerSource::none"},
-            .overflow_trigger_source = {f"AdcAutoTriggerSource::timer{idx}_overflow" if idx in ['1', '3', '4', '5'] else "AdcAutoTriggerSource::none"},
-            .capture_trigger_source = {f"AdcAutoTriggerSource::timer{idx}_capture" if idx in ['1', '3', '4', '5'] else "AdcAutoTriggerSource::none"}
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer{idx}_compare_a,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer{idx}_compare_b,
+            .compare_c_trigger_source = AdcAutoTriggerSource::timer{idx}_compare_c,
+            .overflow_trigger_source = AdcAutoTriggerSource::timer{idx}_overflow,
+            .capture_trigger_source = AdcAutoTriggerSource::timer{idx}_capture
         }}"""
 
     def gen_timer10(p_name, p_data):
@@ -413,8 +416,20 @@ def generate_header(data, output_dir):
 
     def gen_dac(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        b = lambda n, b_re: get_bit(r(n), b_re)
+        
+        # Check for 16-bit 'DAC' register or split 'DACL'/'DACH'
+        dac_reg = r('DAC')
+        if dac_reg['offset']:
+            dacl_addr = dac_reg['offset']
+            dach_addr = dacl_addr + 1
+        else:
+            dacl_addr = r('DACL')['offset']
+            dach_addr = r('DACH')['offset']
+
         return f"""{{
-            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(r('DACL')['offset'])}, .dach_address = {hx(r('DACH')['offset'])},
+            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(dacl_addr)}, .dach_address = {hx(dach_addr)},
+            .daen_mask = {hx(b('DACON', 'DAEN'))}, .daate_mask = {hx(b('DACON', 'DAATE'))}, .dats_mask = {hx(b('DACON', 'DATS'))}, .dacoe_mask = {hx(b('DACON', 'DAOE'))},
             .pr_address = {get_pr_info(data, 'PRDAC')[0]}, .pr_bit = {get_pr_info(data, 'PRDAC')[1]}
         }}"""
 

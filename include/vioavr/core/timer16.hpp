@@ -9,6 +9,7 @@ namespace vioavr::core {
 class GpioPort;
 class MemoryBus;
 class Adc;
+class Dac;
 
 class Timer16 final : public IoPeripheral {
 public:
@@ -29,6 +30,7 @@ public:
 
     void notify_input_capture(bool high) noexcept;
     void connect_adc_auto_trigger(Adc& adc) noexcept;
+    void connect_dac_auto_trigger(Dac& dac) noexcept;
 
     [[nodiscard]] ClockDomain clock_domain() const noexcept override;
 
@@ -86,6 +88,7 @@ private:
     std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {};
     Adc* adc_ {};
+    Dac* dac_ {};
 
     u16 tcnt_ {};
     u16 ocra_ {};

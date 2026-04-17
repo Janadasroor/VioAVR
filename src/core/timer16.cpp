@@ -2,6 +2,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/dac.hpp"
 #include <algorithm>
 #include <vector>
 #include <optional>
@@ -508,6 +509,8 @@ void Timer16::handle_compare_match_a() noexcept
 { 
     tifr_ |= desc_.compare_a_enable_mask; 
     apply_pin_action(pin_a_, get_pin_action_a());
+    if (adc_) adc_->notify_auto_trigger(desc_.compare_a_trigger_source);
+    if (dac_) dac_->notify_auto_trigger(desc_.compare_a_trigger_source);
 }
 
 void Timer16::handle_compare_match_b() noexcept 
@@ -515,6 +518,7 @@ void Timer16::handle_compare_match_b() noexcept
     tifr_ |= desc_.compare_b_enable_mask; 
     apply_pin_action(pin_b_, get_pin_action_b());
     if (adc_) adc_->notify_auto_trigger(desc_.compare_b_trigger_source);
+    if (dac_) dac_->notify_auto_trigger(desc_.compare_b_trigger_source);
 }
 
 void Timer16::handle_compare_match_c() noexcept 
@@ -522,12 +526,15 @@ void Timer16::handle_compare_match_c() noexcept
     if (desc_.compare_c_enable_mask != 0U) {
         tifr_ |= desc_.compare_c_enable_mask; 
         apply_pin_action(pin_c_, get_pin_action_c());
+        if (adc_) adc_->notify_auto_trigger(desc_.compare_c_trigger_source);
+        if (dac_) dac_->notify_auto_trigger(desc_.compare_c_trigger_source);
     }
 }
 
 void Timer16::handle_overflow() noexcept { 
     tifr_ |= desc_.overflow_enable_mask; 
     if (adc_) adc_->notify_auto_trigger(desc_.overflow_trigger_source);
+    if (dac_) dac_->notify_auto_trigger(desc_.overflow_trigger_source);
 }
 
 void Timer16::handle_input_capture() noexcept
@@ -539,6 +546,10 @@ void Timer16::handle_input_capture() noexcept
 
 void Timer16::connect_adc_auto_trigger(Adc& adc) noexcept {
     adc_ = &adc;
+}
+
+void Timer16::connect_dac_auto_trigger(Dac& dac) noexcept {
+    dac_ = &dac;
 }
 
 void Timer16::apply_pin_action(std::optional<BoundPin> pin, PinAction action) noexcept
