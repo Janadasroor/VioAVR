@@ -159,9 +159,13 @@ void MemoryBus::tick_peripherals(const u64 elapsed_cycles, const u8 active_domai
                 }
                 flash_rww_busy_ = true;
             }
-            
-            Logger::debug("MemoryBus: SPM finished at 0x" + std::to_string(address));
-        } else {
+
+            // Clear SPMEN and command bits
+            if (device_.spmcsr_address < data_.size()) {
+                data_[device_.spmcsr_address] &= ~0x1FU;
+            }
+
+            Logger::debug("MemoryBus: SPM finished at 0x" + std::to_string(address));        } else {
             spm_busy_cycles_left_ -= static_cast<u32>(elapsed_cycles);
         }
     }
@@ -280,6 +284,9 @@ void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data)
 
     if ((command & 0x10U) != 0U) { // RWWSRE
         flash_rww_busy_ = false;
+        if (device_.spmcsr_address != 0U && device_.spmcsr_address < data_.size()) {
+            data_[device_.spmcsr_address] &= ~0x1FU;
+        }
         return;
     }
 

@@ -44,18 +44,39 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
     reset();
 }
 
-void AvrCpu::reset() noexcept
+void AvrCpu::reset(ResetCause cause) noexcept
 {
     Logger::info("Resetting AVR CPU");
     gpr_.fill(0U);
     program_counter_ = bus_ != nullptr ? bus_->reset_word_address() : 0U;
-    stack_pointer_ = bus_ != nullptr ? bus_->device().sram_range().end : 0U;
-    write_sreg(0U);
+
+    if (bus_ != nullptr) {
+        stack_pointer_ = bus_->device().spl_reset | (bus_->device().sph_reset << 8);
+        if (stack_pointer_ == 0U) {
+            stack_pointer_ = bus_->device().sram_range().end;
+        }
+        write_sreg(bus_->device().sreg_reset);
+    } else {
+        stack_pointer_ = 0U;
+        write_sreg(0U);
+    }
+
     cycles_ = 0U;
     interrupt_pending_ = false;
     interrupt_depth_ = 0U;
     state_ = (bus_ != nullptr && bus_->loaded_program_words() > 0U) ? CpuState::running : CpuState::halted;
 
+    if (bus_ != nullptr && bus_->device().mcusr_address != 0) {
+        u8 mcusr = 0;
+        switch(cause) {
+            case ResetCause::power_on: mcusr |= 0x01; break;
+            case ResetCause::external: mcusr |= 0x02; break;
+            case ResetCause::brown_out: mcusr |= 0x04; break;
+            case ResetCause::watchdog: mcusr |= 0x08; break;
+        }
+        bus_->write_data(bus_->device().mcusr_address, mcusr);
+    }
+    
     if (bus_ != nullptr) {
         bus_->reset();
     }
@@ -1544,7 +1565,7 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     const bool rwwsre = (spmcsr & 0x10U) != 0U;
 
     if (rwwsb && !rwwsre) {
-        write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xFEU)); // Clear SPMEN
+        write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xE0U)); // Clear all command bits
         advance_cycles(1U);
         program_counter_ = instruction.word_address + 1U;
         return;
@@ -1555,8 +1576,8 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
 
     bus_->execute_spm(spmcsr, z, data);
     
-    // Clear SPMEN after execution
-    write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xFEU));
+    // Clear all SPMCSR command bits [4:0] after execution (hardware behaviour per datasheet)
+    write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xE0U));
     spm_lock_timeout_ = 0U;
 
     advance_cycles(1U);

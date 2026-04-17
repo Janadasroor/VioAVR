@@ -376,6 +376,7 @@ def generate_header(data, output_dir):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         return f"""{{
             .eecr_address = {hx(r('EECR')['offset'])}, .eedr_address = {hx(r('EEDR')['offset'])}, .eearl_address = {get_reg_addr(p_data, 'EEARL|EEAR')}, .eearh_address = {get_reg_addr(p_data, 'EEARH|EEAR', True)},
+            .eecr_reset = {hx(r('EECR')['initval'])},
             .vector_index = {next((i['index'] for i in data['interrupts'] if 'EE_READY' in i['name']), 0)}U,
             .size = {hx(eeprom['size'])}
         }}"""
@@ -385,8 +386,9 @@ def generate_header(data, output_dir):
         b = lambda n, b_re: get_bit(r(n), b_re)
         return f"""{{
             .wdtcsr_address = {hx(r('WDTCSR|WDTCR')['offset'])},
+            .wdtcsr_reset = {hx(r('WDTCSR|WDTCR')['initval'])},
             .vector_index = {next((i['index'] for i in data['interrupts'] if (i.get('name') or '') and 'WDT' in i['name']), 0)}U,
-            .wdie_mask = {hx(b('WDTCSR|WDTCR', 'WDIE'))}, .wde_mask = {hx(b('WDTCSR|WDTCR', 'WDE'))}
+            .wdie_mask = {hx(b('WDTCSR|WDTCR', 'WDIE'))}, .wde_mask = {hx(b('WDTCSR|WDTCR', 'WDE'))}, .wdce_mask = {hx(b('WDTCSR|WDTCR', 'WDCE'))}
         }}"""
 
     def gen_xmem(p_data):
@@ -426,6 +428,10 @@ def generate_header(data, output_dir):
 
     ports_str = ",\n        ".join(f'{{ "{p["name"]}", {hx(p["pin"])}, {hx(p["ddr"])}, {hx(p["port"])} }}' for p in ports_raw)
 
+    # RWW end word calculation (start of first boot section)
+    boot_sections = [m for m in data['memories'].get('prog', []) if 'BOOT_SECTION' in m['name']]
+    rww_end_word = (min(m['start'] for m in boot_sections) // 2) if boot_sections else (flash['size'] // 2)
+
     content = f"""#pragma once
 #include "vioavr/core/device.hpp"
 
@@ -462,6 +468,12 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .prtimer0_bit = {hx(get_pr_info(data, 'PRTIM0')[1])},
     .prtimer1_bit = {hx(get_pr_info(data, 'PRTIM1')[1])},
     .prtimer2_bit = {hx(get_pr_info(data, 'PRTIM2')[1])},
+    .smcr_sm_mask = {hx(b_cpu('SMCR', 'SM'))},
+    .smcr_se_mask = {hx(b_cpu('SMCR', 'SE'))},
+    .flash_rww_end_word = {hx(rww_end_word)},
+    .spl_reset = {hx(r_cpu('SPL|SP')['initval'])},
+    .sph_reset = {hx(r_cpu('SPH|SP')['initval'] if r_cpu('SPH|SP') and r_cpu('SPH|SP')['size'] > 1 else 0)},
+    .sreg_reset = {hx(r_cpu('SREG')['initval'])},
     .adc_count = {len(groups['ADC'])}U,
     .adcs = {{{{ {adcs_str} }}}},
     .ac_count = {len(groups['AC'])}U,
@@ -499,6 +511,10 @@ inline constexpr DeviceDescriptor {safe_name} {{
     
     .usb_count = {len(groups['USB_DEVICE'])}U,
     .usbs = {{{{ {usbs_str} }}}},
+
+    .fuse_address = {hx(next((m['start'] for m in data['memories'].get('fuses', [])), 0))},
+    .lockbit_address = {hx(next((m['start'] for m in data['memories'].get('lockbits', [])), 0))},
+    .signature_address = {hx(next((m['start'] for m in data['memories'].get('signatures', [])), 0))},
 
     .port_count = {len(ports_raw)}U,
     .ports = {{{{

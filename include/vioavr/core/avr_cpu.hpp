@@ -39,7 +39,7 @@ class AvrCpu {
 public:
     explicit AvrCpu(MemoryBus& bus) noexcept;
 
-    void reset() noexcept;
+    void reset(ResetCause cause = ResetCause::power_on) noexcept;
     void set_sync_engine(SyncEngine* sync_engine) noexcept;
     void set_trace_hook(ITraceHook* trace_hook) noexcept;
     void set_watchdog_timer(WatchdogTimer* watchdog_timer) noexcept;

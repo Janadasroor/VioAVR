@@ -58,8 +58,15 @@ TEST_CASE("SPM: Page Erase and Write Flow via Flash Instructions") {
         0x94F8, // BREAK
     };
     
-    bus.load_flash(prog);
+    std::vector<u16> full_flash(16384, 0xFFFF);
+    u32 code_start = 0x3F00;
+    for (size_t i = 0; i < prog.size(); ++i) {
+        full_flash[code_start + i] = prog[i];
+    }
+    
+    bus.load_flash(full_flash);
     cpu.reset();
+    cpu.set_program_counter(code_start);
     
     // Step-by-step to be sure
     // Initial LDI/MOV (6 instructions)

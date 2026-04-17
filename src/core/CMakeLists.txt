@@ -30,6 +30,7 @@ target_sources(vioavr_core
         timer16.cpp
         timer10.cpp
         uart.cpp
+        machine.cpp
         watchdog_timer.cpp
         usb.cpp
         pll.cpp

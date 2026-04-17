@@ -1,0 +1,85 @@
+#pragma once
+
+#include "vioavr/core/avr_cpu.hpp"
+#include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/pin_change_interrupt.hpp"
+#include "vioavr/core/io_peripheral.hpp"
+#include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/cpu_control.hpp"
+
+#include <memory>
+#include <string_view>
+#include <vector>
+
+namespace vioavr::core {
+
+/**
+ * @brief Represents a complete AVR microcontroller instance with its peripherals.
+ */
+class Machine {
+public:
+    explicit Machine(const DeviceDescriptor& device);
+    ~Machine();
+
+    // Prevent copying
+    Machine(const Machine&) = delete;
+    Machine& operator=(const Machine&) = delete;
+
+    /**
+     * @brief Factory method to create a machine for a specific device name.
+     */
+    static std::unique_ptr<Machine> create_for_device(std::string_view name);
+
+    /**
+     * @brief Get the underlying CPU.
+     */
+    [[nodiscard]] AvrCpu& cpu() noexcept { return *cpu_; }
+    [[nodiscard]] const AvrCpu& cpu() const noexcept { return *cpu_; }
+
+    /**
+     * @brief Get the memory bus.
+     */
+    [[nodiscard]] MemoryBus& bus() noexcept { return *bus_; }
+    [[nodiscard]] const MemoryBus& bus() const noexcept { return *bus_; }
+
+    /**
+     * @brief Get the pin mux.
+     */
+    [[nodiscard]] PinMux& pin_mux() noexcept { return *pin_mux_; }
+
+    /**
+     * @brief Reset the machine and all its peripherals.
+     */
+    void reset(ResetCause cause = ResetCause::power_on) noexcept;
+
+    /**
+     * @brief Step the simulation by one instruction or one sleep cycle.
+     */
+    void step() noexcept { cpu_->step(); }
+
+    /**
+     * @brief Run the simulation for a number of cycles.
+     */
+    void run(u64 cycles) noexcept { cpu_->run(cycles); }
+
+    /**
+     * @brief Get a GPIO port by name.
+     */
+    [[nodiscard]] GpioPort* get_port(std::string_view name) noexcept;
+
+private:
+    void initialize_peripherals();
+    void wire_peripherals();
+
+    const DeviceDescriptor& device_;
+    std::unique_ptr<MemoryBus> bus_;
+    std::unique_ptr<AvrCpu> cpu_;
+    std::unique_ptr<PinMux> pin_mux_;
+    PinChangeInterruptSharedState pcint_shared_state_ {};
+
+    std::vector<std::unique_ptr<IoPeripheral>> owned_peripherals_;
+    std::vector<GpioPort*> ports_;
+};
+
+} // namespace vioavr::core

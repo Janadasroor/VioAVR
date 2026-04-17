@@ -195,12 +195,14 @@ struct EepromDescriptor {
     u16 eedr_address {};
     u16 eearl_address {};
     u16 eearh_address {};
+    u8 eecr_reset {0x00U};
     u8 vector_index {};
     u16 size {};
 };
 
 struct WdtDescriptor {
     u16 wdtcsr_address {};
+    u8 wdtcsr_reset {0x00U};
     u8 vector_index {};
     u8 wdie_mask {0x40U};
     u8 wde_mask {0x08U};
