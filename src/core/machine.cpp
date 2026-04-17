@@ -13,6 +13,7 @@
 #include "vioavr/core/watchdog_timer.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/psc.hpp"
+#include "vioavr/core/dac.hpp"
 
 namespace vioavr::core {
 
@@ -105,6 +106,13 @@ void Machine::initialize_peripherals()
         auto psc = std::make_unique<Psc>("PSC", device_.pscs[i]);
         bus_->attach_peripheral(*psc);
         owned_peripherals_.push_back(std::move(psc));
+    }
+
+    // 7. DAC
+    for (u8 i = 0; i < device_.dac_count; ++i) {
+        auto dac = std::make_unique<Dac>("DAC", device_.dacs[i]);
+        bus_->attach_peripheral(*dac);
+        owned_peripherals_.push_back(std::move(dac));
     }
 
     // 6. TWI

@@ -44,6 +44,7 @@ void Psc::reset() noexcept {
     ocrsb_ = 0;
     ocrrb_ = 0;
     temp_ = 0;
+    down_counting_ = false;
 }
 
 u8 Psc::read(u16 address) noexcept {
@@ -68,6 +69,10 @@ u8 Psc::read(u16 address) noexcept {
 void Psc::write(u16 address, u8 value) noexcept {
     if (address == desc_.pctl_address) {
         pctl_ = value;
+        if (!(value & 0x80)) {
+            counter_ = 0;
+            down_counting_ = false;
+        }
     } else if (address == desc_.psoc_address) {
         psoc_ = value;
     } else if (address == desc_.pconf_address) {
@@ -98,20 +103,41 @@ void Psc::write(u16 address, u8 value) noexcept {
 void Psc::tick(u64 elapsed_cycles) noexcept {
     if (!(pctl_ & 0x80)) return; // PRUN bit
 
+    // Simplified Mode Handling
+    u8 mode = (pctl_ >> 4) & 0x03;
+    bool is_centered = (mode == 0x01);
+
     for (u64 i = 0; i < elapsed_cycles; ++i) {
-        counter_++;
-        // OCRRA defines the end of cycle in most modes
-        if (counter_ >= ocrra_ && ocrra_ > 0) {
-            counter_ = 0;
-            pifr_ |= 0x01; // PEV: PSC End Cycle Event flag
-            
-            if (adc_trigger_) {
-                AdcAutoTriggerSource src = AdcAutoTriggerSource::psc0_sync;
-                if (desc_.psc_index == 1) src = AdcAutoTriggerSource::psc1_sync;
-                else if (desc_.psc_index == 2) src = AdcAutoTriggerSource::psc2_sync;
-                adc_trigger_->notify_auto_trigger(src);
+        if (down_counting_) {
+            counter_--;
+            if (counter_ == 0) {
+                down_counting_ = false;
+                pifr_ |= 0x01; // PEV at bottom transition
+                notify_adc();
+            }
+        } else {
+            counter_++;
+            // In One-Ramp, RB is period. In Center-Aligned, RB is also period/top.
+            const u16 top = ocrrb_;
+            if (counter_ >= top && top > 0) {
+                if (is_centered) {
+                    down_counting_ = true;
+                } else {
+                    counter_ = 0;
+                    pifr_ |= 0x01; // PEV at end of cycle
+                    notify_adc();
+                }
             }
         }
+    }
+}
+
+void Psc::notify_adc() noexcept {
+    if (adc_trigger_) {
+        AdcAutoTriggerSource src = AdcAutoTriggerSource::psc0_sync;
+        if (desc_.psc_index == 1) src = AdcAutoTriggerSource::psc1_sync;
+        else if (desc_.psc_index == 2) src = AdcAutoTriggerSource::psc2_sync;
+        adc_trigger_->notify_auto_trigger(src);
     }
 }
 
