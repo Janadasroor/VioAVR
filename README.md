@@ -8,19 +8,18 @@ The goal of VioAVR is to provide a "Proteus-like" experience for open-source too
 
 ## Features
 
+VioAVR provides a comprehensive implementation of the AVR architecture and its peripheral set. For a detailed list of supported instructions and hardware blocks, see the [Implemented Features](docs/FEATURES.md) document.
+
+Key highlights include:
 - **High-Performance Core:** A cycle-accurate ISS capable of running production AVR binaries (.hex files).
 - **Device Family Pack (DFP) Support:** Automatically supports over 135 AVR chip variants (ATmega, ATtiny, etc.) via the built-in `DeviceCatalog`.
 - **Mixed-Mode Ready:** Built with synchronization hooks (`SyncEngine`) designed for lock-step execution with analog simulators like **ngspice**.
 - **Peripheral Support:** 
-  - GPIO Ports with bit-granular tracking.
-  - 8-bit and 16-bit Timers (CTC, PWM, External Clocking).
-  - USART/UART with interrupt support.
-  - ADC (Analog-to-Digital Converter) with auto-triggering.
-  - Analog Comparator.
-  - External and Pin-Change Interrupts.
-  - Watchdog Timer (WDT), EEPROM, and SPI.
-- **Zero-Dependency Core:** The simulation engine is pure C++ and does not depend on heavy libraries, making it portable and easy to embed.
-- **Optional Qt Layer:** A bridge for GUI-based observation and debugging.
+  - GPIO Ports, 8-bit/16-bit/10-bit Timers (CTC, PWM, External Clocking).
+  - USART/UART, SPI, and TWI (I2C) with interrupt support.
+  - ADC with auto-triggering and Analog Comparator.
+  - EEPROM, Watchdog Timer, USB, and CAN support.
+- **Zero-Dependency Core:** The simulation engine is pure C++17 and does not depend on heavy libraries.
 
 ## Project Structure
 

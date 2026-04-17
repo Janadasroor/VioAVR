@@ -20,6 +20,7 @@ public:
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
+    [[nodiscard]] ClockDomain clock_domain() const noexcept override;
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;

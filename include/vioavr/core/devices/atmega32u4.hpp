@@ -7,7 +7,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .name = "ATmega32U4",
     .flash_words = 16384U,
     .sram_bytes = 2560U,
-    .eeprom_bytes = 0U,
+    .eeprom_bytes = 1024U,
     .interrupt_vector_count = 43U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 128U,
@@ -17,7 +17,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .rampz_address = 0x5BU,
     .eind_address = 0x5CU,
     .spmcsr_address = 0x57U,
-    .prr_address = 0x65U,
+    .prr_address = 0x0U,
     .prr0_address = 0x64U,
     .prr1_address = 0x65U,
     .smcr_address = 0x53U,
@@ -28,15 +28,16 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .xmcrb_address = 0x0U,
     .xmem = {0},
     .pradc_bit = 0x1U,
-    .prusart0_bit = 0x1U,
+    .prusart0_bit = 0x2U,
     .prspi_bit = 0x4U,
     .prtwi_bit = 0x80U,
     .prtimer0_bit = 0x20U,
     .prtimer1_bit = 0x8U,
     .prtimer2_bit = 0x40U,
+    .flash_rww_end_word = 0x37FFU,
     .adc_count = 1U,
     .adcs = {{ {
-            .adcl_address = 0x7AU, .adch_address = 0x7AU, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
+            .adcl_address = 0x78U, .adch_address = 0x79U, .adcsra_address = 0x7AU, .adcsrb_address = 0x7BU, .admux_address = 0x7CU,
             .vector_index = 29U,
             .adcsra_reset = 0x0U, .adcsrb_reset = 0x0U, .admux_reset = 0x0U,
             .didr0_address = 0x7EU,
@@ -44,7 +45,8 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .adc_pin_bit = {{ 0U, 1U, 0U, 0U, 4U, 5U, 6U, 7U, 4U, 6U, 7U, 4U, 5U, 6U, 0U, 0U }},
             .auto_trigger_map = {{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }},
             .adsc_mask = 0x40U, .adate_mask = 0x20U, .adif_mask = 0x10U, .adie_mask = 0x8U, .aden_mask = 0x80U, .adlar_mask = 0x20U,
-            .pr_address = 100, .pr_bit = 1
+            .pr_address = 100, .pr_bit = 1,
+            .mux_table = {{ { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false }, { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false }, { 0, 1, 10.0f, true }, { 0, 1, 40.0f, true }, { 1, 1, 10.0f, true }, { 1, 1, 40.0f, true }, { 4, 1, 10.0f, true }, { 4, 1, 40.0f, true }, { 5, 1, 10.0f, true }, { 5, 1, 40.0f, true }, { 6, 1, 10.0f, true }, { 6, 1, 40.0f, true }, { 2, 1, 10.0f, true }, { 3, 1, 10.0f, true }, { 2, 1, 40.0f, true }, { 3, 1, 40.0f, true }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, { 14, 0, 1.0f, false }, { 15, 0, 1.0f, false }, { 8, 0, 1.0f, false }, { 9, 0, 1.0f, false }, { 10, 0, 1.0f, false }, { 11, 0, 1.0f, false }, { 12, 0, 1.0f, false }, { 13, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, { 13, 0, 1.0f, false }, { 0, 1, 200.0f, true }, { 0, 1, 200.0f, true }, { 1, 1, 200.0f, true }, {0xFFU, 0, 1.0f, false}, { 4, 5, 10.0f, true }, { 4, 5, 40.0f, true }, { 4, 5, 200.0f, true }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false} }}
         } }},
     .ac_count = 1U,
     .acs = {{ {
@@ -141,7 +143,7 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .tx_vector_index = 27U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 101, .pr_bit = 1
+            .pr_address = 100, .pr_bit = 2
         } }},
     
     .pcint_count = 1U,
@@ -172,7 +174,8 @@ inline constexpr DeviceDescriptor atmega32u4 {
     .eeprom_count = 1U,
     .eeproms = {{ {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
-            .vector_index = 30U
+            .vector_index = 30U,
+            .size = 0x400U
         } }},
     
     .wdt_count = 1U,

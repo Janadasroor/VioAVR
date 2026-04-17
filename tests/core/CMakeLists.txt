@@ -91,6 +91,12 @@ set(TEST_SOURCES
     pll_test.cpp
     spm_test.cpp
     xmem_fidelity_test.cpp
+    adc_fidelity_test.cpp
+    twi_fidelity_test.cpp
+    soc_interconnect_test.cpp
+    power_management_test.cpp
+    eeprom_fidelity_test.cpp
+    spm_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

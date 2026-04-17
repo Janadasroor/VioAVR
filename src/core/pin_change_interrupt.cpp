@@ -64,6 +64,11 @@ std::string_view PinChangeInterrupt::name() const noexcept
     return name_;
 }
 
+ClockDomain PinChangeInterrupt::clock_domain() const noexcept
+{
+    return ClockDomain::none;
+}
+
 std::span<const AddressRange> PinChangeInterrupt::mapped_ranges() const noexcept
 {
     size_t count = 0;

@@ -33,7 +33,8 @@ TEST_CASE("Timer10 High-Speed PLL Clock Fidelity")
 
     // 2. Enable PLL PCKE (PLLCSR = 0x04)
     bus.write_data(atmega32u4.timers10[0].pllcsr_address, 0x04);
-    timer4.reset();
+    CHECK(timer4.read(atmega32u4.timers10[0].pllcsr_address) == 0x05);
+    bus.write_data(atmega32u4.timers10[0].tcnt_address, 0);
     bus.write_data(atmega32u4.timers10[0].ocrc_address, 0xFF);
     timer4.tick(10); // 10 CPU cycles = 80 Timer cycles
     CHECK(timer4.read(atmega32u4.timers10[0].tcnt_address) == 80);

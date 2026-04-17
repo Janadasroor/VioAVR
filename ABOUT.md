@@ -26,9 +26,10 @@ In the real world, an AVR microcontroller interacts dynamically with analog comp
 
 ## Integration Roadmap
 - [x] AVR Core CPU (most opcodes)
-- [x] Basic Peripheral Set (Timers, GPIO, UART, ADC)
+- [x] Full Peripheral Set (Timers, GPIO, UART, SPI, TWI, ADC, Comparator, etc.)
 - [x] Device Family Pack (DFP) parsing
-- [ ] XSPICE / ngspice bridge implementation
+- [x] Core-to-Analog Synchronization Engine (`SyncEngine`)
+- [/] XSPICE / ngspice bridge implementation (In Progress)
 - [ ] VHDL/Verilog-style port mapping
 - [ ] Full Proteus-style schematic interaction
 

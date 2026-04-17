@@ -105,18 +105,20 @@ void Twi::write(const u16 address, const u8 value) noexcept
     else if (address == desc_.twar_address) twar_ = value;
     else if (address == desc_.twdr_address) twdr_ = value;
     else if (address == desc_.twcr_address) {
-        const u8 old_twcr = twcr_;
-        twcr_ = value;
-        
         // TWINT is cleared by writing 1
         if (value & desc_.twint_mask) {
             interrupt_pending_ = false;
             
             // Trigger next step if TWEN is set
-            if (twcr_ & desc_.twen_mask) {
-                step_cycles_left_ = 10; // Simplified timing
+            if (value & desc_.twen_mask) {
+                // Calculate bit rate timing
+                // F_SCL = CPU_CLK / (16 + 2*TWBR * 4^Prescaler)
+                u32 prescaler = 1 << (2 * (twsr_ & 0x03U));
+                u32 divisor = 16 + 2 * twbr_ * prescaler;
+                step_cycles_left_ = divisor; // One TWI cycle
             }
         }
+        twcr_ = value & ~desc_.twint_mask; // Clear TWINT internally
     }
     else if (address == desc_.twamr_address) twamr_ = value;
 }
@@ -138,23 +140,41 @@ bool Twi::consume_interrupt_request(InterruptRequest& request) noexcept
 
 void Twi::complete_step() noexcept
 {
-    // Simplified TWI state machine for simulation
-    const u8 command = twcr_ & (desc_.twsta_mask | desc_.twsto_mask | desc_.twint_mask);
+    // The state transition happens when TWINT is cleared.
+    // Based on the current mode and bits in TWCR (STA, STO, EA).
     
     if (twcr_ & desc_.twsta_mask) {
+        // Master: Send START
         const Mode prev_mode = mode_;
         mode_ = Mode::master_tx;
         twsr_ = (prev_mode == Mode::idle) ? kStatusStart : kStatusRepStart;
-        twcr_ &= ~desc_.twsta_mask;
+        twcr_ &= ~desc_.twsta_mask; // STA is not automatically cleared in hardware until next action? 
+        // Actually, STA remains set until SLA+W/R is sent if I recall. 
+        // But for simulation, we'll clear it after the start condition is recorded.
     } else if (twcr_ & desc_.twsto_mask) {
+        // Master: Send STOP
         mode_ = Mode::idle;
         twsr_ = kStatusNoInfo;
         twcr_ &= ~desc_.twsto_mask;
-        return; // Stop doesn't set TWINT
+        return; // STOP does not set TWINT
     } else {
-        // Handle data/addr transfers based on mode
-        if (mode_ == Mode::master_tx) handle_master_step();
-        else if (mode_ == Mode::slave_rx) handle_slave_step();
+        // Normal data/addr transfer
+        switch (mode_) {
+            case Mode::master_tx:
+                handle_master_step();
+                break;
+            case Mode::master_rx:
+                handle_master_step();
+                break;
+            case Mode::slave_rx:
+            case Mode::slave_tx:
+                handle_slave_step();
+                break;
+            case Mode::idle:
+                // Check if we were addressed as slave (Passive monitoring)
+                // This is a simplification for simulation.
+                break;
+        }
     }
     
     interrupt_pending_ = true;
@@ -162,18 +182,60 @@ void Twi::complete_step() noexcept
 
 void Twi::handle_master_step() noexcept
 {
-    // Simplified master logic
     if (twsr_ == kStatusStart || twsr_ == kStatusRepStart) {
-        // Sent address
-        const bool is_read = twdr_ & 0x01U;
-        twsr_ = is_read ? kStatusMasterRxAddrAck : kStatusMasterTxAddrAck;
-    } else {
+        // SLA+W/R just sent
+        const bool is_read = (twdr_ & 0x01U);
+        if (is_read) {
+            mode_ = Mode::master_rx;
+            // Check if slave exists in simulation
+            if (rx_idx_ < rx_buffer_.size() || sla_matched_) {
+                twsr_ = kStatusMasterRxAddrAck;
+            } else {
+                twsr_ = kStatusMasterRxAddrNack;
+            }
+        } else {
+            mode_ = Mode::master_tx;
+            twsr_ = kStatusMasterTxAddrAck; // Assume success for now
+        }
+    } else if (mode_ == Mode::master_tx) {
+        // Data byte just sent
         twsr_ = kStatusMasterTxDataAck;
         tx_buffer_.push_back(twdr_);
+    } else if (mode_ == Mode::master_rx) {
+        // Data byte just received
+        if (rx_idx_ < rx_buffer_.size()) {
+            twdr_ = rx_buffer_[rx_idx_++];
+            twsr_ = (twcr_ & desc_.twea_mask) ? kStatusMasterRxDataAck : kStatusMasterRxDataNack;
+        } else {
+            twsr_ = kStatusMasterRxDataNack;
+        }
     }
 }
 
-void Twi::handle_slave_step() noexcept {}
+void Twi::handle_slave_step() noexcept
+{
+    // Slave mode logic using TWAR and TWAMR
+    // Twi::check_slave_address is called by the bus simulation to addressed us
+}
+
+bool Twi::check_slave_address(u8 address) const noexcept
+{
+    u8 my_addr = (twar_ >> 1U);
+    u8 mask = (twamr_ >> 1U);
+    u8 target = (address >> 1U);
+    
+    // bits set in TWAMR mask out comparison
+    if ((target & ~mask) == (my_addr & ~mask)) {
+        return true;
+    }
+    
+    // General call?
+    if (address == 0 && (twar_ & 0x01U)) {
+        return true;
+    }
+    
+    return false;
+}
 
 void Twi::set_rx_buffer(const std::vector<u8>& data) noexcept
 {

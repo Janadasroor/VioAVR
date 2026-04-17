@@ -1,6 +1,7 @@
 #include "vioavr/core/analog_comparator.hpp"
 
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/timer16.hpp"
 #include "vioavr/core/logger.hpp"
 
 #include <cmath>
@@ -104,6 +105,10 @@ void AnalogComparator::connect_adc_auto_trigger(Adc& adc) noexcept {
     auto_trigger_adc_ = &adc;
 }
 
+void AnalogComparator::connect_timer_input_capture(Timer16& timer) noexcept {
+    input_capture_timer_ = &timer;
+}
+
 void AnalogComparator::set_positive_input_voltage(double normalized_voltage) noexcept {
     positive_input_ = normalized_voltage;
     evaluate_output();
@@ -149,6 +154,9 @@ void AnalogComparator::raise_interrupt_flag() noexcept {
     acsr_ |= kAciMask;
     if (auto_trigger_adc_ && (acsr_ & kAcicMask)) {
         auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::comparator);
+    }
+    if (input_capture_timer_ && (acsr_ & kAcicMask)) {
+        input_capture_timer_->notify_input_capture(output_high_);
     }
 }
 

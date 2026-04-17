@@ -205,53 +205,15 @@ Adc::MuxMapping Adc::resolve_mux() const noexcept {
     u8 mux = (admux_ & 0x1FU);
     if (adcsrb_ & 0x20U) mux |= 0x20U; // Add MUX5
 
-    // Standard Single-Ended
-    if (mux <= 0x07U) {
-        return { mux, 0, 1.0, false };
-    }
-    if (mux >= 0x20U && mux <= 0x25U) {
-        return { static_cast<u8>(8U + (mux - 0x20U)), 0, 1.0, false };
-    }
-
-    // Special internal channels
-    if (mux == 0x1EU) return { 14, 0, 1.0, false }; // Vbg (1.1V)
-    if (mux == 0x1FU) return { 15, 0, 1.0, false }; // 0V (GND)
-    if (mux == 0x27U) return { 13, 0, 1.0, false }; // Temperature sensor (ADC13)
-
-    // Differential Pairs (ATmega32U4 common subset)
-    // Table 26-4 in Datasheet
-    switch (mux) {
-        // ADC0 - ADC1
-        case 0x08U: return { 0, 1, 10.0, true };
-        case 0x09U: return { 0, 1, 40.0, true };
-        case 0x0AU: return { 1, 1, 10.0, true }; // Offset test
-        case 0x0BU: return { 1, 1, 40.0, true };
-        case 0x0CU: return { 4, 1, 10.0, true };
-        case 0x0DU: return { 4, 1, 40.0, true };
-        case 0x0EU: return { 5, 1, 10.0, true };
-        case 0x0FU: return { 5, 1, 40.0, true };
-        case 0x10U: return { 6, 1, 10.0, true };
-        case 0x11U: return { 6, 1, 40.0, true };
-        case 0x12U: return { 2, 1, 10.0, true };
-        case 0x13U: return { 3, 1, 10.0, true };
-        case 0x14U: return { 2, 1, 40.0, true };
-        case 0x15U: return { 3, 1, 40.0, true };
-        
-        // High gain ADC0-ADC1 (200x)
-        case 0x28U: return { 0, 1, 200.0, true };
-        case 0x29U: return { 0, 1, 200.0, true }; // Wait, duplicate?
-        case 0x2AU: return { 1, 1, 200.0, true };
-        
-        // ADC4 - ADC5
-        case 0x2CU: return { 4, 5, 10.0, true };
-        case 0x2DU: return { 4, 5, 40.0, true };
-        case 0x2EU: return { 4, 5, 200.0, true };
-        
-        default: break;
+    if (mux < desc_.mux_table.size()) {
+        const auto& entry = desc_.mux_table[mux];
+        if (entry.positive_channel != 0xFFU) {
+            return { entry.positive_channel, entry.negative_channel, entry.gain, entry.differential };
+        }
     }
 
-    // Default to single ended if unknown
-    return { static_cast<u8>(mux & 0x0FU), 0, 1.0, false };
+    // Default to single ended if unknown or unconfigured
+    return { static_cast<u8>(mux & 0x0FU), 0, 1.0f, false };
 }
 
 void Adc::update_pin_ownership() noexcept {
