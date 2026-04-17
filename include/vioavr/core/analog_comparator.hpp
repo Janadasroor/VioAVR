@@ -31,6 +31,7 @@ public:
     void bind_signal_bank(const AnalogSignalBank& signal_bank, u8 positive_channel, u8 negative_channel) noexcept;
     void connect_adc_auto_trigger(Adc& adc) noexcept;
     void connect_timer_input_capture(Timer16& timer) noexcept;
+    void connect_psc_fault(class Psc& psc) noexcept;
     void set_positive_input_voltage(double normalized_voltage) noexcept;
     void set_negative_input_voltage(double normalized_voltage) noexcept;
 
@@ -55,6 +56,7 @@ private:
     u8 negative_channel_ {};
     Adc* auto_trigger_adc_ {};
     Timer16* input_capture_timer_ {};
+    std::vector<class Psc*> psc_fault_listeners_ {};
     double positive_input_ {};
     double negative_input_ {};
     u8 acsr_ {};

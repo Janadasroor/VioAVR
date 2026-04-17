@@ -43,8 +43,14 @@ void Psc::reset() noexcept {
     ocrra_ = 0;
     ocrsb_ = 0;
     ocrrb_ = 0;
+    pfrc0a_ = 0;
+    pfrc0b_ = 0;
     temp_ = 0;
     down_counting_ = false;
+    fault_active_ = false;
+    last_fault_level_ = false;
+    output_a_ = false;
+    output_b_ = false;
 }
 
 u8 Psc::read(u16 address) noexcept {
@@ -53,6 +59,8 @@ u8 Psc::read(u16 address) noexcept {
     if (address == desc_.pconf_address) return pconf_;
     if (address == desc_.pim_address) return pim_;
     if (address == desc_.pifr_address) return pifr_;
+    if (address == desc_.pfrc0a_address) return pfrc0a_;
+    if (address == desc_.pfrc0b_address) return pfrc0b_;
     
     if (address == desc_.ocrsa_address) return ocrsa_ & 0xFF;
     if (address == desc_.ocrsa_address + 1) return (ocrsa_ >> 8) & 0x0F;
@@ -72,6 +80,7 @@ void Psc::write(u16 address, u8 value) noexcept {
         if (!(value & 0x80)) {
             counter_ = 0;
             down_counting_ = false;
+            fault_active_ = false;
         }
     } else if (address == desc_.psoc_address) {
         psoc_ = value;
@@ -81,6 +90,10 @@ void Psc::write(u16 address, u8 value) noexcept {
         pim_ = value;
     } else if (address == desc_.pifr_address) {
         pifr_ &= ~value;
+    } else if (address == desc_.pfrc0a_address) {
+        pfrc0a_ = value;
+    } else if (address == desc_.pfrc0b_address) {
+        pfrc0b_ = value;
     } else if (address == desc_.ocrsa_address) {
         temp_ = value;
     } else if (address == desc_.ocrsa_address + 1) {
@@ -98,12 +111,12 @@ void Psc::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.ocrrb_address + 1) {
         ocrrb_ = (static_cast<u16>(value & 0x0F) << 8) | temp_;
     }
+    update_outputs();
 }
 
 void Psc::tick(u64 elapsed_cycles) noexcept {
-    if (!(pctl_ & 0x80)) return; // PRUN bit
+    if (!(pctl_ & 0x80) || fault_active_) return; // PRUN or Faulted
 
-    // Simplified Mode Handling
     u8 mode = (pctl_ >> 4) & 0x03;
     bool is_centered = (mode == 0x01);
 
@@ -112,23 +125,23 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
             counter_--;
             if (counter_ == 0) {
                 down_counting_ = false;
-                pifr_ |= 0x01; // PEV at bottom transition
+                pifr_ |= 0x01; // PEV
                 notify_adc();
             }
         } else {
             counter_++;
-            // In One-Ramp, RB is period. In Center-Aligned, RB is also period/top.
             const u16 top = ocrrb_;
             if (counter_ >= top && top > 0) {
                 if (is_centered) {
                     down_counting_ = true;
                 } else {
                     counter_ = 0;
-                    pifr_ |= 0x01; // PEV at end of cycle
+                    pifr_ |= 0x01; // PEV
                     notify_adc();
                 }
             }
         }
+        update_outputs();
     }
 }
 
@@ -141,9 +154,53 @@ void Psc::notify_adc() noexcept {
     }
 }
 
+void Psc::notify_fault(bool level) noexcept {
+    handle_fault(level);
+}
+
+void Psc::handle_fault(bool level) noexcept {
+    u8 pflt = (pfrc0a_ >> 4) & 0x03; // Simplified trigger mapping
+    bool triggered = false;
+    
+    if (pflt == 0x01 && last_fault_level_ && !level) triggered = true; // Fall
+    else if (pflt == 0x02 && !last_fault_level_ && level) triggered = true; // Rise
+    else if (pflt == 0x03 && !level) triggered = true; // Low level
+
+    if (triggered && !fault_active_) {
+        pifr_ |= 0x08; // PCAP flag
+        fault_active_ = true;
+        update_outputs();
+    }
+    last_fault_level_ = level;
+}
+
+void Psc::update_outputs() noexcept {
+    if (!(pctl_ & 0x80)) {
+        output_a_ = false;
+        output_b_ = false;
+        return;
+    }
+
+    if (fault_active_) {
+        // Simple safe levels from PSOC (bits 0 and 2 often)
+        output_a_ = (psoc_ & 0x01) != 0;
+        output_b_ = (psoc_ & 0x04) != 0;
+        return;
+    }
+
+    // Normal operation: Pulse A [SA, RA], Pulse B [SB, RB]
+    // Note: This is an simplified one-ramp active-high logic
+    output_a_ = (counter_ >= ocrsa_ && counter_ < ocrra_);
+    output_b_ = (counter_ >= ocrsb_ && counter_ < ocrrb_);
+}
+
 bool Psc::pending_interrupt_request(InterruptRequest& req) const noexcept {
-    if ((pifr_ & 0x01) && (pim_ & 0x01)) {
+    if ((pifr_ & 0x01) && (pim_ & 0x01)) { // PEV
         req.vector_index = desc_.ec_vector_index;
+        return true;
+    }
+    if ((pifr_ & 0x08) && (pim_ & 0x08)) { // PCAP (Capture/Fault)
+        req.vector_index = desc_.capt_vector_index;
         return true;
     }
     return false;
@@ -151,7 +208,8 @@ bool Psc::pending_interrupt_request(InterruptRequest& req) const noexcept {
 
 bool Psc::consume_interrupt_request(InterruptRequest& req) noexcept {
     if (pending_interrupt_request(req)) {
-        pifr_ &= ~0x01; // Clear EC flag
+        if (req.vector_index == desc_.ec_vector_index) pifr_ &= ~0x01;
+        else pifr_ &= ~0x08;
         return true;
     }
     return false;

@@ -2,6 +2,7 @@
 
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/timer16.hpp"
+#include "vioavr/core/psc.hpp"
 #include "vioavr/core/logger.hpp"
 
 #include <cmath>
@@ -109,6 +110,10 @@ void AnalogComparator::connect_timer_input_capture(Timer16& timer) noexcept {
     input_capture_timer_ = &timer;
 }
 
+void AnalogComparator::connect_psc_fault(Psc& psc) noexcept {
+    psc_fault_listeners_.push_back(&psc);
+}
+
 void AnalogComparator::set_positive_input_voltage(double normalized_voltage) noexcept {
     positive_input_ = normalized_voltage;
     evaluate_output();
@@ -140,6 +145,10 @@ void AnalogComparator::evaluate_output() noexcept {
     }
 
     if (was_high != output_high_) {
+        for (auto* psc : psc_fault_listeners_) {
+            psc->notify_fault(output_high_);
+        }
+
         const u8 mode = interrupt_mode();
         bool trigger = false;
         if (mode == 0) trigger = true; // Toggle

@@ -21,7 +21,11 @@ public:
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     
+    [[nodiscard]] bool read_output_a() const noexcept { return output_a_; }
+    [[nodiscard]] bool read_output_b() const noexcept { return output_b_; }
+
     void connect_adc_trigger(class Adc& adc) noexcept { adc_trigger_ = &adc; }
+    void notify_fault(bool level) noexcept;
 
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& req) const noexcept override;
     bool consume_interrupt_request(InterruptRequest& req) noexcept override;
@@ -54,8 +58,17 @@ private:
     class Adc* adc_trigger_ {nullptr};
 
     bool down_counting_ {false};
+    bool fault_active_ {false};
+    bool last_fault_level_ {false};
+    bool fault_pending_restart_ {false};
+    
+    // Output States
+    bool output_a_ {false};
+    bool output_b_ {false};
 
     void notify_adc() noexcept;
+    void handle_fault(bool level) noexcept;
+    void update_outputs() noexcept;
     void evaluate_interrupts() noexcept;
 };
 

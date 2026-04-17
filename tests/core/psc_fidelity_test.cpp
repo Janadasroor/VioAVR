@@ -1,6 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/psc.hpp"
+#include "vioavr/core/analog_comparator.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/at90pwm1.hpp"
 
 namespace {
@@ -95,4 +97,55 @@ TEST_CASE("PSC Fidelity - Center Aligned Mode") {
     // Down count to Bottom (0)
     psc.tick(10);
     CHECK((psc.read(desc.pifr_address) & 0x01) != 0); // PEV event triggered at bottom
+}
+
+TEST_CASE("PSC Fidelity - Analog Comparator Fault Protection") {
+    const auto& psc_desc = at90pwm1.pscs[0];
+    const auto& ac_desc = at90pwm1.acs[0];
+    
+    // Setup PSC
+    Psc psc {"PSC0", psc_desc};
+    psc.reset();
+    psc.write(psc_desc.ocrrb_address, 100);
+    psc.write(psc_desc.ocrrb_address + 1, 0);
+    psc.write(psc_desc.pctl_address, 0x80); // PRUN
+    
+    // PSOC safe levels: A=Low, B=High
+    psc.write(psc_desc.psoc_address, 0x04); 
+    
+    // Configure Fault Mode: Low Level (mode 3) -> 0x30
+    psc.write(psc_desc.pfrc0a_address, 0x30);
+    
+    // Setup Analog Comparator
+    PinMux mux {3};
+    AnalogComparator ac {"AC0", ac_desc, mux, 0};
+    ac.reset();
+    
+    // Wire AC to PSC
+    ac.connect_psc_fault(psc);
+    
+    // Enable CAP interrupt
+    psc.write(psc_desc.pim_address, 0x08);
+    
+    // State: AC output 1 (high) -> No fault (mode 3 is low-level)
+    ac.set_positive_input_voltage(0.8);
+    ac.set_negative_input_voltage(0.5);
+    ac.tick(1); 
+    
+    psc.tick(10);
+    CHECK((psc.read(psc_desc.pifr_address) & 0x08) == 0); // No PCAP
+    
+    // Trigger Fault: AC output 0 (low)
+    ac.set_positive_input_voltage(0.3);
+    ac.tick(1); // Notify loop happens in evaluate_output
+    
+    CHECK((psc.read(psc_desc.pifr_address) & 0x08) != 0); // PCAP flag set!
+    
+    InterruptRequest req;
+    CHECK(psc.pending_interrupt_request(req) == true);
+    CHECK(req.vector_index == psc_desc.capt_vector_index);
+    
+    // Verify safe levels
+    CHECK(psc.read_output_a() == false);
+    CHECK(psc.read_output_b() == true);
 }
