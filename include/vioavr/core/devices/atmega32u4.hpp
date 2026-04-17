@@ -224,6 +224,12 @@ inline constexpr DeviceDescriptor atmega32u4 {
             .pr_address = 101, .pr_bit = 128
         } }},
 
+    .psc_count = 0U,
+    .pscs = {{  }},
+
+    .dac_count = 0U,
+    .dacs = {{  }},
+
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,

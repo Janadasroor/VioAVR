@@ -39,6 +39,9 @@ enum class AdcAutoTriggerSource : u8 {
     timer5_compare_c,
     timer5_overflow,
     timer5_capture,
+    psc0_sync,
+    psc1_sync,
+    psc2_sync,
     unsupported = 0xFFU
 };
 
@@ -315,6 +318,37 @@ struct UsbDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct PscDescriptor {
+    u16 pctl_address {};
+    u16 psoc_address {};
+    u16 pconf_address {};
+    u16 pim_address {};
+    u16 pifr_address {};
+    u16 picr_address {};
+    u16 ocrsa_address {};
+    u16 ocrra_address {};
+    u16 ocrsb_address {};
+    u16 ocrrb_address {};
+    u16 pfrc0a_address {};
+    u16 pfrc0b_address {};
+    
+    u8 psc_index {};
+    u8 gen_vector_index {};
+    u8 ec_vector_index {};
+    u8 capt_vector_index {};
+    
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
+struct DacDescriptor {
+    u16 dacon_address {};
+    u16 dacl_address {};
+    u16 dach_address {};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
 struct Timer16Descriptor {
     u16 tcnt_address {};
     u16 ocra_address {};
@@ -504,6 +538,12 @@ struct DeviceDescriptor {
     
     u8 usb_count {0U};
     std::array<UsbDescriptor, 1> usbs {};
+
+    u8 psc_count {0U};
+    std::array<PscDescriptor, 3> pscs {};
+
+    u8 dac_count {0U};
+    std::array<DacDescriptor, 1> dacs {};
 
     u16 fuse_address {0x0000U};
     u16 lockbit_address {0x0000U};

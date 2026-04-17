@@ -103,7 +103,7 @@ def generate_header(data, output_dir):
     groups = {
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
-        'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': []
+        'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -118,6 +118,10 @@ def generate_header(data, output_dir):
             groups['PCINT'].append((p_name, p_data))
         elif mod == 'TC10':
             groups['TC10'].append((p_name, p_data))
+        elif 'PSC' in mod:
+            groups['PSC'].append((p_name, p_data))
+        elif 'DAC' in mod:
+            groups['DAC'].append((p_name, p_data))
 
     for k in groups: groups[k].sort()
 
@@ -350,6 +354,27 @@ def generate_header(data, output_dir):
             .udint_sofi_mask = {hx(b('UDINT', 'SOFI'))},
             .pr_address = {get_pr_info(data, 'PRUSB')[0]}, .pr_bit = {get_pr_info(data, 'PRUSB')[1]}
         }}"""
+    
+    def gen_psc(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        idx = "".join(filter(str.isdigit, p_name)) or "0"
+        return f"""{{
+            .pctl_address = {hx(r('PCTL.*')['offset'])}, .psoc_address = {hx(r('PSOC.*')['offset'])}, .pconf_address = {hx(r('PCNF.*')['offset'])}, .pim_address = {hx(r('PIM.*')['offset'])}, .pifr_address = {hx(r('PIFR.*')['offset'])}, .picr_address = {hx(r('PICR.*')['offset'])},
+            .ocrsa_address = {hx(r('OCR.*SA')['offset'])}, .ocrra_address = {hx(r('OCR.*RA')['offset'])}, .ocrsb_address = {hx(r('OCR.*SB')['offset'])}, .ocrrb_address = {hx(r('OCR.*RB')['offset'])},
+            .pfrc0a_address = {hx(r('PFRC.*A')['offset'])}, .pfrc0b_address = {hx(r('PFRC.*B')['offset'])},
+            .psc_index = {idx}U,
+            .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
+            .ec_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
+            .capt_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_CAPT' in (i.get('name') or '').upper()), 11)}U,
+            .pr_address = {get_pr_info(data, f'PRPSC{idx}|PRPSC')[0]}, .pr_bit = {get_pr_info(data, f'PRPSC{idx}|PRPSC')[1]}
+        }}"""
+
+    def gen_dac(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        return f"""{{
+            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(r('DACL')['offset'])}, .dach_address = {hx(r('DACH')['offset'])},
+            .pr_address = {get_pr_info(data, 'PRDAC')[0]}, .pr_bit = {get_pr_info(data, 'PRDAC')[1]}
+        }}"""
 
     def gen_ac(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
@@ -471,6 +496,8 @@ def generate_header(data, output_dir):
     wdts_str = ",\n        ".join(gen_wdt(n, d) for n, d in groups['WDT'])
     timers10_str = ",\n        ".join(gen_timer10(n, d) for n, d in groups['TC10'])
     usbs_str = ",\n        ".join(gen_usb(n, d) for n, d in groups['USB_DEVICE'])
+    pscs_str = ",\n        ".join(gen_psc(n, d) for n, d in groups['PSC'])
+    dacs_str = ",\n        ".join(gen_dac(n, d) for n, d in groups['DAC'])
     
     xmem_data = (groups['EXTERNAL_MEMORY'][0][1] if groups['EXTERNAL_MEMORY'] 
                  else data['peripherals'].get('CPU', {}))
@@ -561,6 +588,12 @@ inline constexpr DeviceDescriptor {safe_name} {{
     
     .usb_count = {len(groups['USB_DEVICE'])}U,
     .usbs = {{{{ {usbs_str} }}}},
+
+    .psc_count = {len(groups['PSC'])}U,
+    .pscs = {{{{ {pscs_str} }}}},
+
+    .dac_count = {len(groups['DAC'])}U,
+    .dacs = {{{{ {dacs_str} }}}},
 
     .fuse_address = {hx(next((m['start'] for m in data['memories'].get('fuses', [])), 0))},
     .lockbit_address = {hx(next((m['start'] for m in data['memories'].get('lockbits', [])), 0))},

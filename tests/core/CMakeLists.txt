@@ -100,6 +100,7 @@ set(TEST_SOURCES
     power_management_test.cpp
     eeprom_fidelity_test.cpp
     spm_fidelity_test.cpp
+    psc_fidelity_test.cpp
     instruction_timing_fidelity_test.cpp
     pin_mux_priority_test.cpp
 )
