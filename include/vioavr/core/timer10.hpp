@@ -9,6 +9,7 @@
 namespace vioavr::core {
 class GpioPort;
 class MemoryBus;
+class Adc;
 
 class Timer10 final : public IoPeripheral {
 public:
@@ -35,6 +36,7 @@ public:
     void connect_compare_output_b_inverted(GpioPort& port, u8 bit) noexcept;
     void connect_compare_output_d(GpioPort& port, u8 bit) noexcept;
     void connect_compare_output_d_inverted(GpioPort& port, u8 bit) noexcept;
+    void connect_adc_auto_trigger(Adc& adc) noexcept;
 
 private:
     enum class Mode {
@@ -62,6 +64,7 @@ private:
     std::array<AddressRange, 16> ranges_ {};
     u8 ranges_count_ {0};
     MemoryBus* bus_ {};
+    Adc* adc_ {};
 
     bool pll_enabled_ {false};
     u32 pck_frequency_ {64000000}; 

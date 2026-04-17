@@ -176,7 +176,9 @@ def generate_header(data, output_dir):
             .compare_b_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'OCIEB') or b(f'TIMSK{idx}|TIMSK', f'OCIE{idx}B') or b('TIMSK', 'OCIEB'))},
             .overflow_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'TOIE') or b(f'TIMSK{idx}|TIMSK', f'TOIE{idx}') or b('TIMSK', 'TOIE'))},
             .foca_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*A'))}, .focb_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*B'))},
-            .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]}
+            .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]},
+            .compare_a_trigger_source = {"AdcAutoTriggerSource::timer0_compare_a" if idx == "0" else "AdcAutoTriggerSource::none"},
+            .overflow_trigger_source = {"AdcAutoTriggerSource::timer0_overflow" if idx == "0" else "AdcAutoTriggerSource::none"}
         }}"""
     
     def gen_timer16(p_name, p_data):
@@ -206,7 +208,10 @@ def generate_header(data, output_dir):
             .compare_c_enable_mask = {hx(b('TIMSK.*', 'OCIE.*C'))},
             .overflow_enable_mask = {hx(b('TIMSK.*', 'TOIE'))},
             .foca_mask = {hx(b('TCCR.*C', 'FOC.*A'))}, .focb_mask = {hx(b('TCCR.*C', 'FOC.*B'))}, .focc_mask = {hx(b('TCCR.*C', 'FOC.*C'))},
-            .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]}
+            .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]},
+            .compare_b_trigger_source = {f"AdcAutoTriggerSource::timer{idx}_compare_b" if idx in ['1', '3', '4', '5'] else "AdcAutoTriggerSource::none"},
+            .overflow_trigger_source = {f"AdcAutoTriggerSource::timer{idx}_overflow" if idx in ['1', '3', '4', '5'] else "AdcAutoTriggerSource::none"},
+            .capture_trigger_source = {f"AdcAutoTriggerSource::timer{idx}_capture" if idx in ['1', '3', '4', '5'] else "AdcAutoTriggerSource::none"}
         }}"""
 
     def gen_timer10(p_name, p_data):
@@ -230,7 +235,11 @@ def generate_header(data, output_dir):
             .compare_b_vector_index = {next((i['index'] for i in data.get('interrupts', []) if (f'OC{idx}B' in (i.get('name') or '').upper()) or (f'TIMER{idx}_COMPB' in (i.get('name') or '').upper())), 0)}U,
             .compare_d_vector_index = {next((i['index'] for i in data.get('interrupts', []) if (f'OC{idx}D' in (i.get('name') or '').upper()) or (f'TIMER{idx}_COMPD' in (i.get('name') or '').upper())), 0)}U,
             .overflow_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'OVF{idx}' in (i.get('name') or '').upper() or f'TIMER{idx}_OVF' in (i.get('name') or '').upper()), 0)}U,
-            .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]}
+            .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]},
+            .compare_a_trigger_source = {"AdcAutoTriggerSource::timer4_compare_a" if idx == "4" else "AdcAutoTriggerSource::none"},
+            .compare_b_trigger_source = {"AdcAutoTriggerSource::timer4_compare_b" if idx == "4" else "AdcAutoTriggerSource::none"},
+            .compare_d_trigger_source = {"AdcAutoTriggerSource::timer4_compare_d" if idx == "4" else "AdcAutoTriggerSource::none"},
+            .overflow_trigger_source = {"AdcAutoTriggerSource::timer4_overflow" if idx == "4" else "AdcAutoTriggerSource::none"}
         }}"""
 
     def gen_adc_mux_table(mcu_name):
@@ -276,6 +285,40 @@ def generate_header(data, output_dir):
             a, b_bit = get_pad_info(port_map, p_data, f'ADC{i}', 'PIN')
             pins_addr.append(a)
             pins_bit.append(str(b_bit) + "U")
+        
+        # Build trigger map from ATDF
+        adts_reg = r('ADCSRB') if r('ADCSRB')['offset'] else r('ADCSRA')
+        adts_bf = adts_reg.get('bitfields', {}).get('ADTS', {})
+        vals = adts_bf.get('values', {})
+        mapping = ["AdcAutoTriggerSource::none"] * 16
+        for trigger_name, info in vals.items():
+            v = info['value']
+            if v >= 16: continue
+            n = trigger_name.upper()
+            if "FREE" in n: mapping[v] = "AdcAutoTriggerSource::free_running"
+            elif "COMPARATOR" in n: mapping[v] = "AdcAutoTriggerSource::analog_comparator"
+            elif "EXT_INT0" in n or ("EXTERNAL" in n and "0" in n): mapping[v] = "AdcAutoTriggerSource::external_interrupt_0"
+            elif any(x in n for x in ["T0", "TIMER_COUNTER0", "TIMER0"]):
+                if "A" in n.split('_')[-2:] or "COMPA" in n: mapping[v] = "AdcAutoTriggerSource::timer0_compare_a"
+                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer0_overflow"
+            elif any(x in n for x in ["T1", "TIMER_COUNTER1", "TIMER1"]):
+                if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer1_compare_b"
+                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer1_overflow"
+                elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer1_capture"
+            elif any(x in n for x in ["T3", "TIMER_COUNTER3", "TIMER3"]):
+                if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer3_compare_b"
+                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer3_overflow"
+                elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer3_capture"
+            elif any(x in n for x in ["T4", "TIMER_COUNTER4", "TIMER4"]):
+                if "A" in n.split('_')[-2:] or "COMPARE_A" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_a"
+                elif "B" in n.split('_')[-2:] or "COMPARE_B" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_b"
+                elif "D" in n.split('_')[-2:] or "COMPARE_D" in n: mapping[v] = "AdcAutoTriggerSource::timer4_compare_d"
+                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer4_overflow"
+            elif any(x in n for x in ["T5", "TIMER_COUNTER5", "TIMER5"]):
+                if "B" in n.split('_')[-2:] or "COMPB" in n: mapping[v] = "AdcAutoTriggerSource::timer5_compare_b"
+                elif "OVF" in n or "OVERFLOW" in n: mapping[v] = "AdcAutoTriggerSource::timer5_overflow"
+                elif "CAPT" in n or "CAPTURE" in n: mapping[v] = "AdcAutoTriggerSource::timer5_capture"
+
         return f"""{{
             .adcl_address = {get_reg_addr(p_data, 'ADCL|ADC')}, .adch_address = {get_reg_addr(p_data, 'ADCH|ADC', True)}, .adcsra_address = {hx(r('ADCSRA')['offset'])}, .adcsrb_address = {hx(r('ADCSRB')['offset'])}, .admux_address = {hx(r('ADMUX')['offset'])},
             .vector_index = {next((i['index'] for i in data['interrupts'] if (i.get('name') or '') and 'ADC' in (i.get('name') or '').upper()), 0)}U,
@@ -283,14 +326,16 @@ def generate_header(data, output_dir):
             .didr0_address = {hx(r('DIDR0')['offset'])},
             .adc_pin_address = {{{{ {", ".join(pins_addr)} }}}},
             .adc_pin_bit = {{{{ {", ".join(pins_bit)} }}}},
-            .auto_trigger_map = {{{{ AdcAutoTriggerSource::free_running, AdcAutoTriggerSource::analog_comparator, AdcAutoTriggerSource::external_interrupt_0, AdcAutoTriggerSource::timer0_compare, AdcAutoTriggerSource::timer0_overflow, AdcAutoTriggerSource::timer1_compare_b, AdcAutoTriggerSource::timer1_overflow, AdcAutoTriggerSource::timer1_capture }}}},
+            .auto_trigger_map = {{{{ {", ".join(mapping)} }}}},
             .adsc_mask = {hx(b('ADCSRA', 'ADSC'))}, .adate_mask = {hx(b('ADCSRA', 'ADATE'))}, .adif_mask = {hx(b('ADCSRA', 'ADIF'))}, .adie_mask = {hx(b('ADCSRA', 'ADIE'))}, .aden_mask = {hx(b('ADCSRA', 'ADEN'))}, .adlar_mask = {hx(b('ADMUX', 'ADLAR'))},
+            .adts_mask = {hx(adts_bf.get('mask', 0x07))},
             .pr_address = {get_pr_info(data, 'PRADC')[0]}, .pr_bit = {get_pr_info(data, 'PRADC')[1]},
             .mux_table = {gen_adc_mux_table(name)}
         }}"""
 
     def gen_usb(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        b = lambda n, b_re: get_bit(r(n), b_re)
         return f"""{{
             .uhwcon_address = {hx(r('UHWCON')['offset'])}, .usbcon_address = {hx(r('USBCON')['offset'])}, .usbsta_address = {hx(r('USBSTA')['offset'])}, .usbint_address = {hx(r('USBINT')['offset'])},
             .udcon_address = {hx(r('UDCON')['offset'])}, .udint_address = {hx(r('UDINT')['offset'])}, .udien_address = {hx(r('UDIEN')['offset'])}, .udaddr_address = {hx(r('UDADDR')['offset'])}, .udfnum_address = {hx(r('UDFNUM')['offset'])}, .udmfn_address = {hx(r('UDMFN')['offset'])},
@@ -301,6 +346,8 @@ def generate_header(data, output_dir):
             .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB_GEN' in (i.get('name') or '').upper()), 10)}U,
             .com_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'USB_COM' in (i.get('name') or '').upper()), 11)}U,
             .pllcsr_address = {hx(data['peripherals'].get('PLL', {}).get('registers', {}).get('PLLCSR', {}).get('offset', 0))},
+            .usbcon_usbe_mask = {hx(b('USBCON', 'USBE'))}, .usbcon_frzclk_mask = {hx(b('USBCON', 'FRZCLK'))},
+            .udint_sofi_mask = {hx(b('UDINT', 'SOFI'))},
             .pr_address = {get_pr_info(data, 'PRUSB')[0]}, .pr_bit = {get_pr_info(data, 'PRUSB')[1]}
         }}"""
 

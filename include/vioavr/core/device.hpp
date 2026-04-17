@@ -8,14 +8,37 @@
 namespace vioavr::core {
 
 enum class AdcAutoTriggerSource : u8 {
-    free_running = 0,
-    analog_comparator = 1,
-    external_interrupt_0 = 2,
-    timer0_compare = 3,
-    timer0_overflow = 4,
-    timer1_compare_b = 5,
-    timer1_overflow = 6,
-    timer1_capture = 7,
+    none = 0,
+    free_running,
+    analog_comparator,
+    external_interrupt_0,
+    timer0_compare_a,
+    timer0_compare_b,
+    timer0_overflow,
+    timer1_compare_a,
+    timer1_compare_b,
+    timer1_compare_c,
+    timer1_overflow,
+    timer1_capture,
+    timer2_compare_a,
+    timer2_compare_b,
+    timer2_overflow,
+    timer3_compare_a,
+    timer3_compare_b,
+    timer3_compare_c,
+    timer3_overflow,
+    timer3_capture,
+    timer4_compare_a,
+    timer4_compare_b,
+    timer4_compare_c,
+    timer4_compare_d,
+    timer4_overflow,
+    timer4_capture,
+    timer5_compare_a,
+    timer5_compare_b,
+    timer5_compare_c,
+    timer5_overflow,
+    timer5_capture,
     unsupported = 0xFFU
 };
 
@@ -39,13 +62,14 @@ struct AdcDescriptor {
     u16 didr0_address {};
     std::array<u16, 16> adc_pin_address {}; // Increased to 16 for mega2560
     std::array<u8, 16> adc_pin_bit {};
-    std::array<AdcAutoTriggerSource, 8> auto_trigger_map {};
+    std::array<AdcAutoTriggerSource, 16> auto_trigger_map {};
     u8 adsc_mask {0x40U};
     u8 adate_mask {0x20U};
     u8 adif_mask {0x10U};
     u8 adie_mask {0x08U};
     u8 aden_mask {0x80U};
     u8 adlar_mask {0x20U}; // Usually in ADMUX
+    u8 adts_mask {0x07U};   // Mask for ADTS bits in ADCSRB
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
     std::array<AdcMuxEntry, 64> mux_table {};
@@ -100,6 +124,10 @@ struct Timer8Descriptor {
     u8 focb_mask {0x40U}; // bit 6 of TCCRB
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+
+    // ADC Triggering
+    AdcAutoTriggerSource compare_a_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource overflow_trigger_source {AdcAutoTriggerSource::none};
 };
 
 struct ExtInterruptDescriptor {
@@ -331,6 +359,11 @@ struct Timer16Descriptor {
     u8 focc_mask {0x20U}; // bit 5 of TCCRC
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+
+    // ADC Triggering
+    AdcAutoTriggerSource compare_b_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource overflow_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource capture_trigger_source {AdcAutoTriggerSource::none};
 };
 
 struct Timer10Descriptor {
@@ -372,6 +405,12 @@ struct Timer10Descriptor {
     u8 overflow_vector_index {};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+
+    // ADC Triggering
+    AdcAutoTriggerSource compare_a_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource compare_b_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource compare_d_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource overflow_trigger_source {AdcAutoTriggerSource::none};
 };
 
 struct PortDescriptor {

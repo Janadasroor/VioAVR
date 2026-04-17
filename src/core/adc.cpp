@@ -265,7 +265,7 @@ void Adc::set_channel_voltage(u8 channel, double normalized_voltage) noexcept {
 }
 
 bool Adc::auto_trigger_enabled() const noexcept {
-    return (adcsra_ & 0x20U) != 0;
+    return (adcsra_ & desc_.aden_mask) && (adcsra_ & desc_.adate_mask);
 }
 
 bool Adc::free_running_enabled() const noexcept {
@@ -273,21 +273,11 @@ bool Adc::free_running_enabled() const noexcept {
 }
 
 Adc::AutoTriggerSource Adc::resolve_auto_trigger_source(u8 selector) const noexcept {
-    static const AutoTriggerSource sources[] = {
-        AutoTriggerSource::free_running,
-        AutoTriggerSource::comparator,
-        AutoTriggerSource::external_interrupt_0,
-        AutoTriggerSource::timer_compare,
-        AutoTriggerSource::timer_overflow,
-        AutoTriggerSource::timer1_compare_b,
-        AutoTriggerSource::timer1_overflow,
-        AutoTriggerSource::timer1_capture
-    };
-    return sources[selector & 0x07U];
+    return desc_.auto_trigger_map[selector & desc_.adts_mask];
 }
 
 void Adc::update_auto_trigger_source_from_register() noexcept {
-    auto_trigger_source_ = resolve_auto_trigger_source(adcsrb_ & 0x07U);
+    auto_trigger_source_ = resolve_auto_trigger_source(adcsrb_ & desc_.adts_mask);
 }
 
 void Adc::restart_free_running_conversion() noexcept {
@@ -297,6 +287,7 @@ void Adc::restart_free_running_conversion() noexcept {
 }
 
 void Adc::notify_auto_trigger(AutoTriggerSource source) noexcept {
+    if (source == AutoTriggerSource::none) return;
     if (auto_trigger_enabled() && source == auto_trigger_source_) {
         start_conversion();
     }
