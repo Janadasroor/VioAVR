@@ -40,6 +40,11 @@ std::string_view ExtInterrupt::name() const noexcept
     return name_;
 }
 
+ClockDomain ExtInterrupt::clock_domain() const noexcept
+{
+    return ClockDomain::none;
+}
+
 std::span<const AddressRange> ExtInterrupt::mapped_ranges() const noexcept
 {
     size_t count = 0;

@@ -32,7 +32,7 @@ TEST_CASE("External Interrupt Fidelity Test") {
     bus.attach_peripheral(exint);
 
     // 2. Load the test firmware
-    const auto image = HexImageLoader::load_file("../test_ext_interrupt.hex", atmega328p);
+    const auto image = HexImageLoader::load_file("tests/test_ext_interrupt.hex", atmega328p);
     bus.load_image(image);
     cpu.reset();
 
@@ -41,11 +41,11 @@ TEST_CASE("External Interrupt Fidelity Test") {
 
     // Initial state: PB5 should be LOW
     CHECK((portb.read(0x25U) & (1 << 5)) == 0);
-    bus.propagate_external_pin_change(99, PinLevel::high); 
+    exint.on_external_pin_change(0, PinLevel::high); 
     cpu.run(10);
 
     // 4. Trigger Falling Edge on PD2
-    bus.propagate_external_pin_change(99, PinLevel::low);
+    exint.on_external_pin_change(0, PinLevel::low);
     
     // 5. Run simulation
     cpu.run(200);
@@ -54,9 +54,9 @@ TEST_CASE("External Interrupt Fidelity Test") {
     CHECK((portb.read(0x25U) & (1 << 5)) != 0);
 
     // 7. Trigger another Falling Edge
-    bus.propagate_external_pin_change(99, PinLevel::high);
+    exint.on_external_pin_change(0, PinLevel::high);
     cpu.run(100);
-    bus.propagate_external_pin_change(99, PinLevel::low);
+    exint.on_external_pin_change(0, PinLevel::low);
     cpu.run(200);
 
     // 8. Verify PB5 is LOW again

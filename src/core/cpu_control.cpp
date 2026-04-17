@@ -7,9 +7,6 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
     : cpu_(cpu)
 {
     ranges_.push_back(AddressRange{desc.spl_address, desc.sreg_address});
-    if (desc.spmcsr_address != 0U && (desc.spmcsr_address < desc.spl_address || desc.spmcsr_address > desc.sreg_address)) {
-        ranges_.push_back(AddressRange{desc.spmcsr_address, desc.spmcsr_address});
-    }
     if (desc.smcr_address != 0U) {
         ranges_.push_back(AddressRange{desc.smcr_address, desc.smcr_address});
     }
@@ -31,7 +28,7 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
     if (desc.prr_address != 0U) ranges_.push_back({desc.prr_address, desc.prr_address});
     if (desc.prr0_address != 0U) ranges_.push_back({desc.prr0_address, desc.prr0_address});
     if (desc.prr1_address != 0U) ranges_.push_back({desc.prr1_address, desc.prr1_address});
-    if (desc.pllcsr_address != 0U) ranges_.push_back({desc.pllcsr_address, desc.pllcsr_address});
+    // PLLCSR is managed by Timer10/Timer4
 }
 
 std::string_view CpuControl::name() const noexcept
@@ -83,11 +80,6 @@ u8 CpuControl::read(const u16 address) noexcept
     if (address == d.prr1_address) return prr1_;
     if (address == d.pllcsr_address) return pllcsr_;
     
-    if (address == d.spmcsr_address) {
-        u8 val = spmcsr_;
-        if (cpu_.bus().flash_rww_busy()) val |= 0x40U; 
-        return val;
-    }
     if (address == d.spl_address) return static_cast<u8>(cpu_.stack_pointer() & 0xFFU);
     if (address == d.sph_address) return static_cast<u8>((cpu_.stack_pointer() >> 8U) & 0xFFU);
     if (address == d.sreg_address) return cpu_.sreg();
@@ -121,8 +113,6 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         prr1_ = value;
     } else if (address == d.pllcsr_address) {
         pllcsr_ = value;
-    } else if (address == d.spmcsr_address) {
-        spmcsr_ = value & 0xBFU;
     } else if (address == d.spl_address) {
         const u16 sp = cpu_.stack_pointer();
         cpu_.set_stack_pointer(static_cast<u16>((sp & 0xFF00U) | value));

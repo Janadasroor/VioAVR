@@ -19,6 +19,13 @@ enum class AdcAutoTriggerSource : u8 {
     unsupported = 0xFFU
 };
 
+struct AdcMuxEntry {
+    u8 positive_channel {0xFFU};
+    u8 negative_channel {0xFFU};
+    float gain {1.0f};
+    bool differential {false};
+};
+
 struct AdcDescriptor {
     u16 adcl_address {};
     u16 adch_address {};
@@ -41,6 +48,7 @@ struct AdcDescriptor {
     u8 adlar_mask {0x20U}; // Usually in ADMUX
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    std::array<AdcMuxEntry, 64> mux_table {};
 };
 
 struct AnalogComparatorDescriptor {

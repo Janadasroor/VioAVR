@@ -88,6 +88,8 @@ TEST_CASE("CPU SPM (Store Program Memory) Firmware Lifecycle Test")
     flash[pc++] = encode_ldi(16, 0x03); // SELFPRGEN | PGERS
     flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
     flash[pc++] = kSpm;
+    // Wait for SPM done
+    flash[pc++] = encode_lds(16, spmcsr_addr); flash[pc++] = 0xFD00; flash[pc++] = 0xCFFD;
 
     // Must clear RWWSB before next operation on RWW section
     flash[pc++] = encode_ldi(16, 0x11); // SELFPRGEN | RWWSRE
@@ -120,9 +122,9 @@ TEST_CASE("CPU SPM (Store Program Memory) Firmware Lifecycle Test")
 
     // Execute the lifecycle
     // Clear and fill word 0, word 1, erase, write, verify.
-    // Total instructions ~40. STS takes 2, SPM takes 1 (mode 1) or 1 (mode 3/5).
-    // Plus JMP. 500 cycles is plenty.
-    cpu.run(500);
+    // Total instructions ~40. But Erase and Write take 64k cycles each!
+    // Plus JMP. 150,000 cycles is needed.
+    cpu.run(150000);
 
     CHECK(cpu.registers()[2] == 0x22U);
     CHECK(cpu.registers()[3] == 0x44U);

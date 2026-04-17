@@ -1,6 +1,7 @@
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/adc.hpp"
 #include <algorithm>
 #include <vector>
 #include <optional>
@@ -513,6 +514,7 @@ void Timer16::handle_compare_match_b() noexcept
 { 
     tifr_ |= desc_.compare_b_enable_mask; 
     apply_pin_action(pin_b_, get_pin_action_b());
+    if (adc_) adc_->notify_auto_trigger(Adc::AutoTriggerSource::timer1_compare_b);
 }
 
 void Timer16::handle_compare_match_c() noexcept 
@@ -523,12 +525,20 @@ void Timer16::handle_compare_match_c() noexcept
     }
 }
 
-void Timer16::handle_overflow() noexcept { tifr_ |= desc_.overflow_enable_mask; }
+void Timer16::handle_overflow() noexcept { 
+    tifr_ |= desc_.overflow_enable_mask; 
+    if (adc_) adc_->notify_auto_trigger(Adc::AutoTriggerSource::timer1_overflow);
+}
 
 void Timer16::handle_input_capture() noexcept
 {
     icr_ = tcnt_;
     tifr_ |= desc_.capture_enable_mask;
+    if (adc_) adc_->notify_auto_trigger(Adc::AutoTriggerSource::timer1_capture);
+}
+
+void Timer16::connect_adc_auto_trigger(Adc& adc) noexcept {
+    adc_ = &adc;
 }
 
 void Timer16::apply_pin_action(std::optional<BoundPin> pin, PinAction action) noexcept
@@ -557,6 +567,13 @@ Timer16::PinAction Timer16::get_pin_action_b() const noexcept
 Timer16::PinAction Timer16::get_pin_action_c() const noexcept
 {
     return static_cast<PinAction>((tccra_ >> 2U) & 0x03U);
+}
+
+void Timer16::notify_input_capture(bool high) noexcept {
+    const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
+    if (high == rising_edge) {
+        handle_input_capture();
+    }
 }
 
 }  // namespace vioavr::core

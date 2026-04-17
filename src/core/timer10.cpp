@@ -23,6 +23,7 @@ Timer10::Timer10(std::string_view name, const Timer10Descriptor& desc) noexcept
     if (desc.dt4_address) ranges_[count++] = {desc.dt4_address, desc.dt4_address};
     if (desc.timsk_address) ranges_[count++] = {desc.timsk_address, desc.timsk_address};
     if (desc.tifr_address) ranges_[count++] = {desc.tifr_address, desc.tifr_address};
+    if (desc.pllcsr_address) ranges_[count++] = {desc.pllcsr_address, desc.pllcsr_address};
     ranges_count_ = count;
 }
 
@@ -52,18 +53,12 @@ void Timer10::reset() noexcept {
     target_b_ = false; target_b_neg_ = false;
     target_d_ = false; target_d_neg_ = false;
     clock_ratio_ = 1;
+    pll_enabled_ = false;
 }
 
 void Timer10::tick(u64 elapsed_cycles) noexcept {
     if (power_reduction_enabled()) return;
     
-    if (bus_ && desc_.pllcsr_address) {
-        u8 pllcsr = bus_->read_data(desc_.pllcsr_address);
-        bool pcke = (pllcsr & 0x04U); 
-        bool plock = (pllcsr & 0x01U);
-        clock_ratio_ = (pcke && plock) ? 8 : 1;
-    }
-
     u64 timer_ticks = elapsed_cycles * clock_ratio_;
     for (u64 i = 0; i < timer_ticks; ++i) {
         perform_tick();
@@ -85,6 +80,7 @@ u8 Timer10::read(u16 address) noexcept {
     if (address == desc_.dt4_address) return dt4_;
     if (address == desc_.timsk_address) return timsk_;
     if (address == desc_.tifr_address) return tifr_;
+    if (address == desc_.pllcsr_address) return pll_enabled_ ? 0x05U : 0x00U; // PCKE=1, PLOCK=1
     return 0;
 }
 
@@ -121,6 +117,9 @@ void Timer10::write(u16 address, u8 value) noexcept {
         timsk_ = value;
     } else if (address == desc_.tifr_address) {
         tifr_ &= ~value;
+    } else if (address == desc_.pllcsr_address) {
+        pll_enabled_ = (value & 0x04U) != 0;
+        clock_ratio_ = pll_enabled_ ? 8 : 1;
     }
 }
 

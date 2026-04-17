@@ -339,7 +339,6 @@ private:
     u8 interrupt_delay_ {};
     std::vector<u16> temp_flash_page_buffer_;
     u8 spm_lock_timeout_ {};
-    bool rww_section_busy_ {};
     CpuState state_ {CpuState::halted};
 };
 

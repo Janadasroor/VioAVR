@@ -24,20 +24,15 @@ constexpr u8 kMasterWriteTimeout = 4U;
 Eeprom::Eeprom(std::string_view name, const EepromDescriptor& descriptor) noexcept
     : name_(name), desc_(descriptor), size_(descriptor.size)
 {
-    ranges_[0].begin = std::min({desc_.eearl_address, desc_.eearh_address, desc_.eedr_address, desc_.eecr_address});
-    ranges_[0].end = std::max({desc_.eearl_address, desc_.eearh_address, desc_.eedr_address, desc_.eecr_address});
-    
     storage_.resize(size_, 0xFFU);
+    ranges_[0] = {desc_.eecr_address, static_cast<u16>(desc_.eecr_address + (desc_.eearh_address > 0 ? 3U : 2U))};
 }
 
-std::string_view Eeprom::name() const noexcept
-{
-    return name_;
-}
+std::string_view Eeprom::name() const noexcept { return name_; }
 
 std::span<const AddressRange> Eeprom::mapped_ranges() const noexcept
 {
-    return ranges_;
+    return {ranges_.data(), ranges_.size()};
 }
 
 void Eeprom::reset() noexcept
@@ -109,16 +104,34 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
     }
 }
 
+bool Eeprom::pending_interrupt_request(InterruptRequest& request) const noexcept
+{
+    // EERIE triggers if EEPE is zero AND EERIE is set.
+    // In our simulation, write_cycles_left_ is 0 when EEPE is 0.
+    if (write_cycles_left_ == 0U && (eecr_ & kEerie) != 0U) {
+        request = {desc_.vector_index, 0U};
+        return true;
+    }
+    return false;
+}
+
+bool Eeprom::consume_interrupt_request(InterruptRequest& request) noexcept
+{
+    if (pending_interrupt_request(request)) {
+        interrupt_pending_ = false;
+        return true;
+    }
+    return false;
+}
+
 void Eeprom::update_eecr(const u8 value) noexcept
 {
     // EERE: Read Enable
     if ((value & kEere) != 0U) {
-        // Read is only possible if EEPE is not set
         if (write_cycles_left_ == 0U) {
             const u16 addr = static_cast<u16>(eear_ % size_);
             eedr_ = storage_[addr];
         }
-        // EERE is cleared by hardware after one cycle, we just don't store it.
     }
 
     // EEMPE: Master Write Enable
@@ -166,50 +179,28 @@ void Eeprom::complete_write() noexcept
     const u16 addr = static_cast<u16>(eear_ % size_);
     const u8 mode = (eecr_ >> 4U) & 0x03U;
     
-    if (mode == 0x01U) { // Erase Only
+    if (mode == 0x01U) { // Erase only
         storage_[addr] = 0xFFU;
-    } else if (mode == 0x02U) { // Write Only
+    } else if (mode == 0x02U) { // Write only
         storage_[addr] &= eedr_;
-    } else { // Atomic (Erase + Write)
+    } else { // Atomic
         storage_[addr] = eedr_;
     }
     
     interrupt_pending_ = true;
 }
 
-bool Eeprom::pending_interrupt_request(InterruptRequest& request) const noexcept
-{
-    // EERIE triggers if EEPE is zero AND EERIE is set.
-    // In our simulation, write_cycles_left_ is 0 when EEPE is 0.
-    if (write_cycles_left_ == 0U && (eecr_ & kEerie) != 0U) {
-        request = {desc_.vector_index, 0U};
-        return true;
-    }
-    return false;
-}
-
-bool Eeprom::consume_interrupt_request(InterruptRequest& request) noexcept
-{
-    if (pending_interrupt_request(request)) {
-        interrupt_pending_ = false;
-        return true;
-    }
-    return false;
-}
-
-bool Eeprom::load_from_file(const std::string& path)
-{
-    std::ifstream file(path, std::ios::binary);
-    if (!file) return false;
-    file.read(reinterpret_cast<char*>(storage_.data()), static_cast<std::streamsize>(storage_.size()));
+bool Eeprom::load_from_file(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return false;
+    f.read(reinterpret_cast<char*>(storage_.data()), storage_.size());
     return true;
 }
 
-bool Eeprom::save_to_file(const std::string& path) const
-{
-    std::ofstream file(path, std::ios::binary);
-    if (!file) return false;
-    file.write(reinterpret_cast<const char*>(storage_.data()), static_cast<std::streamsize>(storage_.size()));
+bool Eeprom::save_to_file(const std::string& path) const {
+    std::ofstream f(path, std::ios::binary);
+    if (!f) return false;
+    f.write(reinterpret_cast<const char*>(storage_.data()), storage_.size());
     return true;
 }
 

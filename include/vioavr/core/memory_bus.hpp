@@ -101,8 +101,8 @@ public:
     void tick_peripherals(u64 elapsed_cycles, u8 active_domains = 0xFFU) noexcept;
     [[nodiscard]] bool consume_pin_change(PinStateChange& change) noexcept;
     void propagate_external_pin_change(u32 external_id, PinLevel level) noexcept;
-    [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept;
-    [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept;
+    [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) const noexcept;
+    [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) noexcept;
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
 
@@ -127,5 +127,11 @@ private:
     u32 loaded_program_words_ {};
     u32 reset_word_address_ {};
     std::vector<u16> flash_page_buffer_;
+
+    // SPM timing state
+    u32 spm_busy_cycles_left_ {0U};
+    u8 spm_command_ {0U};
+    u32 spm_address_ {0U};
+    u16 spm_data_ {0U};
 };
 }  // namespace vioavr::core

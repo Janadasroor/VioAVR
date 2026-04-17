@@ -145,6 +145,11 @@ void AvrCpu::step()
             state_ = CpuState::running;
             cpu_control().exit_sleep();
             synchronize_if_needed();
+        } else if (interrupt_pending_) {
+            // Wake up even if global interrupts are disabled
+            state_ = CpuState::running;
+            cpu_control().exit_sleep();
+            synchronize_if_needed();
         }
         return;
     }
@@ -517,7 +522,7 @@ void AvrCpu::refresh_interrupt_pending()
     }
 
     InterruptRequest request;
-    interrupt_pending_ = bus_->pending_interrupt_request(request);
+    interrupt_pending_ = bus_->pending_interrupt_request(request, active_clock_domains());
 }
 
 bool AvrCpu::service_interrupt_if_needed()
@@ -528,7 +533,7 @@ bool AvrCpu::service_interrupt_if_needed()
     }
 
     InterruptRequest request;
-    if (!bus_->consume_interrupt_request(request)) {
+    if (!bus_->consume_interrupt_request(request, active_clock_domains())) {
         interrupt_pending_ = false;
         return false;
     }
@@ -1528,6 +1533,7 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     const bool spmen = (spmcsr & 0x01U) != 0U;
     
     if (!spmen || spm_lock_timeout_ == 0U) {
+        Logger::debug("AvrCpu: SPM ignored. SPMEN=" + std::to_string(spmen) + " timeout=" + std::to_string(spm_lock_timeout_));
         advance_cycles(1U);
         program_counter_ = instruction.word_address + 1U;
         return;
@@ -1923,12 +1929,6 @@ void AvrCpu::write_data_bus(const u16 address, const u8 value) noexcept
         if ((value & 0x01U) != 0U) { // SPMEN set
             spm_lock_timeout_ = 4U;
         }
-        // Update the RWWSB bit if needed (read-only from hardware)
-        u8 val = value;
-        if (rww_section_busy_) val |= 0x40U;
-        else val &= 0xBFU;
-        bus_->write_data(address, val);
-        return;
     }
 
     bus_->write_data(address, value);
