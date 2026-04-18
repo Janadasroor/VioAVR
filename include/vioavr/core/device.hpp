@@ -349,6 +349,14 @@ struct RtcDescriptor {
     u8 pit_vector_index {};
 };
 
+struct EvsysDescriptor {
+    u16 strobe_address {};
+    u16 channels_address {};
+    u16 users_address {};
+    u8 channel_count {};
+    u8 user_count {};
+};
+
 struct WdtDescriptor {
     u16 wdtcsr_address {};
     u8 wdtcsr_reset {0x00U};
@@ -657,6 +665,8 @@ struct DeviceDescriptor {
 
     u8 rtc_count {0U};
     std::array<RtcDescriptor, 1> timers_rtc {};
+
+    EvsysDescriptor evsys {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};

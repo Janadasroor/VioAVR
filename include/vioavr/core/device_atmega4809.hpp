@@ -129,6 +129,14 @@ inline constexpr DeviceDescriptor atmega4809 {
             .pitintctrl_address = 0x152U, .pitintflags_address = 0x153U,
             .ovf_vector_index = 3U, .pit_vector_index = 4U
         } }},
+
+    .evsys = {
+            .strobe_address = 0x180U,
+            .channels_address = 0x190U,
+            .users_address = 0x1A0U,
+            .channel_count = 8U,
+            .user_count = 24U
+        },
     
     .ext_interrupt_count = 0U,
     .ext_interrupts = {{  }},

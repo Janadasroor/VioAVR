@@ -115,7 +115,7 @@ def generate_header(data, header_path):
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': []
+        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -681,12 +681,32 @@ def generate_header(data, header_path):
             .ovf_vector_index = {get_int('CNT') or get_int('OVF')}U, .pit_vector_index = {get_int('PIT')}U
         }}"""
 
+    def gen_evsys(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        ch_count = 0
+        user_count = 0
+        user_base = 0xFFFF
+        for reg_name, reg_def in p_data['registers'].items():
+            if 'CHANNEL' in reg_name: ch_count += 1
+            if 'USER' in reg_name:
+                 user_count += 1
+                 user_base = min(user_base, reg_def['offset'])
+        if user_base == 0xFFFF: user_base = 0
+        return f"""{{
+            .strobe_address = {hx(r('STROBE')['offset'])},
+            .channels_address = {hx(r('CHANNEL0')['offset'])},
+            .users_address = {hx(user_base)},
+            .channel_count = {ch_count}U,
+            .user_count = {user_count}U
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
     timers_tca_str = ",\n        ".join(gen_tca(n, d) for n, d in groups['TCA'])
     timers_tcb_str = ",\n        ".join(gen_tcb(n, d) for n, d in groups['TCB'])
     timers_rtc_str = ",\n        ".join(gen_rtc(n, d) for n, d in groups['RTC'])
+    evsys_descriptor = gen_evsys("EVSYS", groups['EVSYS'][0][1]) if groups['EVSYS'] else "{}"
     adcs_descriptors = [gen_adc(n, d) for n, d in groups['ADC']]
     acs_descriptors = []
     for n, d in groups['AC']:
@@ -827,6 +847,8 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .rtc_count = {len(groups['RTC'])}U,
     .timers_rtc = {{{{ {timers_rtc_str} }}}},
+
+    .evsys = {evsys_descriptor},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},

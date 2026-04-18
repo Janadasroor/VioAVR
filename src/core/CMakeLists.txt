@@ -32,6 +32,7 @@ target_sources(vioavr_core
         tca.cpp
         tcb.cpp
         rtc.cpp
+        evsys.cpp
         uart.cpp
         machine.cpp
         watchdog_timer.cpp
