@@ -2,6 +2,7 @@
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/xmem.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
+#include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/cpu_int.hpp"
 
 #include <algorithm>
@@ -15,6 +16,14 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
     data_.resize(static_cast<std::size_t>(device_.data_end_address()) + 1U, 0U);
     dispatch_table_.resize(data_.size(), nullptr);
     flash_page_buffer_.resize(device_.flash_page_size, 0xFFFFU);
+    
+    if (device_.mapped_user_signatures.size > 0) {
+        user_row_.resize(device_.mapped_user_signatures.size, 0xFFU);
+    }
+    if (device_.nvm_ctrl_count > 0) {
+        eeprom_page_buffer_.resize(32, 0xFFU); // 4809 EEPROM page is 32 bytes
+    }
+    
     reset();
 }
 
@@ -101,6 +110,13 @@ u8 MemoryBus::read_data(const u16 address) noexcept
         return (offset < device_.signature.size()) ? device_.signature[offset] : 0xFFU;
     }
 
+    if (device_.mapped_user_signatures.size > 0 &&
+        address >= device_.mapped_user_signatures.data_start &&
+        address < device_.mapped_user_signatures.data_start + device_.mapped_user_signatures.size) {
+        const u32 offset = address - device_.mapped_user_signatures.data_start;
+        return (offset < user_row_.size()) ? user_row_[offset] : 0xFFU;
+    }
+
     // 2. Standard Peripheral/Memory dispatch
     if (IoPeripheral* peripheral = find_peripheral(address); peripheral != nullptr) {
         value = peripheral->read(address);
@@ -147,6 +163,32 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
             } else {
                 word = (word & 0xFF00U) | static_cast<u16>(value);
             }
+            flash_page_buffer_[page_offset] = word;
+            return;
+        }
+    }
+
+    if (device_.mapped_eeprom.size > 0 &&
+        address >= device_.mapped_eeprom.data_start &&
+        address < device_.mapped_eeprom.data_start + device_.mapped_eeprom.size) {
+        const u32 offset = address - device_.mapped_eeprom.data_start;
+        const u32 page_offset = offset % 32;
+        if (page_offset < eeprom_page_buffer_.size()) {
+            eeprom_page_buffer_[page_offset] = value;
+            return;
+        }
+    }
+
+    if (device_.mapped_user_signatures.size > 0 &&
+        address >= device_.mapped_user_signatures.data_start &&
+        address < device_.mapped_user_signatures.data_start + device_.mapped_user_signatures.size) {
+        const u32 offset = address - device_.mapped_user_signatures.data_start;
+        const u32 word_addr = offset >> 1;
+        const u32 page_offset = word_addr % device_.flash_page_size;
+        if (page_offset < flash_page_buffer_.size()) {
+            u16 word = flash_page_buffer_[page_offset];
+            if (offset & 1) word = (word & 0x00FFU) | (static_cast<u16>(value) << 8U);
+            else word = (word & 0xFF00U) | static_cast<u16>(value);
             flash_page_buffer_[page_offset] = word;
             return;
         }
@@ -215,6 +257,48 @@ void MemoryBus::tick_peripherals(const u64 elapsed_cycles, const u8 active_domai
                     }
                 }
                 flash_rww_busy_ = true;
+            }
+
+            // AVR8X Specific Commands
+            if (is_nvm) {
+                if (command == 0x04) { // PBC (Flash Page Buffer Clear)
+                    std::ranges::fill(flash_page_buffer_, 0xFFFFU);
+                } else if (command == 0x05) { // CHER (Chip Erase)
+                    std::ranges::fill(flash_, 0xFFFFU);
+                    std::ranges::fill(user_row_, 0xFFU);
+                    for (auto* p : peripherals_) {
+                        if (p && p->name() == "EEPROM") {
+                             static_cast<Eeprom*>(p)->erase_all(); 
+                        }
+                    }
+                } else if (command == 0x06 || command == 0x08) { // EEER / EEERWP (EEPROM Page Erase)
+                    // Simplified: Treated as write or commit 0xFF
+                } else if (command == 0x07 || command == 0x08) { // EEWP / EEERWP (EEPROM Page Write)
+                     if (device_.mapped_eeprom.size > 0) {
+                        const u32 ee_offset = (address - device_.mapped_eeprom.data_start);
+                        for (auto* p : peripherals_) {
+                            if (p && p->name() == "EEPROM") {
+                                auto* ee = static_cast<Eeprom*>(p);
+                                ee->commit_page(ee_offset, eeprom_page_buffer_);
+                            }
+                        }
+                     }
+                } else if (command == 0x09) { // EEPBC (EEPROM Page Buffer Clear)
+                    std::ranges::fill(eeprom_page_buffer_, 0xFFU);
+                } else if (command == 0x10) { // URER / URWP (User Row)
+                    if (device_.mapped_user_signatures.size > 0) {
+                        const u32 ur_offset = (address - device_.mapped_user_signatures.data_start);
+                        for (u32 i = 0; i < device_.flash_page_size; ++i) {
+                            const u32 byte_idx = ur_offset + i * 2;
+                            if (byte_idx < user_row_.size()) {
+                                user_row_[byte_idx] = static_cast<u8>(flash_page_buffer_[i] & 0xFFU);
+                            }
+                            if (byte_idx + 1 < user_row_.size()) {
+                                user_row_[byte_idx + 1] = static_cast<u8>(flash_page_buffer_[i] >> 8U);
+                            }
+                        }
+                    }
+                }
             }
 
             // Clear SPMEN and command bits
@@ -405,6 +489,11 @@ void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data)
         }
         return;
     }
+}
+
+void MemoryBus::set_nvm_ctrl(class NvmCtrl* nvm_ctrl) noexcept { 
+    nvm_ctrl_ = nvm_ctrl; 
+    if (nvm_ctrl) nvm_ctrl->set_bus(*this);
 }
 
 void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept {

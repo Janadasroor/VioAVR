@@ -190,7 +190,6 @@ void AvrCpu::step()
     }
 
     const DecodedInstruction instruction = fetch();
-    Logger::debug("Step PC=" + std::to_string(instruction.word_address) + " Opcode=" + std::to_string(instruction.opcode));
     decode_and_execute(instruction);
     synchronize_if_needed();
 }

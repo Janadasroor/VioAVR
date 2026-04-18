@@ -26,6 +26,9 @@ public:
     bool load_from_file(const std::string& path);
     bool save_to_file(const std::string& path) const;
 
+    void commit_page(u32 address, std::span<const u8> data) noexcept;
+    void erase_all() noexcept;
+
 private:
     void update_eecr(u8 value) noexcept;
     void start_write() noexcept;
