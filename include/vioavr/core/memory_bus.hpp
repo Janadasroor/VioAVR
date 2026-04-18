@@ -100,6 +100,7 @@ public:
     [[nodiscard]] u8 read_data(u16 address) noexcept;
     void write_data(u16 address, u8 value) noexcept;
     void tick_peripherals(u64 elapsed_cycles, u8 active_domains = 0xFFU) noexcept;
+    [[nodiscard]] u64 cpu_cycles() const noexcept { return cpu_cycles_; }
     [[nodiscard]] bool consume_pin_change(PinStateChange& change) noexcept;
     void propagate_external_pin_change(u32 external_id, PinLevel level) noexcept;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) const noexcept;
@@ -146,5 +147,6 @@ private:
     u8 spm_command_ {0U};
     u32 spm_address_ {0U};
     u16 spm_data_ {0U};
+    u64 cpu_cycles_ {0U};
 };
 }  // namespace vioavr::core

@@ -1,0 +1,3 @@
+Loaded 152 .text at address 0x0
+Loaded 0 .data
+signal caught, simavr terminating

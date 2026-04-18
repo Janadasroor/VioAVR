@@ -91,6 +91,7 @@ private:
     u8 trigger_select_register_ {};
     u16 result_ {};
     u16 cycles_remaining_ {};
+    bool first_conversion_ {true};
     AutoTriggerSource auto_trigger_source_ {AutoTriggerSource::none};
     bool converting_ {};
     bool pending_ {};

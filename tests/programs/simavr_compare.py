@@ -3,19 +3,17 @@
 Compare VioAVR simulator output against SimAVR reference.
 
 Workflow:
-1. Compile C source to ELF with avr-gcc
-2. Run through SimAVR with GDB, extract register traces
-3. Run through VioAVR, extract register traces
+1. Compile C source to ELF and HEX with avr-gcc
+2. Run through SimAVR (via custom tracer), extract CSV
+3. Run through VioAVR (via custom tracer), extract CSV
 4. Compare traces to find discrepancies
-5. Report bugs in VioAVR
-
-Usage: python3 simavr_compare.py <source.c>
 """
 
-import subprocess
+import csv
+import io
 import sys
-import re
-import tempfile
+import subprocess
+import os
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -27,12 +25,14 @@ class CpuState:
     gpr: list[int] = field(default_factory=lambda: [0] * 32)
     sreg: int = 0
     sp: int = 0
+    io: dict[str, int] = field(default_factory=dict)
     
     def diff(self, other: 'CpuState') -> list[str]:
         """Return list of differences between this state and other."""
         diffs = []
         if self.pc != other.pc:
             diffs.append(f"  PC: {self.pc:#06x} vs {other.pc:#06x}")
+        # Cycles might differ if wait states are different, but usually should match
         if self.cycles != other.cycles:
             diffs.append(f"  Cycles: {self.cycles} vs {other.cycles}")
         if self.sp != other.sp:
@@ -42,121 +42,180 @@ class CpuState:
         for i in range(32):
             if self.gpr[i] != other.gpr[i]:
                 diffs.append(f"  R{i}: {self.gpr[i]:#04x} vs {other.gpr[i]:#04x}")
+        
+        for k in self.io:
+            if k in other.io and self.io[k] != other.io[k]:
+                diffs.append(f"  {k}: {self.io[k]:#04x} vs {other.io[k]:#04x}")
+                
         return diffs
 
-def compile_source(src: Path, out: Path) -> bool:
-    """Compile C source to ELF."""
+def parse_trace_csv(csv_content: str) -> list[CpuState]:
+    # Skip any non-csv lines at the beginning
+    lines = csv_content.splitlines()
+    csv_start = 0
+    for i, line in enumerate(lines):
+        if line.startswith("Cycle,PC,SREG"):
+            csv_start = i
+            break
+            
+    reader = csv.DictReader(lines[csv_start:])
+    states = []
+    io_keys = ["TCNT0", "ADCSRA", "ACSR", "SPMCSR", "WDTCSR", "EECR"]
+    
+    for row in reader:
+        try:
+            state = CpuState()
+            state.cycles = int(row['Cycle'])
+            state.pc = int(row['PC'], 16)
+            state.sreg = int(row['SREG'], 16)
+            state.sp = int(row['SP'], 16)
+            state.gpr = [int(row[f'R{i}'], 16) for i in range(32)]
+            for k in io_keys:
+                if k in row:
+                    state.io[k] = int(row[k], 16)
+            states.append(state)
+        except (ValueError, KeyError) as e:
+            # Skip invalid lines
+            continue
+    return states
+
+def compile_source(src: Path, elf: Path, hex_file: Path) -> bool:
+    """Compile C source to ELF and HEX."""
     result = subprocess.run(
-        ["avr-gcc", "-mmcu=atmega328p", "-Os", "-g", "-o", str(out), str(src)],
+        ["avr-gcc", "-mmcu=atmega328p", "-Os", "-o", str(elf), str(src)],
         capture_output=True, text=True
     )
     if result.returncode != 0:
         print(f"Compilation failed:\n{result.stderr}", file=sys.stderr)
         return False
+        
+    subprocess.run(["avr-objcopy", "-O", "ihex", str(elf), str(hex_file)])
     return True
 
-def run_simavr(elf: Path, max_instructions: int = 100) -> list[CpuState]:
-    """Run program in SimAVR via GDB and extract register states."""
-    # Create GDB command script
-    gdb_script = f"""
-target remote | simavr -g -m atmega328p {elf}
-set pagination off
-set logging on
-set logging file /tmp/simavr_trace.txt
-set logging enabled on
+def run_simavr(elf: Path, cycles: int = 1000) -> list[CpuState]:
+    """Run program in SimAVR and extract register states."""
+    tracer = Path("./build/tests/simavr_tracer")
+    if not tracer.exists():
+        print(f"Error: {tracer} not found. Build it first.")
+        return []
+        
+    # Try to ensure LD_LIBRARY_PATH includes simavr if not already there
+    env = os.environ.copy()
+    simavr_path = "/home/jnd/cpp_projects/simavr/simavr/obj-x86_64-linux-gnu"
+    if simavr_path not in env.get("LD_LIBRARY_PATH", ""):
+        env["LD_LIBRARY_PATH"] = env.get("LD_LIBRARY_PATH", "") + ":" + simavr_path
 
-# Extract initial state
-info registers
-# Step through instructions
-"""
-    for _ in range(max_instructions):
-        gdb_script += "stepi\ninfo registers\n"
-    
-    gdb_script += "quit\n"
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.gdb', delete=False) as f:
-        f.write(gdb_script)
-        gdb_script_path = f.name
-    
-    # Alternative: Use SimAVR's built-in trace
-    result = subprocess.run(
-        ["simavr", "-t", "-m", "atmega328p", str(elf)],
-        capture_output=True, text=True, timeout=10
-    )
-    
-    return []  # TODO: Parse trace output
+    try:
+        result = subprocess.run(
+            [str(tracer), str(elf), str(cycles)],
+            capture_output=True, text=True, env=env, check=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"Error: simavr_tracer failed with exit code {e.returncode}")
+        print(f"Stderr: {e.stderr}")
+        return []
+        
+    with open("build/simavr_trace.csv", "w") as f:
+        f.write(result.stdout)
+    return parse_trace_csv(result.stdout)
 
-def run_vioavr(elf: Path, max_instructions: int = 100) -> list[CpuState]:
+def run_vioavr(hex_file: Path, cycles: int = 1000) -> list[CpuState]:
     """Run program in VioAVR simulator and extract register states."""
-    # We need a VioAVR CLI tool that can dump register states
-    # For now, return empty
-    return []
+    tracer = Path("./build/tests/core/vioavr_cpu_trace_util")
+    if not tracer.exists():
+        print(f"Error: {tracer} not found. Rebuild with make.")
+        return []
+        
+    result = subprocess.run(
+        [str(tracer), str(hex_file), str(cycles)],
+        capture_output=True, text=True
+    )
+    with open("build/vioavr_trace.csv", "w") as f:
+        f.write(result.stdout)
+    return parse_trace_csv(result.stdout)
 
 def compare_traces(simavr_states: list[CpuState], vioavr_states: list[CpuState]):
     """Compare two execution traces and report differences."""
-    max_steps = min(len(simavr_states), len(vioavr_states))
+    # Find alignment (some sims might start at different cycle offsets)
+    # We'll align by PC=0 and Cycle=0 if possible
     
-    print(f"\nComparing {max_steps} execution steps...")
+    max_steps = min(len(simavr_states), len(vioavr_states))
+    if max_steps == 0:
+        print("Error: One of the traces is empty!")
+        return 0
+        
+    print(f"\nComparing {max_steps} execution cycles...")
     print("=" * 60)
     
     bugs_found = 0
+    last_mismatch_step = -1
+    
     for i in range(max_steps):
-        diffs = simavr_states[i].diff(vioavr_states[i])
+        s1 = simavr_states[i]
+        s2 = vioavr_states[i]
+        
+        diffs = s1.diff(s2)
         if diffs:
             bugs_found += 1
-            print(f"\nStep {i} - MISMATCH:")
-            print(f"  SimAVR:")
-            print(f"    PC={simavr_states[i].pc:#06x} Cycles={simavr_states[i].cycles} SREG={simavr_states[i].sreg:#04x}")
-            print(f"  VioAVR:")
-            print(f"    PC={vioavr_states[i].pc:#06x} Cycles={vioavr_states[i].cycles} SREG={vioavr_states[i].sreg:#04x}")
-            print("  Differences:")
-            for d in diffs:
-                print(d)
-    
+            if bugs_found <= 5: # Limit output
+                print(f"\nCycle {s1.cycles} [Step {i}] - MISMATCH:")
+                print(f"  PC: Sim={s1.pc:#06x} Vio={s2.pc:#06x}")
+                for d in diffs:
+                    print(d)
+            elif bugs_found == 6:
+                print("\n... and more mismatches ...")
+            
+            last_mismatch_step = i
+            # Once we diverge, cycles might drift, so we stop or try to resync
+            # For now, we report the first 5 and then total
+            
     print(f"\n{'=' * 60}")
-    print(f"Total bugs found: {bugs_found} / {max_steps} steps")
+    if bugs_found == 0:
+        print("SUCCESS: Traces match exactly!")
+    else:
+        print(f"FAILED: Found {bugs_found} mismatched cycles out of {max_steps}")
     
     return bugs_found
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 simavr_compare.py <source.c>")
+        print("Usage: python3 simavr_compare.py <source.c> [cycles]")
         sys.exit(1)
     
     src = Path(sys.argv[1])
+    cycles = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
+    
     if not src.exists():
         print(f"Error: {src} not found")
         sys.exit(1)
     
     elf = src.with_suffix('.elf')
+    hex_file = src.with_suffix('.hex')
     
     print(f"=== SimAVR vs VioAVR Comparison ===")
     print(f"Source: {src}")
-    print()
+    print(f"Cycles: {cycles}")
     
     # Step 1: Compile
-    print("[1/3] Compiling...")
-    if not compile_source(src, elf):
+    if not compile_source(src, elf, hex_file):
         sys.exit(1)
-    print(f"  → {elf}")
     
     # Step 2: Run SimAVR
-    print("\n[2/3] Running SimAVR...")
-    simavr_states = run_simavr(elf)
-    print(f"  Captured {len(simavr_states)} states")
+    simavr_states = run_simavr(elf, cycles)
+    print(f"  SimAVR: Captured {len(simavr_states)} states")
     
     # Step 3: Run VioAVR
-    print("\n[3/3] Running VioAVR...")
-    vioavr_states = run_vioavr(elf)
-    print(f"  Captured {len(vioavr_states)} states")
+    vioavr_states = run_vioavr(hex_file, cycles)
+    print(f"  VioAVR: Captured {len(vioavr_states)} states")
     
     # Compare
     if simavr_states and vioavr_states:
-        compare_traces(simavr_states, vioavr_states)
+        bugs = compare_traces(simavr_states, vioavr_states)
+        if bugs > 0:
+            sys.exit(1)
     else:
-        print("\nNote: Trace extraction not yet implemented.")
-        print("This script is a framework - SimAVR and VioAVR trace extraction")
-        print("need to be implemented for full comparison.")
+        print("\nFailed to extract traces from one or both simulators.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

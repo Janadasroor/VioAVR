@@ -33,6 +33,7 @@ void MemoryBus::reset() noexcept
     fuses_ = device_.fuses;
     spm_busy_cycles_left_ = 0U;
     flash_rww_busy_ = false;
+    cpu_cycles_ = 0U;
     // Do NOT clear loaded_program_words_ here, it should survive reset
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
@@ -213,8 +214,9 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
     }
 }
 
-void MemoryBus::tick_peripherals(const u64 elapsed_cycles, const u8 active_domains) noexcept
+void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
 {
+    cpu_cycles_ += elapsed_cycles;
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
             const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
