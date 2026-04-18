@@ -585,7 +585,7 @@ bool AvrCpu::service_interrupt_if_needed()
         }
     }
 
-    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
+    advance_cycles(2U);
     return true;
 }
 
@@ -757,8 +757,8 @@ void AvrCpu::execute_load_indirect(const u8 destination,
         return;
     }
 
-    advance_cycles(2U);
     write_register(destination, read_data_bus(address));
+    advance_cycles(2U);
     if (post_increment) {
         write_register_pair(pointer_low_register, static_cast<u16>(address + 1U));
     }
@@ -775,8 +775,8 @@ void AvrCpu::execute_store_indirect(const u16 address,
         return;
     }
 
-    advance_cycles(2U);
     write_data_bus(address, gpr_[source]);
+    advance_cycles(2U);
     if (post_increment) {
         write_register_pair(pointer_low_register, static_cast<u16>(address + 1U));
     }

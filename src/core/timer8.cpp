@@ -257,7 +257,7 @@ bool Timer8::power_reduction_enabled() const noexcept
     }
 
     // PRR bit 1 = Disabled/Powered Down
-    return (bus_->read_data(desc_.pr_address) & desc_.pr_bit) != 0;
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
 }
 
 void Timer8::update_mode() noexcept

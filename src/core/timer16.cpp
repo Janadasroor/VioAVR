@@ -133,6 +133,7 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
             if (++cycle_accumulator_ >= divisor) {
                 cycle_accumulator_ = 0;
                 should_tick = true;
+                printf("T1: TICK (cs=%d, cycles=%llu, tcnt=%d)\n", (int)cs, (unsigned long long)elapsed_cycles, (int)tcnt_);
             }
         } else {
             // External Clocking (CS=110 falling, 111 rising)
@@ -186,10 +187,10 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
             }
         }
 
-        // 3. Execution order: Compare Match -> TCNT Increment -> Input Capture
+        // 3. Execution order: Tick -> Compare Match -> Input Capture
         if (should_tick) {
-            handle_matches();
             perform_tick();
+            handle_matches();
         }
 
         if (event_triggered) {
@@ -276,6 +277,7 @@ void Timer16::write(const u16 address, const u8 value) noexcept
         tccra_ = value;
         update_mode();
     } else if (address == desc_.tccrb_address) {
+        printf("T1: TCCRB WRITE 0x%02x AT CYCLE %lu\n", value, bus_ ? bus_->cpu_cycles() : 0);
         tccrb_ = value;
         update_mode();
     } else if (address == desc_.tccrc_address && desc_.tccrc_address != 0U) {
@@ -351,7 +353,6 @@ void Timer16::update_mode() noexcept
     };
     mode_ = modes[wgm & 0x0FU];
 }
-
 bool Timer16::power_reduction_enabled() const noexcept
 {
     if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
@@ -359,7 +360,7 @@ bool Timer16::power_reduction_enabled() const noexcept
     }
 
     // PRR bit 1 = Disabled
-    return (bus_->read_data(desc_.pr_address) & desc_.pr_bit) != 0;
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
 }
 
 void Timer16::perform_tick() noexcept
