@@ -37,6 +37,7 @@ inline constexpr DeviceDescriptor at90pwm1 {
     .xmcrb_address = 0x0U,
     .xmem = {0},
     .pradc_bit = 0x0U,
+
     .prusart0_bit = 0x1U,
     .prspi_bit = 0x2U,
     .prtwi_bit = 0xFFU,
@@ -95,6 +96,7 @@ inline constexpr DeviceDescriptor at90pwm1 {
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U,
             .pr_address = 100, .pr_bit = 3,
+            .timer_index = 0U,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer0_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
@@ -103,6 +105,7 @@ inline constexpr DeviceDescriptor at90pwm1 {
     .timers16 = {{ {
             .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .ocrc_address = 0x0U, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
             .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U,
+            .timer_index = 1U,
             .capture_vector_index = 3U,
             .compare_a_vector_index = 12U,
             .compare_b_vector_index = 13U,
@@ -136,6 +139,11 @@ inline constexpr DeviceDescriptor at90pwm1 {
 
     .uart_count = 0U,
     .uarts = {{  }},
+
+    .nvm_ctrl_count = 0U,
+    .nvm_ctrls = {{  }},
+    .cpu_int_count = 0U,
+    .cpu_ints = {{  }},
     
     .pcint_count = 0U,
     .pcints = {{  }},
@@ -218,6 +226,9 @@ inline constexpr DeviceDescriptor at90pwm1 {
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,
+
+    .signature = { 0xFFU, 0xFFU, 0xFFU },
+    .fuses = { 0x62U, 0xDFU, 0xF9U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
 
     .port_count = 3U,
     .ports = {{

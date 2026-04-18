@@ -1,5 +1,7 @@
 set(TEST_SOURCES
     avr8x_unified_map_test.cpp
+    avr8x_cpu_int_test.cpp
+    cpu_int_arbitration_test.cpp
     smoke_test.cpp
     device_catalog_test.cpp
     cpu_alu_test.cpp

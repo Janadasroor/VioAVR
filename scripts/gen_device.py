@@ -115,7 +115,7 @@ def generate_header(data, header_path):
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': []
+        'NVMCTRL': [], 'CPUINT': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -166,7 +166,8 @@ def generate_header(data, header_path):
             .tx_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'TX' in (i.get('name') or i.get('caption') or '').upper() and (p_name in (i.get('name') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)}U,
             .u2x_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'U2X'))}, .rxc_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'RXC'))}, .txc_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'TXC'))}, .udre_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'UDRE'))},
             .rxen_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'RXEN'))}, .txen_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'TXEN'))}, .rxcie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'RXCIE'))}, .txcie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'TXCIE'))}, .udrie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'UDRIE'))},
-            .pr_address = {pr_addr}, .pr_bit = {pr_bit}
+            .pr_address = {pr_addr}, .pr_bit = {pr_bit},
+            .uart_index = {idx}U
         }}"""
 
     def gen_timer8(p_name, p_data):
@@ -194,6 +195,7 @@ def generate_header(data, header_path):
             .overflow_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'TOIE') or b(f'TIMSK{idx}|TIMSK', f'TOIE{idx}') or b('TIMSK', 'TOIE'))},
             .foca_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*A'))}, .focb_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'FOC.*B'))},
             .pr_address = {get_pr_info(data, f'PRTIM{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRTIM{idx}')[1]},
+            .timer_index = {idx}U,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer{idx}_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer{idx}_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer{idx}_overflow
@@ -211,6 +213,7 @@ def generate_header(data, header_path):
         return f"""{{
             .tcnt_address = {hx(r('TCNT.*L?')['offset'])}, .ocra_address = {hx(r('OCR.*AL?')['offset'])}, .ocrb_address = {hx(r('OCR.*BL?')['offset'])}, .ocrc_address = {hx(r('OCR.*CL?')['offset'])}, .icr_address = {hx(r('ICR.*L?')['offset'])}, .tifr_address = {hx(r('TIFR.*')['offset'])}, .timsk_address = {hx(r('TIMSK.*')['offset'])}, .tccra_address = {hx(r('TCCR.*A')['offset'])}, .tccrb_address = {hx(r('TCCR.*B')['offset'])}, .tccrc_address = {hx(r('TCCR.*C')['offset'])},
             .tccra_reset = {hx(r('TCCR.*A')['initval'])}, .tccrb_reset = {hx(r('TCCR.*B')['initval'])}, .tccrc_reset = {hx(r('TCCR.*C')['initval'])},
+            .timer_index = {idx}U,
             .capture_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('CAPT' in (i.get('name') or i.get('caption') or '').upper() or 'Capture' in (i.get('caption') or ''))), 0)}U,
             .compare_a_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('COMPA' in (i.get('name') or i.get('caption') or '').upper() or 'OC' in (i.get('name') or '').upper() and 'A' in (i.get('name') or '').upper() or 'Compare Match A' in (i.get('caption') or ''))), 0)}U,
             .compare_b_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'{idx}' in (i.get('name') or i.get('caption') or '').upper() and ('COMPB' in (i.get('name') or i.get('caption') or '').upper() or 'OC' in (i.get('name') or '').upper() and 'B' in (i.get('name') or '').upper() or 'Compare Match B' in (i.get('caption') or ''))), 0)}U,
@@ -603,6 +606,15 @@ def generate_header(data, header_path):
             .vector_index = {p_data.get('interrupts', {}).get('EEREADY', {}).get('index', next((i['index'] for i in data.get('interrupts', []) if 'EEREADY' in (i.get('name') or '').upper() or 'NVM' in (i.get('name') or '').upper()), 0))}U
         }}"""
 
+    def gen_cpu_int(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])},
+            .status_address = {hx(r('STATUS')['offset'])},
+            .lvl0pri_address = {hx(r('LVL0PRI')['offset'])},
+            .lvl1vec_address = {hx(r('LVL1VEC')['offset'])}
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
@@ -636,6 +648,9 @@ def generate_header(data, header_path):
     dacs_str = ",\n        ".join(gen_dac(n, d) for n, d in groups['DAC'])
     nvm_ctrls_descriptors = [gen_nvm_ctrl(n, d) for n, d in groups['NVMCTRL']]
     nvm_ctrls_str = ",\n        ".join(nvm_ctrls_descriptors)
+    
+    cpu_ints_descriptors = [gen_cpu_int(n, d) for n, d in groups['CPUINT']]
+    cpu_ints_str = ",\n        ".join(cpu_ints_descriptors)
     
     xmem_data = (groups['EXTERNAL_MEMORY'][0][1] if groups['EXTERNAL_MEMORY'] 
                  else data['peripherals'].get('CPU', {}))
@@ -742,8 +757,10 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .uart_count = {len(groups['USART'])}U,
     .uarts = {{{{ {uarts_str} }}}},
 
-    .nvm_ctrl_count = {len(groups['NVMCTRL'])}U,
+    .nvm_ctrl_count = {len(nvm_ctrls_descriptors)}U,
     .nvm_ctrls = {{{{ {nvm_ctrls_str} }}}},
+    .cpu_int_count = {len(cpu_ints_descriptors)}U,
+    .cpu_ints = {{{{ {cpu_ints_str} }}}},
     
     .pcint_count = {len(groups['PCINT'])}U,
     .pcints = {{{{ {pcints_str} }}}},

@@ -199,6 +199,10 @@ void AnalogComparator::evaluate_output() noexcept {
     }
 
     if (was_high != output_high_) {
+        for (auto* psc : psc_fault_listeners_) {
+            psc->notify_fault(output_high_);
+        }
+
         const u8 mode = interrupt_mode();
         bool trigger = false;
         switch (mode) {
@@ -221,10 +225,6 @@ void AnalogComparator::raise_interrupt_flag() noexcept {
 
     if (input_capture_timer_ && (acsr_ & desc_.acic_mask)) {
         input_capture_timer_->notify_input_capture(output_high_);
-    }
-
-    for (auto* psc : psc_fault_listeners_) {
-        psc->notify_fault(output_high_);
     }
 }
 

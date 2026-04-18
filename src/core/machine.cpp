@@ -15,6 +15,7 @@
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/dac.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
+#include "vioavr/core/cpu_int.hpp"
 
 namespace vioavr::core {
 
@@ -67,14 +68,14 @@ void Machine::initialize_peripherals()
 
     // 2. Timers
     for (u8 i = 0; i < device_.timer8_count; ++i) {
-        auto timer = std::make_unique<Timer8>(device_.timers8[i].tccra_address == 0x44 ? "TIMER0" : "TIMER2", device_.timers8[i]);
+        auto timer = std::make_unique<Timer8>("TIMER" + std::to_string(device_.timers8[i].timer_index), device_.timers8[i]);
         timer->set_bus(*bus_);
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
 
     for (u8 i = 0; i < device_.timer16_count; ++i) {
-        auto timer = std::make_unique<Timer16>("TIMER1", device_.timers16[i]);
+        auto timer = std::make_unique<Timer16>("TIMER" + std::to_string(device_.timers16[i].timer_index), device_.timers16[i]);
         timer->set_bus(*bus_);
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
@@ -82,7 +83,7 @@ void Machine::initialize_peripherals()
 
     // 3. UART
     for (u8 i = 0; i < device_.uart_count; ++i) {
-        auto uart = std::make_unique<Uart>("UART0", device_.uarts[i]);
+        auto uart = std::make_unique<Uart>("UART" + std::to_string(device_.uarts[i].uart_index), device_.uarts[i]);
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
     }
@@ -174,6 +175,14 @@ void Machine::initialize_peripherals()
         if (i == 0) bus_->set_nvm_ctrl(nvm.get());
         bus_->attach_peripheral(*nvm);
         owned_peripherals_.push_back(std::move(nvm));
+    }
+
+    // 13. CPUINT (Modern Interrupt Controller)
+    for (u8 i = 0; i < device_.cpu_int_count; ++i) {
+        auto cpu_int = std::make_unique<CpuInt>(device_.cpu_ints[i]);
+        if (i == 0) bus_->set_cpu_int(cpu_int.get());
+        bus_->attach_peripheral(*cpu_int);
+        owned_peripherals_.push_back(std::move(cpu_int));
     }
 }
 

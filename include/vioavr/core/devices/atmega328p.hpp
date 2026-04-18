@@ -11,6 +11,15 @@ inline constexpr DeviceDescriptor atmega328p {
     .interrupt_vector_count = 26U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 128U,
+    .io_range = { 0x20U, 0x5FU },
+    .extended_io_range = { 0x60U, 0xFFU },
+
+    .mapped_flash = { 0x0U, 0x0U },
+    .mapped_eeprom = { 0x0U, 0x0U },
+    .mapped_fuses = { 0x0U, 0x0U },
+    .mapped_signatures = { 0x0U, 0x0U },
+    .mapped_user_signatures = { 0x0U, 0x0U },
+
     .spl_address = 0x5DU,
     .sph_address = 0x5EU,
     .sreg_address = 0x5FU,
@@ -28,6 +37,7 @@ inline constexpr DeviceDescriptor atmega328p {
     .xmcrb_address = 0x0U,
     .xmem = {0},
     .pradc_bit = 0x0U,
+
     .prusart0_bit = 0x1U,
     .prspi_bit = 0x2U,
     .prtwi_bit = 0x7U,
@@ -79,7 +89,9 @@ inline constexpr DeviceDescriptor atmega328p {
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U,
             .pr_address = 100, .pr_bit = 5,
+            .timer_index = 0U,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer0_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
         },
         {
@@ -98,13 +110,16 @@ inline constexpr DeviceDescriptor atmega328p {
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U,
             .pr_address = 100, .pr_bit = 6,
-            .compare_a_trigger_source = AdcAutoTriggerSource::none,
-            .overflow_trigger_source = AdcAutoTriggerSource::none
+            .timer_index = 2U,
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer2_compare_a,
+            .compare_b_trigger_source = AdcAutoTriggerSource::timer2_compare_b,
+            .overflow_trigger_source = AdcAutoTriggerSource::timer2_overflow
         } }},
     .timer16_count = 1U,
     .timers16 = {{ {
             .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .ocrc_address = 0x0U, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
             .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U,
+            .timer_index = 1U,
             .capture_vector_index = 10U,
             .compare_a_vector_index = 11U,
             .compare_b_vector_index = 12U,
@@ -121,7 +136,9 @@ inline constexpr DeviceDescriptor atmega328p {
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U, .focc_mask = 0x0U,
             .pr_address = 100, .pr_bit = 3,
+            .compare_a_trigger_source = AdcAutoTriggerSource::timer1_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer1_compare_b,
+            .compare_c_trigger_source = AdcAutoTriggerSource::timer1_compare_c,
             .overflow_trigger_source = AdcAutoTriggerSource::timer1_overflow,
             .capture_trigger_source = AdcAutoTriggerSource::timer1_capture
         } }},
@@ -143,8 +160,14 @@ inline constexpr DeviceDescriptor atmega328p {
             .tx_vector_index = 20U,
             .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
             .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 100, .pr_bit = 1
+            .pr_address = 100, .pr_bit = 1,
+            .uart_index = 0U
         } }},
+
+    .nvm_ctrl_count = 0U,
+    .nvm_ctrls = {{  }},
+    .cpu_int_count = 0U,
+    .cpu_ints = {{  }},
     
     .pcint_count = 3U,
     .pcints = {{ {
@@ -190,7 +213,8 @@ inline constexpr DeviceDescriptor atmega328p {
             .eecr_address = 0x3FU, .eedr_address = 0x40U, .eearl_address = 0x41U, .eearh_address = 0x42U,
             .eecr_reset = 0x0U,
             .vector_index = 22U,
-            .size = 0x400U
+            .size = 0x400U,
+            .mapped_data = { 0x0U, 0x0U }
         } }},
     
     .wdt_count = 1U,
@@ -216,6 +240,9 @@ inline constexpr DeviceDescriptor atmega328p {
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,
+
+    .signature = { 0x1EU, 0x95U, 0xFU },
+    .fuses = { 0x62U, 0xD9U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
 
     .port_count = 3U,
     .ports = {{

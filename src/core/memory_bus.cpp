@@ -2,6 +2,7 @@
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/xmem.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
+#include "vioavr/core/cpu_int.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -267,8 +268,35 @@ bool MemoryBus::pending_interrupt_request(InterruptRequest& request, const u8 ac
 
         InterruptRequest candidate {};
         if (peripheral->pending_interrupt_request(candidate)) {
-            if (!found || candidate.vector_index < best_request.vector_index ||
-                (candidate.vector_index == best_request.vector_index && candidate.source_id < best_request.source_id)) {
+            bool replace = false;
+            if (!found) {
+                replace = true;
+            } else if (cpu_int_) {
+                // CPUINT Priority (AVR8X)
+                bool candidate_is_lvl1 = cpu_int_->is_lvl1_vector(candidate.vector_index);
+                bool best_is_lvl1 = cpu_int_->is_lvl1_vector(best_request.vector_index);
+
+                if (candidate_is_lvl1 && !best_is_lvl1) {
+                    replace = true;
+                } else if (!candidate_is_lvl1 && best_is_lvl1) {
+                    replace = false;
+                } else {
+                    // Same level (either both Level 1 or both Level 0)
+                    // For now, lower index has higher priority within same level
+                    // TODO: Implement Level 0 priority shift (LVL0PRI and LVL0RR)
+                    if (candidate.vector_index < best_request.vector_index) {
+                        replace = true;
+                    }
+                }
+            } else {
+                // Legacy Priority (Lowest index wins)
+                if (candidate.vector_index < best_request.vector_index ||
+                    (candidate.vector_index == best_request.vector_index && candidate.source_id < best_request.source_id)) {
+                    replace = true;
+                }
+            }
+
+            if (replace) {
                 best_request = candidate;
                 found = true;
             }
