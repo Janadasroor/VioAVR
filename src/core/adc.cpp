@@ -147,17 +147,24 @@ bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
 void Adc::start_conversion() noexcept {
     if (converting_) return;
 
-    u8 prescaler_bits = adcsra_ & 0x7U;
+    u32 prescaler_bits = adcsra_ & 0x7U;
     u32 prescaler = 1U << prescaler_bits;
     if (prescaler_bits == 0U) prescaler = 2U;
 
     converting_ = true;
-    u32 conv_cycles = (first_conversion_ ? 14U : 2U); 
-    // Match SimAVR's 2-cycle subsequent conversion and STS offset
-    cycles_remaining_ = static_cast<u16>((conv_cycles * prescaler) - 2);
+    adcsra_ |= desc_.adsc_mask;
     
+    if (conversion_cycles_ != 0U) {
+        // Legacy/Test behavior: use absolute cycles
+        cycles_remaining_ = conversion_cycles_;
+    } else {
+        u32 conv_cycles = (first_conversion_ ? 25U : 13U); 
+        cycles_remaining_ = static_cast<u16>(conv_cycles * prescaler);
+    }
+    
+    u64 cycle = bus_ ? bus_->cpu_cycles() : 0;
     fprintf(stderr, "ADC: Start conversion at cycle %lu prescaler=%u remaining=%u first=%s\n", 
-        (unsigned long)bus_->cpu_cycles(), prescaler, cycles_remaining_, (first_conversion_ ? "yes" : "no"));
+        (unsigned long)cycle, prescaler, cycles_remaining_, (first_conversion_ ? "yes" : "no"));
         
     first_conversion_ = false;
 }
@@ -210,8 +217,9 @@ void Adc::complete_conversion() noexcept {
     adcsra_ |= desc_.adif_mask;
     converting_ = false;
 
+    u64 cycle = bus_ ? bus_->cpu_cycles() : 0;
     fprintf(stderr, "ADC: Conversion complete at cycle %lu result=%u\n", 
-        (unsigned long)bus_->cpu_cycles(), result_);
+        (unsigned long)cycle, result_);
 
     // Update ports_ state if needed...
 

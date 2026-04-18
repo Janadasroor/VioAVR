@@ -107,6 +107,7 @@ struct Adc8xDescriptor {
     u8 res_ready_vector_index {};
     u8 wcomp_vector_index {};
     u16 user_event_address {};
+    u8 resrd_generator_id {};
 };
 
 struct Ac8xDescriptor {
@@ -118,6 +119,7 @@ struct Ac8xDescriptor {
     
     u8 vector_index {};
     u16 user_event_address {};
+    u8 out_generator_id {};
 };
 
 struct AnalogComparatorDescriptor {
@@ -405,6 +407,10 @@ struct TcaDescriptor {
     u8 lcmp2_vector_index {};
 
     u16 user_event_address {};
+    u8 ovf_generator_id {};
+    u8 cmp0_generator_id {};
+    u8 cmp1_generator_id {};
+    u8 cmp2_generator_id {};
 };
 
 struct TcbDescriptor {
@@ -421,6 +427,7 @@ struct TcbDescriptor {
 
     u8 vector_index {};
     u16 user_event_address {};
+    u8 capt_generator_id {};
 };
 
 struct RtcDescriptor {
@@ -442,6 +449,8 @@ struct RtcDescriptor {
 
     u8 ovf_vector_index {};
     u8 pit_vector_index {};
+    u8 ovf_generator_id {};
+    u8 cmp_generator_id {};
 };
 
 struct EvsysDescriptor {
