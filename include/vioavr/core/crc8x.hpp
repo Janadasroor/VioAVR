@@ -5,12 +5,13 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <span>
 
 namespace vioavr::core {
 
 class Crc8x : public IoPeripheral {
 public:
-    Crc8x(const Crc8xDescriptor& descriptor, const std::vector<u8>& flash) noexcept;
+    Crc8x(const Crc8xDescriptor& descriptor, std::span<const u16> flash) noexcept;
     virtual ~Crc8x() override = default;
 
     virtual std::string_view name() const noexcept override { return "CRC8X"; }
@@ -24,7 +25,7 @@ public:
 
 private:
     const Crc8xDescriptor desc_;
-    const std::vector<u8>& flash_;
+    std::span<const u16> flash_;
     std::array<AddressRange, 1> ranges_{};
 
     u8 ctrla_{0};
@@ -35,7 +36,7 @@ private:
     u64 remaining_cycles_{0};
     
     void start_scan() noexcept;
-    u16 calculate_crc16(const std::vector<u8>& data) noexcept;
+    u16 calculate_crc16(std::span<const u16> data) noexcept;
 };
 
 } // namespace vioavr::core
