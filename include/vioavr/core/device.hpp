@@ -198,6 +198,24 @@ struct ExtInterruptDescriptor {
     std::array<u8, 8> vector_indices {};
 };
 
+struct Uart8xDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrld_address {};
+    u16 status_address {};
+    u16 baud_address {};
+    u16 rxdata_address {};
+    u16 txdata_address {};
+    u16 dbgctrl_address {};
+    
+    u8 rx_vector_index {};
+    u8 tx_vector_index {};
+    u8 dre_vector_index {};
+    
+    u16 user_event_address {};
+};
+
 struct UartDescriptor {
     u16 udr_address {};
     u16 ucsra_address {};
@@ -234,6 +252,15 @@ struct PinChangeInterruptDescriptor {
     u8 vector_index {};
 };
 
+struct Spi8xDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 data_address {};
+    u8 vector_index {};
+};
+
 struct SpiDescriptor {
     u16 spcr_address {};
     u16 spsr_address {};
@@ -261,6 +288,24 @@ struct XmemDescriptor {
     u8 srw1_mask {0x0CU}; 
     u8 xmm_mask {0x07U};  // Released pins
     u8 xmbk_mask {0x80U}; // Memory bank
+};
+
+struct Twi8xDescriptor {
+    u16 mctrla_address {};
+    u16 mctrlb_address {};
+    u16 mstatus_address {};
+    u16 mbaud_address {};
+    u16 maddr_address {};
+    u16 mdata_address {};
+    u16 sctrla_address {};
+    u16 sctrlb_address {};
+    u16 sstatus_address {};
+    u16 saddr_address {};
+    u16 sdata_address {};
+    u16 saddrmask_address {};
+    u16 dbgctrl_address {};
+    u8 master_vector_index {};
+    u8 slave_vector_index {};
 };
 
 struct TwiDescriptor {
@@ -739,6 +784,9 @@ struct DeviceDescriptor {
     u8 uart_count {0U};
     std::array<UartDescriptor, 8> uarts {};
 
+    u8 uart8x_count {0U};
+    std::array<Uart8xDescriptor, 8> uarts8x {};
+
     u8 nvm_ctrl_count {0U};
     std::array<NvmCtrlDescriptor, 1> nvm_ctrls {};
 
@@ -751,8 +799,14 @@ struct DeviceDescriptor {
     u8 spi_count {0U};
     std::array<SpiDescriptor, 4> spis {};
 
+    u8 spi8x_count {0U};
+    std::array<Spi8xDescriptor, 4> spis8x {};
+
     u8 twi_count {0U};
     std::array<TwiDescriptor, 4> twis {};
+
+    u8 twi8x_count {0U};
+    std::array<Twi8xDescriptor, 4> twis8x {};
 
     u8 eeprom_count {0U};
     std::array<EepromDescriptor, 4> eeproms {};

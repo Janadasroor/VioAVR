@@ -37,6 +37,7 @@ target_sources(vioavr_core
         evsys.cpp
         ccl.cpp
         uart.cpp
+        uart8x.cpp
         machine.cpp
         watchdog_timer.cpp
         usb.cpp
