@@ -115,7 +115,7 @@ def generate_header(data, header_path):
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': [], 'CPUINT': [], 'TCA': []
+        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -639,10 +639,30 @@ def generate_header(data, header_path):
             .lcmp1_vector_index = {get_int('LCMP1')}U, .lcmp2_vector_index = {get_int('LCMP2')}U
         }}"""
 
+    def gen_tcb(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        ints = p_data.get('interrupts', {})
+        def get_int(key):
+            for k, v in ints.items():
+                if key in k.upper(): return v['index']
+            # Global fallback for modern devices
+            for item in data.get('interrupts', []):
+                name = item['name'].upper()
+                if f"{p_name}_{key}" in name or (p_name in name and key in name):
+                    return item['index']
+            return 0
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .evctrl_address = {hx(r('EVCTRL')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .status_address = {hx(r('STATUS')['offset'])},
+            .dbgctrl_address = {hx(r('DBGCTRL')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])}, .cnt_address = {hx(r('CNT')['offset'])},
+            .ccmp_address = {hx(r('CCMP')['offset'])}, .vector_index = {get_int('CAPT') or get_int('INT')}U
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
     timers_tca_str = ",\n        ".join(gen_tca(n, d) for n, d in groups['TCA'])
+    timers_tcb_str = ",\n        ".join(gen_tcb(n, d) for n, d in groups['TCB'])
     adcs_descriptors = [gen_adc(n, d) for n, d in groups['ADC']]
     acs_descriptors = []
     for n, d in groups['AC']:
@@ -777,6 +797,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .timers10 = {{{{ {timers10_str} }}}},
     .tca_count = {len(groups['TCA'])}U,
     .timers_tca = {{{{ {timers_tca_str} }}}},
+
+    .tcb_count = {len(groups['TCB'])}U,
+    .timers_tcb = {{{{ {timers_tcb_str} }}}},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},
