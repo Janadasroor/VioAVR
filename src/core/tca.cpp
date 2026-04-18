@@ -91,16 +91,13 @@ u8 Tca::read(u16 address) noexcept {
 void Tca::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value;
+        update_prescaler();
     } else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
     } else if (address == desc_.ctrlc_address) {
         ctrlc_ = value;
     } else if (address == desc_.ctrld_address) {
         ctrld_ = value;
-    } else if (address == desc_.ctrleclr_address) {
-        // Clear bits in relevant internal states (DIR, etc.)
-    } else if (address == desc_.ctrleset_address) {
-        // Set bits
     } else if (address == desc_.intctrl_address) {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
@@ -117,60 +114,144 @@ void Tca::write(u16 address, u8 value) noexcept {
         cmp0_ = (cmp0_ & 0xFF00U) | value;
     } else if (address == desc_.cmp0_address + 1) {
         cmp0_ = (cmp0_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+    } else if (address == desc_.cmp1_address) {
+        cmp1_ = (cmp1_ & 0xFF00U) | value;
+    } else if (address == desc_.cmp1_address + 1) {
+        cmp1_ = (cmp1_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+    } else if (address == desc_.cmp2_address) {
+        cmp2_ = (cmp2_ & 0xFF00U) | value;
+    } else if (address == desc_.cmp2_address + 1) {
+        cmp2_ = (cmp2_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
     }
-    // TODO: Other registers
 }
 
 void Tca::tick(u64 elapsed_cycles) noexcept {
     if (!is_enabled()) return;
     
     for (u64 i = 0; i < elapsed_cycles; ++i) {
-        handle_matches();
-        perform_tick();
+        if (++prescaler_counter_ >= prescaler_limit_) {
+            prescaler_counter_ = 0;
+            if (is_split_mode()) {
+                perform_tick_split();
+            } else {
+                perform_tick();
+            }
+        }
     }
 }
 
 void Tca::handle_matches() {
-    // Basic overflow
-    if (tcnt_ == period_ && counting_up_) {
-        intflags_ |= 0x01; // OVF
+    u8 wgmode = ctrlb_ & 0x07;
+    
+    // Overflow / Underflow
+    if (wgmode == 0x00 || wgmode == 0x03) { // Normal / Single Slope
+        if (tcnt_ == period_) {
+            intflags_ |= 0x01; // OVF
+            if (evsys_) evsys_->trigger_event(128); // TCA0_OVF
+        }
+    } else if (wgmode >= 0x05) { // Dual Slope
+        if (tcnt_ == 0 && !counting_up_) { // BOTTOM
+             intflags_ |= 0x01;
+             if (evsys_) evsys_->trigger_event(128);
+        }
     }
+
+    // Compare matches
+    if (tcnt_ == cmp0_) intflags_ |= 0x10;
+    if (tcnt_ == cmp1_) intflags_ |= 0x20;
+    if (tcnt_ == cmp2_) intflags_ |= 0x40;
 }
 
 bool Tca::pending_interrupt_request(InterruptRequest& request) const noexcept {
+    if (!is_enabled()) return false;
+    
     if ((intflags_ & 0x01) && (intctrl_ & 0x01)) {
         request.vector_index = desc_.luf_ovf_vector_index;
         return true;
     }
-    // TODO: Compare matches
+    if ((intflags_ & 0x10) && (intctrl_ & 0x10)) {
+        request.vector_index = desc_.cmp0_vector_index;
+        return true;
+    }
+    if ((intflags_ & 0x20) && (intctrl_ & 0x20)) {
+        request.vector_index = desc_.cmp1_vector_index;
+        return true;
+    }
+    if ((intflags_ & 0x40) && (intctrl_ & 0x40)) {
+        request.vector_index = desc_.cmp2_vector_index;
+        return true;
+    }
     return false;
 }
 
 bool Tca::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
-        intflags_ &= ~0x01; // Clear OVF on consume? 
-        // Note: AVR8X often clears on write 1, but for emulator auto-consume is sometimes used.
-        // Actually, VioAVR usually follows the real hardware: clear on write 1 or vector jump.
         return true;
     }
     return false;
 }
 
 void Tca::perform_tick() {
-    // TODO: Prescaler handling
-    if (counting_up_) {
-        if (tcnt_ == period_) {
+    u8 wgmode = ctrlb_ & 0x07;
+    
+    if (wgmode == 0x01) { // FRQ
+        if (tcnt_ >= cmp0_) {
             tcnt_ = 0;
         } else {
             tcnt_++;
         }
-    } else {
-        if (tcnt_ == 0) {
-            tcnt_ = period_;
-        } else {
-            tcnt_--;
-        }
+        return;
     }
+
+    if (wgmode >= 0x05) { // DUALSLOPE
+        if (counting_up_) {
+            if (tcnt_ >= period_) {
+                counting_up_ = false;
+                if (tcnt_ > 0) tcnt_--;
+            } else {
+                tcnt_++;
+            }
+        } else {
+            if (tcnt_ == 0) {
+                counting_up_ = true;
+                tcnt_++;
+            } else {
+                tcnt_--;
+            }
+        }
+        return;
+    }
+
+    if (tcnt_ >= period_) {
+        tcnt_ = 0;
+    } else {
+        tcnt_++;
+    }
+}
+
+void Tca::perform_tick_split() {
+    // Low byte
+    if (split_.cnt_l >= split_.per_l) {
+        split_.cnt_l = 0;
+        intflags_ |= 0x01; // LUNF
+    } else {
+        split_.cnt_l++;
+    }
+
+    // High byte
+    if (split_.cnt_h >= split_.per_h) {
+        split_.cnt_h = 0;
+        intflags_ |= 0x10; // HUNF
+    } else {
+        split_.cnt_h++;
+    }
+}
+
+void Tca::update_prescaler() noexcept {
+    u8 clksel = (ctrla_ >> 1) & 0x07;
+    static constexpr u16 div[] = {1, 2, 4, 8, 16, 64, 256, 1024};
+    prescaler_limit_ = div[clksel];
+    prescaler_counter_ = 0;
 }
 
 } // namespace vioavr::core
