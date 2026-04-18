@@ -15,6 +15,7 @@
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/adc8x.hpp"
+#include "vioavr/core/ac8x.hpp"
 #include "vioavr/core/can.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/dac.hpp"
@@ -156,8 +157,19 @@ void Machine::initialize_peripherals()
         auto adc = std::make_unique<Adc8x>(device_.adcs8x[i]);
         adc->set_memory_bus(bus_.get());
         adc->set_event_system(evsys);
+        adc->set_analog_signal_bank(&analog_signal_bank_);
         bus_->attach_peripheral(*adc);
         owned_peripherals_.push_back(std::move(adc));
+    }
+
+    // Modern AC (AVR8X)
+    for (u8 i = 0; i < device_.ac8x_count; ++i) {
+        auto ac = std::make_unique<Ac8x>(device_.acs8x[i]);
+        ac->set_memory_bus(bus_.get());
+        ac->set_event_system(evsys);
+        ac->set_analog_signal_bank(&analog_signal_bank_);
+        bus_->attach_peripheral(*ac);
+        owned_peripherals_.push_back(std::move(ac));
     }
 
     // 5. SPI

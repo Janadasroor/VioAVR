@@ -7,6 +7,7 @@ target_sources(vioavr_core
     PRIVATE
         adc.cpp
         adc8x.cpp
+        ac8x.cpp
         analog_comparator.cpp
         avr_cpu.cpp
         cpu_control.cpp

@@ -106,6 +106,18 @@ struct Adc8xDescriptor {
 
     u8 res_ready_vector_index {};
     u8 wcomp_vector_index {};
+    u16 user_event_address {};
+};
+
+struct Ac8xDescriptor {
+    u16 ctrla_address {};
+    u16 muxctrla_address {};
+    u16 dacctrla_address {};
+    u16 intctrl_address {};
+    u16 status_address {};
+    
+    u8 vector_index {};
+    u16 user_event_address {};
 };
 
 struct AnalogComparatorDescriptor {
@@ -695,6 +707,9 @@ struct DeviceDescriptor {
 
     u8 ac_count {0U};
     std::array<AnalogComparatorDescriptor, 4> acs {};
+
+    u8 ac8x_count {0U};
+    std::array<Ac8xDescriptor, 2> acs8x {};
 
     u8 timer8_count {0U};
     std::array<Timer8Descriptor, 8> timers8 {};
