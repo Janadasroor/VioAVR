@@ -391,6 +391,20 @@ def generate_header(data, header_path):
             .mux_table = {gen_adc_mux_table(name)}
         }}"""
 
+    def gen_adc8x(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        
+        res_ready = next((i['index'] for i in data['interrupts'] if i.get('module-instance') == p_name and 'RESRDY' in (i.get('name') or '')), 0)
+        wcomp = next((i['index'] for i in data['interrupts'] if i.get('module-instance') == p_name and 'WCOMP' in (i.get('name') or '')), 0)
+        
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])}, .ctrld_address = {hx(r('CTRLD')['offset'])}, .ctrle_address = {hx(r('CTRLE')['offset'])},
+            .sampctrl_address = {hx(r('SAMPCTRL')['offset'])}, .muxpos_address = {hx(r('MUXPOS')['offset'])}, .muxneg_address = {hx(r('MUXNEG')['offset'])}, .command_address = {hx(r('COMMAND')['offset'])}, .evctrl_address = {hx(r('EVCTRL')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])},
+            .res_address = {hx(r('RES')['offset'])}, .winlt_address = {hx(r('WINLT')['offset'])}, .winht_address = {hx(r('WINHT')['offset'])},
+            .res_ready_vector_index = {res_ready}U, .wcomp_vector_index = {wcomp}U
+        }}"""
+
     def gen_usb(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         b = lambda n, b_re: get_bit(r(n), b_re)
@@ -762,14 +776,22 @@ def generate_header(data, header_path):
     timers_rtc_str = ",\n        ".join(gen_rtc(n, d) for n, d in groups['RTC'])
     evsys_descriptor = gen_evsys("EVSYS", groups['EVSYS'][0][1]) if groups['EVSYS'] else "{}"
     ccl_descriptor = gen_ccl("CCL", groups['CCL'][0][1]) if groups['CCL'] else "{}"
-    adcs_descriptors = [gen_adc(n, d) for n, d in groups['ADC']]
+    adcs_descriptors = []
+    adc8x_descriptors = []
+    for n, d in groups['ADC']:
+        if 'MUXPOS' in d.get('registers', {}):
+            adc8x_descriptors.append(gen_adc8x(n, d))
+        else:
+            adcs_descriptors.append(gen_adc(n, d))
+    
+    adcs_str = ",\n        ".join(adcs_descriptors)
+    adcs8x_str = ",\n        ".join(adc8x_descriptors)
     acs_descriptors = []
     for n, d in groups['AC']:
         res = gen_ac(n, d)
         if " , " in res: acs_descriptors.extend(res.split(" , "))
         else: acs_descriptors.append(res)
 
-    adcs_str = ",\n        ".join(adcs_descriptors)
     acs_str = ",\n        ".join(acs_descriptors)
     spis_str = ",\n        ".join(gen_spi(n, d) for n, d in groups['SPI'])
     twis_str = ",\n        ".join(gen_twi(n, d) for n, d in groups['TWI'])
@@ -886,6 +908,8 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .sreg_reset = {hx(r_cpu('SREG')['initval'])},
     .adc_count = {len(adcs_descriptors)}U,
     .adcs = {{{{ {adcs_str} }}}},
+    .adc8x_count = {len(adc8x_descriptors)}U,
+    .adcs8x = {{{{ {adcs8x_str} }}}},
     .ac_count = {len(acs_descriptors)}U,
     .acs = {{{{ {acs_str} }}}},
     .timer8_count = {len(groups['TC8'] + groups['TC8_ASYNC'])}U,

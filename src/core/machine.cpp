@@ -13,6 +13,9 @@
 #include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/watchdog_timer.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
+#include "vioavr/core/adc.hpp"
+#include "vioavr/core/adc8x.hpp"
+#include "vioavr/core/can.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/dac.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
@@ -144,6 +147,15 @@ void Machine::initialize_peripherals()
     for (u8 i = 0; i < device_.adc_count; ++i) {
         auto adc = std::make_unique<Adc>("ADC", device_.adcs[i], *pin_mux_, i);
         adc->set_bus(*bus_);
+        bus_->attach_peripheral(*adc);
+        owned_peripherals_.push_back(std::move(adc));
+    }
+
+    // Modern ADC (AVR8X)
+    for (u8 i = 0; i < device_.adc8x_count; ++i) {
+        auto adc = std::make_unique<Adc8x>(device_.adcs8x[i]);
+        adc->set_memory_bus(bus_.get());
+        adc->set_event_system(evsys);
         bus_->attach_peripheral(*adc);
         owned_peripherals_.push_back(std::move(adc));
     }
