@@ -37,6 +37,7 @@ inline constexpr DeviceDescriptor atmega64c1 {
     .xmcrb_address = 0x0U,
     .xmem = {0},
     .pradc_bit = 0x0U,
+
     .prusart0_bit = 0xFFU,
     .prspi_bit = 0x2U,
     .prtwi_bit = 0xFFU,
@@ -63,6 +64,8 @@ inline constexpr DeviceDescriptor atmega64c1 {
             .pr_address = 100, .pr_bit = 0,
             .mux_table = {{ { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false }, { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false} }}
         } }},
+    .adc8x_count = 0U,
+    .adcs8x = {{  }},
     .ac_count = 4U,
     .acs = {{ {
                     .acsr_address = 0x50U, .accon_address = 0x94U, .didr_address = 0x0U,
@@ -92,6 +95,8 @@ inline constexpr DeviceDescriptor atmega64c1 {
                     .acd_mask = 0x80U, .acbg_mask = 0x0, .aco_mask = 0x8U,
                     .acif_mask = 0x80U, .acie_mask = 0x40U, .acic_mask = 0x0, .acis_mask = 0x30U
                 } }},
+    .ac8x_count = 0U,
+    .acs8x = {{  }},
     .timer8_count = 1U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U,
@@ -103,12 +108,15 @@ inline constexpr DeviceDescriptor atmega64c1 {
             .t_pin_address = 0x26U, .t_pin_bit = 2U,
             .tosc1_pin_address = 0x0U, .tosc1_pin_bit = 0U, .tosc2_pin_address = 0x0U, .tosc2_pin_bit = 0U,
             .wgm0_mask = 0x3U, .wgm2_mask = 0x8U, .cs_mask = 0x7U,
-            .as2_mask = 0x0U, .tcn2ub_mask = 0x0U,
+            .as2_mask = 0x0U, .exclk_mask = 0x0U, .tcn2ub_mask = 0x0U,
+            .ocr2aub_mask = 0x0U, .ocr2bub_mask = 0x0U,
+            .tcr2aub_mask = 0x0U, .tcr2bub_mask = 0x0U,
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x4U,
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U,
             .pr_address = 100, .pr_bit = 3,
+            .timer_index = 0U,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer0_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
@@ -117,6 +125,7 @@ inline constexpr DeviceDescriptor atmega64c1 {
     .timers16 = {{ {
             .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .ocrc_address = 0x0U, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
             .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U,
+            .timer_index = 1U,
             .capture_vector_index = 11U,
             .compare_a_vector_index = 12U,
             .compare_b_vector_index = 13U,
@@ -141,6 +150,18 @@ inline constexpr DeviceDescriptor atmega64c1 {
         } }},
     .timer10_count = 0U,
     .timers10 = {{  }},
+    .tca_count = 0U,
+    .timers_tca = {{  }},
+
+    .tcb_count = 0U,
+    .timers_tcb = {{  }},
+
+    .rtc_count = 0U,
+    .timers_rtc = {{  }},
+
+    .evsys = {},
+
+    .ccl = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -150,6 +171,14 @@ inline constexpr DeviceDescriptor atmega64c1 {
 
     .uart_count = 0U,
     .uarts = {{  }},
+    
+    .uart8x_count = 0U,
+    .uarts8x = {{  }},
+
+    .nvm_ctrl_count = 0U,
+    .nvm_ctrls = {{  }},
+    .cpu_int_count = 0U,
+    .cpu_ints = {{  }},
     
     .pcint_count = 4U,
     .pcints = {{ {
@@ -188,9 +217,15 @@ inline constexpr DeviceDescriptor atmega64c1 {
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
             .pr_address = 100, .pr_bit = 2
         } }},
+
+    .spi8x_count = 0U,
+    .spis8x = {{  }},
     
     .twi_count = 0U,
     .twis = {{  }},
+
+    .twi8x_count = 0U,
+    .twis8x = {{  }},
     
     .eeprom_count = 1U,
     .eeproms = {{ {
@@ -208,6 +243,12 @@ inline constexpr DeviceDescriptor atmega64c1 {
             .vector_index = 28U,
             .wdie_mask = 0x40U, .wde_mask = 0x8U, .wdce_mask = 0x10U
         } }},
+
+    .wdt8x_count = 0U,
+    .wdts8x = {{  }},
+
+    .crc8x_count = 0U,
+    .crcs8x = {{  }},
 
     .can_count = 1U,
     .cans = {{ {
@@ -235,6 +276,9 @@ inline constexpr DeviceDescriptor atmega64c1 {
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,
+
+    .signature = { 0x1EU, 0x96U, 0x86U },
+    .fuses = { 0x62U, 0xD9U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
 
     .port_count = 4U,
     .ports = {{

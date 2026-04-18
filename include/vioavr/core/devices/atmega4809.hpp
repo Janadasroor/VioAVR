@@ -59,16 +59,18 @@ inline constexpr DeviceDescriptor atmega4809 {
             .intctrl_address = 0x60AU, .intflags_address = 0x60BU, .dbgctrl_address = 0x60CU, .temp_address = 0x60DU,
             .res_address = 0x610U, .winlt_address = 0x612U, .winht_address = 0x614U,
             .res_ready_vector_index = 22U, .wcomp_vector_index = 23U,
-            .user_event_address = 0x1A8U
+            .user_event_address = 0x1A8U,
+            .resrd_generator_id = 36U
         } }},
     .ac_count = 0U,
     .acs = {{  }},
     .ac8x_count = 1U,
     .acs8x = {{ {
-            .ctrla_address = 0x680U, .muxctrla_address = 0x682U,
-            .dacctrla_address = 0x684U, .intctrl_address = 0x686U,
-            .status_address = 0x687U, .vector_index = 10U,
-            .user_event_address = 0x0U
+            .ctrla_address = 0x680U, .muxctrla_address = 0x682U, .dacctrla_address = 0x0U,
+            .intctrl_address = 0x686U, .status_address = 0x687U,
+            .vector_index = 21U,
+            .user_event_address = 0x0U,
+            .out_generator_id = 32U
         } }},
     .timer8_count = 0U,
     .timers8 = {{  }},
@@ -88,7 +90,9 @@ inline constexpr DeviceDescriptor atmega4809 {
             .cmp1_vector_index = 10U, .cmp2_vector_index = 11U,
             .hunf_vector_index = 8U, .lcmp0_vector_index = 9U,
             .lcmp1_vector_index = 10U, .lcmp2_vector_index = 11U,
-            .user_event_address = 0x1B3U
+            .user_event_address = 0x1B3U,
+            .ovf_generator_id = 128U,
+            .cmp0_generator_id = 132U, .cmp1_generator_id = 133U, .cmp2_generator_id = 134U
         } }},
 
     .tcb_count = 4U,
@@ -97,40 +101,44 @@ inline constexpr DeviceDescriptor atmega4809 {
             .intctrl_address = 0xA85U, .intflags_address = 0xA86U, .status_address = 0xA87U,
             .dbgctrl_address = 0xA88U, .temp_address = 0xA89U, .cnt_address = 0xA8AU,
             .ccmp_address = 0xA8CU, .vector_index = 12U,
-            .user_event_address = 0x1B4U
+            .user_event_address = 0x1B4U,
+            .capt_generator_id = 160U
         },
         {
             .ctrla_address = 0xA90U, .ctrlb_address = 0xA91U, .evctrl_address = 0xA94U,
             .intctrl_address = 0xA95U, .intflags_address = 0xA96U, .status_address = 0xA97U,
             .dbgctrl_address = 0xA98U, .temp_address = 0xA99U, .cnt_address = 0xA9AU,
             .ccmp_address = 0xA9CU, .vector_index = 13U,
-            .user_event_address = 0x1B5U
+            .user_event_address = 0x1B5U,
+            .capt_generator_id = 162U
         },
         {
             .ctrla_address = 0xAA0U, .ctrlb_address = 0xAA1U, .evctrl_address = 0xAA4U,
             .intctrl_address = 0xAA5U, .intflags_address = 0xAA6U, .status_address = 0xAA7U,
             .dbgctrl_address = 0xAA8U, .temp_address = 0xAA9U, .cnt_address = 0xAAAU,
             .ccmp_address = 0xAACU, .vector_index = 25U,
-            .user_event_address = 0x1B6U
+            .user_event_address = 0x1B6U,
+            .capt_generator_id = 164U
         },
         {
             .ctrla_address = 0xAB0U, .ctrlb_address = 0xAB1U, .evctrl_address = 0xAB4U,
             .intctrl_address = 0xAB5U, .intflags_address = 0xAB6U, .status_address = 0xAB7U,
             .dbgctrl_address = 0xAB8U, .temp_address = 0xAB9U, .cnt_address = 0xABAU,
             .ccmp_address = 0xABCU, .vector_index = 36U,
-            .user_event_address = 0x1B7U
+            .user_event_address = 0x1B7U,
+            .capt_generator_id = 166U
         } }},
 
     .rtc_count = 1U,
     .timers_rtc = {{ {
-            .ctrla_address = 0x140U, .status_address = 0x141U,
-            .intctrl_address = 0x142U, .intflags_address = 0x143U,
-            .temp_address = 0x144U, .dbgctrl_address = 0x145U,
-            .clksel_address = 0x147U, .cnt_address = 0x148U,
-            .per_address = 0x14AU, .cmp_address = 0x14CU,
-            .pitctrla_address = 0x150U, .pitstatus_address = 0x151U,
+            .ctrla_address = 0x140U, .status_address = 0x141U, .intctrl_address = 0x142U,
+            .intflags_address = 0x143U, .temp_address = 0x144U, .dbgctrl_address = 0x145U,
+            .clksel_address = 0x147U, .cnt_address = 0x148U, .per_address = 0x14AU,
+            .cmp_address = 0x14CU, .pitctrla_address = 0x150U, .pitstatus_address = 0x151U,
             .pitintctrl_address = 0x152U, .pitintflags_address = 0x153U,
-            .ovf_vector_index = 3U, .pit_vector_index = 4U
+            .ovf_vector_index = 7U, .pit_vector_index = 4U,
+            .ovf_generator_id = 6U,
+            .cmp_generator_id = 7U
         } }},
 
     .evsys = {

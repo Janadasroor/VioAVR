@@ -35,6 +35,7 @@ public:
 
 private:
     const TcaDescriptor desc_;
+    std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {nullptr};
     EventSystem* evsys_ {nullptr};
 
@@ -77,7 +78,6 @@ private:
 
     // Buffers and Status
     bool counting_up_ {true};
-    std::array<AddressRange, 4> ranges_ {};
 
     // Internal logic
     void handle_matches();

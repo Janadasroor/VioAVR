@@ -64,6 +64,8 @@ inline constexpr DeviceDescriptor at90pwm1 {
             .pr_address = 100, .pr_bit = 0,
             .mux_table = {{ { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false }, { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false }, { 8, 0, 1.0f, false }, { 9, 0, 1.0f, false }, { 10, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, { 11, 0, 1.0f, false }, { 12, 0, 1.0f, false }, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false}, {0xFFU, 0, 1.0f, false} }}
         } }},
+    .adc8x_count = 0U,
+    .adcs8x = {{  }},
     .ac_count = 2U,
     .acs = {{ {
                     .acsr_address = 0x50U, .accon_address = 0xADU, .didr_address = 0x0U,
@@ -79,6 +81,8 @@ inline constexpr DeviceDescriptor at90pwm1 {
                     .acd_mask = 0x80U, .acbg_mask = 0x0, .aco_mask = 0x4U,
                     .acif_mask = 0x40U, .acie_mask = 0x40U, .acic_mask = 0x0, .acis_mask = 0x30U
                 } }},
+    .ac8x_count = 0U,
+    .acs8x = {{  }},
     .timer8_count = 1U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U,
@@ -90,7 +94,9 @@ inline constexpr DeviceDescriptor at90pwm1 {
             .t_pin_address = 0x0U, .t_pin_bit = 0U,
             .tosc1_pin_address = 0x0U, .tosc1_pin_bit = 0U, .tosc2_pin_address = 0x0U, .tosc2_pin_bit = 0U,
             .wgm0_mask = 0x3U, .wgm2_mask = 0x8U, .cs_mask = 0x7U,
-            .as2_mask = 0x0U, .tcn2ub_mask = 0x0U,
+            .as2_mask = 0x0U, .exclk_mask = 0x0U, .tcn2ub_mask = 0x0U,
+            .ocr2aub_mask = 0x0U, .ocr2bub_mask = 0x0U,
+            .tcr2aub_mask = 0x0U, .tcr2bub_mask = 0x0U,
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x4U,
             .overflow_enable_mask = 0x1U,
@@ -130,6 +136,18 @@ inline constexpr DeviceDescriptor at90pwm1 {
         } }},
     .timer10_count = 0U,
     .timers10 = {{  }},
+    .tca_count = 0U,
+    .timers_tca = {{  }},
+
+    .tcb_count = 0U,
+    .timers_tcb = {{  }},
+
+    .rtc_count = 0U,
+    .timers_rtc = {{  }},
+
+    .evsys = {},
+
+    .ccl = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -139,6 +157,9 @@ inline constexpr DeviceDescriptor at90pwm1 {
 
     .uart_count = 0U,
     .uarts = {{  }},
+    
+    .uart8x_count = 0U,
+    .uarts8x = {{  }},
 
     .nvm_ctrl_count = 0U,
     .nvm_ctrls = {{  }},
@@ -155,9 +176,15 @@ inline constexpr DeviceDescriptor at90pwm1 {
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
             .pr_address = 100, .pr_bit = 2
         } }},
+
+    .spi8x_count = 0U,
+    .spis8x = {{  }},
     
     .twi_count = 0U,
     .twis = {{  }},
+
+    .twi8x_count = 0U,
+    .twis8x = {{  }},
     
     .eeprom_count = 1U,
     .eeproms = {{ {
@@ -175,6 +202,12 @@ inline constexpr DeviceDescriptor at90pwm1 {
             .vector_index = 25U,
             .wdie_mask = 0x40U, .wde_mask = 0x8U, .wdce_mask = 0x10U
         } }},
+
+    .wdt8x_count = 0U,
+    .wdts8x = {{  }},
+
+    .crc8x_count = 0U,
+    .crcs8x = {{  }},
 
     .can_count = 0U,
     .cans = {{  }},
@@ -227,7 +260,7 @@ inline constexpr DeviceDescriptor at90pwm1 {
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,
 
-    .signature = { 0xFFU, 0xFFU, 0xFFU },
+    .signature = { 0x1EU, 0x93U, 0x83U },
     .fuses = { 0x62U, 0xDFU, 0xF9U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
 
     .port_count = 3U,

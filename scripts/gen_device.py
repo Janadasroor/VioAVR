@@ -119,6 +119,25 @@ def generate_header(data, header_path):
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
         'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'CRC': [], 'CRCSCAN': []
     }
+    event_generators = {}
+    
+    # 1. First pass: Find EVSYS to get generator mappings
+    evsys_module = None
+    for p_name, p_data in data['peripherals'].items():
+        if 'EVSYS' in p_name:
+            evsys_module = p_data
+            break
+    
+    if evsys_module:
+        for reg_name, reg_def in evsys_module['registers'].items():
+            if 'CHANNEL' in reg_name:
+                for bf_name, bf_def in reg_def.get('bitfields', {}).items():
+                    if 'GENERATOR' in bf_name.upper():
+                        for val_name, val_def in bf_def.get('values', {}).items():
+                            event_generators[val_name] = val_def['value']
+                        break
+                break
+
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
         if not mod: continue
@@ -184,17 +203,23 @@ def generate_header(data, header_path):
         pr_addr, pr_bit = get_pr_info(data, f'PRUSART{idx}|PRUSART')
         
         # Vector search
-        def find_vec(token):
-            return next((i['index'] for i in data.get('interrupts', []) 
-                        if token in (i.get('name') or i.get('caption') or '').upper() 
-                        and (p_name in (i.get('name') or i.get('module-instance') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)
+        def find_vec(tokens):
+            if isinstance(tokens, str): tokens = [tokens]
+            for token in tokens:
+                for i in data.get('interrupts', []):
+                    name = (i.get('name') or i.get('caption') or '').upper()
+                    if token in name:
+                        module = (i.get('module-instance') or '').upper()
+                        if p_name in name or p_name == module or (('USART' in name or 'UART' in name) and ('USART' in p_name or 'UART' in p_name)):
+                             return i['index']
+            return 0
 
         return f"""{{
             .udr_address = {hx(udr_addr)}, .ucsra_address = {hx(status_addr)}, .ucsrb_address = {hx(ctrl_ie_addr)}, .ucsrc_address = {hx(ctrl_en_addr)}, .ubrrl_address = {hx(ubrr_addr)}, .ubrrh_address = {hx(ubrr_addr + 1)},
             .ucsra_reset = {hx(r(f'UCSR{idx}A|UCSRA|STATUS')['initval'])}, .ucsrb_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLA')['initval'])}, .ucsrc_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLB')['initval'])},
-            .rx_vector_index = {find_vec('RXC')}U,
-            .udre_vector_index = {find_vec('DRE')}U,
-            .tx_vector_index = {find_vec('TXC')}U,
+            .rx_vector_index = {find_vec(['RXC', 'RX'])}U,
+            .udre_vector_index = {find_vec(['DRE', 'UDRE'])}U,
+            .tx_vector_index = {find_vec(['TXC', 'TX'])}U,
             .u2x_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'U2X') or b(f'UCSR{idx}B|UCSRB|CTRLB', 'RXMODE.*CLK2X'))}, 
             .rxc_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'RXC'))}, 
             .txc_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'TXC'))}, 
@@ -446,22 +471,28 @@ def generate_header(data, header_path):
             .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])},
             .res_address = {hx(r('RES')['offset'])}, .winlt_address = {hx(r('WINLT')['offset'])}, .winht_address = {hx(r('WINHT')['offset'])},
             .res_ready_vector_index = {res_ready}U, .wcomp_vector_index = {wcomp}U,
-            .user_event_address = {hx(user_addr)}
+            .user_event_address = {hx(user_addr)},
+            .resrd_generator_id = {event_generators.get(f"{p_name}_RESRDY", 0)}U
         }}"""
 
     def gen_ac8x(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
-        v = next((i['index'] for i in data.get('interrupts', []) if f'{p_name}' in (i.get('name') or '').upper()), 10)
+        ints = p_data.get('interrupts', {})
+        def get_int(key):
+            for k, v in ints.items():
+                if key in k.upper(): return v['index']
+            return 0
         user_addr = 0
         if groups['EVSYS']:
             user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
             if user_reg: user_addr = user_reg['offset']
 
         return f"""{{
-            .ctrla_address = {hx(r('CTRLA')['offset'])}, .muxctrla_address = {hx(r('MUXCTRLA')['offset'])},
-            .dacctrla_address = {hx(r('DACREF|DACCTRLA')['offset'])}, .intctrl_address = {hx(r('INTCTRL')['offset'])},
-            .status_address = {hx(r('STATUS')['offset'])}, .vector_index = {v}U,
-            .user_event_address = {hx(user_addr)}
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .muxctrla_address = {hx(r('MUXCTRLA')['offset'])}, .dacctrla_address = {hx(r('DACCTRLA')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])}, .status_address = {hx(r('STATUS')['offset'])},
+            .vector_index = {get_int('AC')}U,
+            .user_event_address = {hx(user_addr)},
+            .out_generator_id = {event_generators.get(f"{p_name}_OUT", 0)}U
         }}"""
 
     def gen_usb(p_name, p_data):
@@ -563,7 +594,7 @@ def generate_header(data, header_path):
                 
                 results.append(f"""{{
                     .acsr_address = {hx(r('ACSR')['offset'])}, .accon_address = {hx(r(reg_name)['offset'])}, .didr_address = {hx(r('DIDR1')['offset'])},
-                    .vector_index = {next((idx['index'] for idx in data['interrupts'] if f'ANALOG_COMP_{i}' in (idx.get('name') or '').upper() or 'ANALOG_COMP' in (idx.get('name') or '').upper()), 0)}U,
+                    .vector_index = {next((idx['index'] for idx in data['interrupts'] if (f'AC{i}' in (idx.get('name') or '').upper()) or (f'ANALOG_COMP_{i}' in (idx.get('name') or '').upper()) or ('ANALOG_COMP' in (idx.get('name') or '').upper())), 0)}U,
                     .aip_pin_address = {aip_a}, .aip_pin_bit = {aip_b}U, .aim_pin_address = {aim_a}, .aim_pin_bit = {aim_b}U,
                     .acd_mask = {hx(b(reg_name, f'AC{i}EN'))}, .acbg_mask = 0x0, .aco_mask = {hx(b('ACSR', f'AC{i}O'))},
                     .acif_mask = {hx(b('ACSR', f'AC{i}IF'))}, .acie_mask = {hx(b(reg_name, f'AC{i}IE'))}, .acic_mask = 0x0, .acis_mask = {hx(b(reg_name, f'AC{i}IS'))}
@@ -781,6 +812,9 @@ def generate_header(data, header_path):
             user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
             if user_reg: user_addr = user_reg['offset']
 
+        def get_gen(sig):
+            return event_generators.get(f"{p_name}_{sig}", 0)
+
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])},
             .ctrld_address = {hx(r('CTRLD')['offset'])}, .ctrleclr_address = {hx(r('CTRLECLR')['offset'])}, .ctrleset_address = {hx(r('CTRLESET')['offset'])},
@@ -792,7 +826,9 @@ def generate_header(data, header_path):
             .cmp1_vector_index = {get_int('CMP1')}U, .cmp2_vector_index = {get_int('CMP2')}U,
             .hunf_vector_index = {get_int('HUNF')}U, .lcmp0_vector_index = {get_int('LCMP0')}U,
             .lcmp1_vector_index = {get_int('LCMP1')}U, .lcmp2_vector_index = {get_int('LCMP2')}U,
-            .user_event_address = {hx(user_addr)}
+            .user_event_address = {hx(user_addr)},
+            .ovf_generator_id = {get_gen('OVF_LUNF') or get_gen('OVF')}U,
+            .cmp0_generator_id = {get_gen('CMP0')}U, .cmp1_generator_id = {get_gen('CMP1')}U, .cmp2_generator_id = {get_gen('CMP2')}U
         }}"""
 
     def gen_tcb(p_name, p_data):
@@ -818,7 +854,8 @@ def generate_header(data, header_path):
             .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .status_address = {hx(r('STATUS')['offset'])},
             .dbgctrl_address = {hx(r('DBGCTRL')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])}, .cnt_address = {hx(r('CNT')['offset'])},
             .ccmp_address = {hx(r('CCMP')['offset'])}, .vector_index = {get_int('CAPT') or get_int('INT')}U,
-            .user_event_address = {hx(user_addr)}
+            .user_event_address = {hx(user_addr)},
+            .capt_generator_id = {event_generators.get(f"{p_name}_CAPT", 0)}U
         }}"""
 
     def gen_rtc(p_name, p_data):
@@ -834,14 +871,14 @@ def generate_header(data, header_path):
                     return item['index']
             return 0
         return f"""{{
-            .ctrla_address = {hx(r('CTRLA')['offset'])}, .status_address = {hx(r('STATUS')['offset'])},
-            .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])},
-            .temp_address = {hx(r('TEMP')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
-            .clksel_address = {hx(r('CLKSEL')['offset'])}, .cnt_address = {hx(r('CNT')['offset'])},
-            .per_address = {hx(r('PER')['offset'])}, .cmp_address = {hx(r('CMP')['offset'])},
-            .pitctrla_address = {hx(r('PITCTRLA')['offset'])}, .pitstatus_address = {hx(r('PITSTATUS')['offset'])},
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}, .intctrl_address = {hx(r('INTCTRL')['offset'])},
+            .intflags_address = {hx(r('INTFLAGS')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
+            .clksel_address = {hx(r('CLKSEL')['offset'])}, .cnt_address = {hx(r('CNT')['offset'])}, .per_address = {hx(r('PER')['offset'])},
+            .cmp_address = {hx(r('CMP')['offset'])}, .pitctrla_address = {hx(r('PITCTRLA')['offset'])}, .pitstatus_address = {hx(r('PITSTATUS')['offset'])},
             .pitintctrl_address = {hx(r('PITINTCTRL')['offset'])}, .pitintflags_address = {hx(r('PITINTFLAGS')['offset'])},
-            .ovf_vector_index = {get_int('CNT') or get_int('OVF')}U, .pit_vector_index = {get_int('PIT')}U
+            .ovf_vector_index = {get_int('OVF')}U, .pit_vector_index = {get_int('PIT')}U,
+            .ovf_generator_id = {event_generators.get(f"{p_name}_OVF", 0)}U,
+            .cmp_generator_id = {event_generators.get(f"{p_name}_CMP", 0)}U
         }}"""
 
     def gen_evsys(p_name, p_data):

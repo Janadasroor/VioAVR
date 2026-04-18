@@ -22,7 +22,7 @@ public:
         const AdcDescriptor& descriptor,
         PinMux& pin_mux,
         u8 source_id,
-        u16 conversion_cycles = 13U) noexcept;
+        u16 conversion_cycles = 0U) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }

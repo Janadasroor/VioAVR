@@ -200,6 +200,9 @@ void Adc8x::complete_conversion() noexcept {
 
     res_ = static_cast<u16>(voltage * 1023.0);
     intflags_ |= 0x01U; // RESRDY
+    if (evsys_ && desc_.resrd_generator_id != 0) {
+        evsys_->trigger_event(desc_.resrd_generator_id);
+    }
 }
 
 } // namespace vioavr::core

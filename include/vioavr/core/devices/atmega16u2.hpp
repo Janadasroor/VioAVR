@@ -37,6 +37,7 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .xmcrb_address = 0x0U,
     .xmem = {0},
     .pradc_bit = 0xFFU,
+
     .prusart0_bit = 0xFFU,
     .prspi_bit = 0x2U,
     .prtwi_bit = 0xFFU,
@@ -51,6 +52,8 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .sreg_reset = 0x0U,
     .adc_count = 0U,
     .adcs = {{  }},
+    .adc8x_count = 0U,
+    .adcs8x = {{  }},
     .ac_count = 1U,
     .acs = {{ {
                 .acsr_address = 0x50U, .accon_address = 0, .didr_address = 0x7FU,
@@ -59,6 +62,8 @@ inline constexpr DeviceDescriptor atmega16u2 {
                 .acd_mask = 0x80U, .acbg_mask = 0x40U, .aco_mask = 0x20U,
                 .acif_mask = 0x10U, .acie_mask = 0x8U, .acic_mask = 0x4U, .acis_mask = 0x3U
             } }},
+    .ac8x_count = 0U,
+    .acs8x = {{  }},
     .timer8_count = 1U,
     .timers8 = {{ {
             .tcnt_address = 0x46U, .ocra_address = 0x47U, .ocrb_address = 0x48U, .tifr_address = 0x35U, .timsk_address = 0x6EU, .tccra_address = 0x44U, .tccrb_address = 0x45U, .assr_address = 0x0U,
@@ -70,12 +75,15 @@ inline constexpr DeviceDescriptor atmega16u2 {
             .t_pin_address = 0x29U, .t_pin_bit = 7U,
             .tosc1_pin_address = 0x0U, .tosc1_pin_bit = 0U, .tosc2_pin_address = 0x0U, .tosc2_pin_bit = 0U,
             .wgm0_mask = 0x3U, .wgm2_mask = 0x8U, .cs_mask = 0x7U,
-            .as2_mask = 0x0U, .tcn2ub_mask = 0x0U,
+            .as2_mask = 0x0U, .exclk_mask = 0x0U, .tcn2ub_mask = 0x0U,
+            .ocr2aub_mask = 0x0U, .ocr2bub_mask = 0x0U,
+            .tcr2aub_mask = 0x0U, .tcr2bub_mask = 0x0U,
             .compare_a_enable_mask = 0x2U,
             .compare_b_enable_mask = 0x4U,
             .overflow_enable_mask = 0x1U,
             .foca_mask = 0x80U, .focb_mask = 0x40U,
             .pr_address = 100, .pr_bit = 5,
+            .timer_index = 0U,
             .compare_a_trigger_source = AdcAutoTriggerSource::timer0_compare_a,
             .compare_b_trigger_source = AdcAutoTriggerSource::timer0_compare_b,
             .overflow_trigger_source = AdcAutoTriggerSource::timer0_overflow
@@ -84,6 +92,7 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .timers16 = {{ {
             .tcnt_address = 0x84U, .ocra_address = 0x88U, .ocrb_address = 0x8AU, .ocrc_address = 0x8CU, .icr_address = 0x86U, .tifr_address = 0x36U, .timsk_address = 0x6FU, .tccra_address = 0x80U, .tccrb_address = 0x81U, .tccrc_address = 0x82U,
             .tccra_reset = 0x0U, .tccrb_reset = 0x0U, .tccrc_reset = 0x0U,
+            .timer_index = 1U,
             .capture_vector_index = 14U,
             .compare_a_vector_index = 15U,
             .compare_b_vector_index = 15U,
@@ -108,6 +117,18 @@ inline constexpr DeviceDescriptor atmega16u2 {
         } }},
     .timer10_count = 0U,
     .timers10 = {{  }},
+    .tca_count = 0U,
+    .timers_tca = {{  }},
+
+    .tcb_count = 0U,
+    .timers_tcb = {{  }},
+
+    .rtc_count = 0U,
+    .timers_rtc = {{  }},
+
+    .evsys = {},
+
+    .ccl = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -117,15 +138,31 @@ inline constexpr DeviceDescriptor atmega16u2 {
 
     .uart_count = 1U,
     .uarts = {{ {
-            .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xCAU, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
+            .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xC9U, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
-            .rx_vector_index = 23U,
+            .rx_vector_index = 0U,
             .udre_vector_index = 24U,
-            .tx_vector_index = 25U,
-            .u2x_mask = 0x2U, .rxc_mask = 0x80U, .txc_mask = 0x40U, .udre_mask = 0x20U,
-            .rxen_mask = 0x10U, .txen_mask = 0x8U, .rxcie_mask = 0x80U, .txcie_mask = 0x40U, .udrie_mask = 0x20U,
-            .pr_address = 101, .pr_bit = 0
+            .tx_vector_index = 0U,
+            .u2x_mask = 0x2U, 
+            .rxc_mask = 0x80U, 
+            .txc_mask = 0x40U, 
+            .udre_mask = 0x20U,
+            .rxen_mask = 0x10U, 
+            .txen_mask = 0x8U, 
+            .rxcie_mask = 0x80U, 
+            .txcie_mask = 0x40U, 
+            .udrie_mask = 0x20U,
+            .pr_address = 101, .pr_bit = 0,
+            .uart_index = 1U
         } }},
+    
+    .uart8x_count = 0U,
+    .uarts8x = {{  }},
+
+    .nvm_ctrl_count = 0U,
+    .nvm_ctrls = {{  }},
+    .cpu_int_count = 0U,
+    .cpu_ints = {{  }},
     
     .pcint_count = 2U,
     .pcints = {{ {
@@ -150,9 +187,15 @@ inline constexpr DeviceDescriptor atmega16u2 {
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
             .pr_address = 100, .pr_bit = 2
         } }},
+
+    .spi8x_count = 0U,
+    .spis8x = {{  }},
     
     .twi_count = 0U,
     .twis = {{  }},
+
+    .twi8x_count = 0U,
+    .twis8x = {{  }},
     
     .eeprom_count = 1U,
     .eeproms = {{ {
@@ -170,6 +213,12 @@ inline constexpr DeviceDescriptor atmega16u2 {
             .vector_index = 13U,
             .wdie_mask = 0x40U, .wde_mask = 0x8U, .wdce_mask = 0x10U
         } }},
+
+    .wdt8x_count = 0U,
+    .wdts8x = {{  }},
+
+    .crc8x_count = 0U,
+    .crcs8x = {{  }},
 
     .can_count = 0U,
     .cans = {{  }},
@@ -199,6 +248,9 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,
+
+    .signature = { 0x1EU, 0x94U, 0x89U },
+    .fuses = { 0x5EU, 0xD9U, 0xF4U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
 
     .port_count = 3U,
     .ports = {{

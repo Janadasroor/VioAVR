@@ -159,6 +159,7 @@ void Tca::tick(u64 elapsed_cycles) noexcept {
             } else {
                 perform_tick();
             }
+            handle_matches();
         }
     }
 }
@@ -170,19 +171,28 @@ void Tca::handle_matches() {
     if (wgmode == 0x00 || wgmode == 0x03) { // Normal / Single Slope
         if (tcnt_ == period_) {
             intflags_ |= 0x01; // OVF
-            if (evsys_) evsys_->trigger_event(128); // TCA0_OVF
+            if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
         }
     } else if (wgmode >= 0x05) { // Dual Slope
         if (tcnt_ == 0 && !counting_up_) { // BOTTOM
              intflags_ |= 0x01;
-             if (evsys_) evsys_->trigger_event(128);
+             if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
         }
     }
 
     // Compare matches
-    if (tcnt_ == cmp0_) intflags_ |= 0x10;
-    if (tcnt_ == cmp1_) intflags_ |= 0x20;
-    if (tcnt_ == cmp2_) intflags_ |= 0x40;
+    if (tcnt_ == cmp0_) {
+        intflags_ |= 0x10;
+        if (evsys_ && desc_.cmp0_generator_id != 0) evsys_->trigger_event(desc_.cmp0_generator_id);
+    }
+    if (tcnt_ == cmp1_) {
+        intflags_ |= 0x20;
+        if (evsys_ && desc_.cmp1_generator_id != 0) evsys_->trigger_event(desc_.cmp1_generator_id);
+    }
+    if (tcnt_ == cmp2_) {
+        intflags_ |= 0x40;
+        if (evsys_ && desc_.cmp2_generator_id != 0) evsys_->trigger_event(desc_.cmp2_generator_id);
+    }
 }
 
 bool Tca::pending_interrupt_request(InterruptRequest& request) const noexcept {
