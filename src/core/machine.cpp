@@ -26,6 +26,7 @@
 #include "vioavr/core/rtc.hpp"
 #include "vioavr/core/evsys.hpp"
 #include "vioavr/core/ccl.hpp"
+#include "vioavr/core/uart8x.hpp"
 
 namespace vioavr::core {
 
@@ -140,6 +141,13 @@ void Machine::initialize_peripherals()
     // 3. UART
     for (u8 i = 0; i < device_.uart_count; ++i) {
         auto uart = std::make_unique<Uart>("UART" + std::to_string(device_.uarts[i].uart_index), device_.uarts[i]);
+        bus_->attach_peripheral(*uart);
+        owned_peripherals_.push_back(std::move(uart));
+    }
+
+    // Modern UART (AVR8X)
+    for (u8 i = 0; i < device_.uart8x_count; ++i) {
+        auto uart = std::make_unique<Uart8x>(device_.uarts8x[i]);
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
     }

@@ -92,16 +92,18 @@ def generate_header(data, header_path):
     ports_raw = []
     for p_instance, p_data in data['peripherals'].items():
         if p_data.get('module') == 'PORT':
+            char = p_instance[-1] # Usually PORTA, PORTB etc.
+            if char not in port_map: port_map[char] = {}
             for r_name, r_data in p_data['registers'].items():
-                if (r_name.startswith('PORT') and len(r_name) >= 5) or \
-                   (r_name.startswith('DDR') and len(r_name) >= 4) or \
-                   (r_name.startswith('PIN') and len(r_name) >= 4):
-                    char = r_name[4] if r_name.startswith('PORT') else r_name[3]
-                    if char not in port_map: port_map[char] = {}
-                    reg_type = 'PORT' if r_name.startswith('PORT') else ('DDR' if r_name.startswith('DDR') else 'PIN')
-                    port_map[char][reg_type] = r_data['offset']
+                if r_name == 'DIR' or r_name == f'DDR{char}':
+                    port_map[char]['DDR'] = r_data['offset']
+                if r_name == 'OUT' or r_name == f'PORT{char}':
+                    port_map[char]['PORT'] = r_data['offset']
+                if r_name == 'IN' or r_name == f'PIN{char}':
+                    port_map[char]['PIN'] = r_data['offset']
     
     for char, regs in port_map.items():
+        if not regs: continue
         ports_raw.append({
             'name': f"PORT{char}",
             'port': regs.get('PORT', 0),
@@ -112,23 +114,34 @@ def generate_header(data, header_path):
 
     # 2. Group Peripherals
     groups = {
-        'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
-        'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
+        'USART': [], 'USART8X': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
+        'WDT': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
         'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
-        if mod in groups:
-            groups[mod].append((p_name, p_data))
-            if mod == 'EXINT':
+        if not mod: continue
+        
+        # Dispatch to groups based on module and register names
+        target_mod = mod
+        if mod == 'USART':
+            if 'RXDATAL' in p_data['registers']: target_mod = 'USART8X'
+        elif mod == 'SPI':
+            if 'INTFLAGS' in p_data['registers']: target_mod = 'SPI8X'
+        elif mod == 'TWI':
+            if 'MSTATUS' in p_data['registers']: target_mod = 'TWI8X'
+            
+        if target_mod in groups:
+            groups[target_mod].append((p_name, p_data))
+            if target_mod == 'EXINT':
                 for k in p_data.get('registers', {}).keys():
                     if k.startswith('PCMSK'):
                         idx = k[5:]
                         groups['PCINT'].append((f'PCINT{idx}', p_data))
         elif 'PCINT' in p_name or 'PCINT' == mod:
             groups['PCINT'].append((p_name, p_data))
-        elif mod == 'TC10':
+        elif mod.startswith('TC10'):
             groups['TC10'].append((p_name, p_data))
         elif 'PSC' in mod:
             groups['PSC'].append((p_name, p_data))
@@ -157,15 +170,38 @@ def generate_header(data, header_path):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         b = lambda n, b_re: get_bit(r(n), b_re)
         idx = "".join(filter(str.isdigit, p_name)) or "0"
+        
+        # Mapping for MegaAVR vs AVR8X
+        udr_addr = r(f'UDR{idx}|UDR|RXDATAL|TXDATAL|DATA')['offset']
+        status_addr = r(f'UCSR{idx}A|UCSRA|STATUS')['offset']
+        ctrl_ie_addr = r(f'UCSR{idx}B|UCSRB|CTRLA')['offset']
+        ctrl_en_addr = r(f'UCSR{idx}B|UCSRB|CTRLB')['offset']
+        ctrl_mode_addr = r(f'UCSR{idx}C|UCSRC|CTRLC')['offset']
+        ubrr_addr = r(f'UBRR{idx}|UBRR|BAUD')['offset']
+        
         pr_addr, pr_bit = get_pr_info(data, f'PRUSART{idx}|PRUSART')
+        
+        # Vector search
+        def find_vec(token):
+            return next((i['index'] for i in data.get('interrupts', []) 
+                        if token in (i.get('name') or i.get('caption') or '').upper() 
+                        and (p_name in (i.get('name') or i.get('module-instance') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)
+
         return f"""{{
-            .udr_address = {hx(r(f'UDR{idx}|UDR')['offset'])}, .ucsra_address = {hx(r(f'UCSR{idx}A|UCSRA')['offset'])}, .ucsrb_address = {hx(r(f'UCSR{idx}B|UCSRB')['offset'])}, .ucsrc_address = {hx(r(f'UCSR{idx}C|UCSRC')['offset'])}, .ubrrl_address = {get_reg_addr(p_data, f'UBRR{idx}|UBRR')}, .ubrrh_address = {get_reg_addr(p_data, f'UBRR{idx}|UBRR', True)},
-            .ucsra_reset = {hx(r(f'UCSR{idx}A|UCSRA')['initval'])}, .ucsrb_reset = {hx(r(f'UCSR{idx}B|UCSRB')['initval'])}, .ucsrc_reset = {hx(r(f'UCSR{idx}C|UCSRC')['initval'])},
-            .rx_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'RX' in (i.get('name') or i.get('caption') or '').upper() and (p_name in (i.get('name') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)}U,
-            .udre_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'UDRE' in (i.get('name') or i.get('caption') or '').upper() and (p_name in (i.get('name') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)}U,
-            .tx_vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'TX' in (i.get('name') or i.get('caption') or '').upper() and (p_name in (i.get('name') or '').upper() or 'USART' in (i.get('name') or '').upper())), 0)}U,
-            .u2x_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'U2X'))}, .rxc_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'RXC'))}, .txc_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'TXC'))}, .udre_mask = {hx(b(f'UCSR{idx}A|UCSRA', 'UDRE'))},
-            .rxen_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'RXEN'))}, .txen_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'TXEN'))}, .rxcie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'RXCIE'))}, .txcie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'TXCIE'))}, .udrie_mask = {hx(b(f'UCSR{idx}B|UCSRB', 'UDRIE'))},
+            .udr_address = {hx(udr_addr)}, .ucsra_address = {hx(status_addr)}, .ucsrb_address = {hx(ctrl_ie_addr)}, .ucsrc_address = {hx(ctrl_en_addr)}, .ubrrl_address = {hx(ubrr_addr)}, .ubrrh_address = {hx(ubrr_addr + 1)},
+            .ucsra_reset = {hx(r(f'UCSR{idx}A|UCSRA|STATUS')['initval'])}, .ucsrb_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLA')['initval'])}, .ucsrc_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLB')['initval'])},
+            .rx_vector_index = {find_vec('RXC')}U,
+            .udre_vector_index = {find_vec('DRE')}U,
+            .tx_vector_index = {find_vec('TXC')}U,
+            .u2x_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'U2X') or b(f'UCSR{idx}B|UCSRB|CTRLB', 'RXMODE.*CLK2X'))}, 
+            .rxc_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'RXC'))}, 
+            .txc_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'TXC'))}, 
+            .udre_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'UDRE|DRE'))},
+            .rxen_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLB', 'RXEN'))}, 
+            .txen_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLB', 'TXEN'))}, 
+            .rxcie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'RXCIE'))}, 
+            .txcie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'TXCIE'))}, 
+            .udrie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'UDRIE|DREIE'))},
             .pr_address = {pr_addr}, .pr_bit = {pr_bit},
             .uart_index = {idx}U
         }}"""
@@ -537,10 +573,17 @@ def generate_header(data, header_path):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         b = lambda n, b_re: get_bit(r(n), b_re)
         idx = "".join(filter(str.isdigit, p_name)) or "0"
+        
+        # Mapping
+        spcr = r('SPCR|CTRLA')
+        spsr = r('SPSR|INTFLAGS|CTRLB')
+        spdr = r('SPDR|DATA')
+        spie_reg = r('SPCR|INTCTRL')
+        
         return f"""{{
-            .spcr_address = {hx(r('SPCR')['offset'])}, .spsr_address = {hx(r('SPSR')['offset'])}, .spdr_address = {hx(r('SPDR')['offset'])},
-            .spcr_reset = {hx(r('SPCR')['initval'])}, .spsr_reset = {hx(r('SPSR')['initval'])}, .vector_index = {next((i['index'] for i in data['interrupts'] if (i.get('name') or '') and 'SPI' in i['name']), 0)}U,
-            .spe_mask = {hx(b('SPCR', 'SPE'))}, .spie_mask = {hx(b('SPCR', 'SPIE'))}, .mstr_mask = {hx(b('SPCR', 'MSTR'))}, .spif_mask = {hx(b('SPSR', 'SPIF'))}, .wcol_mask = {hx(b('SPSR', 'WCOL'))}, .sp2x_mask = {hx(b('SPSR', 'SPI2X'))},
+            .spcr_address = {hx(spcr['offset'])}, .spsr_address = {hx(spsr['offset'])}, .spdr_address = {hx(spdr['offset'])},
+            .spcr_reset = {hx(spcr['initval'])}, .spsr_reset = {hx(spsr['initval'])}, .vector_index = {next((i['index'] for i in data['interrupts'] if (i.get('name') or '') and 'SPI' in i['name']), 0)}U,
+            .spe_mask = {hx(b('SPCR|CTRLA', 'SPE|ENABLE'))}, .spie_mask = {hx(b('SPCR|INTCTRL', 'SPIE|IE'))}, .mstr_mask = {hx(b('SPCR|CTRLA', 'MSTR|MASTER'))}, .spif_mask = {hx(b('SPSR|INTFLAGS', 'SPIF|IF'))}, .wcol_mask = {hx(b('SPSR', 'WCOL'))}, .sp2x_mask = {hx(b('SPSR', 'SPI2X'))},
             .pr_address = {get_pr_info(data, f'PRSPI{idx}|PRSPI')[0]}, .pr_bit = {get_pr_info(data, f'PRSPI{idx}|PRSPI')[1]}
         }}"""
 
@@ -548,13 +591,70 @@ def generate_header(data, header_path):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         b = lambda n, b_re: get_bit(r(n), b_re)
         idx = "".join(filter(str.isdigit, p_name)) or "0"
-        return f"""{{
-            .twbr_address = {hx(r('TWBR')['offset'])}, .twsr_address = {hx(r('TWSR')['offset'])}, .twar_address = {hx(r('TWAR')['offset'])}, .twdr_address = {hx(r('TWDR')['offset'])}, .twcr_address = {hx(r('TWCR')['offset'])}, .twamr_address = {hx(r('TWAMR')['offset'])},
-            .vector_index = {next((i['index'] for i in data['interrupts'] if (i.get('name') or '') and 'TWI' in i['name']), 0)}U,
-            .twint_mask = {hx(b('TWCR', 'TWINT'))}, .twen_mask = {hx(b('TWCR', 'TWEN'))}, .twie_mask = {hx(b('TWCR', 'TWIE'))}, .twsto_mask = {hx(b('TWCR', 'TWSTO'))}, .twsta_mask = {hx(b('TWCR', 'TWSTA'))}, .twea_mask = {hx(b('TWCR', 'TWEA'))},
-            .pr_address = {get_pr_info(data, f'PRTWI{idx}|PRTWI')[0]}, .pr_bit = {get_pr_info(data, f'PRTWI{idx}|PRTWI')[1]}
-        }}"""
+        
+        # MegaAVR
+        twbr = r('TWBR')
+        if twbr['offset']:
+            return f"""{{
+                .twbr_address = {hx(r('TWBR')['offset'])}, .twsr_address = {hx(r('TWSR')['offset'])}, .twar_address = {hx(r('TWAR')['offset'])}, .twdr_address = {hx(r('TWDR')['offset'])}, .twcr_address = {hx(r('TWCR')['offset'])}, .twamr_address = {hx(r('TWAMR')['offset'])},
+                .vector_index = {next((i['index'] for i in data['interrupts'] if (i.get('name') or '') and 'TWI' in i['name']), 0)}U,
+                .twint_mask = {hx(b('TWCR', 'TWINT'))}, .twen_mask = {hx(b('TWCR', 'TWEN'))}, .twie_mask = {hx(b('TWCR', 'TWIE'))}, .twsto_mask = {hx(b('TWCR', 'TWSTO'))}, .twsta_mask = {hx(b('TWCR', 'TWSTA'))}, .twea_mask = {hx(b('TWCR', 'TWEA'))},
+                .pr_address = {get_pr_info(data, f'PRTWI{idx}|PRTWI')[0]}, .pr_bit = {get_pr_info(data, f'PRTWI{idx}|PRTWI')[1]}
+            }}"""
+        else:
+            # AVR8X (Mega-0) - map Host (Master) to standard fields for now
+            return f"""{{
+                .twbr_address = {hx(r('MBAUD')['offset'])}, .twsr_address = {hx(r('MSTATUS')['offset'])}, .twar_address = {hx(r('SADDR')['offset'])}, .twdr_address = {hx(r('MDATA')['offset'])}, .twcr_address = {hx(r('MCTRLA')['offset'])}, .twamr_address = {hx(r('SADDRMASK')['offset'])},
+                .vector_index = {next((i['index'] for i in data['interrupts'] if (p_name in (i.get('name') or '').upper() or 'TWI' in (i.get('name') or '').upper())), 0)}U,
+                .twint_mask = 0x80U, .twen_mask = 0x01U, .twie_mask = 0x80U, .twsto_mask = 0x03U, .twsta_mask = 0x01U, .twea_mask = 0x04U,
+                .pr_address = 0, .pr_bit = 255
+            }}"""
     
+    def gen_uart8x(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        ints = p_data.get('interrupts', {})
+        def get_int(key):
+            for k, v in ints.items():
+                if key in k.upper(): return v['index']
+            return 0
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])},
+            .ctrld_address = {hx(r('CTRLD')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}, .baud_address = {hx(r('BAUD')['offset'])},
+            .rxdata_address = {hx(r('RXDATAL')['offset'])}, .txdata_address = {hx(r('TXDATAL')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
+            .rx_vector_index = {get_int('RXC')}U, .tx_vector_index = {get_int('TXC')}U, .dre_vector_index = {get_int('DRE')}U,
+            .user_event_address = {hx(user_addr)}
+        }}"""
+
+    def gen_spi8x(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        ints = p_data.get('interrupts', {})
+        def get_int(key):
+            for k, v in ints.items():
+                if key in k.upper(): return v['index']
+            return 0
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .data_address = {hx(r('DATA')['offset'])},
+            .vector_index = {get_int('INT')}U
+        }}"""
+        
+    def gen_twi8x(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        ints = p_data.get('interrupts', {})
+        def get_int(key):
+            for k, v in ints.items():
+                if key in k.upper(): return v['index']
+            return 0
+        return f"""{{
+            .mctrla_address = {hx(r('MCTRLA')['offset'])}, .mctrlb_address = {hx(r('MCTRLB')['offset'])}, .mstatus_address = {hx(r('MSTATUS')['offset'])}, .mbaud_address = {hx(r('MBAUD')['offset'])}, .maddr_address = {hx(r('MADDR')['offset'])}, .mdata_address = {hx(r('MDATA')['offset'])},
+            .sctrla_address = {hx(r('SCTRLA')['offset'])}, .sctrlb_address = {hx(r('SCTRLB')['offset'])}, .sstatus_address = {hx(r('SSTATUS')['offset'])}, .saddr_address = {hx(r('SADDR')['offset'])}, .sdata_address = {hx(r('SDATA')['offset'])}, .saddrmask_address = {hx(r('SADDRMASK')['offset'])},
+            .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
+            .master_vector_index = {get_int('TWIM')}U, .slave_vector_index = {get_int('TWIS')}U
+        }}"""
+
     def gen_can(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         idt = next((reg for name, reg in p_data.get('registers', {}).items() if 'CANIDT' in name), {'offset': 0})
@@ -819,8 +919,12 @@ def generate_header(data, header_path):
 
     acs_str = ",\n        ".join(acs_descriptors)
     acs8x_str = ",\n        ".join(acs8x_descriptors)
+    uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
+    uarts8x_str = ",\n        ".join(gen_uart8x(n, d) for n, d in groups['USART8X'])
     spis_str = ",\n        ".join(gen_spi(n, d) for n, d in groups['SPI'])
+    spis8x_str = ",\n        ".join(gen_spi8x(n, d) for n, d in groups['SPI8X'])
     twis_str = ",\n        ".join(gen_twi(n, d) for n, d in groups['TWI'])
+    twis8x_str = ",\n        ".join(gen_twi8x(n, d) for n, d in groups['TWI8X'])
     cans_str = ",\n        ".join(gen_can(n, d) for n, d in groups['CAN'])
     pcints_str = ",\n        ".join(gen_pcint(n, d) for n, d in groups['PCINT'])
     ext_ints_str = ",\n        ".join(gen_ext_int(n, d) for n, d in groups['EXINT'])
@@ -964,6 +1068,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .uart_count = {len(groups['USART'])}U,
     .uarts = {{{{ {uarts_str} }}}},
+    
+    .uart8x_count = {len(groups['USART8X'])}U,
+    .uarts8x = {{{{ {uarts8x_str} }}}},
 
     .nvm_ctrl_count = {len(nvm_ctrls_descriptors)}U,
     .nvm_ctrls = {{{{ {nvm_ctrls_str} }}}},
@@ -975,9 +1082,15 @@ inline constexpr DeviceDescriptor {safe_name} {{
     
     .spi_count = {len(groups['SPI'])}U,
     .spis = {{{{ {spis_str} }}}},
+
+    .spi8x_count = {len(groups['SPI8X'])}U,
+    .spis8x = {{{{ {spis8x_str} }}}},
     
     .twi_count = {len(groups['TWI'])}U,
     .twis = {{{{ {twis_str} }}}},
+
+    .twi8x_count = {len(groups['TWI8X'])}U,
+    .twis8x = {{{{ {twis8x_str} }}}},
     
     .eeprom_count = {len(eeprom_descriptors)}U,
     .eeproms = {{{{ {eeproms_str} }}}},
