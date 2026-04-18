@@ -60,7 +60,10 @@ def parse_trace_csv(csv_content: str) -> list[CpuState]:
             
     reader = csv.DictReader(lines[csv_start:])
     states = []
-    io_keys = ["TCNT0", "ADCSRA", "ACSR", "SPMCSR", "WDTCSR", "EECR"]
+    io_keys = [
+        "TCNT0", "TCNT1L", "TCNT1H", "ADCSRA", "ACSR", "UCSR0A", "UDR0",
+        "PORTB", "DDRB", "PORTD", "DDRD"
+    ]
     
     for row in reader:
         try:

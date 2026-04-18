@@ -32,6 +32,11 @@ __pycache__/
 *.pyd
 GEMINI.md
 QWEN.md
+full_out.txt
+*_log.txt
+*_out.txt
+*_compare.txt
+*_trace.txt
 
 # Project specific
 docs/datasheets/
@@ -61,3 +66,4 @@ tests/programs/*.csv
 # avr-libc
 avr-libc/
 TODO.md
+
