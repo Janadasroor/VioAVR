@@ -137,6 +137,28 @@ inline constexpr DeviceDescriptor atmega4809 {
             .channel_count = 8U,
             .user_count = 24U
         },
+
+    .ccl = {
+            .ctrla_address = 0x1C0U,
+            .seqctrl_addresses = { 0x1C1U, 0x1C2U, 0x0U, 0x0U },
+            .intctrl_addresses = { 0x1C5U, 0 },
+            .intflags_addresses = { 0x1C7U, 0 },
+            .lut_count = 4U,
+            .luts = { {
+                .ctrla_address = 0x1C8U, .ctrlb_address = 0x1C9U,
+                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU
+            }, {
+                .ctrla_address = 0x1CCU, .ctrlb_address = 0x1CDU,
+                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU
+            }, {
+                .ctrla_address = 0x1D0U, .ctrlb_address = 0x1D1U,
+                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U
+            }, {
+                .ctrla_address = 0x1D4U, .ctrlb_address = 0x1D5U,
+                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U
+            }, {0}, {0}, {0}, {0} },
+            .vector_index = 0U
+        },
     
     .ext_interrupt_count = 0U,
     .ext_interrupts = {{  }},

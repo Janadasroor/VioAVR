@@ -20,6 +20,7 @@
 #include "vioavr/core/tcb.hpp"
 #include "vioavr/core/rtc.hpp"
 #include "vioavr/core/evsys.hpp"
+#include "vioavr/core/ccl.hpp"
 
 namespace vioavr::core {
 
@@ -79,6 +80,14 @@ void Machine::initialize_peripherals()
         e->set_memory_bus(bus_.get());
         bus_->attach_peripheral(*e);
         owned_peripherals_.push_back(std::move(e));
+    }
+
+    // CCL
+    if (device_.ccl.ctrla_address != 0) {
+        auto c = std::make_unique<Ccl>(device_.ccl);
+        c->set_memory_bus(bus_.get());
+        bus_->attach_peripheral(*c);
+        owned_peripherals_.push_back(std::move(c));
     }
 
     for (u8 i = 0; i < device_.timer8_count; ++i) {
