@@ -43,6 +43,7 @@ target_sources(vioavr_core
         machine.cpp
         watchdog_timer.cpp
         wdt8x.cpp
+        crc8x.cpp
         usb.cpp
         pll.cpp
         xmem.cpp
