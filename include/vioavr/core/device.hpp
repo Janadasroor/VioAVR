@@ -85,6 +85,29 @@ struct AdcDescriptor {
     std::array<AdcMuxEntry, 64> mux_table {};
 };
 
+struct Adc8xDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrld_address {};
+    u16 ctrle_address {};
+    u16 sampctrl_address {};
+    u16 muxpos_address {};
+    u16 muxneg_address {};
+    u16 command_address {};
+    u16 evctrl_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 dbgctrl_address {};
+    u16 temp_address {};
+    u16 res_address {};
+    u16 winlt_address {};
+    u16 winht_address {};
+
+    u8 res_ready_vector_index {};
+    u8 wcomp_vector_index {};
+};
+
 struct AnalogComparatorDescriptor {
     u16 acsr_address {};
     u16 accon_address {}; // E.g. AC0CON, AC1CON
@@ -666,6 +689,9 @@ struct DeviceDescriptor {
     // Peripheral Arrays
     u8 adc_count {0U};
     std::array<AdcDescriptor, 4> adcs {};
+
+    u8 adc8x_count {0U};
+    std::array<Adc8xDescriptor, 2> adcs8x {};
 
     u8 ac_count {0U};
     std::array<AnalogComparatorDescriptor, 4> acs {};
