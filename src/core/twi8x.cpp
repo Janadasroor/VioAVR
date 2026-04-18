@@ -54,7 +54,10 @@ void Twi8x::reset() noexcept {
 }
 
 void Twi8x::tick(u64 elapsed_cycles) noexcept {
-    // Basic TWI state machine logic would go here
+    // Highly simplified TWI state machine
+    if ((mstatus_ & 0x03U) == 0x02U) { // OWNER
+        // In simulation, we just toggle flags to indicate progress
+    }
 }
 
 u8 Twi8x::read(u16 address) noexcept {
@@ -85,10 +88,23 @@ void Twi8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.mbaud_address) mbaud_ = value;
     else if (address == desc_.maddr_address) {
         maddr_ = value;
-        // Start Host transaction
-        mstatus_ |= 0x01U; // Force BUSY for simulation
+        // 1. Force Bus State to OWNER (0x02) after a brief delay? No, immediate.
+        mstatus_ = (mstatus_ & ~0x03U) | 0x02U;
+        mstatus_ |= 0x20U; // CLKHOLD
+        
+        // 2. Set Interrupt Flag based on R/W bit
+        if (value & 0x01U) {
+            mstatus_ |= 0x80U; // RIF
+        } else {
+            mstatus_ |= 0x40U; // WIF
+        }
     }
-    else if (address == desc_.mdata_address) mdata_ = value;
+    else if (address == desc_.mdata_address) {
+        mdata_ = value;
+        mstatus_ &= ~0x20U; // Release CLKHOLD
+        // Simulate completion
+        mstatus_ |= 0x40U; // WIF again for next byte
+    }
     else if (address == desc_.sctrla_address) sctrla_ = value;
     else if (address == desc_.sctrlb_address) sctrlb_ = value;
     else if (address == desc_.sstatus_address) {
