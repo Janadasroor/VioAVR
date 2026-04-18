@@ -328,6 +328,27 @@ struct TcbDescriptor {
     u8 vector_index {};
 };
 
+struct RtcDescriptor {
+    u16 ctrla_address {};
+    u16 status_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 temp_address {};
+    u16 dbgctrl_address {};
+    u16 clksel_address {};
+    u16 cnt_address {};
+    u16 per_address {};
+    u16 cmp_address {};
+
+    u16 pitctrla_address {};
+    u16 pitstatus_address {};
+    u16 pitintctrl_address {};
+    u16 pitintflags_address {};
+
+    u8 ovf_vector_index {};
+    u8 pit_vector_index {};
+};
+
 struct WdtDescriptor {
     u16 wdtcsr_address {};
     u8 wdtcsr_reset {0x00U};
@@ -633,6 +654,9 @@ struct DeviceDescriptor {
 
     u8 tcb_count {0U};
     std::array<TcbDescriptor, 4> timers_tcb {};
+
+    u8 rtc_count {0U};
+    std::array<RtcDescriptor, 1> timers_rtc {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};

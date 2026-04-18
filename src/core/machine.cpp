@@ -18,6 +18,7 @@
 #include "vioavr/core/cpu_int.hpp"
 #include "vioavr/core/tca.hpp"
 #include "vioavr/core/tcb.hpp"
+#include "vioavr/core/rtc.hpp"
 
 namespace vioavr::core {
 
@@ -94,6 +95,14 @@ void Machine::initialize_peripherals()
     // Modern TCB
     for (u8 i = 0; i < device_.tcb_count; ++i) {
         auto timer = std::make_unique<Tcb>(device_.timers_tcb[i]);
+        timer->set_memory_bus(bus_.get());
+        bus_->attach_peripheral(*timer);
+        owned_peripherals_.push_back(std::move(timer));
+    }
+
+    // Modern RTC
+    for (u8 i = 0; i < device_.rtc_count; ++i) {
+        auto timer = std::make_unique<Rtc>(device_.timers_rtc[i]);
         timer->set_memory_bus(bus_.get());
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
