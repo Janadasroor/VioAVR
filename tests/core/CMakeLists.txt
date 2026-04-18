@@ -109,6 +109,8 @@ set(TEST_SOURCES
     avr8x_evsys_fidelity_test.cpp
     avr8x_adc_fidelity_test.cpp
     avr8x_ac_fidelity_test.cpp
+    avr8x_usart_fidelity_test.cpp
+    avr8x_spi_fidelity_test.cpp
     pin_mux_priority_test.cpp
     timer16_fidelity_test.cpp
 )
