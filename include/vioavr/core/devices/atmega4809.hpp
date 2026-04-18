@@ -247,12 +247,17 @@ inline constexpr DeviceDescriptor atmega4809 {
                 .mapped_data = { 0x1400U, 0x100U }
             } }},
     
-    .wdt_count = 1U,
-    .wdts = {{ {
-            .wdtcsr_address = 0x0U,
-            .wdtcsr_reset = 0x0U,
-            .vector_index = 0U,
-            .wdie_mask = 0x0U, .wde_mask = 0x0U, .wdce_mask = 0x0U
+    .wdt_count = 0U,
+    .wdts = {{  }},
+
+    .wdt8x_count = 1U,
+    .wdts8x = {{ {
+            .ctrla_address = 0x100U, .status_address = 0x101U
+        } }},
+
+    .crc8x_count = 1U,
+    .crcs8x = {{ {
+            .ctrla_address = 0x120U, .status_address = 0x122U, .data_address = 0x0U, .checksum_address = 0x0U
         } }},
 
     .can_count = 0U,

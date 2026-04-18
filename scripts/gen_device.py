@@ -115,9 +115,9 @@ def generate_header(data, header_path):
     # 2. Group Peripherals
     groups = {
         'USART': [], 'USART8X': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
-        'WDT': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
+        'WDT': [], 'WDT8X': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': []
+        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'CRC': [], 'CRCSCAN': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -131,6 +131,8 @@ def generate_header(data, header_path):
             if 'INTFLAGS' in p_data['registers']: target_mod = 'SPI8X'
         elif mod == 'TWI':
             if 'MSTATUS' in p_data['registers']: target_mod = 'TWI8X'
+        elif mod == 'WDT':
+            if 'CTRLA' in p_data['registers']: target_mod = 'WDT8X'
             
         if target_mod in groups:
             groups[target_mod].append((p_name, p_data))
@@ -668,6 +670,18 @@ def generate_header(data, header_path):
             .pr_address = {get_pr_info(data, 'PRCAN')[0]}, .pr_bit = {get_pr_info(data, 'PRCAN')[1]}
         }}"""
 
+    def gen_crc8x(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}, .data_address = {hx(r('DATA')['offset'])}, .checksum_address = {hx(r('CHECKSUM')['offset'])}
+        }}"""
+
+    def gen_wdt8x(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}
+        }}"""
+
     def gen_pcint(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         idx = "".join(filter(str.isdigit, p_name)) or "0"
@@ -942,6 +956,10 @@ def generate_header(data, header_path):
     usbs_str = ",\n        ".join(gen_usb(n, d) for n, d in groups['USB_DEVICE'])
     pscs_str = ",\n        ".join(gen_psc(n, d) for n, d in groups['PSC'])
     dacs_str = ",\n        ".join(gen_dac(n, d) for n, d in groups['DAC'])
+    crc8x_descriptors = [gen_crc8x(n, d) for n, d in groups['CRC'] + groups['CRCSCAN']]
+    crc8x_str = ",\n        ".join(crc8x_descriptors)
+    wdt8x_descriptors = [gen_wdt8x(n, d) for n, d in groups['WDT8X']]
+    wdt8x_str = ",\n        ".join(wdt8x_descriptors)
     nvm_ctrls_descriptors = [gen_nvm_ctrl(n, d) for n, d in groups['NVMCTRL']]
     nvm_ctrls_str = ",\n        ".join(nvm_ctrls_descriptors)
     
@@ -1097,6 +1115,12 @@ inline constexpr DeviceDescriptor {safe_name} {{
     
     .wdt_count = {len(groups['WDT'])}U,
     .wdts = {{{{ {wdts_str} }}}},
+
+    .wdt8x_count = {len(groups['WDT8X'])}U,
+    .wdts8x = {{{{ {wdt8x_str} }}}},
+
+    .crc8x_count = {len(groups['CRC'] + groups['CRCSCAN'])}U,
+    .crcs8x = {{{{ {crc8x_str} }}}},
 
     .can_count = {len(groups['CAN'])}U,
     .cans = {{{{ {cans_str} }}}},
