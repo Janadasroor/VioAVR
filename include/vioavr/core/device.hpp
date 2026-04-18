@@ -311,6 +311,8 @@ struct TcaDescriptor {
     u8 lcmp0_vector_index {}; // Low compare (split mode)
     u8 lcmp1_vector_index {};
     u8 lcmp2_vector_index {};
+
+    u16 user_event_address {};
 };
 
 struct TcbDescriptor {
@@ -326,6 +328,7 @@ struct TcbDescriptor {
     u16 ccmp_address {};
 
     u8 vector_index {};
+    u16 user_event_address {};
 };
 
 struct RtcDescriptor {

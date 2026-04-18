@@ -31,7 +31,7 @@ public:
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
-    void set_event_system(EventSystem* evsys) noexcept override { evsys_ = evsys; }
+    void set_event_system(EventSystem* evsys) noexcept override;
 
 private:
     const TcaDescriptor desc_;
@@ -83,6 +83,7 @@ private:
     void handle_matches();
     void perform_tick();
     void perform_tick_split();
+    void on_event() noexcept;
     
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     [[nodiscard]] bool is_split_mode() const noexcept { return ctrld_ & 0x01; }

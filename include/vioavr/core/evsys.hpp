@@ -34,6 +34,8 @@ public:
     using EventCallback = std::function<void()>;
     void register_user_callback(u8 user_index, EventCallback callback);
 
+    [[nodiscard]] u16 users_base() const noexcept { return desc_.users_address; }
+
 private:
     const EvsysDescriptor desc_;
 

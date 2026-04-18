@@ -1,4 +1,5 @@
 #include "vioavr/core/device_catalog.hpp"
+#include "vioavr/core/logger.hpp"
 #include "vioavr/core/devices/at90can128.hpp"
 #include "vioavr/core/devices/at90can32.hpp"
 #include "vioavr/core/devices/at90can64.hpp"
@@ -138,6 +139,7 @@
 namespace vioavr::core {
 
 const DeviceDescriptor* DeviceCatalog::find(std::string_view name) noexcept {
+    // Note: This relies on DeviceDescriptor being updated in headers
     static const DeviceDescriptor* catalog[] = {
         &devices::at90can128,
         &devices::at90can32,
@@ -277,7 +279,10 @@ const DeviceDescriptor* DeviceCatalog::find(std::string_view name) noexcept {
     };
 
     for (const auto* device : catalog) {
-        if (device->name == name) return device;
+        if (device->name == name) {
+            Logger::debug("DeviceCatalog::find: found " + std::string(name) + " TCA count: " + std::to_string(device->tca_count));
+            return device;
+        }
     }
     return nullptr;
 }

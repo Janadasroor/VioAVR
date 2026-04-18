@@ -1,4 +1,5 @@
 #include "vioavr/core/machine.hpp"
+#include "vioavr/core/logger.hpp"
 #include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/analog_comparator.hpp"
@@ -103,6 +104,7 @@ void Machine::initialize_peripherals()
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
+
 
     // Modern TCA
     for (u8 i = 0; i < device_.tca_count; ++i) {

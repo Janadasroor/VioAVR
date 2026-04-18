@@ -1,4 +1,5 @@
 #include "vioavr/core/tca.hpp"
+#include "vioavr/core/evsys.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/logger.hpp"
 #include <algorithm>
@@ -50,12 +51,33 @@ void Tca::reset() noexcept {
     cmp1_ = 0;
     cmp2_ = 0;
     counting_up_ = true;
+    prescaler_counter_ = 0;
+    prescaler_limit_ = 1;
 }
 
 std::span<const AddressRange> Tca::mapped_ranges() const noexcept {
     size_t count = 0;
     while (count < ranges_.size() && ranges_[count].begin != 0) count++;
     return {ranges_.data(), count};
+}
+
+void Tca::set_event_system(EventSystem* evsys) noexcept {
+    evsys_ = evsys;
+    if (evsys_ && desc_.user_event_address != 0) {
+        u16 base = evsys_->users_base();
+        if (desc_.user_event_address >= base) {
+            u8 idx = static_cast<u8>(desc_.user_event_address - base);
+            evsys_->register_user_callback(idx, [this]() {
+                this->on_event();
+            });
+        }
+    }
+}
+
+void Tca::on_event() noexcept {
+    if (is_enabled()) {
+        perform_tick();
+    }
 }
 
 u8 Tca::read(u16 address) noexcept {
@@ -126,6 +148,7 @@ void Tca::write(u16 address, u8 value) noexcept {
 }
 
 void Tca::tick(u64 elapsed_cycles) noexcept {
+    if (elapsed_cycles == 0) return;
     if (!is_enabled()) return;
     
     for (u64 i = 0; i < elapsed_cycles; ++i) {

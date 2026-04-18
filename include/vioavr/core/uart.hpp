@@ -3,6 +3,8 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
 #include <array>
+#include <string>
+#include <string_view>
 
 namespace vioavr::core {
 
@@ -26,7 +28,7 @@ public:
     bool consume_transmitted_byte(u8& data) noexcept;
 
 private:
-    std::string_view name_;
+    std::string name_;
     UartDescriptor desc_;
     std::array<AddressRange, 4> ranges_;
 
