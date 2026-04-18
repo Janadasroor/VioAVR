@@ -357,6 +357,25 @@ struct EvsysDescriptor {
     u8 user_count {};
 };
 
+struct LutDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 truth_address {};
+};
+
+struct CclDescriptor {
+    u16 ctrla_address {};
+    u16 seqctrl_addresses[4] {};
+    u16 intctrl_addresses[2] {};
+    u16 intflags_addresses[2] {};
+    
+    u8 lut_count {0};
+    LutDescriptor luts[8] {};
+    
+    u8 vector_index {};
+};
+
 struct WdtDescriptor {
     u16 wdtcsr_address {};
     u8 wdtcsr_reset {0x00U};
@@ -667,6 +686,8 @@ struct DeviceDescriptor {
     std::array<RtcDescriptor, 1> timers_rtc {};
 
     EvsysDescriptor evsys {};
+
+    CclDescriptor ccl {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};

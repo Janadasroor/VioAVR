@@ -115,7 +115,7 @@ def generate_header(data, header_path):
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': []
+        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -700,6 +700,46 @@ def generate_header(data, header_path):
             .user_count = {user_count}U
         }}"""
 
+    def gen_ccl(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        luts_str = []
+        lut_count = 0
+        while True:
+            la = get_reg(p_data, f'LUT{lut_count}CTRLA')
+            if not la: break
+            lb = get_reg(p_data, f'LUT{lut_count}CTRLB') or {'offset': 0}
+            lc = get_reg(p_data, f'LUT{lut_count}CTRLC') or {'offset': 0}
+            lt = get_reg(p_data, f'TRUTH{lut_count}') or {'offset': 0}
+            luts_str.append(f"""{{
+                .ctrla_address = {hx(la['offset'])}, .ctrlb_address = {hx(lb['offset'])},
+                .ctrlc_address = {hx(lc['offset'])}, .truth_address = {hx(lt['offset'])}
+            }}""")
+            lut_count += 1
+        while len(luts_str) < 8: luts_str.append("{0}")
+        
+        seqs = [hx(r(f'SEQCTRL{i}')['offset']) for i in range(4)]
+        
+        def get_multi_reg(base, i):
+            reg = get_reg(p_data, f'{base}{i}')
+            if reg: return hx(reg['offset'])
+            if i == 0:
+                generic = get_reg(p_data, base)
+                if generic: return hx(generic['offset'])
+            return "0"
+
+        ints = [get_multi_reg('INTCTRL', i) for i in range(2)]
+        flags = [get_multi_reg('INTFLAGS', i) for i in range(2)]
+
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])},
+            .seqctrl_addresses = {{ {", ".join(seqs)} }},
+            .intctrl_addresses = {{ {", ".join(ints)} }},
+            .intflags_addresses = {{ {", ".join(flags)} }},
+            .lut_count = {lut_count}U,
+            .luts = {{ {", ".join(luts_str)} }},
+            .vector_index = {p_data.get('interrupts', {}).get('INT', {}).get('index', 0)}U
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
@@ -707,6 +747,7 @@ def generate_header(data, header_path):
     timers_tcb_str = ",\n        ".join(gen_tcb(n, d) for n, d in groups['TCB'])
     timers_rtc_str = ",\n        ".join(gen_rtc(n, d) for n, d in groups['RTC'])
     evsys_descriptor = gen_evsys("EVSYS", groups['EVSYS'][0][1]) if groups['EVSYS'] else "{}"
+    ccl_descriptor = gen_ccl("CCL", groups['CCL'][0][1]) if groups['CCL'] else "{}"
     adcs_descriptors = [gen_adc(n, d) for n, d in groups['ADC']]
     acs_descriptors = []
     for n, d in groups['AC']:
@@ -849,6 +890,8 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .timers_rtc = {{{{ {timers_rtc_str} }}}},
 
     .evsys = {evsys_descriptor},
+
+    .ccl = {ccl_descriptor},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},
