@@ -29,10 +29,12 @@ public:
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+    void set_event_system(EventSystem* evsys) noexcept override { evsys_ = evsys; }
 
 private:
     const RtcDescriptor desc_;
     MemoryBus* bus_ {nullptr};
+    EventSystem* evsys_ {nullptr};
 
     // Main Counter Registers
     u8 ctrla_ {0x00};

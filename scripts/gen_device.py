@@ -626,6 +626,12 @@ def generate_header(data, header_path):
             for k, v in ints.items():
                 if key in k.upper(): return v['index']
             return 0
+            
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
+
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])},
             .ctrld_address = {hx(r('CTRLD')['offset'])}, .ctrleclr_address = {hx(r('CTRLECLR')['offset'])}, .ctrleset_address = {hx(r('CTRLESET')['offset'])},
@@ -636,7 +642,8 @@ def generate_header(data, header_path):
             .luf_ovf_vector_index = {get_int('OVF') or get_int('LUF')}U, .cmp0_vector_index = {get_int('CMP0')}U,
             .cmp1_vector_index = {get_int('CMP1')}U, .cmp2_vector_index = {get_int('CMP2')}U,
             .hunf_vector_index = {get_int('HUNF')}U, .lcmp0_vector_index = {get_int('LCMP0')}U,
-            .lcmp1_vector_index = {get_int('LCMP1')}U, .lcmp2_vector_index = {get_int('LCMP2')}U
+            .lcmp1_vector_index = {get_int('LCMP1')}U, .lcmp2_vector_index = {get_int('LCMP2')}U,
+            .user_event_address = {hx(user_addr)}
         }}"""
 
     def gen_tcb(p_name, p_data):
@@ -651,11 +658,18 @@ def generate_header(data, header_path):
                 if f"{p_name}_{key}" in name or (p_name in name and key in name):
                     return item['index']
             return 0
+            
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
+
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .evctrl_address = {hx(r('EVCTRL')['offset'])},
             .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .status_address = {hx(r('STATUS')['offset'])},
             .dbgctrl_address = {hx(r('DBGCTRL')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])}, .cnt_address = {hx(r('CNT')['offset'])},
-            .ccmp_address = {hx(r('CCMP')['offset'])}, .vector_index = {get_int('CAPT') or get_int('INT')}U
+            .ccmp_address = {hx(r('CCMP')['offset'])}, .vector_index = {get_int('CAPT') or get_int('INT')}U,
+            .user_event_address = {hx(user_addr)}
         }}"""
 
     def gen_rtc(p_name, p_data):

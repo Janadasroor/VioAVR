@@ -106,6 +106,7 @@ set(TEST_SOURCES
     psc_fidelity_test.cpp
     at90pwm_cycle_by_cycle_test.cpp
     instruction_timing_fidelity_test.cpp
+    avr8x_evsys_fidelity_test.cpp
     pin_mux_priority_test.cpp
     timer16_fidelity_test.cpp
 )

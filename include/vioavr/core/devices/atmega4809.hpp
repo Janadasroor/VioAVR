@@ -78,6 +78,92 @@ inline constexpr DeviceDescriptor atmega4809 {
     .timers16 = {{  }},
     .timer10_count = 0U,
     .timers10 = {{  }},
+    .tca_count = 1U,
+    .timers_tca = {{ {
+            .ctrla_address = 0xA00U, .ctrlb_address = 0xA01U, .ctrlc_address = 0xA02U,
+            .ctrld_address = 0xA03U, .ctrleclr_address = 0xA04U, .ctrleset_address = 0xA05U,
+            .ctrlfclr_address = 0xA06U, .ctrlfset_address = 0xA07U, .evctrl_address = 0xA09U,
+            .intctrl_address = 0xA0AU, .intflags_address = 0xA0BU, .dbgctrl_address = 0xA0EU,
+            .temp_address = 0xA0FU, .tcnt_address = 0xA20U, .period_address = 0xA26U,
+            .cmp0_address = 0xA28U, .cmp1_address = 0xA2AU, .cmp2_address = 0xA2CU,
+            .luf_ovf_vector_index = 7U, .cmp0_vector_index = 9U,
+            .cmp1_vector_index = 10U, .cmp2_vector_index = 11U,
+            .hunf_vector_index = 8U, .lcmp0_vector_index = 9U,
+            .lcmp1_vector_index = 10U, .lcmp2_vector_index = 11U,
+            .user_event_address = 0x1B3U
+        } }},
+
+    .tcb_count = 4U,
+    .timers_tcb = {{ {
+            .ctrla_address = 0xA80U, .ctrlb_address = 0xA81U, .evctrl_address = 0xA84U,
+            .intctrl_address = 0xA85U, .intflags_address = 0xA86U, .status_address = 0xA87U,
+            .dbgctrl_address = 0xA88U, .temp_address = 0xA89U, .cnt_address = 0xA8AU,
+            .ccmp_address = 0xA8CU, .vector_index = 12U,
+            .user_event_address = 0x1B4U
+        },
+        {
+            .ctrla_address = 0xA90U, .ctrlb_address = 0xA91U, .evctrl_address = 0xA94U,
+            .intctrl_address = 0xA95U, .intflags_address = 0xA96U, .status_address = 0xA97U,
+            .dbgctrl_address = 0xA98U, .temp_address = 0xA99U, .cnt_address = 0xA9AU,
+            .ccmp_address = 0xA9CU, .vector_index = 13U,
+            .user_event_address = 0x1B5U
+        },
+        {
+            .ctrla_address = 0xAA0U, .ctrlb_address = 0xAA1U, .evctrl_address = 0xAA4U,
+            .intctrl_address = 0xAA5U, .intflags_address = 0xAA6U, .status_address = 0xAA7U,
+            .dbgctrl_address = 0xAA8U, .temp_address = 0xAA9U, .cnt_address = 0xAAAU,
+            .ccmp_address = 0xAACU, .vector_index = 25U,
+            .user_event_address = 0x1B6U
+        },
+        {
+            .ctrla_address = 0xAB0U, .ctrlb_address = 0xAB1U, .evctrl_address = 0xAB4U,
+            .intctrl_address = 0xAB5U, .intflags_address = 0xAB6U, .status_address = 0xAB7U,
+            .dbgctrl_address = 0xAB8U, .temp_address = 0xAB9U, .cnt_address = 0xABAU,
+            .ccmp_address = 0xABCU, .vector_index = 36U,
+            .user_event_address = 0x1B7U
+        } }},
+
+    .rtc_count = 1U,
+    .timers_rtc = {{ {
+            .ctrla_address = 0x140U, .status_address = 0x141U,
+            .intctrl_address = 0x142U, .intflags_address = 0x143U,
+            .temp_address = 0x144U, .dbgctrl_address = 0x145U,
+            .clksel_address = 0x147U, .cnt_address = 0x148U,
+            .per_address = 0x14AU, .cmp_address = 0x14CU,
+            .pitctrla_address = 0x150U, .pitstatus_address = 0x151U,
+            .pitintctrl_address = 0x152U, .pitintflags_address = 0x153U,
+            .ovf_vector_index = 3U, .pit_vector_index = 4U
+        } }},
+
+    .evsys = {
+            .strobe_address = 0x180U,
+            .channels_address = 0x190U,
+            .users_address = 0x1A0U,
+            .channel_count = 8U,
+            .user_count = 24U
+        },
+
+    .ccl = {
+            .ctrla_address = 0x1C0U,
+            .seqctrl_addresses = { 0x1C1U, 0x1C2U, 0x0U, 0x0U },
+            .intctrl_addresses = { 0x1C5U, 0 },
+            .intflags_addresses = { 0x1C7U, 0 },
+            .lut_count = 4U,
+            .luts = { {
+                .ctrla_address = 0x1C8U, .ctrlb_address = 0x1C9U,
+                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU
+            }, {
+                .ctrla_address = 0x1CCU, .ctrlb_address = 0x1CDU,
+                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU
+            }, {
+                .ctrla_address = 0x1D0U, .ctrlb_address = 0x1D1U,
+                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U
+            }, {
+                .ctrla_address = 0x1D4U, .ctrlb_address = 0x1D5U,
+                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U
+            }, {0}, {0}, {0}, {0} },
+            .vector_index = 0U
+        },
     
     .ext_interrupt_count = 0U,
     .ext_interrupts = {{  }},

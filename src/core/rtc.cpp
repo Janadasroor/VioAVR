@@ -1,4 +1,5 @@
 #include "vioavr/core/rtc.hpp"
+#include "vioavr/core/evsys.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 
@@ -128,6 +129,7 @@ void Rtc::handle_rtc_tick() {
     if (cnt_ == per_) {
         intflags_ |= 0x01; // OVF
         cnt_ = 0;
+        if (evsys_) evsys_->trigger_event(6); // RTC_OVF
     }
     if (cnt_ == cmp_) {
         intflags_ |= 0x02; // CMP
