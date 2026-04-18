@@ -23,8 +23,10 @@ target_sources(vioavr_core
         pin_mux.cpp
         register_file.cpp
         spi.cpp
+        spi8x.cpp
         can.cpp
         twi.cpp
+        twi8x.cpp
         sync_engine.cpp
         viospice.cpp
         viospice_c.cpp

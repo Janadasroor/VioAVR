@@ -27,6 +27,8 @@
 #include "vioavr/core/evsys.hpp"
 #include "vioavr/core/ccl.hpp"
 #include "vioavr/core/uart8x.hpp"
+#include "vioavr/core/spi8x.hpp"
+#include "vioavr/core/twi8x.hpp"
 
 namespace vioavr::core {
 
@@ -150,6 +152,20 @@ void Machine::initialize_peripherals()
         auto uart = std::make_unique<Uart8x>(device_.uarts8x[i]);
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
+    }
+
+    // Modern SPI (AVR8X)
+    for (u8 i = 0; i < device_.spi8x_count; ++i) {
+        auto spi = std::make_unique<Spi8x>(device_.spis8x[i]);
+        bus_->attach_peripheral(*spi);
+        owned_peripherals_.push_back(std::move(spi));
+    }
+
+    // Modern TWI (AVR8X)
+    for (u8 i = 0; i < device_.twi8x_count; ++i) {
+        auto twi = std::make_unique<Twi8x>(device_.twis8x[i]);
+        bus_->attach_peripheral(*twi);
+        owned_peripherals_.push_back(std::move(twi));
     }
 
     // 4. ADC
