@@ -757,12 +757,12 @@ void AvrCpu::execute_load_indirect(const u8 destination,
         return;
     }
 
+    advance_cycles(2U);
     write_register(destination, read_data_bus(address));
     if (post_increment) {
         write_register_pair(pointer_low_register, static_cast<u16>(address + 1U));
     }
     ++program_counter_;
-    advance_cycles(2U);
 }
 
 void AvrCpu::execute_store_indirect(const u16 address,
@@ -775,12 +775,12 @@ void AvrCpu::execute_store_indirect(const u16 address,
         return;
     }
 
+    advance_cycles(2U);
     write_data_bus(address, gpr_[source]);
     if (post_increment) {
         write_register_pair(pointer_low_register, static_cast<u16>(address + 1U));
     }
     ++program_counter_;
-    advance_cycles(2U);
 }
 
 void AvrCpu::execute_nop(const DecodedInstruction& instruction)
@@ -1682,9 +1682,9 @@ void AvrCpu::execute_rcall(const DecodedInstruction& instruction)
     if ((displacement & 0x0800) != 0) {
         displacement -= 0x1000;
     }
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 4U : 3U);
     push_pc(instruction.word_address + 1U);
     program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
-    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 4U : 3U);
 }
 
 void AvrCpu::execute_rjmp(const DecodedInstruction& instruction)
@@ -1693,9 +1693,9 @@ void AvrCpu::execute_rjmp(const DecodedInstruction& instruction)
     if ((displacement & 0x0800) != 0) {
         displacement -= 0x1000;
     }
+    advance_cycles(2U);
     program_counter_ =
         static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
-    advance_cycles(2U);
 }
 
 void AvrCpu::execute_ijmp(const DecodedInstruction& instruction)
@@ -1723,18 +1723,18 @@ void AvrCpu::execute_jmp(const DecodedInstruction& instruction)
 
 void AvrCpu::execute_push(const DecodedInstruction& instruction)
 {
+    advance_cycles(2U);
     const u8 source = decode_destination_register(instruction.opcode);
     push_byte(gpr_[source]);
     program_counter_ = instruction.word_address + 1U;
-    advance_cycles(2U);
 }
 
 void AvrCpu::execute_pop(const DecodedInstruction& instruction)
 {
+    advance_cycles(2U);
     const u8 destination = decode_destination_register(instruction.opcode);
     write_register(destination, pop_byte());
     program_counter_ = instruction.word_address + 1U;
-    advance_cycles(2U);
 }
 
 void AvrCpu::execute_icall(const DecodedInstruction& instruction)
@@ -1756,41 +1756,35 @@ void AvrCpu::execute_call(const DecodedInstruction& instruction)
     const u32 target = (((static_cast<u32>(instruction.opcode) & 0x01F0U) << 13U) |
                         ((static_cast<u32>(instruction.opcode) & 0x0001U) << 16U) |
                         instruction.words[1]);
-    push_pc(instruction.word_address + instruction.word_size);
-    program_counter_ = target;
     advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
+    push_pc(instruction.word_address + 2U);
+    program_counter_ = target;
 }
 
 void AvrCpu::execute_ret(const DecodedInstruction& instruction)
 {
     (void)instruction;
+    u32 cycles = (bus_->device().pc_width_bytes() >= 3U) ? 5U : 4U;
+    advance_cycles(cycles);
     program_counter_ = pop_pc();
-    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
 }
 
 void AvrCpu::execute_reti(const DecodedInstruction& instruction)
 {
     (void)instruction;
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
     program_counter_ = pop_pc();
     set_flag(SregFlag::interrupt, true);
     if (interrupt_depth_ != 0U) {
         --interrupt_depth_;
     }
 
-    // Handle CPUINT Status
     if (auto* cpu_int = bus_->cpu_int()) {
-        // RETI clears the highest active level. 
-        // In basic simulation, we can just clear both or track nesting if we want.
-        // Silly but effective: clear Lv1 if we were in it, else Lv0.
-        // Actually, CPUINT status bits are set by HW and read by SW.
-        // A better way is to track nesting level of Lvl 1.
-        // For now, let's just clear both as a simplification unless we want full nesting.
         cpu_int->set_executing_lvl1(false);
         cpu_int->set_executing_lvl0(false);
     }
 
     interrupt_delay_ = 1U;
-    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
 }
 
 void AvrCpu::execute_bclr(const DecodedInstruction& instruction)

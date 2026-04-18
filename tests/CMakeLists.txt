@@ -34,7 +34,7 @@ if(AVR_GCC AND AVR_OBJCOPY)
         # For now, keep it in build and maybe add a test that uses it.
     endfunction()
 
-    file(GLOB C_TEST_SOURCES "*.c")
+    file(GLOB C_TEST_SOURCES "*.c" "firmware/*.c")
     foreach(source IN LISTS C_TEST_SOURCES)
         get_filename_component(name ${source} NAME_WE)
         add_avr_test(${name} ${source})

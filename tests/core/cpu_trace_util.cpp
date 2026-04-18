@@ -8,6 +8,8 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/logger.hpp"
+#include "vioavr/core/machine.hpp"
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -24,66 +26,55 @@ int main(int argc, char** argv) {
     std::string hex_file = argv[1];
     u64 cycle_limit = std::stoull(argv[2]);
 
-    MemoryBus bus {devices::atmega328};
+    Machine machine(devices::atmega328);
     
-    // Attach peripherals for "new features"
-    PinMux pin_mux {8};
-    Adc adc {"ADC", devices::atmega328.adcs[0], pin_mux, 6U};
-    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
-    AnalogComparator ac {"AC", devices::atmega328.acs[0], pin_mux, 7U}; 
-    AvrCpu cpu_for_wdt {bus}; // Used to pass to WDT for reset
-
-    // Connect auto-triggers
-    adc.connect_timer_overflow_auto_trigger(timer0);
-    adc.connect_timer_compare_auto_trigger(timer0);
-    adc.connect_comparator_auto_trigger(ac);
-
-    WatchdogTimer wdt {"WDT", devices::atmega328.wdts[0], cpu_for_wdt};
-    Eeprom eeprom {"EEPROM", devices::atmega328.eeproms[0]};
-
-    bus.attach_peripheral(adc);
-    bus.attach_peripheral(timer0);
-    bus.attach_peripheral(ac);
-    bus.attach_peripheral(wdt);
-    bus.attach_peripheral(eeprom);
-
     try {
         HexImage image = HexImageLoader::load_file(hex_file, devices::atmega328);
-        bus.load_image(image);
+        machine.bus().load_image(image);
     } catch (const std::exception& e) {
         std::cerr << "Error loading hex: " << e.what() << std::endl;
         return 1;
     }
 
-    AvrCpu cpu {bus};
+    // Suppress debug/info logs by setting a callback that only prints warnings/errors
+    Logger::set_callback([](LogLevel level, std::string_view message) {
+        if (static_cast<int>(level) >= static_cast<int>(LogLevel::warning)) {
+            std::cerr << "[" << (level == LogLevel::warning ? "WARN" : "ERROR") << "] " << message << std::endl;
+        }
+    });
+
+    AvrCpu& cpu = machine.cpu();
+    MemoryBus& bus = machine.bus();
     cpu.reset();
 
     // Print Header
     std::cout << "Cycle,PC,SREG,SP";
     for (int i = 0; i < 32; ++i) std::cout << ",R" << i;
-    std::cout << ",TCNT0,ADCSRA,ACSR,SPMCSR,WDTCSR,EECR" << std::endl;
+    std::cout << ",TCNT0,ADCSRA,ACSR,UCSR0A,UDR0,UCSR0B,State" << std::endl;
 
-    for (u64 cycle = 0; cycle < cycle_limit; ++cycle) {
+    u64 last_reported_cycle = 0;
+    while (last_reported_cycle < cycle_limit) {
         auto snap = cpu.snapshot();
+        last_reported_cycle = snap.cycles;
         
         // Print State before step
-        std::cout << snap.cycles << "," 
-                  << std::hex << snap.program_counter << ","
-                  << (int)snap.sreg << ","
-                  << snap.stack_pointer << std::dec;
+        std::cout << std::dec << snap.cycles << "," 
+                  << std::hex << std::setfill('0') << std::setw(4) << (snap.program_counter * 2) << ","
+                  << std::setw(2) << (int)snap.sreg << ","
+                  << std::setw(4) << snap.stack_pointer;
         
         for (int i = 0; i < 32; ++i) {
-            std::cout << "," << (int)snap.gpr[i];
+            std::cout << "," << std::setw(2) << (int)snap.gpr[i];
         }
 
         // Selected I/O registers
-        std::cout << "," << (int)bus.read_data(devices::atmega328.timers8[0].tcnt_address)
-                  << "," << (int)bus.read_data(devices::atmega328.adcs[0].adcsra_address)
-                  << "," << (int)bus.read_data(devices::atmega328.acs[0].acsr_address)
-                  << "," << (int)bus.read_data(devices::atmega328.spmcsr_address)
-                  << "," << (int)bus.read_data(devices::atmega328.wdts[0].wdtcsr_address)
-                  << "," << (int)bus.read_data(devices::atmega328.eeproms[0].eecr_address)
-                  << std::endl;
+        std::cout << "," << std::setw(2) << (int)bus.read_data(devices::atmega328.timers8[0].tcnt_address)
+                  << "," << std::setw(2) << (int)bus.read_data(devices::atmega328.adcs[0].adcsra_address)
+                  << "," << std::setw(2) << (int)bus.read_data(devices::atmega328.acs[0].acsr_address)
+                  << "," << std::setw(2) << (int)bus.read_data(devices::atmega328.uarts[0].ucsra_address)
+                  << "," << std::setw(2) << (int)bus.read_data(devices::atmega328.uarts[0].udr_address)
+                  << "," << std::setw(2) << (int)bus.read_data(devices::atmega328.uarts[0].ucsrb_address)
+                  << "," << (int)snap.state << std::endl;
 
         cpu.step();
         

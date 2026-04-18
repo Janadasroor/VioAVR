@@ -4,6 +4,7 @@
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/logger.hpp"
+#include <cstdio>
 
 #include <algorithm>
 #include <cmath>
@@ -62,6 +63,7 @@ void Adc::reset() noexcept {
     result_ = 0x00U;
     converting_ = false;
     pending_ = false;
+    first_conversion_ = true;
     cycles_remaining_ = 0;
     update_pin_ownership();
 }
@@ -91,6 +93,7 @@ u8 Adc::read(u16 address) noexcept {
 }
 
 void Adc::write(u16 address, u8 value) noexcept {
+    fprintf(stderr, "ADC: Write address=0x%04X value=0x%02X\n", address, value);
     if (address == desc_.adcsra_address) {
         const bool was_enabled = (adcsra_ & desc_.aden_mask);
         const bool next_enabled = (value & desc_.aden_mask);
@@ -108,6 +111,7 @@ void Adc::write(u16 address, u8 value) noexcept {
         } else if (was_enabled && !next_enabled) {
             update_pin_ownership();
             converting_ = false;
+            first_conversion_ = true;
         }
 
         if (next_enabled && (value & desc_.adsc_mask)) {
@@ -141,11 +145,20 @@ bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
 }
 
 void Adc::start_conversion() noexcept {
-    if (!(adcsra_ & desc_.aden_mask)) return;
-    
+    if (converting_) return;
+
+    u8 prescaler_bits = adcsra_ & 0x7U;
+    u32 prescaler = 1U << prescaler_bits;
+    if (prescaler_bits == 0U) prescaler = 2U;
+
     converting_ = true;
-    cycles_remaining_ = conversion_cycles_;
-    adcsra_ |= desc_.adsc_mask;
+    u32 conv_cycles = (first_conversion_ ? 25U : 14U);
+    cycles_remaining_ = static_cast<u16>(conv_cycles * prescaler);
+    
+    fprintf(stderr, "ADC: Start conversion at cycle %lu prescaler=%u remaining=%u first=%s\n", 
+        (unsigned long)bus_->cpu_cycles(), prescaler, cycles_remaining_, (first_conversion_ ? "yes" : "no"));
+        
+    first_conversion_ = false;
 }
 
 bool Adc::power_reduction_enabled() const noexcept {
@@ -195,6 +208,11 @@ void Adc::complete_conversion() noexcept {
     adcsra_ &= ~desc_.adsc_mask;
     adcsra_ |= desc_.adif_mask;
     converting_ = false;
+
+    fprintf(stderr, "ADC: Conversion complete at cycle %lu result=%u\n", 
+        (unsigned long)bus_->cpu_cycles(), result_);
+
+    // Update ports_ state if needed...
 
     if (free_running_enabled()) {
         start_conversion();

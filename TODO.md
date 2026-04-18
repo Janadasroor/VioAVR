@@ -16,6 +16,7 @@
 - [x] Ext interrupt: vector index
 - [x] Watchdog: ISR address
 - [x]  comparison pipeline created
+- [ ] See [todo/Validation_.md](todo/Validation_.md) for full C regression suite plan.
 
 ### Phase 4: Co-Simulation Bridge (Blocked until tests pass)
 - [ ] XSpice Plugin API
