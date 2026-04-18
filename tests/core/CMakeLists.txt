@@ -107,6 +107,7 @@ set(TEST_SOURCES
     at90pwm_cycle_by_cycle_test.cpp
     instruction_timing_fidelity_test.cpp
     pin_mux_priority_test.cpp
+    timer16_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

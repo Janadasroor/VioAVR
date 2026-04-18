@@ -69,7 +69,7 @@ private:
     [[nodiscard]] bool async_mode_enabled() const noexcept;
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
     void mark_async_busy(u16 address) noexcept;
-    void retire_async_busy() noexcept;
+    void retire_async_busy(u64 cycles) noexcept;
 
     struct BoundPin {
         GpioPort* port;
@@ -110,6 +110,7 @@ private:
     std::optional<BoundPin> pin_b_;
     u8 last_clk_pin_state_ {};
     u64 cycle_accumulator_ {};
+    u16 async_busy_countdown_ {};
     class Adc* adc_compare_trigger_ {};
     class Adc* adc_overflow_trigger_ {};
     class Dac* dac_trigger_ {};

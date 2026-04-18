@@ -115,7 +115,7 @@ def generate_header(data, header_path):
         'USART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'EEPROM': [], 'SPI': [], 'TWI': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': [], 'CPUINT': []
+        'NVMCTRL': [], 'CPUINT': [], 'TCA': []
     }
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -189,7 +189,9 @@ def generate_header(data, header_path):
             .t_pin_address = {t_a}, .t_pin_bit = {t_b}U,
             .tosc1_pin_address = {t1_a}, .tosc1_pin_bit = {t1_b}U, .tosc2_pin_address = {t2_a}, .tosc2_pin_bit = {t2_b}U,
             .wgm0_mask = {hx(b(f'TCCR{idx}A|TCCR.*A', 'WGM.*0'))}, .wgm2_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'WGM.*2'))}, .cs_mask = {hx(b(f'TCCR{idx}B|TCCR.*B', 'CS'))},
-            .as2_mask = {hx(b(f'ASSR{idx}|ASSR', 'AS2'))}, .tcn2ub_mask = {hx(b(f'ASSR{idx}|ASSR', 'TCN2UB'))},
+            .as2_mask = {hx(b(f'ASSR{idx}|ASSR', 'AS2'))}, .exclk_mask = {hx(b(f'ASSR{idx}|ASSR', 'EXCLK'))}, .tcn2ub_mask = {hx(b(f'ASSR{idx}|ASSR', 'TCN.*UB'))},
+            .ocr2aub_mask = {hx(b(f'ASSR{idx}|ASSR', 'OCR.*AUB'))}, .ocr2bub_mask = {hx(b(f'ASSR{idx}|ASSR', 'OCR.*BUB'))},
+            .tcr2aub_mask = {hx(b(f'ASSR{idx}|ASSR', 'TCR.*AUB'))}, .tcr2bub_mask = {hx(b(f'ASSR{idx}|ASSR', 'TCR.*BUB'))},
             .compare_a_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'OCIEA') or b(f'TIMSK{idx}|TIMSK', f'OCIE{idx}A') or b('TIMSK', 'OCIEA'))},
             .compare_b_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'OCIEB') or b(f'TIMSK{idx}|TIMSK', f'OCIE{idx}B') or b('TIMSK', 'OCIEB'))},
             .overflow_enable_mask = {hx(b(f'TIMSK{idx}|TIMSK', 'TOIE') or b(f'TIMSK{idx}|TIMSK', f'TOIE{idx}') or b('TIMSK', 'TOIE'))},
@@ -615,9 +617,32 @@ def generate_header(data, header_path):
             .lvl1vec_address = {hx(r('LVL1VEC')['offset'])}
         }}"""
 
+    def gen_tca(p_name, p_data):
+        def get_r(n):
+            return get_reg(p_data, n) or get_reg(p_data, f'.*\\.{n}')
+        r = lambda n: get_r(n) or {'offset': 0, 'initval': 0}
+        ints = p_data.get('interrupts', {})
+        def get_int(key):
+            for k, v in ints.items():
+                if key in k.upper(): return v['index']
+            return 0
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])},
+            .ctrld_address = {hx(r('CTRLD')['offset'])}, .ctrleclr_address = {hx(r('CTRLECLR')['offset'])}, .ctrleset_address = {hx(r('CTRLESET')['offset'])},
+            .ctrlfclr_address = {hx(r('CTRLFCLR')['offset'])}, .ctrlfset_address = {hx(r('CTRLFSET')['offset'])}, .evctrl_address = {hx(r('EVCTRL')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
+            .temp_address = {hx(r('TEMP')['offset'])}, .tcnt_address = {hx(r('CNT|TCNT')['offset'])}, .period_address = {hx(r('PER|PERIOD')['offset'])},
+            .cmp0_address = {hx(r('CMP0')['offset'])}, .cmp1_address = {hx(r('CMP1')['offset'])}, .cmp2_address = {hx(r('CMP2')['offset'])},
+            .luf_ovf_vector_index = {get_int('OVF') or get_int('LUF')}U, .cmp0_vector_index = {get_int('CMP0')}U,
+            .cmp1_vector_index = {get_int('CMP1')}U, .cmp2_vector_index = {get_int('CMP2')}U,
+            .hunf_vector_index = {get_int('HUNF')}U, .lcmp0_vector_index = {get_int('LCMP0')}U,
+            .lcmp1_vector_index = {get_int('LCMP1')}U, .lcmp2_vector_index = {get_int('LCMP2')}U
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
+    timers_tca_str = ",\n        ".join(gen_tca(n, d) for n, d in groups['TCA'])
     adcs_descriptors = [gen_adc(n, d) for n, d in groups['ADC']]
     acs_descriptors = []
     for n, d in groups['AC']:
@@ -750,6 +775,8 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .timers16 = {{{{ {timers16_str} }}}},
     .timer10_count = {len(groups['TC10'])}U,
     .timers10 = {{{{ {timers10_str} }}}},
+    .tca_count = {len(groups['TCA'])}U,
+    .timers_tca = {{{{ {timers_tca_str} }}}},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},

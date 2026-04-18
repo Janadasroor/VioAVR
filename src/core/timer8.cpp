@@ -87,7 +87,7 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
     }
 
     if (elapsed_cycles > 0U) {
-        retire_async_busy();
+        retire_async_busy(elapsed_cycles);
     }
 
     if (async_mode_enabled()) {
@@ -127,7 +127,9 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
 void Timer8::tick_async(const u64 elapsed_ticks) noexcept
 {
     if (elapsed_ticks > 0U) {
-        retire_async_busy();
+        // In async mode, busy bits retire based on TOSC ticks too 
+        // but we'll stick to CPU cycles for consistency in synchronization.
+        retire_async_busy(elapsed_ticks * 512); // Heuristic
     }
     if (!async_mode_enabled()) {
         return;
@@ -200,7 +202,9 @@ void Timer8::write(const u16 address, const u8 value) noexcept
         }
         mark_async_busy(address);
     }
-    else if (address == desc_.assr_address) assr_ = static_cast<u8>((assr_ & 0x1FU) | (value & (kAssrAs2 | kAssrExclk)));
+    else if (address == desc_.assr_address) {
+        assr_ = static_cast<u8>((assr_ & (desc_.as2_mask | desc_.exclk_mask | desc_.tcn2ub_mask | desc_.ocr2aub_mask | desc_.ocr2bub_mask | desc_.tcr2aub_mask | desc_.tcr2bub_mask)) | (value & (desc_.as2_mask | desc_.exclk_mask)));
+    }
     else if (address == desc_.timsk_address) timsk_ = value;
     else if (address == desc_.tifr_address) tifr_ &= static_cast<u8>(~value);
 }
@@ -441,16 +445,33 @@ void Timer8::mark_async_busy(const u16 address) noexcept
     }
 
     if (address == desc_.tcnt_address) assr_ |= desc_.tcn2ub_mask;
-    // Note: Other masks (TCR2AUB, etc) should also ideally come from descriptor 
-    // for 100% accuracy, but TCN2UB is the most critical for now.
+    else if (address == desc_.ocra_address) assr_ |= desc_.ocr2aub_mask;
+    else if (address == desc_.ocrb_address) assr_ |= desc_.ocr2bub_mask;
+    else if (address == desc_.tccra_address) assr_ |= desc_.tcr2aub_mask;
+    else if (address == desc_.tccrb_address) assr_ |= desc_.tcr2bub_mask;
+    
+    // Roughly 1 TOSC cycle @ 32kHz is ~488 cycles @ 16MHz.
+    async_busy_countdown_ = 512;
 }
 
-void Timer8::retire_async_busy() noexcept
+void Timer8::retire_async_busy(const u64 cycles) noexcept
 {
     if (!has_async_status_register()) {
         return;
     }
-    assr_ &= static_cast<u8>(kAssrAs2 | kAssrExclk);
+    
+    // Only bother if any busy bits are set
+    const u8 busy_mask = static_cast<u8>(desc_.tcn2ub_mask | desc_.ocr2aub_mask | desc_.ocr2bub_mask | desc_.tcr2aub_mask | desc_.tcr2bub_mask);
+    if ((assr_ & busy_mask) == 0) {
+        return;
+    }
+
+    if (async_busy_countdown_ > cycles) {
+        async_busy_countdown_ -= static_cast<u16>(cycles);
+    } else {
+        async_busy_countdown_ = 0;
+        assr_ &= static_cast<u8>(desc_.as2_mask | desc_.exclk_mask);
+    }
 }
 
 }  // namespace vioavr::core
