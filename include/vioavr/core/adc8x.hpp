@@ -9,6 +9,7 @@ namespace vioavr::core {
 
 class MemoryBus;
 class EventSystem;
+class AnalogSignalBank;
 
 class Adc8x final : public IoPeripheral {
 public:
@@ -16,6 +17,7 @@ public:
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
+    void set_analog_signal_bank(AnalogSignalBank* bank) noexcept { signal_bank_ = bank; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return "ADC"; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override { return {ranges_.data(), num_ranges_}; }
@@ -38,6 +40,7 @@ private:
     Adc8xDescriptor desc_;
     MemoryBus* bus_ {};
     EventSystem* evsys_ {};
+    AnalogSignalBank* signal_bank_ {};
     std::array<AddressRange, 8> ranges_;
     size_t num_ranges_ {};
 

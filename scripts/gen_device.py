@@ -397,12 +397,33 @@ def generate_header(data, header_path):
         res_ready = next((i['index'] for i in data['interrupts'] if i.get('module-instance') == p_name and 'RESRDY' in (i.get('name') or '')), 0)
         wcomp = next((i['index'] for i in data['interrupts'] if i.get('module-instance') == p_name and 'WCOMP' in (i.get('name') or '')), 0)
         
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
+
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])}, .ctrld_address = {hx(r('CTRLD')['offset'])}, .ctrle_address = {hx(r('CTRLE')['offset'])},
             .sampctrl_address = {hx(r('SAMPCTRL')['offset'])}, .muxpos_address = {hx(r('MUXPOS')['offset'])}, .muxneg_address = {hx(r('MUXNEG')['offset'])}, .command_address = {hx(r('COMMAND')['offset'])}, .evctrl_address = {hx(r('EVCTRL')['offset'])},
             .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])},
             .res_address = {hx(r('RES')['offset'])}, .winlt_address = {hx(r('WINLT')['offset'])}, .winht_address = {hx(r('WINHT')['offset'])},
-            .res_ready_vector_index = {res_ready}U, .wcomp_vector_index = {wcomp}U
+            .res_ready_vector_index = {res_ready}U, .wcomp_vector_index = {wcomp}U,
+            .user_event_address = {hx(user_addr)}
+        }}"""
+
+    def gen_ac8x(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        v = next((i['index'] for i in data.get('interrupts', []) if f'{p_name}' in (i.get('name') or '').upper()), 10)
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
+
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .muxctrla_address = {hx(r('MUXCTRLA')['offset'])},
+            .dacctrla_address = {hx(r('DACREF|DACCTRLA')['offset'])}, .intctrl_address = {hx(r('INTCTRL')['offset'])},
+            .status_address = {hx(r('STATUS')['offset'])}, .vector_index = {v}U,
+            .user_event_address = {hx(user_addr)}
         }}"""
 
     def gen_usb(p_name, p_data):
@@ -787,12 +808,17 @@ def generate_header(data, header_path):
     adcs_str = ",\n        ".join(adcs_descriptors)
     adcs8x_str = ",\n        ".join(adc8x_descriptors)
     acs_descriptors = []
+    acs8x_descriptors = []
     for n, d in groups['AC']:
-        res = gen_ac(n, d)
-        if " , " in res: acs_descriptors.extend(res.split(" , "))
-        else: acs_descriptors.append(res)
+        if 'CTRLA' in d.get('registers', {}):
+            acs8x_descriptors.append(gen_ac8x(n, d))
+        else:
+            res = gen_ac(n, d)
+            if " , " in res: acs_descriptors.extend(res.split(" , "))
+            else: acs_descriptors.append(res)
 
     acs_str = ",\n        ".join(acs_descriptors)
+    acs8x_str = ",\n        ".join(acs8x_descriptors)
     spis_str = ",\n        ".join(gen_spi(n, d) for n, d in groups['SPI'])
     twis_str = ",\n        ".join(gen_twi(n, d) for n, d in groups['TWI'])
     cans_str = ",\n        ".join(gen_can(n, d) for n, d in groups['CAN'])
@@ -912,6 +938,8 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .adcs8x = {{{{ {adcs8x_str} }}}},
     .ac_count = {len(acs_descriptors)}U,
     .acs = {{{{ {acs_str} }}}},
+    .ac8x_count = {len(acs8x_descriptors)}U,
+    .acs8x = {{{{ {acs8x_str} }}}},
     .timer8_count = {len(groups['TC8'] + groups['TC8_ASYNC'])}U,
     .timers8 = {{{{ {timers8_str} }}}},
     .timer16_count = {len(groups['TC16'])}U,

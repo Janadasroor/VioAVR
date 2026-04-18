@@ -1,6 +1,7 @@
 #include "vioavr/core/adc8x.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/evsys.hpp"
+#include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/logger.hpp"
 #include <algorithm>
 #include <vector>
@@ -61,14 +62,16 @@ Adc8x::Adc8x(const Adc8xDescriptor& desc) noexcept : desc_(desc) {
 
 void Adc8x::set_event_system(EventSystem* evsys) noexcept {
     evsys_ = evsys;
-    if (evsys_) {
-        // Register for STARTEI (Start conversion on event)
-        // On 4809, USERADC0 index is 19.
-        evsys_->register_user_callback(19, [this]() {
-            if (is_enabled() && (evctrl_ & 0x01U)) {
-                start_conversion();
-            }
-        });
+    if (evsys_ && desc_.user_event_address != 0) {
+        u16 user_base = evsys_->users_base();
+        if (desc_.user_event_address >= user_base) {
+            u8 user_index = static_cast<u8>(desc_.user_event_address - user_base);
+            evsys_->register_user_callback(user_index, [this]() {
+                if (is_enabled() && (evctrl_ & 0x01U)) {
+                    start_conversion();
+                }
+            });
+        }
     }
 }
 
@@ -186,7 +189,16 @@ void Adc8x::start_conversion() noexcept {
 
 void Adc8x::complete_conversion() noexcept {
     converting_ = false;
-    res_ = 0x200; // Mid-scale for testing
+    
+    double voltage = 0.5; // Default mid-scale
+    if (signal_bank_) {
+        // Simple mapping: AIN0-AIN15 map to bank channels 0-15
+        if (muxpos_ < AnalogSignalBank::kChannelCount) {
+            voltage = signal_bank_->voltage(muxpos_);
+        }
+    }
+
+    res_ = static_cast<u16>(voltage * 1023.0);
     intflags_ |= 0x01U; // RESRDY
 }
 

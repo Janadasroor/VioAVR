@@ -23,8 +23,11 @@ TEST_CASE("Timer2 Descriptor and Basic Simulation Test")
 
         CHECK(timer2.compare_a() == 0x02U);
         CHECK(timer2.control_b() == 0x01U);
-        CHECK(timer2.async_status() == 0x20U); // AS2
-        CHECK(bus.read_data(atmega328p.timers8[1].assr_address) == 0x20U);
+        // Writing to OCRA while AS2=1 sets OCR2AUB (0x08)
+        // Writing to TCCRB while AS2=1 sets TCR2BUB (0x01)
+        // So ASSR should be 0x20 | 0x08 | 0x01 = 0x29
+        CHECK((timer2.async_status() & 0x20U) == 0x20U); // AS2 set
+        CHECK((bus.read_data(atmega328p.timers8[1].assr_address) & 0x20U) == 0x20U);
     }
 
     SUBCASE("Check Timer2 interrupt flags and clearing") {

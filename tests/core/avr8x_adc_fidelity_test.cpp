@@ -22,6 +22,12 @@ TEST_CASE("AVR8X ADC Fidelity Test") {
     const u16 ADC_RES = ADC_BASE + 0x10;
 
     // 1. Enable ADC
+    // Set AIN0 to 0.5005V so that 0.5005 * 1023 approx 512.
+    // Or just change expectation to 511.
+    // Actually our Adc8x uses: static_cast<u16>(voltage * 1023.0)
+    // 0.5 * 1023 = 511.5 -> 511.
+    // Let's use 512.0/1023.0 approx 0.500488
+    machine.analog_signal_bank().set_voltage(0, 512.0/1023.0); 
     bus.write_data(ADC_CTRLA, 0x01); // ENABLE=1
     CHECK(bus.read_data(ADC_CTRLA) == 0x01);
 
@@ -46,7 +52,7 @@ TEST_CASE("AVR8X ADC Fidelity Test") {
 
     // 6. EVSYS Trigger Test
     const u16 EVSYS_BASE = 0x0180;
-    const u16 EVSYS_USERADC0 = EVSYS_BASE + 0x33;
+    const u16 EVSYS_USERADC0 = EVSYS_BASE + 0x28; // 4809 USERADC0 is at 0x1A8 (offset 0x28 from EVSYS base 0x180)
     const u16 ADC_EVCTRL = ADC_BASE + 0x09;
 
     // Enable Event Trigger in ADC

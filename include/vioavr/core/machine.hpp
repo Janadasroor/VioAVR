@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vioavr/core/avr_cpu.hpp"
+#include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
@@ -49,6 +50,12 @@ public:
     [[nodiscard]] PinMux& pin_mux() noexcept { return *pin_mux_; }
 
     /**
+     * @brief Get the analog signal bank.
+     */
+    [[nodiscard]] AnalogSignalBank& analog_signal_bank() noexcept { return analog_signal_bank_; }
+    [[nodiscard]] const AnalogSignalBank& analog_signal_bank() const noexcept { return analog_signal_bank_; }
+
+    /**
      * @brief Reset the machine and all its peripherals.
      */
     void reset(ResetCause cause = ResetCause::power_on) noexcept;
@@ -76,6 +83,7 @@ private:
     std::unique_ptr<MemoryBus> bus_;
     std::unique_ptr<AvrCpu> cpu_;
     std::unique_ptr<PinMux> pin_mux_;
+    AnalogSignalBank analog_signal_bank_;
     PinChangeInterruptSharedState pcint_shared_state_ {};
 
     std::vector<std::unique_ptr<IoPeripheral>> owned_peripherals_;
