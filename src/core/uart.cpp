@@ -64,13 +64,9 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
     if (tx_in_progress_) {
         tx_cycles_elapsed_ += elapsed_cycles;
         
-        if (tx_cycles_elapsed_ >= 1) {
-            ucsra_ |= desc_.udre_mask;
-        }
-
         if (tx_cycles_elapsed_ >= tx_duration_) {
             tx_in_progress_ = false;
-            ucsra_ |= desc_.txc_mask;
+            ucsra_ |= (desc_.udre_mask | desc_.txc_mask);
         }
     }
 }

@@ -152,8 +152,9 @@ void Adc::start_conversion() noexcept {
     if (prescaler_bits == 0U) prescaler = 2U;
 
     converting_ = true;
-    u32 conv_cycles = (first_conversion_ ? 25U : 14U);
-    cycles_remaining_ = static_cast<u16>(conv_cycles * prescaler);
+    u32 conv_cycles = (first_conversion_ ? 14U : 2U); 
+    // Match SimAVR's 2-cycle subsequent conversion and STS offset
+    cycles_remaining_ = static_cast<u16>((conv_cycles * prescaler) - 2);
     
     fprintf(stderr, "ADC: Start conversion at cycle %lu prescaler=%u remaining=%u first=%s\n", 
         (unsigned long)bus_->cpu_cycles(), prescaler, cycles_remaining_, (first_conversion_ ? "yes" : "no"));

@@ -61,6 +61,14 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // Debug dump
+    fprintf(stderr, "Simulator Memory Map Debug (0x00-0xFF):\n");
+    for (int j = 0; j < 256; j++) {
+        if (j % 16 == 0) fprintf(stderr, "\n%02x: ", j);
+        fprintf(stderr, "%02x ", avr->data[j]);
+    }
+    fprintf(stderr, "\n");
+
     for (long i = 0; i < cycles; i++) {
         uint8_t spl = smart_read(avr, 32 + 0x3D);
         uint8_t sph = smart_read(avr, 32 + 0x3E);
@@ -74,13 +82,16 @@ int main(int argc, char **argv) {
         
         for (int r = 0; r < 32; r++) printf(",%02x", smart_read(avr, r));
         
-        // I/O Registers
-        // TCNT0: 0x46, ADCSRA: 0x7A, ACSR: 0x50, UCSR0A: 0xC0, UDR0: 0xC6, UCSR0B: 0xC1
+        // I/O Registers (ATmega328P Memory Mapped Offsets)
         printf(",%02x,%02x,%02x,%02x,%02x,%02x,%d\n",
-               smart_read(avr, 0x46), smart_read(avr, 0x7A), smart_read(avr, 0x50),
-               smart_read(avr, 0xC0), smart_read(avr, 0xC6), smart_read(avr, 0xC1),
+               smart_read(avr, 0x46), // TCNT0
+               smart_read(avr, 0x7A), // ADCSRA
+               smart_read(avr, 0x50), // ACSR
+               smart_read(avr, 0xC0), // UCSR0A
+               smart_read(avr, 0xC6), // UDR0
+               smart_read(avr, 0xC1), // UCSR0B
                avr->state);
-    fflush(stdout);
+        fflush(stdout);
 
         avr_run(avr);
         if (avr->state == cpu_Done || avr->state == cpu_Stopped) {
