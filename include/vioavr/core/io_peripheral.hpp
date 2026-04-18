@@ -17,12 +17,15 @@ enum class ClockDomain : u8 {
 };
 
 class MemoryBus;
+class InterruptRequest;
+class EventSystem;
 
 class IoPeripheral {
 public:
     virtual ~IoPeripheral() = default;
 
     virtual void set_memory_bus(MemoryBus* bus) noexcept { (void)bus; }
+    virtual void set_event_system(EventSystem* evsys) noexcept { (void)evsys; }
 
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
     [[nodiscard]] virtual std::span<const AddressRange> mapped_ranges() const noexcept = 0;

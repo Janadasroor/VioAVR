@@ -19,6 +19,7 @@
 #include "vioavr/core/tca.hpp"
 #include "vioavr/core/tcb.hpp"
 #include "vioavr/core/rtc.hpp"
+#include "vioavr/core/evsys.hpp"
 
 namespace vioavr::core {
 
@@ -70,6 +71,16 @@ void Machine::initialize_peripherals()
     }
 
     // 2. Timers
+    // Event System
+    EventSystem* evsys = nullptr;
+    if (device_.evsys.strobe_address != 0) {
+        auto e = std::make_unique<EventSystem>(device_.evsys);
+        evsys = e.get();
+        e->set_memory_bus(bus_.get());
+        bus_->attach_peripheral(*e);
+        owned_peripherals_.push_back(std::move(e));
+    }
+
     for (u8 i = 0; i < device_.timer8_count; ++i) {
         auto timer = std::make_unique<Timer8>("TIMER" + std::to_string(device_.timers8[i].timer_index), device_.timers8[i]);
         timer->set_bus(*bus_);
@@ -88,6 +99,7 @@ void Machine::initialize_peripherals()
     for (u8 i = 0; i < device_.tca_count; ++i) {
         auto timer = std::make_unique<Tca>(device_.timers_tca[i]);
         timer->set_memory_bus(bus_.get());
+        timer->set_event_system(evsys);
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
@@ -96,6 +108,7 @@ void Machine::initialize_peripherals()
     for (u8 i = 0; i < device_.tcb_count; ++i) {
         auto timer = std::make_unique<Tcb>(device_.timers_tcb[i]);
         timer->set_memory_bus(bus_.get());
+        timer->set_event_system(evsys);
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
@@ -104,6 +117,7 @@ void Machine::initialize_peripherals()
     for (u8 i = 0; i < device_.rtc_count; ++i) {
         auto timer = std::make_unique<Rtc>(device_.timers_rtc[i]);
         timer->set_memory_bus(bus_.get());
+        timer->set_event_system(evsys);
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
