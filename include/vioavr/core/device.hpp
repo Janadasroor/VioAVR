@@ -134,7 +134,12 @@ struct Timer8Descriptor {
     u8 wgm2_mask {0x08U}; // bit 3 of TCCRB
     u8 cs_mask {0x07U};   // bits 0,1,2 of TCCRB
     u8 as2_mask {0x20U};  // bit 5 of ASSR
+    u8 exclk_mask {0x40U}; // bit 6 of ASSR
     u8 tcn2ub_mask {0x10U}; // bit 4 of ASSR
+    u8 ocr2aub_mask {0x08U}; // bit 3 of ASSR
+    u8 ocr2bub_mask {0x04U}; // bit 2 of ASSR
+    u8 tcr2aub_mask {0x02U}; // bit 1 of ASSR
+    u8 tcr2bub_mask {0x01U}; // bit 0 of ASSR
     u8 compare_a_enable_mask {0x02U}; // bit 1 of TIMSK/TIFR
     u8 compare_b_enable_mask {0x04U}; // bit 2 of TIMSK/TIFR
     u8 overflow_enable_mask {0x01U};  // bit 0 of TIMSK/TIFR
@@ -275,6 +280,37 @@ struct CpuIntDescriptor {
     u16 status_address {};
     u16 lvl0pri_address {};
     u16 lvl1vec_address {};
+};
+
+struct TcaDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrld_address {};
+    u16 ctrleclr_address {};
+    u16 ctrleset_address {};
+    u16 ctrlfclr_address {};
+    u16 ctrlfset_address {};
+    u16 evctrl_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 dbgctrl_address {};
+    u16 temp_address {};
+    u16 tcnt_address {};
+    u16 period_address {};
+    u16 cmp0_address {};
+    u16 cmp1_address {};
+    u16 cmp2_address {};
+
+    // Interrupts (LUF is OVF, others are CMP)
+    u8 luf_ovf_vector_index {};
+    u8 cmp0_vector_index {};
+    u8 cmp1_vector_index {};
+    u8 cmp2_vector_index {};
+    u8 hunf_vector_index {}; // High underflow (split mode)
+    u8 lcmp0_vector_index {}; // Low compare (split mode)
+    u8 lcmp1_vector_index {};
+    u8 lcmp2_vector_index {};
 };
 
 struct WdtDescriptor {
@@ -576,6 +612,9 @@ struct DeviceDescriptor {
 
     u8 timer10_count {0U};
     std::array<Timer10Descriptor, 4> timers10 {};
+
+    u8 tca_count {0U};
+    std::array<TcaDescriptor, 4> timers_tca {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};
