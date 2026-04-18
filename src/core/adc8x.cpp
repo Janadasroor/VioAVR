@@ -184,21 +184,59 @@ bool Adc8x::is_enabled() const noexcept {
 void Adc8x::start_conversion() noexcept {
     if (converting_) return;
     converting_ = true;
-    cycles_remaining_ = 13; 
+    
+    // Base 13 cycles + (SAMPNUM contribution)
+    // Actually, each additional sample takes more time.
+    // For now, let's use a simplified model: 13 * (2^SAMPNUM)
+    u8 sampnum = ctrlb_ & 0x07U;
+    u16 samples = 1U << sampnum;
+    cycles_remaining_ = 13ULL * samples; 
 }
 
 void Adc8x::complete_conversion() noexcept {
     converting_ = false;
     
-    double voltage = 0.5; // Default mid-scale
+    double input_voltage = 0.5; // Default mid-scale
     if (signal_bank_) {
         // Simple mapping: AIN0-AIN15 map to bank channels 0-15
         if (muxpos_ < AnalogSignalBank::kChannelCount) {
-            voltage = signal_bank_->voltage(muxpos_);
+            input_voltage = signal_bank_->voltage(muxpos_);
         }
     }
 
-    res_ = static_cast<u16>(voltage * 1023.0);
+    // Reference Voltage logic
+    double vref = 3.3; // Default VDD
+    u8 vrefsel = (ctrlc_ & 0x30U) >> 4U;
+    if (vrefsel == 0x00U) {
+        // Internal reference. In a real 4809 this depends on VREF peripheral.
+        // For now, we'll assume a default internal reference of 1.1V for fidelity tests
+        // unless we implement the full VREF peripheral link.
+        vref = 1.1; 
+    } else if (vrefsel == 0x01U) {
+        vref = 3.3; // VDD
+    } else if (vrefsel == 0x02U) {
+        vref = 2.5; // External VREFA (dummy value for now)
+    }
+
+    // Calculate 10-bit result
+    u32 raw_result = static_cast<u32>((input_voltage / vref) * 1023.0);
+    if (raw_result > 1023) raw_result = 1023;
+
+    // Handle Resolution (RESSEL)
+    bool eight_bit = (ctrla_ & 0x04U);
+    if (eight_bit) {
+        raw_result >>= 2U; // 10-bit to 8-bit
+    }
+
+    // Handle Accumulation (SAMPNUM)
+    u8 sampnum = ctrlb_ & 0x07U;
+    u32 accumulated_result = raw_result;
+    if (sampnum > 0) {
+        u16 samples = 1U << sampnum;
+        accumulated_result = raw_result * samples;
+    }
+
+    res_ = static_cast<u16>(accumulated_result);
     intflags_ |= 0x01U; // RESRDY
     if (evsys_ && desc_.resrd_generator_id != 0) {
         evsys_->trigger_event(desc_.resrd_generator_id);

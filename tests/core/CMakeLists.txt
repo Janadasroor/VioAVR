@@ -116,6 +116,7 @@ set(TEST_SOURCES
     avr8x_evsys_test.cpp
     pin_mux_priority_test.cpp
     timer16_fidelity_test.cpp
+    avr8x_cpuint_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

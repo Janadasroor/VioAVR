@@ -369,10 +369,21 @@ bool MemoryBus::pending_interrupt_request(InterruptRequest& request, const u8 ac
                     replace = false;
                 } else {
                     // Same level (either both Level 1 or both Level 0)
-                    // For now, lower index has higher priority within same level
-                    // TODO: Implement Level 0 priority shift (LVL0PRI and LVL0RR)
-                    if (candidate.vector_index < best_request.vector_index) {
-                        replace = true;
+                    u8 base = cpu_int_->highest_priority_vector();
+                    u32 n = static_cast<u32>(device_.interrupt_vector_count);
+                    
+                    if (n > 0) {
+                        u32 p_candidate = (static_cast<u32>(candidate.vector_index) + n - base) % n;
+                        u32 p_best = (static_cast<u32>(best_request.vector_index) + n - base) % n;
+
+                        if (p_candidate < p_best) {
+                            replace = true;
+                        }
+                    } else {
+                        // Fallback to legacy
+                        if (candidate.vector_index < best_request.vector_index) {
+                            replace = true;
+                        }
                     }
                 }
             } else {
@@ -420,7 +431,11 @@ bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 ac
     }
 
     request = selected_request;
-    return selected_peripheral->consume_interrupt_request(request);
+    bool consumed = selected_peripheral->consume_interrupt_request(request);
+    if (consumed && cpu_int_) {
+        cpu_int_->on_interrupt_acknowledged(request.vector_index);
+    }
+    return consumed;
 }
 
 IoPeripheral* MemoryBus::find_peripheral(const u16 address) noexcept

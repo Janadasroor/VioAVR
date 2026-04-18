@@ -47,7 +47,8 @@ void CpuInt::reset() noexcept {
     ctrla_ = 0;
     status_ = 0;
     lvl0pri_ = 0;
-    lvl1vec_ = 0;
+    lvl1vec_ = 0xFF; // Disabled
+    last_ack_vector_ = 0;
 }
 
 } // namespace vioavr::core
