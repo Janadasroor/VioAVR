@@ -110,7 +110,7 @@ public:
 
     void set_xmem(class Xmem* xmem) noexcept { xmem_ = xmem; }
     [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
-    void set_nvm_ctrl(class NvmCtrl* nvm_ctrl) noexcept { nvm_ctrl_ = nvm_ctrl; }
+    void set_nvm_ctrl(class NvmCtrl* nvm_ctrl) noexcept;
     [[nodiscard]] class NvmCtrl* nvm_ctrl() const noexcept { return nvm_ctrl_; }
     void set_cpu_int(class CpuInt* cpu_int) noexcept { cpu_int_ = cpu_int; }
     [[nodiscard]] class CpuInt* cpu_int() const noexcept { return cpu_int_; }
@@ -137,6 +137,8 @@ private:
     u32 loaded_program_words_ {};
     u32 reset_word_address_ {};
     std::vector<u16> flash_page_buffer_;
+    std::vector<u8> eeprom_page_buffer_;
+    std::vector<u8> user_row_;
     std::array<u8, 16> fuses_ {};
 
     // SPM timing state

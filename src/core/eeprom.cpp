@@ -207,6 +207,19 @@ void Eeprom::complete_write() noexcept
     interrupt_pending_ = true;
 }
 
+void Eeprom::commit_page(u32 address, std::span<const u8> data) noexcept
+{
+    const u16 start = static_cast<u16>(address % size_);
+    for (size_t i = 0; i < data.size() && (start + i) < storage_.size(); ++i) {
+        storage_[start + i] = data[i];
+    }
+}
+
+void Eeprom::erase_all() noexcept
+{
+    std::ranges::fill(storage_, 0xFFU);
+}
+
 bool Eeprom::load_from_file(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
     if (!f) return false;

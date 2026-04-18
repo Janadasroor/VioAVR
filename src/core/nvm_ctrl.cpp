@@ -52,7 +52,7 @@ u8 NvmCtrl::read(u16 address) noexcept {
 
 void NvmCtrl::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
-        ctrla_ = value & 0x07U; // Only CMD bits are writable in CTRLA for now
+        ctrla_ = value & 0x7FU; // Only CMD bits are writable in CTRLA for now
         if (ctrla_ != 0 && bus_) {
             bus_->execute_nvm_command(ctrla_, addr_, data_);
         }

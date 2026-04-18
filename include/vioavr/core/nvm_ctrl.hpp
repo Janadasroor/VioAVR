@@ -17,7 +17,10 @@ public:
         page_buf_clear = 0x04,
         chip_erase = 0x05,
         ee_erase = 0x06,
-        fuse_write = 0x07
+        ee_write = 0x07,
+        ee_erase_write = 0x08,
+        ee_buf_clear = 0x09,
+        user_row_write = 0x10
     };
 
     explicit NvmCtrl(const NvmCtrlDescriptor& desc);
@@ -32,8 +35,8 @@ public:
 
     void set_bus(class MemoryBus& bus) noexcept { bus_ = &bus; }
 
-    [[nodiscard]] Command current_command() const noexcept { return static_cast<Command>(ctrla_ & 0x07U); }
-    void clear_command() noexcept { ctrla_ &= ~0x07U; }
+    [[nodiscard]] Command current_command() const noexcept { return static_cast<Command>(ctrla_ & 0x7FU); }
+    void clear_command() noexcept { ctrla_ &= ~0x7FU; }
 
     [[nodiscard]] bool busy() const noexcept { return (status_ & 0x03U) != 0; }
     void set_busy(bool flash, bool ee) noexcept {

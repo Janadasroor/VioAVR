@@ -3,6 +3,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
+#include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/devices/atmega4809.hpp"
 
 namespace {
@@ -60,7 +61,8 @@ TEST_CASE("AVR8X Unified Map - EEPROM Aliasing") {
 TEST_CASE("AVR8X NVMCTRL - Flash Page Write Integration") {
     Machine machine{atmega4809};
     // Load a dummy NOP program so the CPU is in 'running' state
-    std::vector<u16> dummy_flash(1024, 0x0000U); // NOPs
+    std::vector<u16> dummy_flash(1024, 0x0000U);
+    dummy_flash[1023] = 0xC000U | ((-1023) & 0x0FFFU); // RJMP back to start
     machine.bus().load_flash(dummy_flash);
     
     machine.reset();
@@ -91,4 +93,62 @@ TEST_CASE("AVR8X NVMCTRL - Flash Page Write Integration") {
     
     // 7. Verify Flash word 0 was modified
     CHECK(bus.flash_words()[0] == 0xDEADU);
+}
+
+TEST_CASE("AVR8X NVMCTRL - User Row Write") {
+    Machine machine{atmega4809};
+    std::vector<u16> dummy_flash(1024, 0x0000U);
+    dummy_flash[1023] = 0xC000U | ((-1023) & 0x0FFFU); // RJMP back to start
+    machine.bus().load_flash(dummy_flash);
+    
+    machine.reset();
+    auto& bus = machine.bus();
+    
+    // 1. Fill Page Buffer via Mapped User Row (0x1300)
+    bus.write_data(0x1300, 0x42U);
+    bus.write_data(0x1301, 0x24U);
+    
+    // 2. Set NVM ADDR (0x1300)
+    bus.write_data(0x1008, 0x00U);
+    bus.write_data(0x1009, 0x13U);
+    
+    // 3. Issue URWP (0x10)
+    bus.write_data(0x1000, 0x10U); 
+    
+    machine.run(100000);
+    
+    // 4. Verify User Row
+    CHECK(bus.read_data(0x1300) == 0x42U);
+    CHECK(bus.read_data(0x1301) == 0x24U);
+}
+
+TEST_CASE("AVR8X NVMCTRL - EEPROM Write") {
+    Machine machine{atmega4809};
+    std::vector<u16> dummy_flash(1024, 0x0000U);
+    dummy_flash[1023] = 0xC000U | ((-1023) & 0x0FFFU); // RJMP back to start
+    machine.bus().load_flash(dummy_flash);
+    
+    Eeprom eeprom{"EEPROM", atmega4809.eeproms[0]};
+    machine.bus().attach_peripheral(eeprom);
+    
+    machine.reset();
+    auto& bus = machine.bus();
+    
+    // 1. Fill EEPROM Page Buffer (0x1400+)
+    bus.write_data(0x1400, 0x77U);
+    bus.write_data(0x1405, 0x88U);
+    
+    // 2. Set ADDR (0x1400)
+    bus.write_data(0x1008, 0x00U);
+    bus.write_data(0x1009, 0x14U);
+    
+    // 3. Issue EEWP (0x07)
+    bus.write_data(0x1000, 0x07U);
+    
+    machine.run(100000);
+    
+    // 4. Verify EEPROM (both via map and peripheral)
+    CHECK(bus.read_data(0x1400) == 0x77U);
+    CHECK(bus.read_data(0x1405) == 0x88U);
+    CHECK(eeprom.read(0x1400) == 0x77U);
 }
