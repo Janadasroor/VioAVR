@@ -142,6 +142,7 @@ struct Timer8Descriptor {
     u8 focb_mask {0x40U}; // bit 6 of TCCRB
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    u8 timer_index {0U};
 
     // ADC Triggering
     AdcAutoTriggerSource compare_a_trigger_source {AdcAutoTriggerSource::none};
@@ -181,6 +182,7 @@ struct UartDescriptor {
     u8 udrie_mask {0x20U};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    u8 uart_index {0U};
 };
 
 struct PinChangeInterruptDescriptor {
@@ -266,6 +268,13 @@ struct NvmCtrlDescriptor {
     u16 addr_address {}; 
     u16 data_address {}; 
     u8 vector_index {};
+};
+
+struct CpuIntDescriptor {
+    u16 ctrla_address {};
+    u16 status_address {};
+    u16 lvl0pri_address {};
+    u16 lvl1vec_address {};
 };
 
 struct WdtDescriptor {
@@ -408,6 +417,7 @@ struct Timer16Descriptor {
     u8 tccra_reset {0x00U};
     u8 tccrb_reset {0x00U};
     u8 tccrc_reset {0x00U};
+    u8 timer_index {1U};
     u8 capture_vector_index {};
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
@@ -575,6 +585,9 @@ struct DeviceDescriptor {
 
     u8 nvm_ctrl_count {0U};
     std::array<NvmCtrlDescriptor, 1> nvm_ctrls {};
+
+    u8 cpu_int_count {0U};
+    std::array<CpuIntDescriptor, 1> cpu_ints {};
 
     u8 pcint_count {0U};
     std::array<PinChangeInterruptDescriptor, 8> pcints {};

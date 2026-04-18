@@ -4,6 +4,7 @@
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/timer10.hpp"
+#include "vioavr/core/cpu_int.hpp"
 
 #include <array>
 #include <cstddef>
@@ -575,6 +576,16 @@ bool AvrCpu::service_interrupt_if_needed()
     interrupt_pending_ = false;
     state_ = CpuState::running;
     ++interrupt_depth_;
+
+    // Handle CPUINT Status
+    if (auto* cpu_int = bus_->cpu_int()) {
+        if (cpu_int->is_lvl1_vector(request.vector_index)) {
+            cpu_int->set_executing_lvl1(true);
+        } else {
+            cpu_int->set_executing_lvl0(true);
+        }
+    }
+
     advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
     return true;
 }
@@ -1766,6 +1777,19 @@ void AvrCpu::execute_reti(const DecodedInstruction& instruction)
     if (interrupt_depth_ != 0U) {
         --interrupt_depth_;
     }
+
+    // Handle CPUINT Status
+    if (auto* cpu_int = bus_->cpu_int()) {
+        // RETI clears the highest active level. 
+        // In basic simulation, we can just clear both or track nesting if we want.
+        // Silly but effective: clear Lv1 if we were in it, else Lv0.
+        // Actually, CPUINT status bits are set by HW and read by SW.
+        // A better way is to track nesting level of Lvl 1.
+        // For now, let's just clear both as a simplification unless we want full nesting.
+        cpu_int->set_executing_lvl1(false);
+        cpu_int->set_executing_lvl0(false);
+    }
+
     interrupt_delay_ = 1U;
     advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
 }

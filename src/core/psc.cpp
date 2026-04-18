@@ -1,5 +1,6 @@
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/logger.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -205,7 +206,7 @@ void Psc::handle_fault(bool level) noexcept {
              down_counting_ = false;
         }
     } else if (!triggered && fault_active_) {
-        // Clear fault if in purely level-sensitive mode without "latched" behavior
+        // Clear fault if in purely level-sensitive mode 
         u8 prfm = (pfrc0a_ & 0x0F);
         if (prfm == 0x03) { // Stop signal, Execute Opposite while Fault active
              fault_active_ = false;
@@ -226,18 +227,16 @@ void Psc::update_outputs() noexcept {
     bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
 
     if (fault_active_) {
-        // Simple Deactivation for now (Low level)
-        // In real PWM hardware this is more complex (POM etc)
-        output_a_ = false;
-        output_b_ = false;
+        // Output state depends on PSOC bits 1 (POV0A) and 3 (POV0B)
+        output_a_ = (psoc_ & 0x02) != 0;
+        output_b_ = (psoc_ & 0x08) != 0;
     } else {
+        bool pop = (pconf_ & 0x04); // Global Polarity bit
         bool en_a = (psoc_ & 0x01);
-        bool inv_a = (psoc_ & 0x02);
-        output_a_ = en_a && (pulse_a ^ inv_a);
+        output_a_ = en_a && (pulse_a ^ pop);
 
         bool en_b = (psoc_ & 0x04);
-        bool inv_b = (psoc_ & 0x08);
-        output_b_ = en_b && (pulse_b ^ inv_b);
+        output_b_ = en_b && (pulse_b ^ pop);
     }
 }
 

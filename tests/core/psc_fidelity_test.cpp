@@ -106,13 +106,18 @@ TEST_CASE("PSC Fidelity - Output Polarity") {
     Psc psc {"PSC0", desc};
     psc.reset();
     
-    psc.write(desc.psoc_address, 0x0D);
-    psc.write(desc.ocrra_address, 5);
+    psc.write(desc.psoc_address, 0x05); // POEN0A, POEN0B
+    psc.write(desc.ocrra_address, 10);
     psc.write(desc.ocrra_address + 1, 0);
     psc.write(desc.ocrrb_address, 10);
     psc.write(desc.ocrrb_address + 1, 0);
     psc.write(desc.pctl_address, desc.prun_mask); 
     
     CHECK(psc.read_output_a() == true);
+    CHECK(psc.read_output_b() == true);
+
+    psc.write(desc.pconf_address, 0x04); // Set POP0 (Active Low)
+    psc.tick(1);
+    CHECK(psc.read_output_a() == false);
     CHECK(psc.read_output_b() == false);
 }

@@ -91,7 +91,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .tx_vector_index = 0U,
             .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
             .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
-            .pr_address = 0, .pr_bit = 255
+            .pr_address = 0, .pr_bit = 255,
+            .uart_index = 0U
         },
         {
             .udr_address = 0x0U, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x0U, .ubrrh_address = 0x0U,
@@ -101,7 +102,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .tx_vector_index = 0U,
             .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
             .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
-            .pr_address = 0, .pr_bit = 255
+            .pr_address = 0, .pr_bit = 255,
+            .uart_index = 1U
         },
         {
             .udr_address = 0x0U, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x0U, .ubrrh_address = 0x0U,
@@ -111,7 +113,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .tx_vector_index = 0U,
             .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
             .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
-            .pr_address = 0, .pr_bit = 255
+            .pr_address = 0, .pr_bit = 255,
+            .uart_index = 2U
         },
         {
             .udr_address = 0x0U, .ucsra_address = 0x0U, .ucsrb_address = 0x0U, .ucsrc_address = 0x0U, .ubrrl_address = 0x0U, .ubrrh_address = 0x0U,
@@ -121,7 +124,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .tx_vector_index = 0U,
             .u2x_mask = 0x0U, .rxc_mask = 0x0U, .txc_mask = 0x0U, .udre_mask = 0x0U,
             .rxen_mask = 0x0U, .txen_mask = 0x0U, .rxcie_mask = 0x0U, .txcie_mask = 0x0U, .udrie_mask = 0x0U,
-            .pr_address = 0, .pr_bit = 255
+            .pr_address = 0, .pr_bit = 255,
+            .uart_index = 3U
         } }},
 
     .nvm_ctrl_count = 1U,
@@ -134,6 +138,13 @@ inline constexpr DeviceDescriptor atmega4809 {
             .addr_address = 0x1008U,
             .data_address = 0x1006U,
             .vector_index = 0U
+        } }},
+    .cpu_int_count = 1U,
+    .cpu_ints = {{ {
+            .ctrla_address = 0x110U,
+            .status_address = 0x111U,
+            .lvl0pri_address = 0x112U,
+            .lvl1vec_address = 0x113U
         } }},
     
     .pcint_count = 0U,
