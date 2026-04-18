@@ -80,216 +80,259 @@
     {
       "name": "NMI",
       "index": 1,
+      "module-instance": "CRCSCAN",
       "caption": null
     },
     {
       "name": "VLM",
       "index": 2,
+      "module-instance": "BOD",
       "caption": null
     },
     {
       "name": "CNT",
       "index": 3,
+      "module-instance": "RTC",
       "caption": null
     },
     {
       "name": "PIT",
       "index": 4,
+      "module-instance": "RTC",
       "caption": null
     },
     {
       "name": "CCL",
       "index": 5,
+      "module-instance": "CCL",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 6,
+      "module-instance": "PORTA",
       "caption": null
     },
     {
       "name": "LUNF",
       "index": 7,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "OVF",
       "index": 7,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "HUNF",
       "index": 8,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "CMP0",
       "index": 9,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "LCMP0",
       "index": 9,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "CMP1",
       "index": 10,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "LCMP1",
       "index": 10,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "CMP2",
       "index": 11,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "LCMP2",
       "index": 11,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "INT",
       "index": 12,
+      "module-instance": "TCB0",
       "caption": null
     },
     {
       "name": "INT",
       "index": 13,
+      "module-instance": "TCB1",
       "caption": null
     },
     {
       "name": "TWIS",
       "index": 14,
+      "module-instance": "TWI0",
       "caption": null
     },
     {
       "name": "TWIM",
       "index": 15,
+      "module-instance": "TWI0",
       "caption": null
     },
     {
       "name": "INT",
       "index": 16,
+      "module-instance": "SPI0",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 17,
+      "module-instance": "USART0",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 18,
+      "module-instance": "USART0",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 19,
+      "module-instance": "USART0",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 20,
+      "module-instance": "PORTD",
       "caption": null
     },
     {
       "name": "AC",
       "index": 21,
+      "module-instance": "AC0",
       "caption": null
     },
     {
       "name": "RESRDY",
       "index": 22,
+      "module-instance": "ADC0",
       "caption": null
     },
     {
       "name": "WCOMP",
       "index": 23,
+      "module-instance": "ADC0",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 24,
+      "module-instance": "PORTC",
       "caption": null
     },
     {
       "name": "INT",
       "index": 25,
+      "module-instance": "TCB2",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 26,
+      "module-instance": "USART1",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 27,
+      "module-instance": "USART1",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 28,
+      "module-instance": "USART1",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 29,
+      "module-instance": "PORTF",
       "caption": null
     },
     {
       "name": "EE",
       "index": 30,
+      "module-instance": "NVMCTRL",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 31,
+      "module-instance": "USART2",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 32,
+      "module-instance": "USART2",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 33,
+      "module-instance": "USART2",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 34,
+      "module-instance": "PORTB",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 35,
+      "module-instance": "PORTE",
       "caption": null
     },
     {
       "name": "INT",
       "index": 36,
+      "module-instance": "TCB3",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 37,
+      "module-instance": "USART3",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 38,
+      "module-instance": "USART3",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 39,
+      "module-instance": "USART3",
       "caption": null
     }
   ],
@@ -479,6 +522,11 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "AC": {
+          "index": 21
         }
       },
       "signals": [
@@ -1026,6 +1074,14 @@
           }
         }
       },
+      "interrupts": {
+        "RESRDY": {
+          "index": 22
+        },
+        "WCOMP": {
+          "index": 23
+        }
+      },
       "signals": [
         {
           "group": "AIN",
@@ -1304,6 +1360,11 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "VLM": {
+          "index": 2
         }
       },
       "signals": []
@@ -2548,6 +2609,11 @@
           }
         }
       },
+      "interrupts": {
+        "CCL": {
+          "index": 5
+        }
+      },
       "signals": [
         {
           "group": "LUT0_IN",
@@ -2930,6 +2996,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "CLKI",
@@ -3049,6 +3116,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "CPUINT": {
@@ -3131,6 +3199,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "CRCSCAN": {
@@ -3215,6 +3284,11 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "NMI": {
+          "index": 1
         }
       },
       "signals": []
@@ -6022,6 +6096,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "EVOUT",
@@ -6422,6 +6497,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "GPIO": {
@@ -6460,6 +6536,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "LOCKBIT": {
@@ -6489,6 +6566,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "NVMCTRL": {
@@ -6627,6 +6705,11 @@
           "initval": 0,
           "mask": 255,
           "bitfields": {}
+        }
+      },
+      "interrupts": {
+        "EE": {
+          "index": 30
         }
       },
       "signals": []
@@ -7125,6 +7208,11 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "PORT": {
+          "index": 6
         }
       },
       "signals": [
@@ -7674,6 +7762,11 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 34
+        }
+      },
       "signals": [
         {
           "group": "PIN",
@@ -8207,6 +8300,11 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "PORT": {
+          "index": 24
         }
       },
       "signals": [
@@ -8756,6 +8854,11 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 20
+        }
+      },
       "signals": [
         {
           "group": "PIN",
@@ -9303,6 +9406,11 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 35
+        }
+      },
       "signals": [
         {
           "group": "PIN",
@@ -9826,6 +9934,11 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 29
+        }
+      },
       "signals": [
         {
           "group": "PIN",
@@ -10223,6 +10336,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "RSTCTRL": {
@@ -10282,6 +10396,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "RESET",
@@ -10688,6 +10803,14 @@
           }
         }
       },
+      "interrupts": {
+        "CNT": {
+          "index": 3
+        },
+        "PIT": {
+          "index": 4
+        }
+      },
       "signals": []
     },
     "SIGROW": {
@@ -10894,6 +11017,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "SLPCTRL": {
@@ -10932,6 +11056,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "SPI0": {
@@ -11121,6 +11246,11 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 16
+        }
+      },
       "signals": [
         {
           "group": "MISO",
@@ -11244,6 +11374,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "TCA0": {
@@ -11792,6 +11923,35 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "LUNF": {
+          "index": 7
+        },
+        "OVF": {
+          "index": 7
+        },
+        "HUNF": {
+          "index": 8
+        },
+        "CMP0": {
+          "index": 9
+        },
+        "LCMP0": {
+          "index": 9
+        },
+        "CMP1": {
+          "index": 10
+        },
+        "LCMP1": {
+          "index": 10
+        },
+        "CMP2": {
+          "index": 11
+        },
+        "LCMP2": {
+          "index": 11
+        }
+      },
       "signals": [
         {
           "group": "WO",
@@ -12211,6 +12371,11 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 12
+        }
+      },
       "signals": [
         {
           "group": "WO",
@@ -12436,6 +12601,11 @@
           "initval": 0,
           "mask": 255,
           "bitfields": {}
+        }
+      },
+      "interrupts": {
+        "INT": {
+          "index": 13
         }
       },
       "signals": [
@@ -12665,6 +12835,11 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 25
+        }
+      },
       "signals": [
         {
           "group": "WO",
@@ -12890,6 +13065,11 @@
           "initval": 0,
           "mask": 255,
           "bitfields": {}
+        }
+      },
+      "interrupts": {
+        "INT": {
+          "index": 36
         }
       },
       "signals": [
@@ -13380,6 +13560,14 @@
           }
         }
       },
+      "interrupts": {
+        "TWIS": {
+          "index": 14
+        },
+        "TWIM": {
+          "index": 15
+        }
+      },
       "signals": [
         {
           "group": "SCL",
@@ -13852,6 +14040,17 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "RXC": {
+          "index": 17
+        },
+        "DRE": {
+          "index": 18
+        },
+        "TXC": {
+          "index": 19
         }
       },
       "signals": [
@@ -14340,6 +14539,17 @@
           }
         }
       },
+      "interrupts": {
+        "RXC": {
+          "index": 26
+        },
+        "DRE": {
+          "index": 27
+        },
+        "TXC": {
+          "index": 28
+        }
+      },
       "signals": [
         {
           "group": "RXD",
@@ -14826,6 +15036,17 @@
           }
         }
       },
+      "interrupts": {
+        "RXC": {
+          "index": 31
+        },
+        "DRE": {
+          "index": 32
+        },
+        "TXC": {
+          "index": 33
+        }
+      },
       "signals": [
         {
           "group": "RXD",
@@ -15304,6 +15525,17 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "RXC": {
+          "index": 37
+        },
+        "DRE": {
+          "index": 38
+        },
+        "TXC": {
+          "index": 39
         }
       },
       "signals": [
@@ -15861,6 +16093,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTA": {
@@ -15905,6 +16138,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTB": {
@@ -15949,6 +16183,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTC": {
@@ -15993,6 +16228,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTD": {
@@ -16037,6 +16273,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTE": {
@@ -16081,6 +16318,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTF": {
@@ -16125,6 +16363,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VREF": {
@@ -16215,6 +16454,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "WDT": {
@@ -16357,6 +16597,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     }
   },

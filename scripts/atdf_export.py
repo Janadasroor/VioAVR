@@ -94,12 +94,25 @@ def parse_atdf(file_path):
             })
 
     # 4. Extract Interrupts
+    interrupts_by_inst = {}
     for intr in root.findall(".//interrupt"):
-        data['interrupts'].append({
-            'name': intr.attrib.get('name'),
-            'index': int(intr.attrib.get('index', '0')),
+        name = intr.attrib.get('name')
+        index = int(intr.attrib.get('index', '0'))
+        mod_inst = intr.attrib.get('module-instance')
+        
+        intr_data = {
+            'name': name,
+            'index': index,
+            'module-instance': mod_inst,
             'caption': intr.attrib.get('caption')
-        })
+        }
+        data['interrupts'].append(intr_data)
+        
+        if mod_inst:
+            if mod_inst not in interrupts_by_inst:
+                interrupts_by_inst[mod_inst] = {}
+            interrupts_by_inst[mod_inst][name] = {'index': index}
+
     data['interrupts'].sort(key=lambda x: x['index'])
 
     # 5. Extract Peripherals (from <peripherals> section)
@@ -112,6 +125,7 @@ def parse_atdf(file_path):
                 periph_data = {
                     'module': mod_name,
                     'registers': {},
+                    'interrupts': interrupts_by_inst.get(inst_name, {}),
                     'signals': []
                 }
                 

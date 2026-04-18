@@ -86,10 +86,36 @@ inline constexpr DeviceDescriptor atmega4809 {
             .intctrl_address = 0xA0AU, .intflags_address = 0xA0BU, .dbgctrl_address = 0xA0EU,
             .temp_address = 0xA0FU, .tcnt_address = 0xA20U, .period_address = 0xA26U,
             .cmp0_address = 0xA28U, .cmp1_address = 0xA2AU, .cmp2_address = 0xA2CU,
-            .luf_ovf_vector_index = 0U, .cmp0_vector_index = 0U,
-            .cmp1_vector_index = 0U, .cmp2_vector_index = 0U,
-            .hunf_vector_index = 0U, .lcmp0_vector_index = 0U,
-            .lcmp1_vector_index = 0U, .lcmp2_vector_index = 0U
+            .luf_ovf_vector_index = 7U, .cmp0_vector_index = 9U,
+            .cmp1_vector_index = 10U, .cmp2_vector_index = 11U,
+            .hunf_vector_index = 8U, .lcmp0_vector_index = 9U,
+            .lcmp1_vector_index = 10U, .lcmp2_vector_index = 11U
+        } }},
+
+    .tcb_count = 4U,
+    .timers_tcb = {{ {
+            .ctrla_address = 0xA80U, .ctrlb_address = 0xA81U, .evctrl_address = 0xA84U,
+            .intctrl_address = 0xA85U, .intflags_address = 0xA86U, .status_address = 0xA87U,
+            .dbgctrl_address = 0xA88U, .temp_address = 0xA89U, .cnt_address = 0xA8AU,
+            .ccmp_address = 0xA8CU, .vector_index = 12U
+        },
+        {
+            .ctrla_address = 0xA90U, .ctrlb_address = 0xA91U, .evctrl_address = 0xA94U,
+            .intctrl_address = 0xA95U, .intflags_address = 0xA96U, .status_address = 0xA97U,
+            .dbgctrl_address = 0xA98U, .temp_address = 0xA99U, .cnt_address = 0xA9AU,
+            .ccmp_address = 0xA9CU, .vector_index = 13U
+        },
+        {
+            .ctrla_address = 0xAA0U, .ctrlb_address = 0xAA1U, .evctrl_address = 0xAA4U,
+            .intctrl_address = 0xAA5U, .intflags_address = 0xAA6U, .status_address = 0xAA7U,
+            .dbgctrl_address = 0xAA8U, .temp_address = 0xAA9U, .cnt_address = 0xAAAU,
+            .ccmp_address = 0xAACU, .vector_index = 25U
+        },
+        {
+            .ctrla_address = 0xAB0U, .ctrlb_address = 0xAB1U, .evctrl_address = 0xAB4U,
+            .intctrl_address = 0xAB5U, .intflags_address = 0xAB6U, .status_address = 0xAB7U,
+            .dbgctrl_address = 0xAB8U, .temp_address = 0xAB9U, .cnt_address = 0xABAU,
+            .ccmp_address = 0xABCU, .vector_index = 36U
         } }},
     
     .ext_interrupt_count = 0U,

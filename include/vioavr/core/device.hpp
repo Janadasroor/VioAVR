@@ -313,6 +313,21 @@ struct TcaDescriptor {
     u8 lcmp2_vector_index {};
 };
 
+struct TcbDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 evctrl_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 status_address {};
+    u16 dbgctrl_address {};
+    u16 temp_address {};
+    u16 cnt_address {};
+    u16 ccmp_address {};
+
+    u8 vector_index {};
+};
+
 struct WdtDescriptor {
     u16 wdtcsr_address {};
     u8 wdtcsr_reset {0x00U};
@@ -615,6 +630,9 @@ struct DeviceDescriptor {
 
     u8 tca_count {0U};
     std::array<TcaDescriptor, 4> timers_tca {};
+
+    u8 tcb_count {0U};
+    std::array<TcbDescriptor, 4> timers_tcb {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};
