@@ -117,6 +117,18 @@ inline constexpr DeviceDescriptor atmega4809 {
             .dbgctrl_address = 0xAB8U, .temp_address = 0xAB9U, .cnt_address = 0xABAU,
             .ccmp_address = 0xABCU, .vector_index = 36U
         } }},
+
+    .rtc_count = 1U,
+    .timers_rtc = {{ {
+            .ctrla_address = 0x140U, .status_address = 0x141U,
+            .intctrl_address = 0x142U, .intflags_address = 0x143U,
+            .temp_address = 0x144U, .dbgctrl_address = 0x145U,
+            .clksel_address = 0x147U, .cnt_address = 0x148U,
+            .per_address = 0x14AU, .cmp_address = 0x14CU,
+            .pitctrla_address = 0x150U, .pitstatus_address = 0x151U,
+            .pitintctrl_address = 0x152U, .pitintflags_address = 0x153U,
+            .ovf_vector_index = 3U, .pit_vector_index = 4U
+        } }},
     
     .ext_interrupt_count = 0U,
     .ext_interrupts = {{  }},
