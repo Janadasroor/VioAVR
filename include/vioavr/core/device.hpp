@@ -350,9 +350,21 @@ struct NvmCtrlDescriptor {
     u16 status_address {};
     u16 intctrl_address {};
     u16 intflags_address {};
-    u16 addr_address {}; 
-    u16 data_address {}; 
+    u16 addr_address {};
+    u16 data_address {};
     u8 vector_index {};
+};
+
+struct Crc8xDescriptor {
+    u16 ctrla_address {};
+    u16 status_address {};
+    u16 data_address {};
+    u16 checksum_address {};
+};
+
+struct Wdt8xDescriptor {
+    u16 ctrla_address {};
+    u16 status_address {};
 };
 
 struct CpuIntDescriptor {
@@ -813,6 +825,12 @@ struct DeviceDescriptor {
 
     u8 wdt_count {0U};
     std::array<WdtDescriptor, 4> wdts {};
+
+    u8 wdt8x_count {0U};
+    std::array<Wdt8xDescriptor, 1> wdts8x {};
+
+    u8 crc8x_count {0U};
+    std::array<Crc8xDescriptor, 1> crcs8x {};
 
     u8 can_count {0U};
     std::array<CanDescriptor, 2> cans {};

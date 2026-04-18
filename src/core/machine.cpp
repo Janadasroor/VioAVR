@@ -29,6 +29,7 @@
 #include "vioavr/core/uart8x.hpp"
 #include "vioavr/core/spi8x.hpp"
 #include "vioavr/core/twi8x.hpp"
+#include "vioavr/core/wdt8x.hpp"
 
 namespace vioavr::core {
 
@@ -235,6 +236,14 @@ void Machine::initialize_peripherals()
     for (u8 i = 0; i < device_.wdt_count; ++i) {
         auto wdt = std::make_unique<WatchdogTimer>("WDT", device_.wdts[i], *cpu_);
         cpu_->set_watchdog_timer(wdt.get());
+        bus_->attach_peripheral(*wdt);
+        owned_peripherals_.push_back(std::move(wdt));
+    }
+
+    // Modern Watchdog (AVR8X)
+    for (u8 i = 0; i < device_.wdt8x_count; ++i) {
+        auto wdt = std::make_unique<Wdt8x>(device_.wdts8x[i], *cpu_);
+        // Link to CPU if needed (CPU might need a way to store multi-WDT pointers, but for now we link the last one)
         bus_->attach_peripheral(*wdt);
         owned_peripherals_.push_back(std::move(wdt));
     }
