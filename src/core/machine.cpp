@@ -40,6 +40,7 @@ Machine::Machine(const DeviceDescriptor& device)
       cpu_(std::make_unique<AvrCpu>(*bus_)),
       pin_mux_(std::make_unique<PinMux>(static_cast<u8>(device.port_count)))
 {
+    cpu_->set_trace_hook(&trace_mux_);
     initialize_peripherals();
     wire_peripherals();
 }
@@ -59,6 +60,50 @@ void Machine::reset(ResetCause cause) noexcept
     for (auto& p : owned_peripherals_) {
         p->reset();
     }
+}
+
+void Machine::enable_gdb(uint16_t port)
+{
+    if (!gdb_stub_) {
+        gdb_stub_ = std::make_unique<GdbStub>(*this);
+        trace_mux_.add_hook(gdb_stub_.get());
+    }
+    gdb_stub_->start(port);
+}
+
+void Machine::disable_gdb()
+{
+    if (gdb_stub_) {
+        gdb_stub_->stop();
+        trace_mux_.remove_hook(gdb_stub_.get());
+        gdb_stub_.reset();
+    }
+}
+
+void Machine::enable_trace_buffer(size_t capacity)
+{
+    if (trace_buffer_) {
+        disable_trace_buffer();
+    }
+    trace_buffer_ = std::make_unique<TraceBuffer>(capacity);
+    trace_buffer_->set_cpu(cpu_.get());
+    trace_mux_.add_hook(trace_buffer_.get());
+}
+
+void Machine::disable_trace_buffer()
+{
+    if (trace_buffer_) {
+        trace_mux_.remove_hook(trace_buffer_.get());
+        trace_buffer_.reset();
+    }
+}
+
+std::vector<CpuSnapshot> Machine::trace_history() const
+{
+    if (trace_buffer_) {
+        return trace_buffer_->snapshots();
+    }
+    return {};
 }
 
 GpioPort* Machine::get_port(std::string_view name) noexcept

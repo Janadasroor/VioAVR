@@ -22,6 +22,10 @@ struct PinMapping {
 
 class PinMap {
 public:
+    void add_mapping(std::string_view port_name, u8 bit_index, u32 external_id, std::string_view label = "") {
+        add_mapping(port_name, 0, bit_index, external_id, label);
+    }
+
     void add_mapping(std::string_view port_name, u16 pin_address, u8 bit_index, u32 external_id, std::string_view label = "") {
         const std::string key = make_key(port_name, bit_index);
         const u32 addr_key = (static_cast<u32>(pin_address) << 8) | bit_index;

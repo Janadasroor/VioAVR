@@ -3,6 +3,8 @@
 #include "vioavr/core/types.hpp"
 
 #include <string_view>
+#include <vector>
+#include <algorithm>
 
 namespace vioavr::core {
 
@@ -57,6 +59,47 @@ public:
      * @param vector The interrupt vector index being dispatched.
      */
     virtual void on_interrupt(u8 vector) = 0;
+};
+
+/**
+ * @brief Multiplexes multiple ITraceHook instances.
+ */
+class TraceMultiplexer final : public ITraceHook {
+public:
+    void add_hook(ITraceHook* hook) {
+        if (hook) hooks_.push_back(hook);
+    }
+
+    void remove_hook(ITraceHook* hook) {
+        hooks_.erase(std::remove(hooks_.begin(), hooks_.end(), hook), hooks_.end());
+    }
+
+    void on_instruction(u32 address, u16 opcode, std::string_view mnemonic) override {
+        for (auto* h : hooks_) h->on_instruction(address, opcode, mnemonic);
+    }
+
+    void on_register_write(u8 index, u8 value) override {
+        for (auto* h : hooks_) h->on_register_write(index, value);
+    }
+
+    void on_sreg_write(u8 value) override {
+        for (auto* h : hooks_) h->on_sreg_write(value);
+    }
+
+    void on_memory_read(u16 address, u8 value) override {
+        for (auto* h : hooks_) h->on_memory_read(address, value);
+    }
+
+    void on_memory_write(u16 address, u8 value) override {
+        for (auto* h : hooks_) h->on_memory_write(address, value);
+    }
+
+    void on_interrupt(u8 vector) override {
+        for (auto* h : hooks_) h->on_interrupt(vector);
+    }
+
+private:
+    std::vector<ITraceHook*> hooks_;
 };
 
 }  // namespace vioavr::core
