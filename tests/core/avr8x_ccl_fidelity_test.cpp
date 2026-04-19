@@ -145,3 +145,38 @@ TEST_CASE("AVR8X CCL - RS Latch Sequential Fidelity") {
     ccl->set_pin_input(1, 0, false);
     CHECK(ccl->get_seq_output(0) == false);
 }
+
+TEST_CASE("AVR8X CCL - TCA0 Gating Fidelity") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    // Load NOPs
+    std::vector<u16> program(1000, 0x0000);
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    // 1. Configure TCA0 to have CMP0 = 10, PER = 20.
+    // Single Slope PWM: WO0 is High when TCNT < CMP0
+    bus.write_data(0x0A26, 20); // PERL
+    bus.write_data(0x0A28, 10); // CMP0L
+    bus.write_data(0x0A00, 0x01); // ENABLE (CLKSEL=DIV1)
+    
+    // 2. Configure CCL LUT0: INSEL0 = TCA0 (0x07), Truth = 0x02 (Buffer IN0)
+    // pattern 001 -> bit 1 = 1.
+    bus.write_data(0x01CB, 0x02); 
+    bus.write_data(0x01C9, 0x07); // INSEL0 = TCA0
+    bus.write_data(0x01C8, 0x01); // LUT Enable
+    bus.write_data(0x01C0, 0x01); // CCL Enable
+
+    auto* ccl = machine.peripherals_of_type<Ccl>()[0];
+
+    // TCNT=0 -> Output=1
+    CHECK(ccl->get_lut_output(0) == true);
+    
+    // Tick 11 cycles
+    machine.run(11);
+    // TCNT should be 11 or close.
+    CHECK(ccl->get_lut_output(0) == false);
+}

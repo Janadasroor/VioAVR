@@ -6,7 +6,8 @@
 
 namespace vioavr::core {
 
-Ac8x::Ac8x(const Ac8xDescriptor& desc) noexcept : desc_(desc) {
+Ac8x::Ac8x(std::string name, const Ac8xDescriptor& desc) noexcept 
+    : name_(std::move(name)), desc_(desc) {
     ranges_[0] = {desc_.ctrla_address, static_cast<u16>(desc_.status_address)};
 }
  

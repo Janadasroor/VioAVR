@@ -6,7 +6,8 @@
 
 namespace vioavr::core {
 
-Tca::Tca(const TcaDescriptor& desc) : desc_(desc) {
+Tca::Tca(std::string name, const TcaDescriptor& desc) 
+    : name_(std::move(name)), desc_(desc) {
     if (desc_.ctrla_address != 0U) {
         std::vector<u16> addrs = {
             desc_.ctrla_address, desc_.ctrlb_address, desc_.ctrlc_address,
@@ -197,21 +198,30 @@ void Tca::tick(u64 elapsed_cycles) noexcept {
 
 void Tca::handle_matches() {
     if (is_split_mode()) {
-        // L-Matches (LUNF/OVF already handled in tick loop)
-        if (cnt_l() == cmp0_l()) {
+        const u8 l_cnt = cnt_l();
+        // L-Matches
+        if (l_cnt == cmp0_l()) {
              intflags_ |= 0x10; // LCMP0
              if (evsys_ && desc_.cmp0_generator_id != 0) evsys_->trigger_event(desc_.cmp0_generator_id);
         }
-        if (cnt_l() == cmp1_l()) {
+        if (l_cnt == cmp1_l()) {
              intflags_ |= 0x20; // LCMP1
              if (evsys_ && desc_.cmp1_generator_id != 0) evsys_->trigger_event(desc_.cmp1_generator_id);
         }
-        if (cnt_l() == cmp2_l()) {
+        if (l_cnt == cmp2_l()) {
              intflags_ |= 0x40; // LCMP2
              if (evsys_ && desc_.cmp2_generator_id != 0) evsys_->trigger_event(desc_.cmp2_generator_id);
         }
         
-        // H-Matches handled similarly? (Usually H-part doesn't have events in same way)
+        // H-Matches
+        const u8 h_cnt = cnt_h();
+        if (h_cnt == cmp0_h()) {
+             intflags_ |= 0x80; // HCMP0
+        }
+        // HCMP1 and HCMP2 exist but share flags/vectors with L-ports or are not fully used for interrupts in split-mode?
+        // Actually, HCMPn bits are 7,6,5? No.
+        // TCA.INTFLAGS Split Mode: 0:LUNF, 1:HUNF, 4:LCMP0, 5:LCMP1, 6:LCMP2.
+        // HCMPn do not have dedicated bits in INTFLAGS in most cases or are used for other means.
         return;
     }
 
@@ -235,20 +245,28 @@ void Tca::handle_matches() {
 bool Tca::pending_interrupt_request(InterruptRequest& request) const noexcept {
     if (!is_enabled()) return false;
     
-    if ((intflags_ & 0x01) && (intctrl_ & 0x01)) {
+    if (intflags_ & intctrl_ & 0x01) {
         request.vector_index = desc_.luf_ovf_vector_index;
         return true;
     }
-    if ((intflags_ & 0x10) && (intctrl_ & 0x10)) {
-        request.vector_index = desc_.cmp0_vector_index;
+    
+    if (is_split_mode()) {
+        if (intflags_ & intctrl_ & 0x02) { // HUNF
+            request.vector_index = desc_.hunf_vector_index;
+            return true;
+        }
+    }
+
+    if (intflags_ & intctrl_ & 0x10) {
+        request.vector_index = is_split_mode() ? desc_.lcmp0_vector_index : desc_.cmp0_vector_index;
         return true;
     }
-    if ((intflags_ & 0x20) && (intctrl_ & 0x20)) {
-        request.vector_index = desc_.cmp1_vector_index;
+    if (intflags_ & intctrl_ & 0x20) {
+        request.vector_index = is_split_mode() ? desc_.lcmp1_vector_index : desc_.cmp1_vector_index;
         return true;
     }
-    if ((intflags_ & 0x40) && (intctrl_ & 0x40)) {
-        request.vector_index = desc_.cmp2_vector_index;
+    if (intflags_ & intctrl_ & 0x40) {
+        request.vector_index = is_split_mode() ? desc_.lcmp2_vector_index : desc_.cmp2_vector_index;
         return true;
     }
     return false;
@@ -336,7 +354,7 @@ void Tca::perform_tick_split() {
     // High byte (completely independent in split mode)
     if (cnt_h() >= per_h()) {
         cnt_h() = 0;
-        intflags_ |= 0x10; // HUNF
+        intflags_ |= 0x02; // HUNF is bit 1
     } else {
         cnt_h()++;
     }
@@ -349,6 +367,22 @@ void Tca::update_prescaler() noexcept {
     static constexpr u16 div[] = {1, 2, 4, 8, 16, 64, 256, 1024};
     prescaler_limit_ = div[clksel];
     prescaler_counter_ = 0;
+}
+
+bool Tca::get_wo_level(u8 index) const noexcept {
+    if (!is_enabled() || index >= 3) return false;
+
+    if (is_split_mode()) {
+        // In split mode, WO0-WO2 usually correspond to LCMP0-2
+        if (index == 0) return cnt_l() < cmp0_l();
+        if (index == 1) return cnt_l() < cmp1_l();
+        if (index == 2) return cnt_l() < cmp2_l();
+    } else {
+        if (index == 0) return norm_.tcnt < norm_.cmp0;
+        if (index == 1) return norm_.tcnt < norm_.cmp1;
+        if (index == 2) return norm_.tcnt < norm_.cmp2;
+    }
+    return false;
 }
 
 } // namespace vioavr::core

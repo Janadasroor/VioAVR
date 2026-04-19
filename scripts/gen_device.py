@@ -172,7 +172,10 @@ def generate_header(data, header_path):
     for k in groups: groups[k].sort()
 
     # 3. Memories
-    sram = next((m for m in data['memories'].get('data', []) if m['type'] == 'ram'), {'size': 0})
+    sram = next((m for m in data['memories'].get('ram', []) + data['memories'].get('data', []) if m['type'] == 'ram'), {'size': 0, 'start': 0})
+    sram_bytes = sram['size']
+    sram_start = sram['start']
+    
     flash = next((m for m in data['memories'].get('prog', []) if m['type'] == 'flash'), {'size': 0})
     eeprom_search = data['memories'].get('eeprom', [])
     if not eeprom_search:
@@ -1057,7 +1060,8 @@ namespace vioavr::core::devices {{
 inline constexpr DeviceDescriptor {safe_name} {{
     .name = "{name}",
     .flash_words = {flash['size'] // 2}U,
-    .sram_bytes = {sram['size']}U,
+    .sram_bytes = {sram_bytes}U,
+    .sram_start = {hx(sram_start)},
     .eeprom_bytes = {eeprom['size']}U,
     .interrupt_vector_count = {len(data['interrupts'])}U,
     .interrupt_vector_size = {4 if flash['size'] > 4096 else 2}U,
@@ -1083,6 +1087,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .smcr_address = {hx(r_cpu('SMCR')['offset']) if r_cpu('SMCR') else '0x0U'},
     .mcusr_address = {hx(r_cpu('MCUSR')['offset']) if r_cpu('MCUSR') else '0x0U'},
     .mcucr_address = {hx(r_cpu('MCUCR')['offset']) if r_cpu('MCUCR') else '0x0U'},
+    .ccp_address = {hx(r_cpu('CCP')['offset']) if r_cpu('CCP') else '0x0U'},
     .pllcsr_address = {gen_pllcsr()},
     .xmcra_address = {hx(r_cpu('XMCRA')['offset']) if r_cpu('XMCRA') else '0x0U'},
     .xmcrb_address = {hx(r_cpu('XMCRB')['offset']) if r_cpu('XMCRB') else '0x0U'},

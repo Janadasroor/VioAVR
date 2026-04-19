@@ -726,6 +726,7 @@ struct DeviceDescriptor {
     std::string_view name {};
     u32 flash_words {};
     u16 sram_bytes {};
+    u16 sram_start {0U};
     u16 eeprom_bytes {};
     u8 interrupt_vector_count {};
     u8 interrupt_vector_size {2U};
@@ -752,6 +753,7 @@ struct DeviceDescriptor {
     u16 smcr_address {};
     u16 mcusr_address {};
     u16 mcucr_address {};
+    u16 ccp_address {0U};
     u16 pllcsr_address {};
     u16 xmcra_address {};
     u16 xmcrb_address {};
@@ -877,11 +879,13 @@ struct DeviceDescriptor {
 
     [[nodiscard]] constexpr u16 data_end_address() const noexcept
     {
+        if (sram_start != 0U) return static_cast<u16>(sram_start + sram_bytes - 1U);
         return static_cast<u16>(extended_io_range.end + sram_bytes);
     }
 
     [[nodiscard]] constexpr AddressRange sram_range() const noexcept
     {
+        if (sram_start != 0U) return { sram_start, data_end_address() };
         return {
             static_cast<u16>(extended_io_range.end + 1U),
             data_end_address()

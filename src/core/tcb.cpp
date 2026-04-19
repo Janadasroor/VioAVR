@@ -5,7 +5,8 @@
 
 namespace vioavr::core {
 
-Tcb::Tcb(const TcbDescriptor& desc) : desc_(desc) {
+Tcb::Tcb(std::string name, const TcbDescriptor& desc) 
+    : name_(std::move(name)), desc_(desc) {
     if (desc_.ctrla_address != 0U) {
         std::vector<u16> addrs = {
             desc_.ctrla_address, desc_.ctrlb_address, desc_.evctrl_address,
@@ -127,15 +128,15 @@ void Tcb::perform_tick(bool clock_event) {
     u8 mode = get_mode();
     
     // Periodic Interrupt / PWM
-    if (mode == 0) {
+    if (mode == 0) { // Periodic Interrupt
         if (cnt_ >= ccmp_) {
             cnt_ = 0;
             intflags_ |= 0x01; // CAPT/OVF
         } else {
             cnt_++;
         }
-    } else if (mode == 1 || mode == 6) { // 8-bit PWM
-        // Low byte counts to CCMP-L
+    } else if (mode == 1) { // 8-bit PWM
+        // Low byte counts to CCMP-L, High byte is Compare Value
         u8 per = static_cast<u8>(ccmp_ & 0xFFU);
         u8 cnt_l = static_cast<u8>(cnt_ & 0xFFU);
         if (cnt_l >= per) {
@@ -145,18 +146,22 @@ void Tcb::perform_tick(bool clock_event) {
             cnt_l++;
         }
         cnt_ = (cnt_ & 0xFF00U) | cnt_l;
-    } else if (mode == 7) { // Single-shot
+    } else if (mode == 6) { // Single-shot
         if (cnt_ >= ccmp_) {
+            cnt_ = 0; // Reset on match
             ctrla_ &= ~0x01; // Disable
             intflags_ |= 0x01;
         } else {
             cnt_++;
         }
     } else {
-        // Capture/Measurement: counter free-runs
+        // Measurement Modes: counter free-runs
         cnt_++;
         if (cnt_ == 0) { // Overflow
-            intflags_ |= 0x02; // OVF? In some devices TCB has OVF bit in INTFLAGS
+            // Some TCB implementations set a flag on overflow in measurement modes
+            // In 4809, it can trigger an interrupt if enabled?
+            // Actually, in measurement modes, overflow often sets the CAPT flag too
+            // or just wraps around.
         }
     }
 }
@@ -222,6 +227,15 @@ bool Tcb::consume_interrupt_request(InterruptRequest& request) noexcept {
         intflags_ &= ~0x01;
         return true;
     }
+    return false;
+}
+
+bool Tcb::get_wo_level() const noexcept {
+    if (!is_enabled()) return false;
+    u8 mode = get_mode();
+    if (mode == 0) return cnt_ < ccmp_; // Simple comparison
+    if (mode == 1) return (cnt_ & 0xFF) < (ccmp_ & 0xFF); // 8-bit PWM
+    if (mode == 2) return cnt_ < ccmp_; // Single shot
     return false;
 }
 

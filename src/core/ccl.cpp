@@ -1,5 +1,8 @@
 #include "vioavr/core/ccl.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/tca.hpp"
+#include "vioavr/core/tcb.hpp"
+#include "vioavr/core/ac8x.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -50,6 +53,7 @@ void Ccl::reset() noexcept {
     }
     std::fill(outputs_.begin(), outputs_.end(), false);
     std::fill(prev_outputs_.begin(), prev_outputs_.end(), false);
+    std::fill(prev_luts_in2_.begin(), prev_luts_in2_.end(), false);
     std::fill(seq_state_.begin(), seq_state_.end(), false);
 }
 
@@ -69,6 +73,17 @@ std::span<const AddressRange> Ccl::mapped_ranges() const noexcept {
     size_t count = 0;
     while (count < ranges_.size() && ranges_[count].begin != 0) count++;
     return {ranges_.data(), count};
+}
+
+void Ccl::set_memory_bus(MemoryBus* bus) noexcept {
+    bus_ = bus;
+    if (!bus_) return;
+
+    tca0_ = static_cast<Tca*>(bus_->get_peripheral_by_name("TCA0"));
+    for (int i = 0; i < 4; ++i) {
+        tcbs_[i] = static_cast<Tcb*>(bus_->get_peripheral_by_name("TCB" + std::to_string(i)));
+    }
+    ac0_ = static_cast<Ac8x*>(bus_->get_peripheral_by_name("AC0"));
 }
 
 u8 Ccl::read(u16 address) noexcept {
@@ -135,8 +150,16 @@ bool Ccl::compute_lut(u8 index) const noexcept {
             case 0x01: // FEEDBACK
                 in[j] = outputs_[index];
                 break;
+            case 0x06: // AC
+                if (ac0_) in[j] = ac0_->get_state();
+                break;
+            case 0x07: // TCA
+                if (tca0_) in[j] = tca0_->get_wo_level(j);
+                break;
+            case 0x08: // TCB
+                if (tcbs_[index]) in[j] = tcbs_[index]->get_wo_level();
+                break;
             default:
-                // TODO: AC, EVSYS, TC sources
                 in[j] = false;
                 break;
         }
@@ -165,17 +188,22 @@ void Ccl::update_logic() noexcept {
         u8 mode = seqctrl_[s] & 0x07;
         if (mode == 0) continue;
 
-        bool in0 = outputs_[s * 2];
-        bool in1 = outputs_[s * 2 + 1];
-        bool prev_in1 = prev_outputs_[s * 2 + 1];
+        bool in0 = outputs_[s * 2 + 1]; // Input 0 = LUT(2n+1)
+        bool in1 = outputs_[s * 2];     // Input 1 = LUT(2n)
+        bool in2 = luts_[s * 2].inputs[2]; // Input 2 = IN2 of LUT(2n)
+
+        bool prev_in1 = prev_outputs_[s * 2];
         bool rising_edge_in1 = in1 && !prev_in1;
+        
+        bool prev_in2 = prev_luts_in2_[s];
+        bool rising_edge_in2 = in2 && !prev_in2;
         
         switch (mode) {
             case 0x01: // D Flip-Flop
                 if (rising_edge_in1) seq_state_[s] = in0;
                 break;
             case 0x02: // JK Flip-Flop
-                if (rising_edge_in1) {
+                if (rising_edge_in2) {
                     bool J = in0;
                     bool K = in1;
                     if (J && !K) seq_state_[s] = true;
@@ -189,10 +217,12 @@ void Ccl::update_logic() noexcept {
             case 0x04: // RS Latch
                 if (in0 && !in1) seq_state_[s] = true;
                 else if (!in0 && in1) seq_state_[s] = false;
-                else if (in0 && in1) seq_state_[s] = false; // Reset wins
+                // if both are 1, state is unchanged or reset? Datasheet: "S=1, R=1 Reset wins"
+                else if (in0 && in1) seq_state_[s] = false; 
                 break;
             default: break;
         }
+        prev_luts_in2_[s] = in2;
     }
 
     // Interrupts & Output Synchronization
