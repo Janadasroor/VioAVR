@@ -1,5 +1,7 @@
 set(CORE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
 
+find_package(Threads REQUIRED)
+
 add_library(vioavr_core STATIC)
 add_library(VioAVR::core ALIAS vioavr_core)
 
@@ -54,7 +56,7 @@ target_sources(vioavr_core
         psc.cpp
         dac.cpp
         nvm_ctrl.cpp
-    cpu_int.cpp
+        cpu_int.cpp
 )
 
 target_include_directories(vioavr_core
@@ -68,4 +70,5 @@ target_compile_features(vioavr_core PUBLIC cxx_std_20)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(vioavr_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
-target_link_libraries(vioavr_core PRIVATE rt pthread)
+
+target_link_libraries(vioavr_core PRIVATE rt Threads::Threads)

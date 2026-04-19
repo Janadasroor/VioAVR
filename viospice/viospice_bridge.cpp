@@ -1,14 +1,13 @@
+#include "ngspice/cm.h"
 #include "vioavr/core/bridge_shm_client.hpp"
-#include <ngspice/cm.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
 
 using namespace vioavr::core;
 
-/* XSPICE Entry Point */
 extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     BridgeShmClient* bridge;
+    double vref = 5.0;
     
     /* Initialization */
     if (mif_private->circuit.init) {
@@ -39,6 +38,9 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
 
     if (!bridge || !bridge->is_connected()) return;
 
+    /* Get vref from parameters */
+    vref = mif_private->param[3]->element[0].rvalue;
+
     /* Simulation Step */
     
     /* 1. Collect inputs from SPICE */
@@ -58,7 +60,9 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     uint32_t analog_vec_size = mif_private->conn[1]->size;
     for (uint32_t i = 0; i < analog_vec_size; i++) {
         Mif_Port_Data_t *port_data = mif_private->conn[1]->port[i];
-        bridge->set_analog_input(i, (float)port_data->input.rvalue);
+        // Normalize voltage relative to vref for the internal ADC
+        float norm_v = (float)(port_data->input.rvalue / vref);
+        bridge->set_analog_input(i, norm_v);
     }
 
     /* 2. Run Bridge */
@@ -68,6 +72,7 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     }
 
     /* 3. Deliver Outputs back to SPICE */
+    /* Digital Outputs */
     for (uint32_t i = 0; i < digital_vec_size; i++) {
         Mif_Port_Data_t *port_data = mif_private->conn[0]->port[i];
         bool level = bridge->get_digital_output(i);
@@ -80,6 +85,16 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
                 digital_val->strength = STRONG;
                 port_data->changed = MIF_TRUE;
             }
+        }
+    }
+
+    /* Analog Outputs (DAC) */
+    if (mif_private->conn_size > 2) {
+        uint32_t dac_vec_size = mif_private->conn[2]->size;
+        for (uint32_t i = 0; i < dac_vec_size; i++) {
+            Mif_Port_Data_t *port_data = mif_private->conn[2]->port[i];
+            double voltage = bridge->get_analog_output(i);
+            port_data->output.rvalue = voltage * vref;
         }
     }
     

@@ -11,65 +11,61 @@
 
 #include <memory>
 #include <string_view>
+#include <vector>
+#include <unordered_map>
+#include <optional>
 
 namespace vioavr::core {
 
+class Dac;
+class GpioPort;
+
 /**
  * @brief High-level bridge for ngspice/XSPICE integration.
- * Manages CPU, Memory, Sync, and Pin Mapping in one unit.
  */
 class VioSpice {
 public:
     VioSpice(const DeviceDescriptor& device);
     ~VioSpice() = default;
 
-    // Configuration
     void set_pin_map(std::unique_ptr<PinMap> pin_map);
     void add_pin_mapping(std::string_view port_name, u8 bit_index, u32 external_id, std::string_view label = "");
     void add_trace_hook(ITraceHook* hook);
     void set_quantum(u64 cycles);
     void set_frequency(double hz);
     
-    // Lifecycle
     bool load_hex(std::string_view path);
     void reset();
 
-    // Simulation Step (Called by SPICE)
     void step_duration(double seconds);
     void tick_timer2_async(u64 ticks);
     
-    // External Signal Injection (From SPICE nodes to AVR pins)
     void set_external_pin(u32 external_id, PinLevel level);
     void set_external_voltage(u8 channel, double normalized_voltage);
 
-    // Get changes to publish back to SPICE
     std::vector<PinStateChange> consume_pin_changes();
-
-    // Mapping helper
     [[nodiscard]] std::optional<u32> get_external_id(std::string_view port_name, u8 bit_index) const;
+    std::vector<double> get_analog_outputs();
 
-    // Accessors
     [[nodiscard]] AvrCpu& cpu() noexcept { return cpu_; }
     [[nodiscard]] MemoryBus& bus() noexcept { return bus_; }
     [[nodiscard]] AnalogSignalBank& analog_signal_bank() noexcept { return analog_signal_bank_; }
-    [[nodiscard]] PinMux& pin_mux() noexcept { return pin_mux_; }
 
 private:
-    [[nodiscard]] bool is_timer2_async_input(std::string_view port_name, u8 bit_index) const noexcept;
-
     PinMux pin_mux_;
     MemoryBus bus_;
     AvrCpu cpu_;
     AnalogSignalBank analog_signal_bank_;
     Timer8* timer2_ {};
+    std::vector<Dac*> dacs_;
+    std::vector<GpioPort*> ports_;
+    std::unordered_map<std::string, GpioPort*> port_map_;
+    
     PinChangeInterruptSharedState pcint_shared_state_ {};
-    bool timer2_async_input_high_ {};
     std::unique_ptr<PinMap> pin_map_;
-    std::unique_ptr<SyncEngine> sync_;
     TraceMultiplexer trace_mux_;
     u64 quantum_ {1000};
     double frequency_ {16000000.0};
-    double time_accumulator_ {0.0};
 };
 
 } // namespace vioavr::core

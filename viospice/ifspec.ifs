@@ -17,31 +17,34 @@ Vector_Bounds:         [24 24]
 
 PORT_TABLE:
 Port_Name:             avr_analog_pins
-Description:           "AVR Analog Inputs (mapped to ADC or Digital Thresholds)"
+Description:           "AVR Analog Inputs (mapped to ADC)"
 Direction:             in
 Default_Type:          v
 Allowed_Types:         [v]
 Vector:                yes
 Vector_Bounds:         [24 24]
 
+PORT_TABLE:
+Port_Name:             avr_dac_pins
+Description:           "AVR DAC Outputs"
+Direction:             out
+Default_Type:          v
+Allowed_Types:         [v]
+Vector:                yes
+Vector_Bounds:         [1 8]
+
 PARAMETER_TABLE:
 Parameter_Name:        hex_file
 Description:           "Path to firmware HEX file"
 Data_Type:             string
 Default_Value:         "firmware.hex"
-Limits:                -
-Vector:                no
-Vector_Bounds:         -
 Null_Allowed:          no
 
 PARAMETER_TABLE:
 Parameter_Name:        mcu_type
-Description:           "Target MCU (atmega328, atmega328pb, atmega8)"
+Description:           "Target MCU (main_mcu)"
 Data_Type:             string
 Default_Value:         "atmega328"
-Limits:                -
-Vector:                no
-Vector_Bounds:         -
 Null_Allowed:          no
 
 PARAMETER_TABLE:
@@ -49,9 +52,13 @@ Parameter_Name:        frequency
 Description:           "CPU Clock Frequency in Hz"
 Data_Type:             real
 Default_Value:         16e6
-Limits:                [1e3 100e6]
-Vector:                no
-Vector_Bounds:         -
+Null_Allowed:          no
+
+PARAMETER_TABLE:
+Parameter_Name:        vref
+Description:           "Voltage reference for ADC/DAC (default 5.0)"
+Data_Type:             real
+Default_Value:         5.0
 Null_Allowed:          no
 
 PARAMETER_TABLE:
@@ -59,7 +66,5 @@ Parameter_Name:        quantum_cycles
 Description:           "Synchronization quantum in CPU cycles"
 Data_Type:             int
 Default_Value:         1000
-Limits:                [1 1000000]
-Vector:                no
-Vector_Bounds:         -
 Null_Allowed:          no
+ village

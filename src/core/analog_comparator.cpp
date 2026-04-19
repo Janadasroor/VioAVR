@@ -160,7 +160,7 @@ void AnalogComparator::refresh_bound_inputs() noexcept {
     // Resolve Positive Input
     switch(mux) {
         case 3: positive_input_ = bandgap; break;
-        case 4: if (dac_) positive_input_ = dac_->output_voltage(); break;
+        case 4: if (dac_) positive_input_ = dac_->voltage(); break;
         case 6: // ADC Mux output (Positive)
             // Note: Adc class needs a getter for current mux voltage
             // For now, positive_input_ remains unchanged or uses a pin
@@ -174,7 +174,7 @@ void AnalogComparator::refresh_bound_inputs() noexcept {
     switch(mux) {
         case 0: if (signal_bank_) negative_input_ = signal_bank_->voltage(negative_channel_); break;
         case 1: negative_input_ = bandgap; break;
-        case 2: if (dac_) negative_input_ = dac_->output_voltage(); break;
+        case 2: if (dac_) negative_input_ = dac_->voltage(); break;
         case 5: // ADC Mux output (Negative)
             break;
         default: // 3, 4, 6

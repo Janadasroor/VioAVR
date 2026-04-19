@@ -138,6 +138,12 @@ void BridgeShmServer::handle_step() {
         avr_.set_external_voltage(i, shm_->analog_inputs[i]);
     }
 
+    // Direct analog outputs (DAC)
+    auto analog_outs = avr_.get_analog_outputs();
+    for (size_t i = 0; i < analog_outs.size() && i < 32; ++i) {
+        shm_->analog_outputs[i] = analog_outs[i];
+    }
+
     // 2. Step the CPU
     if (shm_->clock_frequency > 0) {
         avr_.set_frequency(shm_->clock_frequency);
