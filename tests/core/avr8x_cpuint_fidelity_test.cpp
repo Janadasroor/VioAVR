@@ -61,6 +61,11 @@ TEST_CASE("AVR8X CPUINT Fidelity Test") {
         bool pending_ = false;
     };
 
+    // Ensure CPU is in running state so clock domains are active
+    u16 dummy_code[] = { 0x0000, 0x0000 };
+    bus.load_flash(dummy_code);
+    machine.cpu().reset();
+
     MockPeripheral low_vec("LOW_VEC", 20);
     MockPeripheral high_vec("HIGH_VEC", 27);
     bus.attach_peripheral(low_vec);
@@ -128,5 +133,76 @@ TEST_CASE("AVR8X CPUINT Fidelity Test") {
         bool consumed = bus.consume_interrupt_request(req, 0xFF);
         CHECK(consumed);
         CHECK(req.vector_index == 27);
+    }
+
+    SUBCASE("Compact Vector Table (CVT) Addressing") {
+        // Default: Vector index 20 (TCA0_OVF) with vector size 4
+        // Address: 20 * 2 = 40 (word address)
+        u32 addr_normal = machine.cpu().interrupt_vector_word_address(20);
+        CHECK(addr_normal == 40);
+
+        // Enable CVT (Bit 5 of CTRLA)
+        bus.write_data(CPUINT_CTRLA, 0x20);
+        
+        // CVT=1: Vector size is 2 bytes (1 word)
+        // Address: 20 * 1 = 20 (word address)
+        u32 addr_cvt = machine.cpu().interrupt_vector_word_address(20);
+        CHECK(addr_cvt == 20);
+    }
+
+    SUBCASE("Vector Select (IVSEL) Addressing") {
+        // Enable IVSEL (Bit 6 of CTRLA)
+        // Device boot_start_address is 0x4000
+        bus.write_data(CPUINT_CTRLA, 0x40);
+        
+        u32 addr_ivsel = machine.cpu().interrupt_vector_word_address(20);
+        // Address: 0x4000 + (20 * 2) = 0x4028
+        CHECK(addr_ivsel == 0x4028);
+
+        // Combine with CVT
+        bus.write_data(CPUINT_CTRLA, 0x60); // CVT=1, IVSEL=1
+        u32 addr_both = machine.cpu().interrupt_vector_word_address(20);
+        // Address: 0x4000 + (20 * 1) = 0x4014
+        CHECK(addr_both == 0x4014);
+    }
+
+    SUBCASE("Level 1 Preemption and STATUS bits") {
+        // Set vector 27 to Level 1
+        bus.write_data(CPUINT_LVL1VEC, 27);
+        
+        // Trigger Level 0 (Vector 20)
+        low_vec.trigger();
+        
+        InterruptRequest req;
+        // Step 1: Consume Level 0
+        machine.cpu().set_flag(SregFlag::interrupt, true);
+        bool served = machine.cpu().service_interrupt_if_needed();
+        CHECK(served);
+        
+        // STATUS should be 0x01 (Level 0 Executing)
+        CHECK(bus.read_data(CPUINT_STATUS) == 0x01);
+        
+        // Trigger Level 1 (Vector 27)
+        high_vec.trigger();
+        
+        // Step 2: Consume Level 1 (Simulating preemption)
+        machine.cpu().set_flag(SregFlag::interrupt, true);
+        served = machine.cpu().service_interrupt_if_needed();
+        CHECK(served);
+        
+        // STATUS should be 0x03 (Both Level 1 and Level 0 Executing)
+        CHECK(bus.read_data(CPUINT_STATUS) == 0x03);
+        
+        // Step 3: Execute RETI (Returns from Level 1)
+        machine.cpu().execute_reti({});
+        
+        // STATUS should go back to 0x01
+        CHECK(bus.read_data(CPUINT_STATUS) == 0x01);
+        
+        // Step 4: Execute RETI again (Returns from Level 0)
+        machine.cpu().execute_reti({});
+        
+        // STATUS should be 0x00
+        CHECK(bus.read_data(CPUINT_STATUS) == 0x00);
     }
 }

@@ -36,6 +36,14 @@ public:
         last_ack_vector_ = vector_index;
     }
 
+    void on_reti() noexcept {
+        if ((status_ & 0x02U) != 0) {
+            status_ &= ~0x02U; // Clear LVL1EX
+        } else {
+            status_ &= ~0x01U; // Clear LVL0EX
+        }
+    }
+
     [[nodiscard]] u8 lvl0_priority_vector() const noexcept { return lvl0pri_; }
     [[nodiscard]] bool round_robin_enabled() const noexcept { return (ctrla_ & 0x01U) != 0; }
     [[nodiscard]] bool compact_vector_table() const noexcept { return (ctrla_ & 0x20U) != 0; }

@@ -221,7 +221,6 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
         if (peripheral != nullptr) {
             const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
             if ((domain_mask & active_domains) != 0 || domain_mask == 0) {
-                Logger::debug("MemoryBus: Ticking peripheral " + std::string(peripheral->name()));
                 peripheral->tick(elapsed_cycles);
             }
         }

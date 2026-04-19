@@ -589,6 +589,26 @@ bool AvrCpu::service_interrupt_if_needed()
     return true;
 }
 
+u32 AvrCpu::interrupt_vector_word_address(u8 vector_index) const noexcept
+{
+    u8 vec_size = bus_->device().interrupt_vector_size;
+    u32 base_addr = 0;
+
+    if (auto* cpu_int = bus_->cpu_int()) {
+        if (cpu_int->compact_vector_table()) {
+            vec_size = 2;
+        }
+        if (cpu_int->ivsel()) {
+            // On AVR8X, IVSEL typically moves vectors to the start of the boot section.
+            // We use the boot_start_address from the device descriptor if available.
+            base_addr = bus_->device().boot_start_address;
+        }
+    }
+
+    // interrupt_vector_size is in bytes, convert to words
+    return base_addr + static_cast<u32>(vector_index * (vec_size / 2U));
+}
+
 void AvrCpu::set_flag(const SregFlag flag_bit, const bool value) noexcept
 {
     const u8 mask = static_cast<u8>(1U << static_cast<u8>(flag_bit));
@@ -1780,8 +1800,7 @@ void AvrCpu::execute_reti(const DecodedInstruction& instruction)
     }
 
     if (auto* cpu_int = bus_->cpu_int()) {
-        cpu_int->set_executing_lvl1(false);
-        cpu_int->set_executing_lvl0(false);
+        cpu_int->on_reti();
     }
 
     interrupt_delay_ = 1U;
