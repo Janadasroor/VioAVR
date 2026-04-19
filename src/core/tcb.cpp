@@ -1,5 +1,6 @@
 #include "vioavr/core/tcb.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/evsys.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -71,6 +72,8 @@ void Tcb::write(u16 address, u8 value) noexcept {
         ctrla_ = value;
     } else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
+    } else if (address == desc_.evctrl_address) {
+        evctrl_ = value;
     } else if (address == desc_.intctrl_address) {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
@@ -103,14 +106,46 @@ void Tcb::handle_matches() {
 }
 
 void Tcb::perform_tick() {
-    if (get_mode() == 0) { // Periodic Interrupt
+    u8 mode = get_mode();
+    if (mode == 0) { // Periodic Interrupt
         if (cnt_ == ccmp_) {
             cnt_ = 0;
         } else {
             cnt_++;
         }
+    } else if (mode == 7) { // Single-shot
+        if (cnt_ == ccmp_) {
+            ctrla_ &= ~0x01; // Disable
+            intflags_ |= 0x01;
+        } else {
+            cnt_++;
+        }
     } else {
-        cnt_++; // Default behavior
+        // Capture/Measurement modes: counter usually free-runs or is reset by event
+        cnt_++;
+    }
+}
+
+void Tcb::set_event_system(EventSystem* evsys) noexcept {
+    evsys_ = evsys;
+    if (evsys_ && desc_.user_event_address != 0) {
+        // Calculate user index from address relative to EVSYS users base
+        u8 user_index = static_cast<u8>(desc_.user_event_address - evsys_->users_base());
+        evsys_->register_user_callback(user_index, [this]() { on_event(); });
+    }
+}
+
+void Tcb::on_event() noexcept {
+    if (!is_enabled()) return;
+    if (!(evctrl_ & 0x01)) return; // CAPTEI
+
+    u8 mode = get_mode();
+    if (mode == 2 || mode == 3) { // Capture or Frequency Measurement
+        ccmp_ = cnt_;
+        intflags_ |= 0x01; // CAPT
+        if (mode == 3) {
+            cnt_ = 0; // Reset on capture
+        }
     }
 }
 

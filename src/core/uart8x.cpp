@@ -55,17 +55,37 @@ void Uart8x::reset() noexcept {
     rx_fifo_read_idx_ = 0;
     rx_fifo_write_idx_ = 0;
     tx_in_progress_ = false;
+    tx_data_busy_ = false;
     tx_cycles_elapsed_ = 0;
     tx_duration_ = 160U;
 }
 
 void Uart8x::tick(u64 elapsed_cycles) noexcept {
-    if (tx_in_progress_) {
-        tx_cycles_elapsed_ += elapsed_cycles;
-        if (tx_cycles_elapsed_ >= tx_duration_) {
-            tx_in_progress_ = false;
-            status_ |= STATUS_DREIF;
-            status_ |= STATUS_TXCIF;
+    for (u64 i = 0; i < elapsed_cycles; ++i) {
+        // 1. Move from Data Register to Shift Register if shift register is idle
+        if (!tx_in_progress_ && tx_data_busy_) {
+            tx_in_progress_ = true;
+            tx_data_busy_ = false;
+            tx_cycles_elapsed_ = 0;
+            status_ |= STATUS_DREIF; // Data register now empty
+            
+            u8 samples_per_bit = 16;
+            u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
+            if (rxmode == 0x01) samples_per_bit = 8;
+            if (baud_ > 0) {
+                tx_duration_ = (static_cast<u64>(baud_) * samples_per_bit * 10ULL) / 64ULL;
+            } else {
+                tx_duration_ = 160U;
+            }
+        }
+
+        // 2. Progress the shift register
+        if (tx_in_progress_) {
+            tx_cycles_elapsed_++;
+            if (tx_cycles_elapsed_ >= tx_duration_) {
+                tx_in_progress_ = false;
+                status_ |= STATUS_TXCIF;
+            }
         }
     }
 }
@@ -114,23 +134,10 @@ void Uart8x::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.txdata_address) {
         if (ctrlb_ & CTRLB_TXEN) {
-            status_ &= ~(STATUS_DREIF | STATUS_TXCIF);
-            tx_in_progress_ = true;
-            tx_cycles_elapsed_ = 0;
-            
-            // Mega-0 Baud formula: f_baud = 64 * f_clk / (S * BAUD)
-            // Cycles per bit = f_clk / f_baud = (S * BAUD) / 64
-            // Duration for 10 bits = 10 * S * BAUD / 64
-            u8 samples_per_bit = 16;
-            u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
-            if (rxmode == 0x01) samples_per_bit = 8; // Double speed
-            
-            if (baud_ > 0) {
-                // S * BAUD * 10 / 64
-                tx_duration_ = (static_cast<u64>(baud_) * samples_per_bit * 10ULL) / 64ULL;
-            } else {
-                tx_duration_ = 160U;
-            }
+            // Write to Data Register
+            tx_data_busy_ = true;
+            status_ &= ~STATUS_DREIF; // Data register now full
+            status_ &= ~STATUS_TXCIF; // Start of new frame clears TXC
         }
     }
     else if (address == desc_.dbgctrl_address) dbgctrl_ = value;

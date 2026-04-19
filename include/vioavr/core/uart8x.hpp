@@ -51,6 +51,7 @@ private:
     u8 rx_fifo_write_idx_{0};
 
     bool tx_in_progress_{false};
+    bool tx_data_busy_{false};
     u64 tx_cycles_elapsed_{0};
     u64 tx_duration_{160U};
 
