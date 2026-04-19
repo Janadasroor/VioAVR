@@ -1,48 +1,83 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
+#include "vioavr/core/machine.hpp"
+#include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/twi8x.hpp"
-#include "vioavr/core/avr_cpu.hpp"
-#include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega4809.hpp"
 
 using namespace vioavr::core;
-using namespace vioavr::core::devices;
 
-TEST_CASE("AVR8X TWI8X - Bit Timing Fidelity") {
-    // 4809 TWI0 is at 0x480
-    Twi8xDescriptor desc = {
-        .mctrla_address = 0x480,
-        .mctrlb_address = 0x481,
-        .mstatus_address = 0x482,
-        .mbaud_address = 0x483,
-        .maddr_address = 0x484,
-        .mdata_address = 0x485
-    };
-    
-    // We need a dummy CPU for the TWI constructor if it takes one?
-    // Actually Twi8x doesn't take CPU in constructor
-    Twi8x twi{desc};
-    twi.reset();
+TEST_CASE("AVR8X TWI - Master Address Timing") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    REQUIRE(device != nullptr);
 
-    // 1. Enable Master
-    twi.write(0x480, 0x01U); // ENABLE=1
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 twi0_mctrla = 0x08A3;
+    const u16 twi0_mstatus = 0x08A5;
+    const u16 twi0_mbaud = 0x08A6;
+    const u16 twi0_maddr = 0x08A7;
     
-    // 2. Set BAUD (e.g. 10 -> approx 100kbps @ 16MHz)
-    twi.write(0x483, 10);
+    // 1. Enable TWI Master and set Bus State to IDLE (0x01 in bits 1:0 of MSTATUS)
+    bus.write_data(twi0_mctrla, 0x01); // MCTRLA.ENABLE = 1
+    // Force Bus Idle
+    bus.write_data(twi0_mstatus, 0x01); // MSTATUS.BUSSTATE = IDLE
     
-    // 3. Set ADDR to start transfer
-    twi.write(0x484, 0xA0U); // Write to address 0x50
+    // 2. Set MBAUD
+    bus.write_data(twi0_mbaud, 10);
     
-    // TWI state should move to BUSY
-    // 9 bits * (baud_cycles)
-    // Approx (10*2 + 10) cycles per bit? Depends on implementation.
-    // In our high-fidelity Twi8x, it's roughly (BAUD + 1) per half-phase.
+    // 3. Write Address (0x42 << 1 | 0) = 0x84 to initiate Write transmission
+    bus.write_data(twi0_maddr, 0x84); 
     
-    // Let's tick 50 cycles. Flag should NOT be set.
-    twi.tick(50);
-    CHECK((twi.read(0x482) & 0x40U) == 0U); // WIF (bit 6) should be 0
+    // Check initial state
+    CHECK((bus.read_data(twi0_mstatus) & 0x03) == 0x02); // BUSSTATE = OWNER
+    CHECK((bus.read_data(twi0_mstatus) & 0x60) == 0x00); // No WIF/RIF
     
-    // Tick 1000 cycles. Flag should be set.
-    twi.tick(1000);
-    CHECK((twi.read(0x482) & 0x40U) != 0U); // WIF should be 1
+    // Expected duration: 2 * (10 + MBAUD) per bit. 
+    // Total 9 bits (Addr + ACK) = 9 * 2 * (10 + 10) = 360 cycles.
+    bus.tick_peripherals(300);
+    CHECK((bus.read_data(twi0_mstatus) & 0x60) == 0x00);
+    
+    bus.tick_peripherals(100);
+    CHECK((bus.read_data(twi0_mstatus) & 0x40) != 0); // WIF (Write Interrupt Flag)
+    CHECK((bus.read_data(twi0_mstatus) & 0x20) != 0); // CLKHOLD
+}
+
+TEST_CASE("AVR8X TWI - Slave Address Match") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 twi0_sctrla = 0x08A9;
+    const u16 twi0_saddr = 0x08AC;
+    const u16 twi0_sstatus = 0x08AB;
+
+    auto* twi = machine.peripherals_of_type<Twi8x>()[0];
+
+    // 1. Enable TWI Slave with address 0x55
+    bus.write_data(twi0_saddr, 0x55 << 1);
+    bus.write_data(twi0_sctrla, 0x01); // SCTRLA.ENABLE = 1
+
+    // 2. Simulate Master on bus addressing 0x55 (Write)
+    twi->inject_bus_address(0x55 << 1 | 0x00);
+    
+    // Check flags
+    u8 status = bus.read_data(twi0_sstatus);
+    CHECK((status & 0x40) != 0); // APIF (Addr/Stop Interrupt)
+    CHECK((status & 0x01) != 0); // AP (Addressed)
+    CHECK((status & 0x02) == 0); // DIR = Write
+    CHECK((status & 0x20) != 0); // CLKHOLD
+
+    // 3. Test Masking (Mask bit 0 of address => match 0x54 and 0x55)
+    // SADDRMASK is 0x08AE. Bits 7:1 are mask.
+    bus.write_data(0x08AE, 0x01 << 1); // Mask out bit 1 of full byte (bit 0 of address)
+    
+    // Clear status
+    bus.write_data(twi0_sstatus, 0xC0); 
+    
+    // Address 0x54
+    twi->inject_bus_address(0x54 << 1 | 0x00);
+    CHECK((bus.read_data(twi0_sstatus) & 0x01) != 0); // Still addressed!
 }

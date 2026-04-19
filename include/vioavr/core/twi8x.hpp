@@ -23,6 +23,12 @@ public:
     virtual bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    // External Bus Interface (for multi-peripheral simulation)
+    void inject_bus_start() noexcept;
+    void inject_bus_address(u8 address) noexcept;
+    void inject_bus_data(u8 data) noexcept;
+    void inject_bus_stop() noexcept;
+
 private:
     const Twi8xDescriptor desc_;
     std::array<AddressRange, 4> ranges_{};
