@@ -160,16 +160,16 @@ inline constexpr DeviceDescriptor atmega4809 {
             .lut_count = 4U,
             .luts = { {
                 .ctrla_address = 0x1C8U, .ctrlb_address = 0x1C9U,
-                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU
+                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU, .generator_id = 24
             }, {
                 .ctrla_address = 0x1CCU, .ctrlb_address = 0x1CDU,
-                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU
+                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU, .generator_id = 25
             }, {
                 .ctrla_address = 0x1D0U, .ctrlb_address = 0x1D1U,
-                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U
+                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U, .generator_id = 26
             }, {
                 .ctrla_address = 0x1D4U, .ctrlb_address = 0x1D5U,
-                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U
+                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U, .generator_id = 27
             }, {0}, {0}, {0}, {0} },
             .vector_index = 0U
         },

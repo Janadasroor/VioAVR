@@ -250,10 +250,12 @@ bool Tcb::consume_interrupt_request(InterruptRequest& request) noexcept {
 bool Tcb::get_wo_level() const noexcept {
     if (!is_enabled()) return false;
     u8 mode = get_mode();
-    if (mode == 0) return cnt_ < ccmp_; // Simple comparison
-    if (mode == 1) return (cnt_ & 0xFF) < (ccmp_ & 0xFF); // 8-bit PWM
-    if (mode == 2) return cnt_ < ccmp_; // Single shot
-    return false;
+    bool wo = false;
+    if (mode == 0) wo = cnt_ < ccmp_; 
+    else if (mode == 1) wo = (cnt_ & 0xFF) < (ccmp_ >> 8); // CCMPH is duty
+    else if (mode == 2) wo = cnt_ < ccmp_;
+    
+    return wo;
 }
 
 void Tcb::on_routing_changed() noexcept {
