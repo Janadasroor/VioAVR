@@ -1,78 +1,75 @@
-/* C++ Bridge for XSPICE without CMPP dependency */
-#include "vioavr/core/viospice_c.h"
+#include "vioavr/core/bridge_shm_client.hpp"
 #include <ngspice/cm.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+using namespace vioavr::core;
+
 /* XSPICE Entry Point */
 extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
-    VioSpiceHandle avr;
+    BridgeShmClient* bridge;
     
     /* Initialization */
     if (mif_private->circuit.init) {
-        /* Allocate private storage */
-        mif_private->inst_var = (Mif_Inst_Var_t *)malloc(sizeof(VioSpiceHandle));
+        /* Hack: Store the bridge pointer in inst_var */
+        mif_private->inst_var = (Mif_Inst_Var_Data_t **)malloc(sizeof(void*));
         
         /* Get Parameters */
-        const char* mcu_type = mif_private->param[0]->element[0].rvalue.svalue;
-        const char* hex_file = mif_private->param[1]->element[0].rvalue.svalue;
-        double quantum = mif_private->param[2]->element[0].rvalue.rvalue;
+        // hex_file [0], mcu_type [1], frequency [2]
+        const char* mcu_instance = mif_private->param[1]->element[0].svalue;
 
-        avr = vioavr_create(mcu_type);
-        if (!avr) {
-            cm_message_send((char*)"VioAVR: Failed to create MCU instance.");
+        bridge = new BridgeShmClient(mcu_instance);
+        if (!bridge->connect()) {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "VioAVR: Failed to connect to SHM Bridge: %s. Is the daemon running?", mcu_instance);
+            cm_message_send(msg);
+            delete bridge;
+            *((void **)mif_private->inst_var) = nullptr;
             return;
         }
         
-        *((VioSpiceHandle *)mif_private->inst_var) = avr;
-        
-        if (!vioavr_load_hex(avr, hex_file)) {
-            char msg[256];
-            snprintf(msg, sizeof(msg), "VioAVR: Failed to load HEX file: %s", hex_file);
-            cm_message_send(msg);
-        }
-        
-        vioavr_set_quantum(avr, (uint64_t)quantum);
-        
-        /* Default mappings */
-        for (int i = 0; i < 8; i++) vioavr_add_pin_mapping(avr, "PORTB", i, i);
-        for (int i = 0; i < 8; i++) vioavr_add_pin_mapping(avr, "PORTC", i, 8 + i);
-        for (int i = 0; i < 8; i++) vioavr_add_pin_mapping(avr, "PORTD", i, 16 + i);
-        
-        vioavr_reset(avr);
+        *((void **)mif_private->inst_var) = bridge;
+        bridge->reset();
     } else {
-        avr = *((VioSpiceHandle *)mif_private->inst_var);
+        bridge = *((BridgeShmClient **)mif_private->inst_var);
     }
+
+    if (!bridge || !bridge->is_connected()) return;
 
     /* Simulation Step */
     
-    /* 1. Propagate inputs */
-    int port_size = mif_private->conn[0]->size;
-    for (int i = 0; i < port_size; i++) {
-        Digital_t *pin = (Digital_t *)mif_private->conn[0]->port[i];
-        if (pin->changed) {
-            VioAvrPinLevel level = (pin->state == HI) ? VIOAVR_LEVEL_HIGH : VIOAVR_LEVEL_LOW;
-            vioavr_set_external_pin(avr, i, level);
+    /* 1. Propagate inputs from SPICE nodes to Bridge */
+    uint32_t digital_port_size = mif_private->conn[0]->size;
+    for (uint32_t i = 0; i < digital_port_size; i++) {
+        Mif_Port_Data_t *port_data = mif_private->conn[0]->port[i];
+        Digital_t *digital_val = (Digital_t *)(port_data->input.pvalue);
+        if (digital_val) {
+            bridge->set_digital_input(i, digital_val->state == ONE);
         }
     }
 
-    /* 2. Step AVR */
+    /* 2. Step VioAVR Daemon */
     double delta_t = mif_private->circuit.time - mif_private->circuit.t[1];
     if (delta_t > 0) {
-        vioavr_step_duration(avr, delta_t);
+        double freq = mif_private->param[2]->element[0].rvalue;
+        uint64_t cycles = (uint64_t)(delta_t * freq);
+        if (cycles > 0) {
+            bridge->step(cycles);
+            bridge->wait_step_done();
+        }
     }
 
-    /* 3. Collect outputs */
-    VioAvrPinChange changes[32];
-    int count = vioavr_consume_pin_changes(avr, changes, 32);
-    
-    for (int i = 0; i < count; i++) {
-        int idx = changes[i].external_id;
-        if (idx < port_size) {
-            Digital_t *pin = (Digital_t *)mif_private->conn[0]->port[idx];
-            pin->state = (changes[i].level == VIOAVR_LEVEL_HIGH) ? HI : LO;
-            pin->strength = STRONG;
+    /* 3. Collect outputs from Bridge back to SPICE */
+    for (uint32_t i = 0; i < digital_port_size; i++) {
+        Mif_Port_Data_t *port_data = mif_private->conn[0]->port[i];
+        bool level = bridge->get_digital_output(i);
+        
+        Digital_t *digital_val = (Digital_t *)(port_data->output.pvalue);
+        if (digital_val) {
+            digital_val->state = level ? ONE : ZERO;
+            digital_val->strength = STRONG;
+            port_data->changed = MIF_TRUE;
         }
     }
 }
