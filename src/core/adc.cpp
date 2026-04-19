@@ -177,8 +177,21 @@ bool Adc::power_reduction_enabled() const noexcept {
 }
 
 double Adc::get_voltage(u8 channel) const noexcept {
+    u32 lookup_id = channel;
+
+    // Use pin map to resolve the physical pin dedicated to this ADC channel
+    if (pin_map_ && channel < 8) {
+        const u16 addr = desc_.adc_pin_address[channel];
+        const u8 bit = desc_.adc_pin_bit[channel];
+        if (addr != 0) {
+            if (auto ext_id = pin_map_->get_external_id_by_addr(addr, bit)) {
+                lookup_id = *ext_id;
+            }
+        }
+    }
+
     if (signal_bank_) {
-        return signal_bank_->voltage(channel);
+        return signal_bank_->voltage(lookup_id);
     } 
     if (channel < local_channel_voltage_.size()) {
         return local_channel_voltage_[channel];
@@ -263,6 +276,10 @@ void Adc::update_pin_ownership() noexcept {
 
 void Adc::bind_signal_bank(const AnalogSignalBank& signal_bank) noexcept {
     signal_bank_ = &signal_bank;
+}
+
+void Adc::bind_pin_map(const PinMap& pin_map) noexcept {
+    pin_map_ = &pin_map;
 }
 
 void Adc::select_auto_trigger_source(AutoTriggerSource source) noexcept {
