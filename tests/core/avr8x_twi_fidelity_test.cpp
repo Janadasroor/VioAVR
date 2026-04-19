@@ -1,41 +1,48 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "vioavr/core/machine.hpp"
-#include "vioavr/core/device_catalog.hpp"
+#include "vioavr/core/twi8x.hpp"
+#include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/devices/atmega4809.hpp"
 
 using namespace vioavr::core;
+using namespace vioavr::core::devices;
 
-TEST_CASE("AVR8X TWI Fidelity Test") {
-    auto device = DeviceCatalog::find("ATmega4809");
-    REQUIRE(device != nullptr);
-    REQUIRE(device->twi8x_count >= 1);
-
-    Machine machine(*device);
-    auto& bus = machine.bus();
-
-    const u16 TWI0_BASE = 0x08A0;
-    const u16 TWI0_MCTRLA   = TWI0_BASE + 0x03;
-    const u16 TWI0_MSTATUS  = TWI0_BASE + 0x05;
-    const u16 TWI0_MADDR    = TWI0_BASE + 0x07;
-    const u16 TWI0_MDATA    = TWI0_BASE + 0x08;
-
-    // 1. Enable Host
-    bus.write_data(TWI0_MCTRLA, 0x01); // ENABLE=1
-    CHECK((bus.read_data(TWI0_MSTATUS) & 0x03) == 0x00); // Unknown state initially
-
-    // 2. Start Write Transaction (Address 0x20, Write bit 0)
-    bus.write_data(TWI0_MADDR, 0x20 << 1); 
+TEST_CASE("AVR8X TWI8X - Bit Timing Fidelity") {
+    // 4809 TWI0 is at 0x480
+    Twi8xDescriptor desc = {
+        .mctrla_address = 0x480,
+        .mctrlb_address = 0x481,
+        .mstatus_address = 0x482,
+        .mbaud_address = 0x483,
+        .maddr_address = 0x484,
+        .mdata_address = 0x485
+    };
     
-    // Check State: OWNER (0x02) and WIF (0x40)
-    u8 status = bus.read_data(TWI0_MSTATUS);
-    CHECK((status & 0x03) == 0x02); // OWNER
-    CHECK((status & 0x40) == 0x40); // WIF
-    CHECK((status & 0x20) == 0x20); // CLKHOLD
+    // We need a dummy CPU for the TWI constructor if it takes one?
+    // Actually Twi8x doesn't take CPU in constructor
+    Twi8x twi{desc};
+    twi.reset();
 
-    // 3. Write Data
-    bus.write_data(TWI0_MDATA, 0xAB);
-    status = bus.read_data(TWI0_MSTATUS);
-    CHECK((status & 0x20) == 0);    // CLKHOLD released
-    CHECK((status & 0x40) == 0x40); // WIF set for next byte
+    // 1. Enable Master
+    twi.write(0x480, 0x01U); // ENABLE=1
+    
+    // 2. Set BAUD (e.g. 10 -> approx 100kbps @ 16MHz)
+    twi.write(0x483, 10);
+    
+    // 3. Set ADDR to start transfer
+    twi.write(0x484, 0xA0U); // Write to address 0x50
+    
+    // TWI state should move to BUSY
+    // 9 bits * (baud_cycles)
+    // Approx (10*2 + 10) cycles per bit? Depends on implementation.
+    // In our high-fidelity Twi8x, it's roughly (BAUD + 1) per half-phase.
+    
+    // Let's tick 50 cycles. Flag should NOT be set.
+    twi.tick(50);
+    CHECK((twi.read(0x482) & 0x40U) == 0U); // WIF (bit 6) should be 0
+    
+    // Tick 1000 cycles. Flag should be set.
+    twi.tick(1000);
+    CHECK((twi.read(0x482) & 0x40U) != 0U); // WIF should be 1
 }

@@ -16,6 +16,7 @@
 namespace vioavr::core {
 
 class WatchdogTimer;
+class Wdt8x;
 
 struct DecodedInstruction {
     std::array<u16, 2> words {};
@@ -141,6 +142,8 @@ public:
 
     void write_register(u8 index, u8 value) noexcept;
     void write_sreg(u8 value) noexcept;
+
+    void set_wdt8x(Wdt8x* wdt) noexcept { wdt8x_ = wdt; }
 
     // Public for fidelity tests
     void execute_reti(const DecodedInstruction& instruction);
@@ -323,6 +326,7 @@ private:
     SyncEngine* sync_engine_ {};
     ITraceHook* trace_hook_ {};
     WatchdogTimer* watchdog_timer_ {};
+    Wdt8x* wdt8x_ {};
     std::unique_ptr<CpuControl> control_regs_;
     std::unique_ptr<RegisterFile> register_file_;
     std::array<u16, 65536> fast_decode_table_ {};
