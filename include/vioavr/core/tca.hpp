@@ -1,9 +1,8 @@
-#pragma once
-
-#include "vioavr/core/types.hpp"
-#include "vioavr/core/device.hpp"
-#include "vioavr/core/io_peripheral.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include <array>
+#include <string>
+#include <span>
+
 
 namespace vioavr::core {
 
@@ -14,7 +13,7 @@ class MemoryBus;
  * Found in modern AVR devices (AVR8X, megaAVR-0, tinyAVR-0/1/2)
  * Supports Single Mode (16-bit) and Split Mode (2x 8-bit)
  */
-class Tca : public IoPeripheral {
+class Tca : public IoPeripheral, public IRoutingObserver {
 public:
     explicit Tca(std::string name, const TcaDescriptor& desc);
 
@@ -24,6 +23,7 @@ public:
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
+    void on_routing_changed() noexcept override;
 
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
     
@@ -34,6 +34,7 @@ public:
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
+    void set_port_mux(PortMux* pm) noexcept { port_mux_ = pm; }
 
 private:
     std::string name_;
@@ -41,6 +42,7 @@ private:
     std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {nullptr};
     EventSystem* evsys_ {nullptr};
+    PortMux* port_mux_ {nullptr};
 
     // Registers
     u8 ctrla_ {0x00};
@@ -76,15 +78,26 @@ private:
 
     // Split Mode accessors (convenience)
     u8& cnt_l() { return reinterpret_cast<u8*>(&norm_.tcnt)[0]; }
+    u8 cnt_l() const { return reinterpret_cast<const u8*>(&norm_.tcnt)[0]; }
     u8& cnt_h() { return reinterpret_cast<u8*>(&norm_.tcnt)[1]; }
+    u8 cnt_h() const { return reinterpret_cast<const u8*>(&norm_.tcnt)[1]; }
     u8& per_l() { return reinterpret_cast<u8*>(&norm_.per)[0]; }
+    u8 per_l() const { return reinterpret_cast<const u8*>(&norm_.per)[0]; }
     u8& per_h() { return reinterpret_cast<u8*>(&norm_.per)[1]; }
+    u8 per_h() const { return reinterpret_cast<const u8*>(&norm_.per)[1]; }
     u8& cmp0_l() { return reinterpret_cast<u8*>(&norm_.cmp0)[0]; }
+    u8 cmp0_l() const { return reinterpret_cast<const u8*>(&norm_.cmp0)[0]; }
     u8& cmp0_h() { return reinterpret_cast<u8*>(&norm_.cmp0)[1]; }
+    u8 cmp0_h() const { return reinterpret_cast<const u8*>(&norm_.cmp0)[1]; }
     u8& cmp1_l() { return reinterpret_cast<u8*>(&norm_.cmp1)[0]; }
+    u8 cmp1_l() const { return reinterpret_cast<const u8*>(&norm_.cmp1)[0]; }
     u8& cmp1_h() { return reinterpret_cast<u8*>(&norm_.cmp1)[1]; }
+    u8 cmp1_h() const { return reinterpret_cast<const u8*>(&norm_.cmp1)[1]; }
     u8& cmp2_l() { return reinterpret_cast<u8*>(&norm_.cmp2)[0]; }
+    u8 cmp2_l() const { return reinterpret_cast<const u8*>(&norm_.cmp2)[0]; }
     u8& cmp2_h() { return reinterpret_cast<u8*>(&norm_.cmp2)[1]; }
+    u8 cmp2_h() const { return reinterpret_cast<const u8*>(&norm_.cmp2)[1]; }
+
 
     // Prescaler
     u32 prescaler_counter_ {0};
@@ -97,11 +110,14 @@ private:
     void handle_matches();
     void perform_tick();
     void perform_tick_split();
+    void update_outputs();
     void on_event() noexcept;
     
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     [[nodiscard]] bool is_split_mode() const noexcept { return ctrld_ & 0x01; }
     void update_prescaler() noexcept;
+
+    std::array<bool, 6> wo_states_ {false, false, false, false, false, false};
 };
 
 } // namespace vioavr::core

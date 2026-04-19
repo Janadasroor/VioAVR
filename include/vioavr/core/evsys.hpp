@@ -29,7 +29,10 @@ public:
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
     
     // Core Logic
-    void trigger_event(u8 generator_id) noexcept;
+    void trigger_event(u8 generator_id, bool level = true) noexcept;
+    
+    [[nodiscard]] bool get_channel_level(u8 channel_index) const noexcept;
+    [[nodiscard]] bool get_user_level(u8 user_index) const noexcept;
     
     // Callbacks for users
     using EventCallback = std::function<void()>;
@@ -44,6 +47,7 @@ private:
     u8 strobe_ {0x00};
     std::vector<u8> channels_;
     std::vector<u8> users_;
+    std::vector<bool> channel_levels_;
 
     std::array<AddressRange, 3> ranges_ {};
     

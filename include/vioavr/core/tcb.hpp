@@ -1,8 +1,8 @@
-#pragma once
+#include "vioavr/core/port_mux.hpp"
+#include <string>
+#include <array>
+#include <span>
 
-#include "vioavr/core/types.hpp"
-#include "vioavr/core/device.hpp"
-#include "vioavr/core/io_peripheral.hpp"
 
 namespace vioavr::core {
 
@@ -12,7 +12,7 @@ class MemoryBus;
  * @brief 16-bit Timer/Counter Type B (TCB)
  * Optimized for input capture and PWM in modern AVR devices.
  */
-class Tcb : public IoPeripheral {
+class Tcb : public IoPeripheral, public IRoutingObserver {
 public:
     explicit Tcb(std::string name, const TcbDescriptor& desc);
 
@@ -22,6 +22,7 @@ public:
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
+    void on_routing_changed() noexcept override;
 
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
     
@@ -32,14 +33,18 @@ public:
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
+    void set_port_mux(PortMux* pm) noexcept { port_mux_ = pm; }
 
 private:
     std::string name_;
+    u8 index_{0};
     const TcbDescriptor desc_;
     MemoryBus* bus_ {nullptr};
     EventSystem* evsys_ {nullptr};
+    PortMux* port_mux_ {nullptr};
 
     void on_event() noexcept;
+    void update_outputs() noexcept;
 
     // Registers
     u8 ctrla_ {0x00};

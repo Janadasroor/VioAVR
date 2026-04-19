@@ -117,7 +117,8 @@ def generate_header(data, header_path):
         'USART': [], 'USART8X': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'WDT8X': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'CRC': [], 'CRCSCAN': []
+        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'CRC': [], 'CRCSCAN': [],
+        'PORTMUX': []
     }
     event_generators = {}
     
@@ -953,6 +954,16 @@ def generate_header(data, header_path):
             .vector_index = {p_data.get('interrupts', {}).get('INT', {}).get('index', 0)}U
         }}"""
 
+    def gen_portmux(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        return f"""{{
+            .twispiroutea_address = {hx(r('TWISPIROUTEA')['offset'])},
+            .usartroutea_address = {hx(r('USARTROUTEA')['offset'])},
+            .evoutroutea_address = {hx(r('EV.*ROUTEA')['offset'])},
+            .tcaroutea_address = {hx(r('TCAROUTEA')['offset'])},
+            .tcbroutea_address = {hx(r('TCBROUTEA')['offset'])}
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
@@ -961,6 +972,7 @@ def generate_header(data, header_path):
     timers_rtc_str = ",\n        ".join(gen_rtc(n, d) for n, d in groups['RTC'])
     evsys_descriptor = gen_evsys("EVSYS", groups['EVSYS'][0][1]) if groups['EVSYS'] else "{}"
     ccl_descriptor = gen_ccl("CCL", groups['CCL'][0][1]) if groups['CCL'] else "{}"
+    portmux_descriptor = gen_portmux("PORTMUX", groups['PORTMUX'][0][1]) if groups['PORTMUX'] else "{}"
     adcs_descriptors = []
     adc8x_descriptors = []
     for n, d in groups['ADC']:
@@ -1132,6 +1144,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .evsys = {evsys_descriptor},
 
     .ccl = {ccl_descriptor},
+    .portmux = {portmux_descriptor},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},

@@ -1,4 +1,5 @@
 #include "vioavr/core/tca.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include "vioavr/core/evsys.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/logger.hpp"
@@ -51,6 +52,7 @@ void Tca::reset() noexcept {
     counting_up_ = true;
     prescaler_counter_ = 0;
     prescaler_limit_ = 1;
+    wo_states_.fill(false);
 }
 
 std::span<const AddressRange> Tca::mapped_ranges() const noexcept {
@@ -89,20 +91,8 @@ u8 Tca::read(u16 address) noexcept {
     if (address == desc_.dbgctrl_address) return dbgctrl_;
     if (address == desc_.temp_address) return temp_;
 
-    // 16-bit registers with TEMP buffer/aliasing logic
-    if (!is_split_mode()) {
-        if (address == desc_.tcnt_address) return static_cast<u8>(norm_.tcnt & 0xFFU);
-        if (address == desc_.tcnt_address + 1) return static_cast<u8>((norm_.tcnt >> 8U) & 0xFFU);
-        if (address == desc_.period_address) return static_cast<u8>(norm_.per & 0xFFU);
-        if (address == desc_.period_address + 1) return static_cast<u8>((norm_.per >> 8U) & 0xFFU);
-        if (address == desc_.cmp0_address) return static_cast<u8>(norm_.cmp0 & 0xFFU);
-        if (address == desc_.cmp0_address + 1) return static_cast<u8>((norm_.cmp0 >> 8U) & 0xFFU);
-        if (address == desc_.cmp1_address) return static_cast<u8>(norm_.cmp1 & 0xFFU);
-        if (address == desc_.cmp1_address + 1) return static_cast<u8>((norm_.cmp1 >> 8U) & 0xFFU);
-        if (address == desc_.cmp2_address) return static_cast<u8>(norm_.cmp2 & 0xFFU);
-        if (address == desc_.cmp2_address + 1) return static_cast<u8>((norm_.cmp2 >> 8U) & 0xFFU);
-    } else {
-        // Split Mode Aliases
+    if (is_split_mode()) {
+        // Split Mode Aliases skip TEMP
         if (address == desc_.tcnt_address) return cnt_l();
         if (address == desc_.tcnt_address + 1) return cnt_h();
         if (address == desc_.period_address) return per_l();
@@ -113,20 +103,71 @@ u8 Tca::read(u16 address) noexcept {
         if (address == desc_.cmp1_address + 1) return cmp1_h();
         if (address == desc_.cmp2_address) return cmp2_l();
         if (address == desc_.cmp2_address + 1) return cmp2_h();
+        
+        // BUFFER registers not used in split mode according to some docs, 
+        // but let's just return 0 for safety or follow mapping
+        return 0;
     }
 
-    // Buffer Registers
-    if (address == desc_.perbuf_address) return static_cast<u8>(buf_.per & 0xFFU);
-    if (address == desc_.perbuf_address + 1) return static_cast<u8>((buf_.per >> 8U) & 0xFFU);
-    if (address == desc_.cmp0buf_address) return static_cast<u8>(buf_.cmp0 & 0xFFU);
-    if (address == desc_.cmp0buf_address + 1) return static_cast<u8>((buf_.cmp0 >> 8U) & 0xFFU);
-    if (address == desc_.cmp1buf_address) return static_cast<u8>(buf_.cmp1 & 0xFFU);
-    if (address == desc_.cmp1buf_address + 1) return static_cast<u8>((buf_.cmp1 >> 8U) & 0xFFU);
-    if (address == desc_.cmp2buf_address) return static_cast<u8>(buf_.cmp2 & 0xFFU);
-    if (address == desc_.cmp2buf_address + 1) return static_cast<u8>((buf_.cmp2 >> 8U) & 0xFFU);
+    // Normal (16-bit) Mode: Low byte first latches High byte into TEMP
+    if (address == desc_.tcnt_address) {
+        temp_ = static_cast<u8>((norm_.tcnt >> 8U) & 0xFFU);
+        return static_cast<u8>(norm_.tcnt & 0xFFU);
+    }
+    if (address == desc_.tcnt_address + 1) return temp_;
+
+    if (address == desc_.period_address) {
+        temp_ = static_cast<u8>((norm_.per >> 8U) & 0xFFU);
+        return static_cast<u8>(norm_.per & 0xFFU);
+    }
+    if (address == desc_.period_address + 1) return temp_;
+
+    if (address == desc_.cmp0_address) {
+        temp_ = static_cast<u8>((norm_.cmp0 >> 8U) & 0xFFU);
+        return static_cast<u8>(norm_.cmp0 & 0xFFU);
+    }
+    if (address == desc_.cmp0_address + 1) return temp_;
+
+    if (address == desc_.cmp1_address) {
+        temp_ = static_cast<u8>((norm_.cmp1 >> 8U) & 0xFFU);
+        return static_cast<u8>(norm_.cmp1 & 0xFFU);
+    }
+    if (address == desc_.cmp1_address + 1) return temp_;
+
+    if (address == desc_.cmp2_address) {
+        temp_ = static_cast<u8>((norm_.cmp2 >> 8U) & 0xFFU);
+        return static_cast<u8>(norm_.cmp2 & 0xFFU);
+    }
+    if (address == desc_.cmp2_address + 1) return temp_;
+
+    // Buffer Registers also use TEMP
+    if (address == desc_.perbuf_address) {
+        temp_ = static_cast<u8>((buf_.per >> 8U) & 0xFFU);
+        return static_cast<u8>(buf_.per & 0xFFU);
+    }
+    if (address == desc_.perbuf_address + 1) return temp_;
+
+    if (address == desc_.cmp0buf_address) {
+        temp_ = static_cast<u8>((buf_.cmp0 >> 8U) & 0xFFU);
+        return static_cast<u8>(buf_.cmp0 & 0xFFU);
+    }
+    if (address == desc_.cmp0buf_address + 1) return temp_;
+
+    if (address == desc_.cmp1buf_address) {
+        temp_ = static_cast<u8>((buf_.cmp1 >> 8U) & 0xFFU);
+        return static_cast<u8>(buf_.cmp1 & 0xFFU);
+    }
+    if (address == desc_.cmp1buf_address + 1) return temp_;
+
+    if (address == desc_.cmp2buf_address) {
+        temp_ = static_cast<u8>((buf_.cmp2 >> 8U) & 0xFFU);
+        return static_cast<u8>(buf_.cmp2 & 0xFFU);
+    }
+    if (address == desc_.cmp2buf_address + 1) return temp_;
 
     return 0x00;
 }
+
 
 void Tca::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
@@ -138,25 +179,17 @@ void Tca::write(u16 address, u8 value) noexcept {
         ctrlc_ = value;
     } else if (address == desc_.ctrld_address) {
         ctrld_ = value;
+    } else if (address == desc_.evctrl_address) {
+        evctrl_ = value;
     } else if (address == desc_.intctrl_address) {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value; // Clear on write 1
-    } 
+    } else if (address == desc_.temp_address) {
+        temp_ = value;
+    }
     // Data Registers
-    else if (!is_split_mode()) {
-        if (address == desc_.tcnt_address) norm_.tcnt = (norm_.tcnt & 0xFF00U) | value;
-        else if (address == desc_.tcnt_address + 1) norm_.tcnt = (norm_.tcnt & 0x00FFU) | (static_cast<u16>(value) << 8U);
-        else if (address == desc_.period_address) norm_.per = (norm_.per & 0xFF00U) | value;
-        else if (address == desc_.period_address + 1) norm_.per = (norm_.per & 0x00FFU) | (static_cast<u16>(value) << 8U);
-        else if (address == desc_.cmp0_address) norm_.cmp0 = (norm_.cmp0 & 0xFF00U) | value;
-        else if (address == desc_.cmp0_address + 1) norm_.cmp0 = (norm_.cmp0 & 0x00FFU) | (static_cast<u16>(value) << 8U);
-        else if (address == desc_.cmp1_address) norm_.cmp1 = (norm_.cmp1 & 0xFF00U) | value;
-        else if (address == desc_.cmp1_address + 1) norm_.cmp1 = (norm_.cmp1 & 0x00FFU) | (static_cast<u16>(value) << 8U);
-        else if (address == desc_.cmp2_address) norm_.cmp2 = (norm_.cmp2 & 0xFF00U) | value;
-        else if (address == desc_.cmp2_address + 1) norm_.cmp2 = (norm_.cmp2 & 0x00FFU) | (static_cast<u16>(value) << 8U);
-    } else {
-        // Split Mode
+    else if (is_split_mode()) {
         if (address == desc_.tcnt_address) cnt_l() = value;
         else if (address == desc_.tcnt_address + 1) cnt_h() = value;
         else if (address == desc_.period_address) per_l() = value;
@@ -167,17 +200,42 @@ void Tca::write(u16 address, u8 value) noexcept {
         else if (address == desc_.cmp1_address + 1) cmp1_h() = value;
         else if (address == desc_.cmp2_address) cmp2_l() = value;
         else if (address == desc_.cmp2_address + 1) cmp2_h() = value;
+    } else {
+        // Normal (16-bit) mode with TEMP logic
+        if (address == desc_.tcnt_address + 1) temp_ = value;
+        else if (address == desc_.tcnt_address) norm_.tcnt = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.period_address + 1) temp_ = value;
+        else if (address == desc_.period_address) norm_.per = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.cmp0_address + 1) temp_ = value;
+        else if (address == desc_.cmp0_address) norm_.cmp0 = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.cmp1_address + 1) temp_ = value;
+        else if (address == desc_.cmp1_address) norm_.cmp1 = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.cmp2_address + 1) temp_ = value;
+        else if (address == desc_.cmp2_address) norm_.cmp2 = (static_cast<u16>(temp_) << 8U) | value;
+        
+        // BUF registers
+        else if (address == desc_.perbuf_address + 1) temp_ = value;
+        else if (address == desc_.perbuf_address) {
+            buf_.per = (static_cast<u16>(temp_) << 8U) | value;
+            buf_.per_valid = true;
+        }
+        else if (address == desc_.cmp0buf_address + 1) temp_ = value;
+        else if (address == desc_.cmp0buf_address) {
+            buf_.cmp0 = (static_cast<u16>(temp_) << 8U) | value;
+            buf_.cmp0_valid = true;
+        }
+        else if (address == desc_.cmp1buf_address + 1) temp_ = value;
+        else if (address == desc_.cmp1buf_address) {
+            buf_.cmp1 = (static_cast<u16>(temp_) << 8U) | value;
+            buf_.cmp1_valid = true;
+        }
+        else if (address == desc_.cmp2buf_address + 1) temp_ = value;
+        else if (address == desc_.cmp2buf_address) {
+            buf_.cmp2 = (static_cast<u16>(temp_) << 8U) | value;
+            buf_.cmp2_valid = true;
+        }
     }
-
-    // Buffer Registers
-    if (address == desc_.perbuf_address) { buf_.per = (buf_.per & 0xFF00U) | value; }
-    else if (address == desc_.perbuf_address + 1) { buf_.per = (buf_.per & 0x00FFU) | (static_cast<u16>(value) << 8U); buf_.per_valid = true; }
-    else if (address == desc_.cmp0buf_address) { buf_.cmp0 = (buf_.cmp0 & 0xFF00U) | value; }
-    else if (address == desc_.cmp0buf_address + 1) { buf_.cmp0 = (buf_.cmp0 & 0x00FFU) | (static_cast<u16>(value) << 8U); buf_.cmp0_valid = true; }
-    else if (address == desc_.cmp1buf_address) { buf_.cmp1 = (buf_.cmp1 & 0xFF00U) | value; }
-    else if (address == desc_.cmp1buf_address + 1) { buf_.cmp1 = (buf_.cmp1 & 0x00FFU) | (static_cast<u16>(value) << 8U); buf_.cmp1_valid = true; }
-    else if (address == desc_.cmp2buf_address) { buf_.cmp2 = (buf_.cmp2 & 0xFF00U) | value; }
-    else if (address == desc_.cmp2buf_address + 1) { buf_.cmp2 = (buf_.cmp2 & 0x00FFU) | (static_cast<u16>(value) << 8U); buf_.cmp2_valid = true; }
+    update_outputs();
 }
 
 void Tca::tick(u64 elapsed_cycles) noexcept {
@@ -225,8 +283,6 @@ void Tca::handle_matches() {
         return;
     }
 
-    u8 wgmode = ctrlb_ & 0x07;
-    
     // Compare matches
     if (norm_.tcnt == norm_.cmp0) {
         intflags_ |= 0x10;
@@ -287,6 +343,8 @@ void Tca::perform_tick() {
         if (norm_.tcnt >= norm_.cmp0) {
             norm_.tcnt = 0;
             update_cond = true;
+            // FRQ mode toggles WO0 on every match
+            wo_states_[0] = !wo_states_[0];
         } else {
             norm_.tcnt++;
         }
@@ -327,6 +385,7 @@ void Tca::perform_tick() {
     }
 
     handle_matches();
+    update_outputs();
 }
 
 void Tca::perform_tick_split() {
@@ -360,6 +419,7 @@ void Tca::perform_tick_split() {
     }
 
     handle_matches();
+    update_outputs();
 }
 
 void Tca::update_prescaler() noexcept {
@@ -378,11 +438,41 @@ bool Tca::get_wo_level(u8 index) const noexcept {
         if (index == 1) return cnt_l() < cmp1_l();
         if (index == 2) return cnt_l() < cmp2_l();
     } else {
-        if (index == 0) return norm_.tcnt < norm_.cmp0;
+        u8 wgmode = ctrlb_ & 0x07;
+        if (wgmode == 0x01 && index == 0) { // FRQ mode WO0
+            return wo_states_[0];
+        }
+        if (index == 0) {
+            // printf("[TCA DEBUG] get_wo_level index 0: tcnt=%d, cmp0=%d, result=%d\n", (int)norm_.tcnt, (int)norm_.cmp0, (int)(norm_.tcnt < norm_.cmp0));
+            return norm_.tcnt < norm_.cmp0;
+        }
         if (index == 1) return norm_.tcnt < norm_.cmp1;
         if (index == 2) return norm_.tcnt < norm_.cmp2;
     }
     return false;
 }
+void Tca::on_routing_changed() noexcept {
+    update_outputs();
+}
 
+void Tca::update_outputs() {
+    if (!port_mux_) return;
+    if (is_split_mode()) {
+        // WO0-WO2 for L, WO3-WO5 for H
+        for (u8 i = 0; i < 3; ++i) {
+            bool en_l = ctrlb_ & (1U << (4 + i));
+            port_mux_->drive_tca0_wo(i, get_wo_level(i), en_l);
+            bool en_h = ctrlc_ & (1U << i);
+            port_mux_->drive_tca0_wo(u8(3 + i), get_wo_level(u8(3 + i)), en_h);
+        }
+    } else {
+        for (u8 i = 0; i < 3; ++i) {
+            bool en = ctrlb_ & (1U << (4 + i));
+            port_mux_->drive_tca0_wo(i, get_wo_level(i), en);
+        }
+        // WO3-WO5 are not used in normal mode? 
+        // Actually, they can be driven by other compares sometimes, but for now just release.
+        for (u8 i = 3; i < 6; ++i) port_mux_->drive_tca0_wo(i, false, false);
+    }
+}
 } // namespace vioavr::core

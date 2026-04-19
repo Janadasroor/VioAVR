@@ -1,4 +1,5 @@
 #include "vioavr/core/tcb.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/evsys.hpp"
 #include <algorithm>
@@ -7,6 +8,9 @@ namespace vioavr::core {
 
 Tcb::Tcb(std::string name, const TcbDescriptor& desc) 
     : name_(std::move(name)), desc_(desc) {
+    if (name_.size() > 3 && std::isdigit(name_[3])) {
+        index_ = static_cast<u8>(name_[3] - '0');
+    }
     if (desc_.ctrla_address != 0U) {
         std::vector<u16> addrs = {
             desc_.ctrla_address, desc_.ctrlb_address, desc_.evctrl_address,
@@ -59,14 +63,22 @@ u8 Tcb::read(u16 address) noexcept {
     if (address == desc_.dbgctrl_address) return dbgctrl_;
     if (address == desc_.temp_address) return temp_;
 
-    if (address == desc_.cnt_address) return static_cast<u8>(cnt_ & 0xFFU);
-    if (address == desc_.cnt_address + 1) return static_cast<u8>((cnt_ >> 8U) & 0xFFU);
+    // 16-bit registers: Low byte first latches High byte into TEMP
+    if (address == desc_.cnt_address) {
+        temp_ = static_cast<u8>((cnt_ >> 8U) & 0xFFU);
+        return static_cast<u8>(cnt_ & 0xFFU);
+    }
+    if (address == desc_.cnt_address + 1) return temp_;
     
-    if (address == desc_.ccmp_address) return static_cast<u8>(ccmp_ & 0xFFU);
-    if (address == desc_.ccmp_address + 1) return static_cast<u8>((ccmp_ >> 8U) & 0xFFU);
+    if (address == desc_.ccmp_address) {
+        temp_ = static_cast<u8>((ccmp_ >> 8U) & 0xFFU);
+        return static_cast<u8>(ccmp_ & 0xFFU);
+    }
+    if (address == desc_.ccmp_address + 1) return temp_;
 
     return 0x00;
 }
+
 
 void Tcb::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
@@ -79,16 +91,20 @@ void Tcb::write(u16 address, u8 value) noexcept {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value;
-    } else if (address == desc_.cnt_address) {
-        cnt_ = (cnt_ & 0xFF00U) | value;
+    } else if (address == desc_.temp_address) {
+        temp_ = value;
     } else if (address == desc_.cnt_address + 1) {
-        cnt_ = (cnt_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
-    } else if (address == desc_.ccmp_address) {
-        ccmp_ = (ccmp_ & 0xFF00U) | value;
+        temp_ = value;
+    } else if (address == desc_.cnt_address) {
+        cnt_ = (static_cast<u16>(temp_) << 8U) | value;
     } else if (address == desc_.ccmp_address + 1) {
-        ccmp_ = (ccmp_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+        temp_ = value;
+    } else if (address == desc_.ccmp_address) {
+        ccmp_ = (static_cast<u16>(temp_) << 8U) | value;
     }
+    update_outputs();
 }
+
 
 void Tcb::tick(u64 elapsed_cycles) noexcept {
     if (!is_enabled()) return;
@@ -113,6 +129,7 @@ void Tcb::tick(u64 elapsed_cycles) noexcept {
             perform_tick(false);
         }
     }
+    update_outputs();
 }
 
 void Tcb::handle_matches() {
@@ -239,4 +256,13 @@ bool Tcb::get_wo_level() const noexcept {
     return false;
 }
 
+void Tcb::on_routing_changed() noexcept {
+    update_outputs();
+}
+
+void Tcb::update_outputs() noexcept {
+    if (!port_mux_) return;
+    bool en = ctrlb_ & 0x10; // CCEN
+    port_mux_->drive_tcb_wo(index_, get_wo_level(), en);
+}
 } // namespace vioavr::core

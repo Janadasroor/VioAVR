@@ -100,7 +100,7 @@ TEST_CASE("AVR8X TCB - Cascaded Mode Fidelity") {
     CHECK(bus.read_data(0xA8A) == 1);
 }
 TEST_CASE("AVR8X TCB - Single Shot Mode 6") {
-    Tcb tcb(devices::atmega4809.timers_tcb[0]);
+    Tcb tcb("TCB0", devices::atmega4809.timers_tcb[0]);
     tcb.reset();
 
     // Mode 6: Single-shot

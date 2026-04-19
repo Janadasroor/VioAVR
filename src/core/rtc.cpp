@@ -36,13 +36,14 @@ Rtc::Rtc(const RtcDescriptor& desc) : desc_(desc) {
 void Rtc::reset() noexcept {
     ctrla_ = 0; status_ = 0; intctrl_ = 0; intflags_ = 0;
     temp_ = 0; dbgctrl_ = 0; clksel_ = 0;
-    cnt_ = 0; per_ = 0; cmp_ = 0;
+    cnt_ = 0; per_ = 0xFFFF; cmp_ = 0;
     pitctrla_ = 0; pitstatus_ = 0; pitintctrl_ = 0; pitintflags_ = 0;
     internal_ticks_ = 0;
     pit_ticks_ = 0;
     sync_busy_cycles_rtc_ = 0;
     sync_busy_cycles_pit_ = 0;
 }
+
 
 std::span<const AddressRange> Rtc::mapped_ranges() const noexcept {
     size_t count = 0;
@@ -56,12 +57,26 @@ u8 Rtc::read(u16 address) noexcept {
     if (address == desc_.intctrl_address) return intctrl_;
     if (address == desc_.intflags_address) return intflags_;
     if (address == desc_.clksel_address) return clksel_;
-    if (address == desc_.cnt_address) return static_cast<u8>(cnt_ & 0xFFU);
-    if (address == desc_.cnt_address + 1) return static_cast<u8>((cnt_ >> 8U) & 0xFFU);
-    if (address == desc_.per_address) return static_cast<u8>(per_ & 0xFFU);
-    if (address == desc_.per_address + 1) return static_cast<u8>((per_ >> 8U) & 0xFFU);
-    if (address == desc_.cmp_address) return static_cast<u8>(cmp_ & 0xFFU);
-    if (address == desc_.cmp_address + 1) return static_cast<u8>((cmp_ >> 8U) & 0xFFU);
+    if (address == desc_.temp_address) return temp_;
+
+    // 16-bit Read: Low byte first latches High byte into TEMP
+    if (address == desc_.cnt_address) {
+        temp_ = static_cast<u8>((cnt_ >> 8U) & 0xFFU);
+        return static_cast<u8>(cnt_ & 0xFFU);
+    }
+    if (address == desc_.cnt_address + 1) return temp_;
+    
+    if (address == desc_.per_address) {
+        temp_ = static_cast<u8>((per_ >> 8U) & 0xFFU);
+        return static_cast<u8>(per_ & 0xFFU);
+    }
+    if (address == desc_.per_address + 1) return temp_;
+
+    if (address == desc_.cmp_address) {
+        temp_ = static_cast<u8>((cmp_ >> 8U) & 0xFFU);
+        return static_cast<u8>(cmp_ & 0xFFU);
+    }
+    if (address == desc_.cmp_address + 1) return temp_;
 
     if (address == desc_.pitctrla_address) return pitctrla_;
     if (address == desc_.pitstatus_address) return pitstatus_;
@@ -70,6 +85,7 @@ u8 Rtc::read(u16 address) noexcept {
 
     return 0;
 }
+
 
 void Rtc::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
@@ -80,30 +96,29 @@ void Rtc::write(u16 address, u8 value) noexcept {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value;
-    } else if (address == desc_.cnt_address) {
-        cnt_ = (cnt_ & 0xFF00U) | value;
-        status_ |= 0x10; // CNTBUSY
-        sync_busy_cycles_rtc_ = 64;
+    } else if (address == desc_.temp_address) {
+        temp_ = value;
     } else if (address == desc_.cnt_address + 1) {
-        cnt_ = (cnt_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+
+        temp_ = value;
+    } else if (address == desc_.cnt_address) {
+        cnt_ = (static_cast<u16>(temp_) << 8U) | value;
         status_ |= 0x10; // CNTBUSY
-        sync_busy_cycles_rtc_ = 64;
-    } else if (address == desc_.per_address) {
-        per_ = (per_ & 0xFF00U) | value;
-        status_ |= 0x02; // PERBUSY
         sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.per_address + 1) {
-        per_ = (per_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+        temp_ = value;
+    } else if (address == desc_.per_address) {
+        per_ = (static_cast<u16>(temp_) << 8U) | value;
         status_ |= 0x02; // PERBUSY
         sync_busy_cycles_rtc_ = 64;
-    } else if (address == desc_.cmp_address) {
-        cmp_ = (cmp_ & 0xFF00U) | value;
-        status_ |= 0x04; // CMPBUSY
-        sync_busy_cycles_rtc_ = 64;
+
     } else if (address == desc_.cmp_address + 1) {
-        cmp_ = (cmp_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
-        status_ |= 0x04; // CMPBUSY
+        temp_ = value;
+    } else if (address == desc_.cmp_address) {
+        cmp_ = (static_cast<u16>(temp_) << 8U) | value;
+        status_ |= 0x08; // CMPBUSY
         sync_busy_cycles_rtc_ = 64;
+
     } else if (address == desc_.pitctrla_address) {
         pitctrla_ = value;
         pitstatus_ |= 0x01; // CTRLBUSY
@@ -116,22 +131,27 @@ void Rtc::write(u16 address, u8 value) noexcept {
 }
 
 void Rtc::tick(u64 elapsed_cycles) noexcept {
+    if (elapsed_cycles == 0) return;
+
     if (sync_busy_cycles_rtc_ > 0) {
         if (elapsed_cycles >= sync_busy_cycles_rtc_) {
             sync_busy_cycles_rtc_ = 0;
-            status_ &= 0xE0; // Clear busy bits status (0-4 bits usually)
+            status_ = 0; // Clear busy bits
         } else {
             sync_busy_cycles_rtc_ -= static_cast<u32>(elapsed_cycles);
         }
     }
+
     if (sync_busy_cycles_pit_ > 0) {
         if (elapsed_cycles >= sync_busy_cycles_pit_) {
             sync_busy_cycles_pit_ = 0;
-            pitstatus_ &= 0xFE; // Clear PIT busy bit
+            pitstatus_ = 0;
         } else {
             sync_busy_cycles_pit_ -= static_cast<u32>(elapsed_cycles);
         }
     }
+
+    if (!(ctrla_ & 0x01) && !(pitctrla_ & 0x01)) return;
 
     if (is_rtc_enabled()) {
         u16 div = get_prescaler();

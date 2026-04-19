@@ -6,6 +6,7 @@ namespace vioavr::core {
 EventSystem::EventSystem(const EvsysDescriptor& desc) : desc_(desc) {
     if (desc_.channel_count > 0) {
         channels_.resize(desc_.channel_count, 0);
+        channel_levels_.resize(desc_.channel_count, false);
     }
     if (desc_.user_count > 0) {
         users_.resize(desc_.user_count, 0);
@@ -27,6 +28,7 @@ void EventSystem::reset() noexcept {
     strobe_ = 0;
     std::fill(channels_.begin(), channels_.end(), 0);
     std::fill(users_.begin(), users_.end(), 0);
+    std::fill(channel_levels_.begin(), channel_levels_.end(), false);
     rebuild_cache();
 }
 
@@ -53,13 +55,13 @@ u8 EventSystem::read(u16 address) noexcept {
 void EventSystem::write(u16 address, u8 value) noexcept {
     if (address == desc_.strobe_address) {
         strobe_ = value;
-        // Handle manual strobes
+        // Handle manual strobes (logic 1 = toggle or pulse?)
+        // EVSYS strobe triggers the USERS of that channel.
         for (u8 i = 0; i < desc_.channel_count; ++i) {
             if (value & (1 << i)) {
-                // Trigger events on this channel manually? 
-                // EVSYS strobe triggers the USERS of that channel.
+                channel_levels_[i] = !channel_levels_[i]; // Simple toggle for strobe
                 for (size_t u = 0; u < users_.size(); ++u) {
-                    if (users_[u] == (i + 1)) { // Channel index + 1
+                    if (users_[u] == (i + 1)) {
                         if (callbacks_[u]) callbacks_[u]();
                     }
                 }
@@ -78,10 +80,17 @@ void EventSystem::tick(u64) noexcept {
     // Event actions are mostly immediate upon trigger_event call
 }
 
-void EventSystem::trigger_event(u8 generator_id) noexcept {
+void EventSystem::trigger_event(u8 generator_id, bool level) noexcept {
     if (generator_id == 0) return; // OFF
     
-    // Direct generator listeners (mostly for internal simulation hooks)
+    // Update channel levels first
+    for (size_t c = 0; c < channels_.size(); ++c) {
+        if (channels_[c] == generator_id) {
+            channel_levels_[c] = level;
+        }
+    }
+
+    // Direct generator listeners
     if (auto it = generator_callbacks_.find(generator_id); it != generator_callbacks_.end()) {
         for (auto& cb : it->second) {
             if (cb) cb();
@@ -96,6 +105,23 @@ void EventSystem::trigger_event(u8 generator_id) noexcept {
             }
         }
     }
+}
+
+bool EventSystem::get_channel_level(u8 channel_index) const noexcept {
+    if (channel_index < channel_levels_.size()) {
+        return channel_levels_[channel_index];
+    }
+    return false;
+}
+
+bool EventSystem::get_user_level(u8 user_index) const noexcept {
+    if (user_index < users_.size()) {
+        u8 channel_id = users_[user_index];
+        if (channel_id > 0 && channel_id <= channel_levels_.size()) {
+            return channel_levels_[channel_id - 1];
+        }
+    }
+    return false;
 }
 
 void EventSystem::rebuild_cache() noexcept {

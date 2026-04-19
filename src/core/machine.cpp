@@ -81,7 +81,20 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(port));
     }
 
-    // 2. Timers
+    // 1.5 PortMux (AVR8X)
+    if (device_.portmux.tcaroutea_address != 0) {
+        auto pm = std::make_unique<PortMux>(device_.portmux);
+        port_mux_ = pm.get();
+        port_mux_->set_pin_mux(pin_mux_.get());
+        // Register ports for signal routing helpers
+        for (u8 i = 0; i < ports_.size(); ++i) {
+            port_mux_->register_port(ports_[i]->port_address(), i);
+        }
+        bus_->attach_peripheral(*pm);
+        owned_peripherals_.push_back(std::move(pm));
+    }
+
+    // Timers
     // Event System
     EventSystem* evsys = nullptr;
     if (device_.evsys.strobe_address != 0) {
@@ -92,13 +105,6 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(e));
     }
 
-    // CCL
-    if (device_.ccl.ctrla_address != 0) {
-        auto c = std::make_unique<Ccl>(device_.ccl);
-        c->set_memory_bus(bus_.get());
-        bus_->attach_peripheral(*c);
-        owned_peripherals_.push_back(std::move(c));
-    }
 
     for (u8 i = 0; i < device_.timer8_count; ++i) {
         auto timer = std::make_unique<Timer8>("TIMER" + std::to_string(device_.timers8[i].timer_index), device_.timers8[i]);
@@ -120,6 +126,10 @@ void Machine::initialize_peripherals()
         auto timer = std::make_unique<Tca>("TCA" + std::to_string(i), device_.timers_tca[i]);
         timer->set_memory_bus(bus_.get());
         timer->set_event_system(evsys);
+        if (port_mux_) {
+            timer->set_port_mux(port_mux_);
+            port_mux_->add_observer(timer.get());
+        }
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
@@ -129,6 +139,10 @@ void Machine::initialize_peripherals()
         auto timer = std::make_unique<Tcb>("TCB" + std::to_string(i), device_.timers_tcb[i]);
         timer->set_memory_bus(bus_.get());
         timer->set_event_system(evsys);
+        if (port_mux_) {
+            timer->set_port_mux(port_mux_);
+            port_mux_->add_observer(timer.get());
+        }
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
@@ -300,6 +314,16 @@ void Machine::initialize_peripherals()
         if (i == 0) bus_->set_cpu_int(cpu_int.get());
         bus_->attach_peripheral(*cpu_int);
         owned_peripherals_.push_back(std::move(cpu_int));
+    }
+
+    // 14. CCL (Moved to end to ensure all other peripherals are on the bus)
+    if (device_.ccl.ctrla_address != 0) {
+        auto c = std::make_unique<Ccl>(device_.ccl);
+        c->set_memory_bus(bus_.get());
+        c->set_event_system(evsys);
+        c->set_pin_mux(pin_mux_.get());
+        bus_->attach_peripheral(*c);
+        owned_peripherals_.push_back(std::move(c));
     }
 }
 
