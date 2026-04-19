@@ -87,20 +87,38 @@ TEST_CASE("AVR8X USART - Receiver Fidelity") {
     bus.write_data(0x0809, static_cast<u8>(baud_val >> 8));
     bus.write_data(0x0806, 0x80); // CTRLB.RXEN = 1
 
-    // Inject byte
-    uart->inject_received_byte(0x5A);
+    // Inject byte via Pin (0x5A = 01011010)
+    const auto& desc = uart->descriptor();
+    auto drive_bit = [&](bool level) {
+        // Use a high-priority owner to drive the pin despite UART claiming it as input
+        machine.pin_mux().claim_pin_by_address(desc.rxd_pin_address, desc.rxd_pin_bit, static_cast<PinOwner>(15));
+        machine.pin_mux().update_pin_by_address(desc.rxd_pin_address, desc.rxd_pin_bit, static_cast<PinOwner>(15), true, level);
+        bus.tick_peripherals(1667); // Use 1667 to ensure bit-duration (1666.75) is exceeded
+    };
 
-    // 1. RXSIF should be set immediately
-    CHECK((bus.read_data(0x0804) & 0x10) != 0); // RXSIF
-    // 2. RXCIF should NOT be set yet
-    CHECK((bus.read_data(0x0804) & 0x80) == 0); // RXCIF
+    // Idle
+    drive_bit(true);
 
-    // 3. Wait 16,000 cycles
-    bus.tick_peripherals(16000);
-    CHECK((bus.read_data(0x0804) & 0x80) == 0);
+    // Start bit
+    drive_bit(false);
+    
+    // 1. RXSIF should be set now (during reception)
+    CHECK((bus.read_data(0x0804) & 0x10) != 0); 
+    
+    // Data bits (0x5A = LSB: 0, 1, 0, 1, 1, 0, 1, 0)
+    drive_bit(false); // Bit 0: 0
+    drive_bit(true);  // Bit 1: 1
+    drive_bit(false); // Bit 2: 0
+    drive_bit(true);  // Bit 3: 1
+    drive_bit(true);  // Bit 4: 1
+    drive_bit(false); // Bit 5: 0
+    drive_bit(true);  // Bit 6: 1
+    drive_bit(false); // Bit 7: 0
+    
+    // Stop bit
+    drive_bit(true);
 
-    // 4. Complete reception
-    bus.tick_peripherals(1000);
-    CHECK((bus.read_data(0x0804) & 0x80) != 0); // RXCIF
+    // 4. RXCIF should be set bit now
+    CHECK((bus.read_data(0x0804) & 0x80) != 0);
     CHECK(bus.read_data(0x0800) == 0x5A); // RXDATA
 }

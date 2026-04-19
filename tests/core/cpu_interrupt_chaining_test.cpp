@@ -5,7 +5,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -40,7 +40,7 @@ TEST_CASE("CPU Interrupt Priority and Chaining Test")
     using vioavr::core::SregFlag;
     using vioavr::core::Timer8;
     using vioavr::core::Timer8Descriptor;
-    using vioavr::core::devices::atmega328;
+    using vioavr::core::devices::atmega328p;
 
     constexpr auto low_tcnt = static_cast<vioavr::core::u16>(0x50U);
     constexpr auto low_ocr = static_cast<vioavr::core::u16>(0x51U);
@@ -59,7 +59,7 @@ TEST_CASE("CPU Interrupt Priority and Chaining Test")
     constexpr auto low_vector = static_cast<vioavr::core::u8>(14U);
     constexpr auto high_vector = static_cast<vioavr::core::u8>(20U);
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     
     Timer8Descriptor high_desc {
         .tcnt_address = high_tcnt,

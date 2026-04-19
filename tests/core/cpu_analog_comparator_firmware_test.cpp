@@ -6,7 +6,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 
@@ -35,12 +35,12 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    const u16 acsr_addr = atmega328.acs[0].acsr_address;
-    const u8 comparator_vector = atmega328.acs[0].vector_index; // 23 on 328P
+    const u16 acsr_addr = atmega328p.acs[0].acsr_address;
+    const u8 comparator_vector = atmega328p.acs[0].vector_index; // 23 on 328P
 
     PinMux pin_mux(8);
-    MemoryBus bus {atmega328};
-    AnalogComparator comparator {"AC", atmega328.acs[0], pin_mux, 9U, 0.01};
+    MemoryBus bus {atmega328p};
+    AnalogComparator comparator {"AC", atmega328p.acs[0], pin_mux, 9U, 0.01};
     comparator.set_negative_input_voltage(0.80);
     comparator.set_positive_input_voltage(0.20);
     bus.attach_peripheral(comparator);
@@ -83,7 +83,7 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
         s = cpu.snapshot();
         // Vector 23 is at byte address 23 * 4 = 92. Word address 46.
         CHECK(s.program_counter == 46U); 
-        CHECK(s.stack_pointer == static_cast<u16>(atmega328.sram_range().end - 2U));
+        CHECK(s.stack_pointer == static_cast<u16>(atmega328p.sram_range().end - 2U));
         CHECK(s.in_interrupt_handler);
 
         // Step through ISR body
@@ -93,7 +93,7 @@ TEST_CASE("Analog Comparator Firmware Interrupt Test")
         cpu.step(); // RETI
         s = cpu.snapshot();
         CHECK(s.program_counter == 69U); // Back to instruction after NOP
-        CHECK(s.stack_pointer == atmega328.sram_range().end);
+        CHECK(s.stack_pointer == atmega328p.sram_range().end);
         CHECK_FALSE(s.in_interrupt_handler);
 
         // Mainline continues

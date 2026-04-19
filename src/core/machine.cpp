@@ -121,7 +121,9 @@ void Machine::initialize_peripherals()
         const auto& desc = device_.ports[i];
         auto port = std::make_unique<GpioPort>(desc.name, desc.pin_address, desc.ddr_address, desc.port_address, *pin_mux_);
         ports_.push_back(port.get());
-        pin_mux_->register_port(port->port_address(), i);
+        pin_mux_->register_port(desc.pin_address, i);  // PIN address
+        pin_mux_->register_port(desc.ddr_address, i);  // DDR address
+        pin_mux_->register_port(desc.port_address, i); // PORT address
         bus_->attach_peripheral(*port);
         owned_peripherals_.push_back(std::move(port));
     }
@@ -203,14 +205,14 @@ void Machine::initialize_peripherals()
 
     // 3. UART
     for (u8 i = 0; i < device_.uart_count; ++i) {
-        auto uart = std::make_unique<Uart>("UART" + std::to_string(device_.uarts[i].uart_index), device_.uarts[i]);
+        auto uart = std::make_unique<Uart>("UART" + std::to_string(device_.uarts[i].uart_index), device_.uarts[i], *pin_mux_);
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
     }
 
     // Modern UART (AVR8X)
     for (u8 i = 0; i < device_.uart8x_count; ++i) {
-        auto uart = std::make_unique<Uart8x>(device_.uarts8x[i]);
+        auto uart = std::make_unique<Uart8x>(device_.uarts8x[i], *pin_mux_);
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
     }

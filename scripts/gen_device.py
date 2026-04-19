@@ -34,9 +34,10 @@ def get_bit(reg, bit_regex, default=0):
     return default
 
 def get_pad_info(port_map, periph, sig_name, reg_type='PORT'):
+    tokens = sig_name.split('|')
     for sig in periph.get('signals', []):
         full_sig = (sig.get('group') or '') + (sig.get('index') or '')
-        if full_sig == sig_name:
+        if full_sig in tokens:
             pad = sig.get('pad', '')
             if pad and pad.startswith('P'):
                 port_char = pad[1]
@@ -218,6 +219,9 @@ def generate_header(data, header_path):
                              return i['index']
             return 0
 
+        tx_a, tx_b = get_pad_info(port_map, p_data, f'TXD{idx}|TXD', 'PORT')
+        rx_a, rx_b = get_pad_info(port_map, p_data, f'RXD{idx}|RXD', 'PIN')
+        
         return f"""{{
             .udr_address = {hx(udr_addr)}, .ucsra_address = {hx(status_addr)}, .ucsrb_address = {hx(ctrl_ie_addr)}, .ucsrc_address = {hx(ctrl_en_addr)}, .ubrrl_address = {hx(ubrr_addr)}, .ubrrh_address = {hx(ubrr_addr + 1)},
             .ucsra_reset = {hx(r(f'UCSR{idx}A|UCSRA|STATUS')['initval'])}, .ucsrb_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLA')['initval'])}, .ucsrc_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLB')['initval'])},
@@ -234,7 +238,9 @@ def generate_header(data, header_path):
             .txcie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'TXCIE'))}, 
             .udrie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'UDRIE|DREIE'))},
             .pr_address = {pr_addr}, .pr_bit = {pr_bit},
-            .uart_index = {idx}U
+            .uart_index = {idx}U,
+            .txd_pin_address = {tx_a}, .txd_pin_bit = {tx_b}U,
+            .rxd_pin_address = {rx_a}, .rxd_pin_bit = {rx_b}U
         }}"""
 
     def gen_timer8(p_name, p_data):
@@ -658,12 +664,18 @@ def generate_header(data, header_path):
         if groups['EVSYS']:
             user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
             if user_reg: user_addr = user_reg['offset']
+        idx = "".join(filter(str.isdigit, p_name)) or "0"
+        tx_a, tx_b = get_pad_info(port_map, p_data, f'TXD{idx}|TXD', 'PORT')
+        rx_a, rx_b = get_pad_info(port_map, p_data, f'RXD{idx}|RXD', 'PIN')
+
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])},
             .ctrld_address = {hx(r('CTRLD')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}, .baud_address = {hx(r('BAUD')['offset'])},
             .rxdata_address = {hx(r('RXDATAL')['offset'])}, .txdata_address = {hx(r('TXDATAL')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
             .rx_vector_index = {get_int('RXC')}U, .tx_vector_index = {get_int('TXC')}U, .dre_vector_index = {get_int('DRE')}U,
-            .user_event_address = {hx(user_addr)}
+            .user_event_address = {hx(user_addr)},
+            .txd_pin_address = {tx_a}, .txd_pin_bit = {tx_b}U,
+            .rxd_pin_address = {rx_a}, .rxd_pin_bit = {rx_b}U
         }}"""
 
     def gen_spi8x(p_name, p_data):

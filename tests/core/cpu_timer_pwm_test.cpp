@@ -6,7 +6,7 @@
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 
@@ -19,8 +19,8 @@ void run_to_cycle(AvrCpu& cpu, u64 target) {
 }
 
 TEST_CASE("Timer8: CTC Mode Precise") {
-    MemoryBus bus {devices::atmega328};
-    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
+    MemoryBus bus {devices::atmega328p};
+    Timer8 timer0 {"TIMER0", devices::atmega328p.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 
@@ -56,8 +56,8 @@ TEST_CASE("Timer8: CTC Mode Precise") {
 }
 
 TEST_CASE("Timer8: Fast PWM Mode Precise") {
-    MemoryBus bus {devices::atmega328};
-    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
+    MemoryBus bus {devices::atmega328p};
+    Timer8 timer0 {"TIMER0", devices::atmega328p.timers8[0]};
     bus.attach_peripheral(timer0);
     vioavr::core::PinMux pm_portb { 10 }; GpioPort portb { "PORTB", 0x23, 0x24, 0x25, pm_portb };
     bus.attach_peripheral(portb);
@@ -99,8 +99,8 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
 }
 
 TEST_CASE("Timer8: Phase Correct PWM Precise") {
-    MemoryBus bus {devices::atmega328};
-    Timer8 timer0 {"TIMER0", devices::atmega328.timers8[0]};
+    MemoryBus bus {devices::atmega328p};
+    Timer8 timer0 {"TIMER0", devices::atmega328p.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 

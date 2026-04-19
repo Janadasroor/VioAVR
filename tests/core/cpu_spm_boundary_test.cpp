@@ -4,7 +4,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -27,7 +27,7 @@ TEST_CASE("CPU SPM Boundary and Halt Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
 
     bus.load_image(HexImage {
@@ -36,7 +36,7 @@ TEST_CASE("CPU SPM Boundary and Halt Test")
             encode_ldi(31U, 0x00U),                 // 1: Z_high
             encode_ldi(16U, 0x01U),                 // 2: Val=1
             encode_sts(16U),                        // 3: STS
-            atmega328.spmcsr_address,               // 4: SPMCSR address
+            atmega328p.spmcsr_address,               // 4: SPMCSR address
             kSpm,                                   // 5: SPM instruction
             encode_ldi(18U, 0x55U),                 // 6: Next instr
             0x0000U                                 // 7: NOP

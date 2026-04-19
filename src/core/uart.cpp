@@ -5,8 +5,8 @@
 
 namespace vioavr::core {
 
-Uart::Uart(std::string_view name, const UartDescriptor& descriptor) noexcept
-    : name_(std::string(name)), desc_(descriptor)
+Uart::Uart(std::string_view name, const UartDescriptor& descriptor, PinMux& pin_mux) noexcept
+    : name_(std::string(name)), desc_(descriptor), pin_mux_(&pin_mux)
 {
     const std::array<u16, 6> addrs = {
         desc_.udr_address, desc_.ucsra_address, 
@@ -54,18 +54,24 @@ void Uart::reset() noexcept
     ucsrc_ = 0x06U; // default format (8N1)
     ubrrh_ = 0U;
     ubrrl_ = 0U;
-    tx_in_progress_ = false;
-    tx_cycles_elapsed_ = 0;
-    tx_duration_ = 160U; // Default bit-time in cycles (for UBRR=0)
+    tx_active_ = false;
+    rx_active_ = false;
+    tx_cycle_accumulator_ = 0;
+    rx_cycle_accumulator_ = 0;
+    tx_bit_duration_ = 160U;
 }
 
 void Uart::tick(const u64 elapsed_cycles) noexcept
 {
-    if (tx_in_progress_) {
-        tx_cycles_elapsed_ += elapsed_cycles;
+    if (tx_active_) {
+        tx_cycle_accumulator_ += elapsed_cycles;
+        const u16 ubrr = static_cast<u16>((static_cast<u16>(ubrrh_) << 8U) | ubrrl_);
+        const u8 u2x = (ucsra_ & desc_.u2x_mask) ? 1U : 0U;
+        const u64 bit_duration = static_cast<u64>(u2x ? 8 : 16) * (ubrr + 1U);
         
-        if (tx_cycles_elapsed_ >= tx_duration_) {
-            tx_in_progress_ = false;
+        // Simple 10-bit frame duration
+        if (tx_cycle_accumulator_ >= (bit_duration * 10)) {
+            tx_active_ = false;
             ucsra_ |= (desc_.udre_mask | desc_.txc_mask);
         }
     }
@@ -90,12 +96,9 @@ void Uart::write(const u16 address, const u8 value) noexcept
     if (address == desc_.udr_address) {
         udr_tx_ = value;
         ucsra_ &= ~(desc_.udre_mask | desc_.txc_mask);
-        tx_in_progress_ = true;
-        tx_cycles_elapsed_ = 0;
-        
-        const u16 ubrr = static_cast<u16>((static_cast<u16>(ubrrh_) << 8U) | ubrrl_);
-        const u8 u2x = (ucsra_ & desc_.u2x_mask) ? 1U : 0U;
-        tx_duration_ = (u2x ? 8 : 16) * (ubrr + 1U) * 10U;
+        tx_active_ = true;
+        tx_cycle_accumulator_ = 0;
+        tx_bits_left_ = 10;
     } else if (address == desc_.ucsra_address) {
         ucsra_ = static_cast<u8>((ucsra_ & ~desc_.u2x_mask) | (value & desc_.u2x_mask));
         if (value & desc_.txc_mask) ucsra_ &= ~desc_.txc_mask;

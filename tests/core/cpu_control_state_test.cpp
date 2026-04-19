@@ -4,7 +4,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -25,7 +25,7 @@ TEST_CASE("CPU Control and State Transition Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
 
     SUBCASE("Sleep and Watchdog Reset") {
@@ -50,7 +50,7 @@ TEST_CASE("CPU Control and State Transition Test")
         CHECK(cpu.state() == CpuState::running);
 
         // Enable sleep via SMCR.SE=1 before SLEEP instruction
-        bus.write_data(atmega328.smcr_address, 0x01U);
+        bus.write_data(atmega328p.smcr_address, 0x01U);
 
         cpu.step(); // SLEEP
         CHECK(cpu.program_counter() == 3U);

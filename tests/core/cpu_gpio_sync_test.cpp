@@ -7,7 +7,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/sync_engine.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 #include <array>
 #include <vector>
@@ -61,7 +61,7 @@ TEST_CASE("CPU and GPIO Synchronization via SyncEngine Test")
     constexpr auto ddrb_addr = static_cast<u16>(0x24U);
     constexpr auto portb_addr = static_cast<u16>(0x25U);
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb_addr, ddrb_addr, portb_addr, pm_port_b };
     bus.attach_peripheral(port_b);
     AvrCpu cpu {bus};

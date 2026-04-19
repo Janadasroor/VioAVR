@@ -3,13 +3,13 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/hex_image.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 
 TEST_CASE("CPU Trace Utility Test")
 {
-    MemoryBus bus {devices::atmega328};
+    MemoryBus bus {devices::atmega328p};
     AvrCpu cpu {bus};
 
     HexImage image {

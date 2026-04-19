@@ -3,7 +3,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -36,7 +36,7 @@ TEST_CASE("CPU GPR Data-Space Mapping Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
 
     // 0x0010 is the address of R16 in data space

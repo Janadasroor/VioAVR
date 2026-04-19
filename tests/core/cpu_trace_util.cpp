@@ -7,7 +7,7 @@
 #include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/machine.hpp"

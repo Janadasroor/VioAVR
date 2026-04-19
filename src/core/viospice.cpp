@@ -6,6 +6,7 @@
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/uart.hpp"
+#include "vioavr/core/uart8x.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
@@ -81,6 +82,18 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         bus_.attach_peripheral(*dac.release());
     }
 
+    // 4. Communication (UART)
+    for (u8 i = 0; i < device.uart_count; ++i) {
+        auto uart = std::make_unique<Uart>("UART" + std::to_string(i), device.uarts[i], pin_mux_);
+        bus_.attach_peripheral(*uart.release());
+    }
+
+    for (u8 i = 0; i < device.uart8x_count; ++i) {
+        auto uart = std::make_unique<Uart8x>(device.uarts8x[i], pin_mux_);
+        uart->set_memory_bus(&bus_);
+        bus_.attach_peripheral(*uart.release());
+    }
+
     for (u8 i = 0; i < device.eeprom_count; ++i) {
         auto eeprom = std::make_unique<Eeprom>("EEPROM" + std::to_string(i), device.eeproms[i]);
         bus_.attach_peripheral(*eeprom.release());
@@ -124,7 +137,7 @@ void VioSpice::set_external_pin(u32 external_id, PinLevel level) {
     if (mapping) {
         auto it = port_map_.find(mapping->port_name);
         if (it != port_map_.end()) {
-            it->second->on_external_pin_change(mapping->bit_index, level);
+            (void)it->second->on_external_pin_change(mapping->bit_index, level);
         }
     }
 }

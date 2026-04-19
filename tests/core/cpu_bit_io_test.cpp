@@ -6,7 +6,7 @@
 #include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -65,7 +65,7 @@ TEST_CASE("CPU Bit and I/O Instruction Test")
     constexpr auto ddrb = static_cast<u16>(0x24U);
     constexpr auto portb = static_cast<u16>(0x25U);
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
     bus.attach_peripheral(port_b);
     AvrCpu cpu {bus};
