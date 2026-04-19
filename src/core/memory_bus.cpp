@@ -273,18 +273,23 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
                              static_cast<Eeprom*>(p)->erase_all(); 
                         }
                     }
-                } else if (command == 0x06 || command == 0x08) { // EEER / EEERWP (EEPROM Page Erase)
-                    // Simplified: Treated as write or commit 0xFF
-                } else if (command == 0x07 || command == 0x08) { // EEWP / EEERWP (EEPROM Page Write)
-                     if (device_.mapped_eeprom.size > 0) {
+                } else if (command >= 0x06 && command <= 0x08) { // EEER, EEWP, EEERWP
+                    if (device_.mapped_eeprom.size > 0) {
                         const u32 ee_offset = (address - device_.mapped_eeprom.data_start);
                         for (auto* p : peripherals_) {
                             if (p && p->name() == "EEPROM") {
                                 auto* ee = static_cast<Eeprom*>(p);
-                                ee->commit_page(ee_offset, eeprom_page_buffer_);
+                                if (command == 0x06) {
+                                    // Page Erase only
+                                    std::vector<u8> erase_buf(32, 0xFFU);
+                                    ee->commit_page(ee_offset, erase_buf);
+                                } else {
+                                    // Write (0x07) or Erase-Write (0x08)
+                                    ee->commit_page(ee_offset, eeprom_page_buffer_);
+                                }
                             }
                         }
-                     }
+                    }
                 } else if (command == 0x09) { // EEPBC (EEPROM Page Buffer Clear)
                     std::ranges::fill(eeprom_page_buffer_, 0xFFU);
                 } else if (command == 0x10) { // URER / URWP (User Row)

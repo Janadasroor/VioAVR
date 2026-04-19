@@ -118,6 +118,7 @@ set(TEST_SOURCES
     timer16_fidelity_test.cpp
     avr8x_cpuint_fidelity_test.cpp
     avr8x_wdt_fidelity_test.cpp
+    avr8x_nvm_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
