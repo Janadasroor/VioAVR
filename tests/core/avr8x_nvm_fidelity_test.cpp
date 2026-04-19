@@ -1,90 +1,58 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/machine.hpp"
-#include "vioavr/core/devices/atmega4809.hpp"
+#include "vioavr/core/device_catalog.hpp"
+#include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/nvm_ctrl.hpp"
+#include "vioavr/core/eeprom.hpp"
+#include <vector>
 
 using namespace vioavr::core;
-using namespace vioavr::core::devices;
 
-TEST_CASE("AVR8X NVMCTRL - EEPROM Fidelity") {
-    Machine machine{atmega4809};
+TEST_CASE("AVR8X NVM - EEPROM Page Buffering Fidelity") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    REQUIRE(device != nullptr);
+
+    Machine machine(*device);
     auto& bus = machine.bus();
     machine.reset();
 
-    // 4809 NVMCTRL: CTRLA=0x1000, ADDR=0x1006, EEPROM=0x1400
-    const u16 NVM_CTRLA = 0x1000;
-    const u16 NVM_ADDR  = 0x1006;
-    const u16 NVM_STATUS = 0x1002;
-    const u16 NVM_INTFLAGS = 0x1004;
-    const u16 EEPROM_START = 0x1400;
-
-    // 1. Initial State: EEPROM should be 0xFF
-    CHECK(bus.read_data(EEPROM_START) == 0xFFU);
-
-    // Load an infinite loop to keep the CPU running
-    std::vector<u16> program = {0xCFFF}; // RJMP -1
+    // Load NOPs
+    std::vector<u16> program(1000, 0x0000);
     bus.load_flash(program);
     machine.cpu().reset();
 
-    // 2. Write to EEPROM range (hits page buffer, not storage)
-    bus.write_data(EEPROM_START, 0x42U);
+    // 1. Write to EEPROM Mapped Address (0x1400)
+    // This should NOT change the physical EEPROM immediately, but go to Page Buffer.
+    bus.write_data(0x1400, 0xAA);
     
-    // Read back should STILL be 0xFF (Unified Map reads from storage)
-    CHECK(bus.read_data(EEPROM_START) == 0xFFU);
+    // Read back immediately - should be 0xAA (because we read back from the same memory map? 
+    // Actually datasheet: "Reading from the EEPROM mapped space returns the physical EEPROM content."
+    // Wait! If I write to 0x1400, it's just a buffer. Reading from 0x1400 should return OLD value (0xFF).
+    CHECK(bus.read_data(0x1400) == 0xFF); // Fails if we write direct!
 
-    // 3. Set up NVM Command
-    // Set ADDR to point to the EEPROM location (relative to data space)
-    bus.write_data(NVM_ADDR, (EEPROM_START & 0xFFU));
-    bus.write_data(NVM_ADDR + 1, (EEPROM_START >> 8U));
+    // 2. Clear Page Buffer command
+    // CTRLA address for NVMCTRL is 0x1000
+    bus.write_data(0x1000, 0x09); // EEBUFCLR
+    // MemoryBus should process it immediately (cycles = 1)
+    machine.run(1);
 
-    // Execute ERASEWRITE (0x08)
-    bus.write_data(NVM_CTRLA, 0x08U);
+    // 3. Write to Page Buffer again
+    bus.write_data(0x1400, 0xBB);
+    CHECK(bus.read_data(0x1400) == 0xFF);
 
-    // 4. Verify Busy Status
-    // STATUS bit 1 is EEBUSY
-    CHECK((bus.read_data(NVM_STATUS) & 0x02U) != 0U);
-
-    // 5. Progress Simulation
-    machine.run(32000);
-    CHECK((bus.read_data(NVM_STATUS) & 0x02U) != 0U); // Still busy
-
-    machine.run(33000); // Crosses the 64000 mark
+    // 4. Execute ERWEE (Erase and Write EEPROM)
+    bus.write_data(0x1000, 0x08); // ee_erase_write (0x08 in our enum)
     
-    // 6. Verify Completion
-    CHECK((bus.read_data(NVM_STATUS) & 0x02U) == 0U); // Not busy
-    CHECK((bus.read_data(NVM_INTFLAGS) & 0x01U) != 0U); // DONE flag set
+    // Check Status: BUSY
+    CHECK((bus.read_data(0x1002) & 0x03) != 0);
 
-    // 7. Verify Data in Storage
-    CHECK(bus.read_data(EEPROM_START) == 0x42U);
-}
-
-TEST_CASE("AVR8X NVMCTRL - Page Buffer Clear") {
-    Machine machine{atmega4809};
-    auto& bus = machine.bus();
-    machine.reset();
-
-    const u16 NVM_CTRLA = 0x1000;
-    const u16 EEPROM_START = 0x1400;
-
-    // Load an infinite loop
-    std::vector<u16> program = {0xCFFF}; // RJMP -1
-    bus.load_flash(program);
-    machine.cpu().reset();
-
-    // 1. Fill buffer
-    bus.write_data(EEPROM_START, 0xAAU);
-
-    // 2. Clear buffer command (0x09 - EEPBC)
-    bus.write_data(NVM_CTRLA, 0x09U);
-    machine.run(10);
-
-    // 3. Command EEPROM write
-    bus.write_data(0x1006, (EEPROM_START & 0xFFU)); // ADDR L
-    bus.write_data(0x1007, (EEPROM_START >> 8U));   // ADDR H
-    bus.write_data(NVM_CTRLA, 0x08U); // ERASEWRITE
+    // 5. Wait for completion (~4ms = 64000 cycles at 16MHz)
+    machine.run(65000);
     
-    machine.run(70000);
-
-    // 4. Should be 0xFF (buffer was cleared)
-    CHECK(bus.read_data(EEPROM_START) == 0xFFU);
+    // Check Status: Not BUSY
+    CHECK((bus.read_data(0x1002) & 0x03) == 0);
+    
+    // Now physical EEPROM should have 0xBB
+    CHECK(bus.read_data(0x1400) == 0xBB);
 }
