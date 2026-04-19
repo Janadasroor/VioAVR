@@ -709,8 +709,17 @@ def generate_header(data, header_path):
 
     def gen_wdt8x(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        ints = p_data.get('interrupts', {})
+        def get_int(key):
+            for k, v in ints.items():
+                if key in k.upper(): return v['index']
+            return 0
         return f"""{{
-            .ctrla_address = {hx(r('CTRLA')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, 
+            .winctrla_address = {hx(r('WINCTRLA')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])},
+            .status_address = {hx(r('STATUS')['offset'])},
+            .vector_index = {get_int('WDT')}U
         }}"""
 
     def gen_pcint(p_name, p_data):

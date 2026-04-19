@@ -139,13 +139,13 @@ void AvrCpu::run_duration(const double seconds)
 
 u32 AvrCpu::get_sleep_wake_latency() const noexcept
 {
-    if (cpu_control_ == nullptr) return 4U;
-    
     // Legacy mapping or Mega-0 mapping
     // From Idle: 6 cycles. 
     // From Power-down: 6 cycles + startup.
     // We use 6 as a standard for now.
-    switch (cpu_control_->current_sleep_mode()) {
+    if (!control_regs_) return 4U;
+
+    switch (control_regs_->current_sleep_mode()) {
     case SleepMode::idle: return 6U;
     case SleepMode::adc_noise_reduction: return 6U;
     case SleepMode::power_down: return 6U;
@@ -1722,9 +1722,9 @@ void AvrCpu::execute_rcall(const DecodedInstruction& instruction)
     if ((displacement & 0x0800) != 0) {
         displacement -= 0x1000;
     }
-    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 4U : 3U);
     push_pc(instruction.word_address + 1U);
     program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 4U : 3U);
 }
 
 void AvrCpu::execute_rjmp(const DecodedInstruction& instruction)
@@ -1733,9 +1733,9 @@ void AvrCpu::execute_rjmp(const DecodedInstruction& instruction)
     if ((displacement & 0x0800) != 0) {
         displacement -= 0x1000;
     }
-    advance_cycles(2U);
     program_counter_ =
         static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+    advance_cycles(2U);
 }
 
 void AvrCpu::execute_ijmp(const DecodedInstruction& instruction)
@@ -1796,34 +1796,30 @@ void AvrCpu::execute_call(const DecodedInstruction& instruction)
     const u32 target = (((static_cast<u32>(instruction.opcode) & 0x01F0U) << 13U) |
                         ((static_cast<u32>(instruction.opcode) & 0x0001U) << 16U) |
                         instruction.words[1]);
-    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
     push_pc(instruction.word_address + 2U);
     program_counter_ = target;
+    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
 }
 
 void AvrCpu::execute_ret(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    u32 cycles = (bus_->device().pc_width_bytes() >= 3U) ? 5U : 4U;
-    advance_cycles(cycles);
     program_counter_ = pop_pc();
+    const u32 cycles = (bus_->device().pc_width_bytes() >= 3U) ? 5U : 4U;
+    advance_cycles(cycles);
 }
 
 void AvrCpu::execute_reti(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    advance_cycles(bus_->device().pc_width_bytes() == 3U ? 5U : 4U);
     program_counter_ = pop_pc();
     set_flag(SregFlag::interrupt, true);
     if (interrupt_depth_ != 0U) {
         --interrupt_depth_;
     }
-
-    if (auto* cpu_int = bus_->cpu_int()) {
-        cpu_int->on_reti();
-    }
-
     interrupt_delay_ = 1U;
+    const u32 cycles = (bus_->device().pc_width_bytes() >= 3U) ? 5U : 4U;
+    advance_cycles(cycles);
 }
 
 void AvrCpu::execute_bclr(const DecodedInstruction& instruction)
