@@ -101,7 +101,6 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
     if (cs <= 5) {
         static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
         const u16 divisor = prescalers[cs];
-        
         for (u64 cycle = 0; cycle < elapsed_cycles; ++cycle) {
             if (++cycle_accumulator_ >= divisor) {
                 cycle_accumulator_ = 0;

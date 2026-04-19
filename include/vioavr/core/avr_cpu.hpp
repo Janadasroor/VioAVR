@@ -344,6 +344,7 @@ private:
     std::vector<u16> temp_flash_page_buffer_;
     u8 spm_lock_timeout_ {};
     CpuState state_ {CpuState::halted};
+    bool reset_triggered_ {false};
 };
 
 }  // namespace vioavr::core

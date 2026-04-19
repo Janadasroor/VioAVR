@@ -189,8 +189,8 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
 
         // 3. Execution order: Tick -> Compare Match -> Input Capture
         if (should_tick) {
-            perform_tick();
             handle_matches();
+            perform_tick();
         }
 
         if (event_triggered) {
@@ -558,6 +558,14 @@ void Timer16::apply_pin_action(std::optional<BoundPin> pin, PinAction action) no
     if (!pin) return;
     const u16 addr = pin->port->port_address();
     const u8 current = pin->port->read(addr);
+    
+    const char* action_str = "none";
+    if (action == PinAction::clear) action_str = "clear";
+    else if (action == PinAction::set) action_str = "set";
+    else if (action == PinAction::toggle) action_str = "toggle";
+
+    printf("T1: PIN ACTION %s on Pin %d, TCNT=%d, cycle=%lu\n", action_str, (int)pin->bit, (int)tcnt_, bus_ ? bus_->cpu_cycles() : 0);
+
     switch (action) {
     case PinAction::toggle: pin->port->write(addr, current ^ (1U << pin->bit)); break;
     case PinAction::clear: pin->port->write(addr, current & ~(1U << pin->bit)); break;

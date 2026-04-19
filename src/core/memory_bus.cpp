@@ -558,6 +558,12 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
 }  // namespace vioavr::core
 
 namespace vioavr::core {
+void MemoryBus::on_reti() noexcept {
+    for (auto* peripheral : peripherals_) {
+        peripheral->on_reti();
+    }
+}
+
 IoPeripheral* MemoryBus::get_peripheral_by_name(std::string_view name) noexcept {
     for (auto* p : peripherals_) {
         // Some peripherals might have instance names like USART0

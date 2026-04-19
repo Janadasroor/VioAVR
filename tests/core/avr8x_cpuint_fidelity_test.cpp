@@ -8,8 +8,9 @@
 using namespace vioavr::core;
 
 TEST_CASE("AVR8X CPUINT Fidelity Test") {
-    auto device = &devices::atmega4809;
-    Machine machine(*device);
+    DeviceDescriptor device = devices::atmega4809;
+    device.boot_start_address = 0x4000;
+    Machine machine(device);
     auto& bus = machine.bus();
 
     const u16 CPUINT_BASE = 0x0110;

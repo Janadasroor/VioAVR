@@ -29,6 +29,10 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
                 t16->set_bus(*bus_);
             } else if (auto* t10 = dynamic_cast<Timer10*>(peripheral)) {
                 t10->set_bus(*bus_);
+            } else if (auto* wdt = dynamic_cast<WatchdogTimer*>(peripheral)) {
+                watchdog_timer_ = wdt;
+            } else if (auto* wdt8x = dynamic_cast<Wdt8x*>(peripheral)) {
+                wdt8x_ = wdt8x;
             }
         }
     }
@@ -64,6 +68,7 @@ void AvrCpu::reset(ResetCause cause) noexcept
     }
 
     cycles_ = 0U;
+    reset_triggered_ = true;
     interrupt_pending_ = false;
     interrupt_depth_ = 0U;
     state_ = (bus_ != nullptr && bus_->loaded_program_words() > 0U) ? CpuState::running : CpuState::halted;
@@ -175,6 +180,10 @@ void AvrCpu::step()
     }
 
     if (state_ == CpuState::sleeping) {
+        if (!interrupt_pending_) {
+            advance_cycles(1U);
+        }
+
         if (interrupt_pending_) {
             // Wake up latency (4-6 cycles depending on mode)
             const u32 latency = get_sleep_wake_latency();
@@ -188,8 +197,6 @@ void AvrCpu::step()
             }
             return;
         }
-
-        advance_cycles(1U);
         return;
     }
 
@@ -206,6 +213,7 @@ void AvrCpu::step()
         return;
     }
 
+    reset_triggered_ = false;
     const DecodedInstruction instruction = fetch();
     decode_and_execute(instruction);
     synchronize_if_needed();
@@ -565,8 +573,9 @@ void AvrCpu::refresh_interrupt_pending()
         return;
     }
 
+    const u8 domains = active_clock_domains();
     InterruptRequest request;
-    interrupt_pending_ = bus_->pending_interrupt_request(request, active_clock_domains());
+    interrupt_pending_ = bus_->pending_interrupt_request(request, domains);
 }
 
 bool AvrCpu::service_interrupt_if_needed()
@@ -1821,6 +1830,9 @@ void AvrCpu::execute_reti(const DecodedInstruction& instruction)
     interrupt_delay_ = 1U;
     const u32 cycles = (bus_->device().pc_width_bytes() >= 3U) ? 5U : 4U;
     advance_cycles(cycles);
+    if (bus_ != nullptr) {
+        bus_->on_reti();
+    }
 }
 
 void AvrCpu::execute_bclr(const DecodedInstruction& instruction)
@@ -1901,13 +1913,19 @@ void AvrCpu::execute_break(const DecodedInstruction& instruction)
 void AvrCpu::execute_wdr(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    ++program_counter_;
+    
     if (watchdog_timer_ != nullptr) {
         watchdog_timer_->reset_watchdog();
     }
     if (wdt8x_ != nullptr) {
         wdt8x_->reset_timer();
     }
+
+    if (reset_triggered_) {
+        return;
+    }
+
+    ++program_counter_;
     advance_cycles(1U);
 }
 

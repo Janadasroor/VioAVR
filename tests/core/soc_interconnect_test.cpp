@@ -99,6 +99,8 @@ TEST_CASE("SoC: Timer1 Triggers ADC") {
     CHECK((adcsra & 0x40) != 0);
     
     // Clear ADSC and TIFR
+    // Reset ADC state by disabling and re-enabling
+    bus.write_data(devices::atmega32u4.adcs[0].adcsra_address, 0x00); 
     bus.write_data(devices::atmega32u4.adcs[0].adcsra_address, 0xA0); 
     bus.write_data(devices::atmega32u4.timers16[0].tifr_address, 0xFF);
     
