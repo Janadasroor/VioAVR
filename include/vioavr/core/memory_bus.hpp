@@ -57,6 +57,7 @@ public:
 
     [[nodiscard]] constexpr u16 read_program_word(u32 word_address) const noexcept
     {
+        if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
         if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
             return 0xFFFFU;
         }
@@ -65,6 +66,7 @@ public:
 
     [[nodiscard]] constexpr u8 read_program_byte(u32 byte_address) const noexcept
     {
+        if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
         if (lpm_special_mode_timeout_ > 0U) {
             if ((last_spmcsr_val_ & 0x20U) != 0U) { // SIGRD
                 const u32 offset = byte_address >> 1U;
@@ -126,7 +128,7 @@ public:
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
     [[nodiscard]] bool should_stall_cpu(u32 pc_word) const noexcept;
-    void request_cpu_stall(u32 cycles) noexcept;
+    void request_cpu_stall(u32 cycles) const noexcept;
 
     void set_xmem(class Xmem* xmem) noexcept { xmem_ = xmem; }
     [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
@@ -134,6 +136,9 @@ public:
     [[nodiscard]] class NvmCtrl* nvm_ctrl() const noexcept { return nvm_ctrl_; }
     void set_cpu_int(class CpuInt* cpu_int) noexcept { cpu_int_ = cpu_int; }
     [[nodiscard]] class CpuInt* cpu_int() const noexcept { return cpu_int_; }
+
+    void set_flash_wait_states(u8 states) noexcept { flash_wait_states_ = states; }
+    [[nodiscard]] u8 flash_wait_states() const noexcept { return flash_wait_states_; }
     
     [[nodiscard]] IoPeripheral* get_peripheral_by_name(std::string_view name) noexcept;
     
@@ -165,12 +170,13 @@ private:
 
     // SPM timing state
     u32 spm_busy_cycles_left_ {0U};
-    u32 io_stall_cycles_ {0U};
+    mutable u32 io_stall_cycles_ {0U};
     u8 spm_command_ {0U};
     u32 spm_address_ {0U};
     u16 spm_data_ {0U};
     u8 lpm_special_mode_timeout_ {0U};
     u8 last_spmcsr_val_ {0U};
+    u8 flash_wait_states_ {0U};
     u64 cpu_cycles_ {0U};
 };
 }  // namespace vioavr::core

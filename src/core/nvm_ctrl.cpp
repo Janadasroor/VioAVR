@@ -58,6 +58,7 @@ void NvmCtrl::write(u16 address, u8 value) noexcept {
         }
     } else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
+        if (bus_) bus_->set_flash_wait_states(ctrlb_ & 0x03U);
     } else if (address == desc_.status_address) {
         // Status bits are usually read-only or cleared by HW
     } else if (address == desc_.intctrl_address) {

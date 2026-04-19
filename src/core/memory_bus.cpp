@@ -520,7 +520,7 @@ bool MemoryBus::should_stall_cpu(u32 pc_word) const noexcept {
     return false;
 }
 
-void MemoryBus::request_cpu_stall(u32 cycles) noexcept {
+void MemoryBus::request_cpu_stall(u32 cycles) const noexcept {
     io_stall_cycles_ = std::max(io_stall_cycles_, cycles);
 }
 
