@@ -244,7 +244,7 @@ void Machine::initialize_peripherals()
     // Modern Watchdog (AVR8X)
     for (u8 i = 0; i < device_.wdt8x_count; ++i) {
         auto wdt = std::make_unique<Wdt8x>(device_.wdts8x[i], *cpu_);
-        // Link to CPU if needed (CPU might need a way to store multi-WDT pointers, but for now we link the last one)
+        if (i == 0) cpu_->set_wdt8x(wdt.get());
         bus_->attach_peripheral(*wdt);
         owned_peripherals_.push_back(std::move(wdt));
     }

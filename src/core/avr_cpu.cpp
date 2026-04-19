@@ -1,4 +1,5 @@
 #include "vioavr/core/avr_cpu.hpp"
+#include "vioavr/core/wdt8x.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/watchdog_timer.hpp"
 #include "vioavr/core/timer8.hpp"
@@ -1900,10 +1901,13 @@ void AvrCpu::execute_break(const DecodedInstruction& instruction)
 void AvrCpu::execute_wdr(const DecodedInstruction& instruction)
 {
     (void)instruction;
+    ++program_counter_;
     if (watchdog_timer_ != nullptr) {
         watchdog_timer_->reset_watchdog();
     }
-    ++program_counter_;
+    if (wdt8x_ != nullptr) {
+        wdt8x_->reset_timer();
+    }
     advance_cycles(1U);
 }
 

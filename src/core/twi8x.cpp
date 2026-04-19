@@ -60,13 +60,14 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
     if (state == 0x02U) { // OWNER
         if (bits_left_ > 0) {
             cycle_counter_ += elapsed_cycles;
-            if (cycle_counter_ >= bit_duration_) {
-                cycle_counter_ = 0;
+            while (bits_left_ > 0 && cycle_counter_ >= bit_duration_) {
+                cycle_counter_ -= bit_duration_;
                 bits_left_--;
                 if (bits_left_ == 0) {
                     mstatus_ |= MSTATUS_CLKHOLD;
                     if (maddr_ & 0x01U) mstatus_ |= MSTATUS_RIF;
                     else mstatus_ |= MSTATUS_WIF;
+                    break;
                 }
             }
         }
@@ -106,16 +107,11 @@ void Twi8x::write(u16 address, u8 value) noexcept {
         
         if ((mctrla_ & 0x01U) && (state == 0x00 || state == 0x01 || state == 0x02)) { // ENABLED and (UNKNOWN or IDLE or OWNER)
             mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x02U; // OWNER
-            mstatus_ |= MSTATUS_CLKHOLD;
             
             // Calculate bit duration: 2 * (10 + BAUD)
             bit_duration_ = 2U * (10U + mbaud_);
             cycle_counter_ = 0;
             bits_left_ = 9; // 8 data + 1 ACK
-            
-            // Immediate response for simplified simulation
-            if (maddr_ & 0x01U) mstatus_ |= MSTATUS_RIF;
-            else mstatus_ |= MSTATUS_WIF;
         }
     }
     else if (address == desc_.mdata_address) {
@@ -125,9 +121,6 @@ void Twi8x::write(u16 address, u8 value) noexcept {
         // Start "transfer" of 8 bits
         cycle_counter_ = 0;
         bits_left_ = 9;
-        
-        // Set WIF immediately for synchronous test support
-        if (!(maddr_ & 0x01U)) mstatus_ |= MSTATUS_WIF;
     }
     else if (address == desc_.mctrlb_address) {
         mctrlb_ = value;
