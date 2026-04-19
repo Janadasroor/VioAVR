@@ -57,65 +57,78 @@ void Uart8x::reset() noexcept {
     tx_in_progress_ = false;
     tx_data_busy_ = false;
     tx_bits_left_ = 0;
+    tx_total_bits_ = 0;
     tx_bit_duration_ = 0.0;
     tx_cycle_accumulator_ = 0.0;
     rx_in_progress_ = false;
     rx_bits_left_ = 0;
+    rx_total_bits_ = 0;
     rx_bit_duration_ = 0.0;
     rx_cycle_accumulator_ = 0.0;
 }
 
 void Uart8x::tick(u64 elapsed_cycles) noexcept {
+    // Determine bit duration once if not cached
+    u8 samples_per_bit = 16;
+    u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
+    if (rxmode == 0x01) samples_per_bit = 8;
+    
+    double bit_duration = 16.0;
+    if (baud_ > 64) {
+        bit_duration = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
+    }
+
     for (u64 i = 0; i < elapsed_cycles; ++i) {
-        // 1. Move from Data Register to Shift Register if shift register is idle
+        // 1. Transmitter
         if (!tx_in_progress_ && tx_data_busy_) {
             tx_in_progress_ = true;
             tx_data_busy_ = false;
-            tx_bits_left_ = 10; // Start + 8 Data + Stop
             tx_cycle_accumulator_ = 0.0;
-            status_ |= STATUS_DREIF; // Data register now empty
+            tx_bit_duration_ = bit_duration;
+            status_ |= STATUS_DREIF;
             
-            u8 samples_per_bit = 16;
-            u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
-            if (rxmode == 0x01) samples_per_bit = 8;
+            // Construct frame
+            u8 char_size = 5 + (ctrlc_ & 0x03U);
+            if ((ctrlc_ & 0x07U) == 0x07U) char_size = 9; // 9-bit
             
-            if (baud_ > 64) {
-                // Bit Duration = (S * BAUD) / 64
-                tx_bit_duration_ = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
-            } else {
-                tx_bit_duration_ = 16.0; // Minimal default
-            }
+            u16 data = (static_cast<u16>(txdatah_ & 0x01U) << 8U) | tx_data_buffer_;
+            tx_shift_reg_ = data;
+            
+            u8 data_bits = char_size;
+            u8 parity_bits = (ctrlc_ & CTRLC_PMODE_MASK) ? 1 : 0;
+            u8 stop_bits = (ctrlc_ & CTRLC_SBMODE) ? 2 : 1;
+            tx_total_bits_ = 1 + data_bits + parity_bits + stop_bits;
+            tx_bits_left_ = tx_total_bits_;
         }
 
-        // 2. Progress the shift register bit-by-bit
         if (tx_in_progress_) {
             tx_cycle_accumulator_ += 1.0;
             if (tx_cycle_accumulator_ >= tx_bit_duration_) {
                 tx_cycle_accumulator_ -= tx_bit_duration_;
-                if (tx_bits_left_ > 0) {
-                    tx_bits_left_--;
-                }
+                tx_bits_left_--;
                 
                 if (tx_bits_left_ == 0) {
                     tx_in_progress_ = false;
                     status_ |= STATUS_TXCIF;
+                    
+                    // Loop-back handling
+                    if (ctrla_ & CTRLA_LBME) {
+                        // Push transmitted value back to receiver
+                        actually_push_to_fifo(static_cast<u8>(tx_shift_reg_), (tx_shift_reg_ >> 8) & 0x01);
+                    }
                 }
             }
         }
 
-        // 3. Progress the receiver shift register
+        // 2. Receiver (basic simulation of timing)
         if (rx_in_progress_) {
             rx_cycle_accumulator_ += 1.0;
             if (rx_cycle_accumulator_ >= rx_bit_duration_) {
                 rx_cycle_accumulator_ -= rx_bit_duration_;
-                if (rx_bits_left_ > 0) {
-                    rx_bits_left_--;
-                }
-                
+                rx_bits_left_--;
                 if (rx_bits_left_ == 0) {
                     rx_in_progress_ = false;
-                    // Move from shift register to FIFO
-                    actually_push_to_fifo(rx_shift_reg_.data, rx_shift_reg_.bit9);
+                    actually_push_to_fifo(static_cast<u8>(rx_shift_reg_), (rx_shift_reg_ >> 8) & 0x01);
                 }
             }
         }
@@ -154,10 +167,7 @@ void Uart8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.ctrlc_address) ctrlc_ = value;
     else if (address == desc_.ctrld_address) ctrld_ = value;
     else if (address == desc_.status_address) {
-        // TXCIF is clear-on-write-1.
-        if (value & STATUS_TXCIF) {
-            status_ &= ~STATUS_TXCIF;
-        }
+        if (value & STATUS_TXCIF) status_ &= ~STATUS_TXCIF;
     }
     else if (address == desc_.baud_address) baud_ = (baud_ & 0xFF00U) | value;
     else if (address == desc_.baud_address + 1) baud_ = (baud_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
@@ -166,10 +176,10 @@ void Uart8x::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.txdata_address) {
         if (ctrlb_ & CTRLB_TXEN) {
-            // Write to Data Register
+            tx_data_buffer_ = value;
             tx_data_busy_ = true;
-            status_ &= ~STATUS_DREIF; // Data register now full
-            status_ &= ~STATUS_TXCIF; // Start of new frame clears TXC
+            status_ &= ~STATUS_DREIF;
+            status_ &= ~STATUS_TXCIF;
         }
     }
     else if (address == desc_.dbgctrl_address) dbgctrl_ = value;
@@ -193,62 +203,47 @@ bool Uart8x::pending_interrupt_request(InterruptRequest& request) const noexcept
 
 bool Uart8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (!pending_interrupt_request(request)) return false;
-    
-    if (request.vector_index == desc_.tx_vector_index) {
-        status_ &= ~STATUS_TXCIF;
-    }
-    // RXC and DRE are hardware-cleared by action
+    if (request.vector_index == desc_.tx_vector_index) status_ &= ~STATUS_TXCIF;
     return true;
 }
 
 void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
     if (!(ctrlb_ & CTRLB_RXEN)) return;
-    if (rx_in_progress_) return; // Busy receiving
+    if (rx_in_progress_) return;
 
-    // Start reception process
     rx_in_progress_ = true;
-    rx_bits_left_ = 10; // Start + 8 Data + Stop
-    rx_cycle_accumulator_ = 0.0;
-    rx_shift_reg_ = {data, bit9};
-    status_ |= STATUS_RXSIF; // Signal start of frame
+    rx_shift_reg_ = data | (static_cast<u16>(bit9) << 8);
+    status_ |= STATUS_RXSIF;
 
-    u8 samples_per_bit = 16;
-    u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
-    if (rxmode == 0x01) samples_per_bit = 8;
+    u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
+    rx_bit_duration_ = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
     
-    if (baud_ > 64) {
-        rx_bit_duration_ = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
-    } else {
-        rx_bit_duration_ = 16.0;
-    }
+    // Total bits for rx
+    u8 char_size = 5 + (ctrlc_ & 0x03U);
+    if ((ctrlc_ & 0x07U) == 0x07U) char_size = 9;
+    rx_total_bits_ = 1 + char_size + ((ctrlc_ & CTRLC_PMODE_MASK) ? 1 : 0) + ((ctrlc_ & CTRLC_SBMODE) ? 2 : 1);
+    rx_bits_left_ = rx_total_bits_;
+    rx_cycle_accumulator_ = 0.0;
 }
 
 void Uart8x::actually_push_to_fifo(u8 data, bool bit9) noexcept {
-    // MPCM Filtering
-    bool mpc_en = (ctrlb_ & 0x01U); // MPCM bit
-    if (mpc_en && !bit9) {
-        return; // Filter out non-address frames
-    }
+    bool mpc_en = (ctrlb_ & CTRLB_MPCM);
+    if (mpc_en && !bit9) return;
 
     if (rx_fifo_count_ < 2) {
-        u8 high = 0;
-        if (bit9) high |= RXDATAH_DATA8;
+        u8 high = bit9 ? RXDATAH_DATA8 : 0;
         rx_fifo_[rx_fifo_write_idx_] = {data, high};
         rx_fifo_write_idx_ = (rx_fifo_write_idx_ + 1) % 2;
         rx_fifo_count_++;
         status_ |= STATUS_RXCIF;
     } else {
-        // Overflow
         rx_fifo_[(rx_fifo_write_idx_ + 1) % 2].high |= RXDATAH_BUFOVF;
     }
 }
 
 bool Uart8x::consume_transmitted_byte(u16& data) noexcept {
-    // This is a test helper, it doesn't represent real hardware pins yet.
-    // In a real co-sim, this would be tied to the TXD pin state changes.
-    // For now we just return the 'last' written bit9 if TXC is set.
     if (status_ & STATUS_TXCIF) {
-        data = (static_cast<u16>(txdatah_ & 0x01U) << 8U);
+        data = tx_shift_reg_;
         return true;
     }
     return false;

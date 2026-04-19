@@ -45,6 +45,7 @@ private:
     u16 baud_{0U};
     u8 dbgctrl_{0U};
     u8 txdatah_{0U};
+    u8 tx_data_buffer_{0U};
 
     std::array<RxBufferEntry, 2> rx_fifo_{};
     u8 rx_fifo_count_{0};
@@ -62,10 +63,10 @@ private:
     u8 rx_bits_left_{0};
     double rx_bit_duration_{0.0};
     double rx_cycle_accumulator_{0.0};
-    struct {
-        u8 data;
-        bool bit9;
-    } rx_shift_reg_{0, false};
+    u16 tx_shift_reg_{0U};
+    u16 rx_shift_reg_{0U};
+    u8 tx_total_bits_{0};
+    u8 rx_total_bits_{0};
 
     // Bits in STATUS
     static constexpr u8 STATUS_RXCIF = 0x80U;
@@ -85,10 +86,20 @@ private:
     static constexpr u8 CTRLA_TXCIE = 0x40U;
     static constexpr u8 CTRLA_DREIE = 0x20U;
 
-    // Bits in CTRLB
     static constexpr u8 CTRLB_RXEN = 0x80U;
     static constexpr u8 CTRLB_TXEN = 0x40U;
+    static constexpr u8 CTRLB_SFDEN = 0x10U; // Start Frame Detection Enable
+    static constexpr u8 CTRLB_ODME = 0x08U;  // Open Drain Mode Enable
     static constexpr u8 CTRLB_RXMODE_MASK = 0x06U;
+    static constexpr u8 CTRLB_MPCM = 0x01U;
+
+    // Bits in CTRLC
+    static constexpr u8 CTRLC_PMODE_MASK = 0x30U;
+    static constexpr u8 CTRLC_SBMODE = 0x08U;
+    static constexpr u8 CTRLC_CHSIZE_MASK = 0x07U;
+
+    // Bits in CTRLA
+    static constexpr u8 CTRLA_LBME = 0x08U;
 };
 
 } // namespace vioavr::core

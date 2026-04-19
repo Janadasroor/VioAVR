@@ -24,6 +24,9 @@ public:
     [[nodiscard]] std::string_view name() const noexcept override { return "CCL"; }
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+
+    [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
 
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
@@ -36,6 +39,7 @@ public:
 
 private:
     const CclDescriptor desc_;
+    MemoryBus* bus_ {nullptr};
 
     u8 ctrla_ {0x00};
     std::array<u8, 4> seqctrl_ {};
@@ -53,6 +57,7 @@ private:
     };
     std::array<LutState, 4> luts_ {}; // ATmega4809 has 4 LUTs
     std::array<bool, 4> outputs_ {};
+    std::array<bool, 4> prev_outputs_ {};
     
     // State for sequential logic (SEQ0, SEQ1)
     std::array<bool, 2> seq_state_ {};
