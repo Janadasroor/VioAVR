@@ -29,10 +29,14 @@ public:
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+    void set_event_system(EventSystem* evsys) noexcept override;
 
 private:
     const TcbDescriptor desc_;
     MemoryBus* bus_ {nullptr};
+    EventSystem* evsys_ {nullptr};
+
+    void on_event() noexcept;
 
     // Registers
     u8 ctrla_ {0x00};
