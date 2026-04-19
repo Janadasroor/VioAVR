@@ -24,8 +24,8 @@ public:
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     // External Interface
-    void inject_received_byte(u8 data) noexcept;
-    bool consume_transmitted_byte(u8& data) noexcept;
+    void inject_received_byte(u8 data, bool bit9 = false) noexcept;
+    bool consume_transmitted_byte(u16& data) noexcept;
 
 private:
     struct RxBufferEntry {
@@ -43,6 +43,7 @@ private:
     u8 status_{0x20U}; // DREIF initially set
     u16 baud_{0U};
     u8 dbgctrl_{0U};
+    u8 txdatah_{0U};
 
     std::array<RxBufferEntry, 2> rx_fifo_{};
     u8 rx_fifo_count_{0};

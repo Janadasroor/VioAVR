@@ -585,7 +585,11 @@ bool AvrCpu::service_interrupt_if_needed()
         }
     }
 
-    advance_cycles(2U);
+    if (bus_->device().flash_words > 65536) {
+        advance_cycles(5U);
+    } else {
+        advance_cycles(4U);
+    }
     return true;
 }
 

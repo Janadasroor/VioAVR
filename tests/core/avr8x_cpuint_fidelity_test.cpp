@@ -205,4 +205,16 @@ TEST_CASE("AVR8X CPUINT Fidelity Test") {
         // STATUS should be 0x00
         CHECK(bus.read_data(CPUINT_STATUS) == 0x00);
     }
+
+    SUBCASE("Interrupt Vectoring Latency") {
+        machine.cpu().set_flag(SregFlag::interrupt, true);
+        low_vec.trigger();
+        
+        u64 cycles_before = machine.cpu().cycles();
+        machine.step(); // This should vector to the interrupt
+        u64 cycles_after = machine.cpu().cycles();
+        
+        // For ATmega4809, latency should be 4 cycles minimum.
+        CHECK(cycles_after - cycles_before == 4);
+    }
 }
