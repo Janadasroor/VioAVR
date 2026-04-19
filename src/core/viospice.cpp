@@ -216,7 +216,18 @@ void VioSpice::reset()
 
 void VioSpice::step_duration(double seconds)
 {
-    cpu_.run_duration(seconds);
+    time_accumulator_ += seconds;
+    const double cycle_period = 1.0 / frequency_;
+    
+    if (time_accumulator_ >= cycle_period) {
+        uint64_t cycles = static_cast<uint64_t>(time_accumulator_ / cycle_period);
+        cpu_.run_duration(static_cast<double>(cycles) / frequency_);
+        time_accumulator_ -= (static_cast<double>(cycles) * cycle_period);
+    }
+}
+
+void VioSpice::set_frequency(double hz) {
+    frequency_ = hz;
 }
 
 void VioSpice::tick_timer2_async(const u64 ticks)

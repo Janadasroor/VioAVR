@@ -41,8 +41,11 @@ struct VioBridgeShm {
     std::atomic<BridgeStatus> status;
     
     // Command Interface
-    std::atomic<uint32_t> command; // 0=None, 1=Reset, 2=LoadHex, 3=Step
-    uint64_t request_cycles;
+    std::atomic<uint32_t> command; // Command bitmask
+    uint32_t sync_counter_val;     // Incremented every sync step
+    double clock_frequency;     // Target MCU frequency
+    double request_duration;   // Simulation time to advance (seconds)
+    uint64_t request_cycles;   // Cycles to step (if request_duration=0)
     char command_arg[256];
 
     // Digital I/O (128 pins max)

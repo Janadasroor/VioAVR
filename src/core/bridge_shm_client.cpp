@@ -47,15 +47,31 @@ void BridgeShmClient::disconnect() {
 void BridgeShmClient::reset() {
     if (!shm_) return;
     shm_->command.store(1); // Reset
+    shm_->request_duration = 0;
     sem_post(&shm_->sem_req);
     sem_wait(&shm_->sem_ack);
 }
 
 void BridgeShmClient::step(uint64_t cycles) {
     if (!shm_) return;
+    shm_->request_duration = 0;
     shm_->request_cycles = cycles;
-    // Signal Server
+    shm_->command = 0; // 0 = step
     sem_post(&shm_->sem_req);
+    wait_step_done();
+}
+
+void BridgeShmClient::step(double duration) {
+    if (!shm_) return;
+    shm_->request_duration = duration;
+    shm_->request_cycles = 0;
+    shm_->command = 0; // 0 = step
+    sem_post(&shm_->sem_req);
+    wait_step_done();
+}
+
+void BridgeShmClient::set_frequency(double hz) {
+    if (shm_) shm_->clock_frequency = hz;
 }
 
 void BridgeShmClient::wait_step_done() {

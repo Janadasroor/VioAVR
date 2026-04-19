@@ -19,6 +19,8 @@ public:
     // Control
     void reset();
     void step(uint64_t cycles);
+    void step(double duration);
+    void set_frequency(double hz);
     void wait_step_done();
 
     // Data Transfer

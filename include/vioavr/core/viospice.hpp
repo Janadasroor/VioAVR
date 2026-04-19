@@ -27,6 +27,7 @@ public:
     void set_pin_map(std::unique_ptr<PinMap> pin_map);
     void add_pin_mapping(std::string_view port_name, u8 bit_index, u32 external_id, std::string_view label = "");
     void set_quantum(u64 cycles);
+    void set_frequency(double hz);
     
     // Lifecycle
     bool load_hex(std::string_view path);
@@ -65,6 +66,8 @@ private:
     std::unique_ptr<PinMap> pin_map_;
     std::unique_ptr<SyncEngine> sync_;
     u64 quantum_ {1000};
+    double frequency_ {16000000.0};
+    double time_accumulator_ {0.0};
 };
 
 } // namespace vioavr::core
