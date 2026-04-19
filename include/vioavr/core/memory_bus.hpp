@@ -9,6 +9,7 @@
 
 #include <array>
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace vioavr::core {
@@ -115,6 +116,8 @@ public:
     [[nodiscard]] class NvmCtrl* nvm_ctrl() const noexcept { return nvm_ctrl_; }
     void set_cpu_int(class CpuInt* cpu_int) noexcept { cpu_int_ = cpu_int; }
     [[nodiscard]] class CpuInt* cpu_int() const noexcept { return cpu_int_; }
+    
+    [[nodiscard]] IoPeripheral* get_peripheral_by_name(std::string_view name) noexcept;
     
     void execute_nvm_command(u8 command, u32 address, u16 data) noexcept;
 

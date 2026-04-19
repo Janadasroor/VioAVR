@@ -536,3 +536,13 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
 }
 
 }  // namespace vioavr::core
+
+namespace vioavr::core {
+IoPeripheral* MemoryBus::get_peripheral_by_name(std::string_view name) noexcept {
+    for (auto* p : peripherals_) {
+        // Some peripherals might have instance names like USART0
+        if (p->name() == name) return p;
+    }
+    return nullptr;
+}
+}
