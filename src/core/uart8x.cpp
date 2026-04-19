@@ -47,11 +47,12 @@ void Uart8x::reset() noexcept {
     ctrlb_ = 0x00U;
     ctrlc_ = 0x03U; // 8N1
     ctrld_ = 0x00U;
-    status_ = STATUS_DREIF | STATUS_TXCIF;
+    status_ = STATUS_DREIF;
     baud_ = 0U;
-    rx_data_ = 0U;
-    tx_data_ = 0U;
     dbgctrl_ = 0x00U;
+    rx_fifo_count_ = 0;
+    rx_fifo_read_idx_ = 0;
+    rx_fifo_write_idx_ = 0;
     tx_in_progress_ = false;
     tx_cycles_elapsed_ = 0;
     tx_duration_ = 160U;
@@ -62,7 +63,8 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
         tx_cycles_elapsed_ += elapsed_cycles;
         if (tx_cycles_elapsed_ >= tx_duration_) {
             tx_in_progress_ = false;
-            status_ |= (STATUS_DREIF | STATUS_TXCIF);
+            status_ |= STATUS_DREIF;
+            status_ |= STATUS_TXCIF;
         }
     }
 }
@@ -76,10 +78,19 @@ u8 Uart8x::read(u16 address) noexcept {
     if (address == desc_.baud_address) return static_cast<u8>(baud_ & 0xFFU);
     if (address == desc_.baud_address + 1) return static_cast<u8>(baud_ >> 8U);
     if (address == desc_.rxdata_address) {
-        status_ &= ~STATUS_RXCIF;
-        return rx_data_;
+        if (rx_fifo_count_ == 0) return 0;
+        u8 data = rx_fifo_[rx_fifo_read_idx_].data;
+        rx_fifo_read_idx_ = (rx_fifo_read_idx_ + 1) % 2;
+        rx_fifo_count_--;
+        if (rx_fifo_count_ == 0) status_ &= ~STATUS_RXCIF;
+        return data;
     }
-    if (address == desc_.rxdata_address + 1) return 0U; // Error flags
+    if (address == desc_.rxdata_address + 1) {
+        if (rx_fifo_count_ == 0) return 0;
+        u8 high = rx_fifo_[rx_fifo_read_idx_].high;
+        if (status_ & STATUS_RXCIF) high |= RXDATAH_RXCIF;
+        return high;
+    }
     if (address == desc_.dbgctrl_address) return dbgctrl_;
     return 0U;
 }
@@ -90,24 +101,29 @@ void Uart8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.ctrlc_address) ctrlc_ = value;
     else if (address == desc_.ctrld_address) ctrld_ = value;
     else if (address == desc_.status_address) {
-        // Clear flags on write 1? No, Mega-0 USART flags are mostly clear-on-read or clear-on-action.
         // TXCIF is clear-on-write-1.
-        if (value & STATUS_TXCIF) status_ &= ~STATUS_TXCIF;
+        if (value & STATUS_TXCIF) {
+            status_ &= ~STATUS_TXCIF;
+        }
     }
     else if (address == desc_.baud_address) baud_ = (baud_ & 0xFF00U) | value;
     else if (address == desc_.baud_address + 1) baud_ = (baud_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
     else if (address == desc_.txdata_address) {
-        tx_data_ = value;
         if (ctrlb_ & CTRLB_TXEN) {
             status_ &= ~(STATUS_DREIF | STATUS_TXCIF);
             tx_in_progress_ = true;
             tx_cycles_elapsed_ = 0;
             
-            // Simplified baud calculation: duration = (64*16) / BAUD ? No, it's (64 * 16 * (1 + BAUD/64)) cycle-ish.
-            // For now, use a fixed duration or derive from baud_.
+            // Mega-0 Baud formula: f_baud = 64 * f_clk / (S * BAUD)
+            // Cycles per bit = f_clk / f_baud = (S * BAUD) / 64
+            // Duration for 10 bits = 10 * S * BAUD / 64
+            u8 samples_per_bit = 16;
+            u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
+            if (rxmode == 0x01) samples_per_bit = 8; // Double speed
+            
             if (baud_ > 0) {
-                // S = 16 * (1 + BAUD / 64)
-                tx_duration_ = ((64LL * 16LL + (u64)baud_) * 10LL) / 64LL;
+                // S * BAUD * 10 / 64
+                tx_duration_ = (static_cast<u64>(baud_) * samples_per_bit * 10ULL) / 64ULL;
             } else {
                 tx_duration_ = 160U;
             }
@@ -143,13 +159,25 @@ bool Uart8x::consume_interrupt_request(InterruptRequest& request) noexcept {
 }
 
 void Uart8x::inject_received_byte(u8 data) noexcept {
-    rx_data_ = data;
-    status_ |= STATUS_RXCIF;
+    if (rx_fifo_count_ < 2) {
+        rx_fifo_[rx_fifo_write_idx_] = {data, 0U};
+        rx_fifo_write_idx_ = (rx_fifo_write_idx_ + 1) % 2;
+        rx_fifo_count_++;
+        status_ |= STATUS_RXCIF;
+    } else {
+        // Overflow
+        rx_fifo_[(rx_fifo_write_idx_ + 1) % 2].high |= RXDATAH_BUFOVF;
+    }
 }
 
 bool Uart8x::consume_transmitted_byte(u8& data) noexcept {
+    // This is a test helper, it doesn't represent real hardware pins yet.
+    // In a real co-sim, this would be tied to the TXD pin state changes.
+    // For now we just return the 'last' written byte if TXC is set.
     if (status_ & STATUS_TXCIF) {
-        data = tx_data_;
+        // We don't store tx_data_ since we don't have a buffer anymore,
+        // but for testing we can just use 0 or implement a tx buffer if needed.
+        data = 0; 
         return true;
     }
     return false;

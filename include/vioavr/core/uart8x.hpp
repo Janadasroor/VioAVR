@@ -28,6 +28,11 @@ public:
     bool consume_transmitted_byte(u8& data) noexcept;
 
 private:
+    struct RxBufferEntry {
+        u8 data;
+        u8 high; // Contains error bits
+    };
+
     const Uart8xDescriptor desc_;
     std::array<AddressRange, 4> ranges_{};
 
@@ -35,11 +40,14 @@ private:
     u8 ctrlb_{0U};
     u8 ctrlc_{0U};
     u8 ctrld_{0U};
-    u8 status_{0x60U}; // DREIF and TXCIF initially? No, just DREIF.
+    u8 status_{0x20U}; // DREIF initially set
     u16 baud_{0U};
-    u8 rx_data_{0U};
-    u8 tx_data_{0U};
     u8 dbgctrl_{0U};
+
+    std::array<RxBufferEntry, 2> rx_fifo_{};
+    u8 rx_fifo_count_{0};
+    u8 rx_fifo_read_idx_{0};
+    u8 rx_fifo_write_idx_{0};
 
     bool tx_in_progress_{false};
     u64 tx_cycles_elapsed_{0};
@@ -49,6 +57,14 @@ private:
     static constexpr u8 STATUS_RXCIF = 0x80U;
     static constexpr u8 STATUS_TXCIF = 0x40U;
     static constexpr u8 STATUS_DREIF = 0x20U;
+    static constexpr u8 STATUS_RXSIF = 0x10U;
+
+    // Bits in RXDATAH
+    static constexpr u8 RXDATAH_RXCIF = 0x80U;
+    static constexpr u8 RXDATAH_BUFOVF = 0x40U;
+    static constexpr u8 RXDATAH_FERR = 0x04U;
+    static constexpr u8 RXDATAH_PERR = 0x02U;
+    static constexpr u8 RXDATAH_DATA8 = 0x01U;
 
     // Bits in CTRLA
     static constexpr u8 CTRLA_RXCIE = 0x80U;
@@ -58,6 +74,7 @@ private:
     // Bits in CTRLB
     static constexpr u8 CTRLB_RXEN = 0x80U;
     static constexpr u8 CTRLB_TXEN = 0x40U;
+    static constexpr u8 CTRLB_RXMODE_MASK = 0x06U;
 };
 
 } // namespace vioavr::core
