@@ -48,27 +48,30 @@ void BridgeShmClient::disconnect() {
 void BridgeShmClient::reset() {
     if (shm_) {
         shm_->command.store(1); // CMD_RESET
-        sem_post(&shm_->sem_req);
-        sem_wait(&shm_->sem_ack);
+        signal_and_wait();
     }
+}
+
+void BridgeShmClient::signal_and_wait() {
+    if (!shm_) return;
+    sem_post(&shm_->sem_req);
+    sem_wait(&shm_->sem_ack);
 }
 
 void BridgeShmClient::step(double delta_time_seconds) {
     if (!shm_) return;
     shm_->request_duration = delta_time_seconds;
     shm_->request_cycles = 0;
-    shm_->command.store(0); // Regular step
-    sem_post(&shm_->sem_req);
-    sem_wait(&shm_->sem_ack);
+    shm_->command.store(0);
+    signal_and_wait();
 }
 
 void BridgeShmClient::step_cycles(uint64_t cycles) {
     if (!shm_) return;
     shm_->request_cycles = cycles;
     shm_->request_duration = 0.0;
-    shm_->command.store(0); // Regular step
-    sem_post(&shm_->sem_req);
-    sem_wait(&shm_->sem_ack);
+    shm_->command.store(0);
+    signal_and_wait();
 }
 
 void BridgeShmClient::set_frequency(double hz) {
@@ -87,6 +90,13 @@ void BridgeShmClient::set_analog_input(uint8_t channel, float voltage) {
     }
 }
 
+void BridgeShmClient::set_thresholds(uint32_t pin_index, float vih, float vil) {
+    if (shm_ && pin_index < 128) {
+        shm_->vih_threshold[pin_index] = vih;
+        shm_->vil_threshold[pin_index] = vil;
+    }
+}
+
 bool BridgeShmClient::get_digital_output(uint32_t pin_index) const {
     if (shm_ && pin_index < 128) {
         return shm_->digital_outputs[pin_index] != 0;
@@ -101,6 +111,20 @@ double BridgeShmClient::get_analog_output(uint8_t channel) const {
     return 0.0;
 }
 
+void BridgeShmClient::set_status(BridgeStatus status) {
+    if (shm_) {
+        shm_->status.store(status);
+        // If status changed to Quit, we still need to post to unblock server
+        if (status == BridgeStatus::Quit) {
+            sem_post(&shm_->sem_req);
+        }
+    }
+}
+
+BridgeStatus BridgeShmClient::get_status() const {
+    return shm_ ? shm_->status.load() : BridgeStatus::Error;
+}
+
 uint64_t BridgeShmClient::get_total_cycles() const {
     return shm_ ? shm_->telemetry.total_cycles : 0;
 }
@@ -113,4 +137,10 @@ uint16_t BridgeShmClient::get_current_instruction() const {
     return shm_ ? shm_->telemetry.current_instruction_word : 0;
 }
 
+AvrCpuState BridgeShmClient::get_cpu_state() const {
+    if (shm_) return shm_->cpu_state;
+    return {};
+}
+
 } // namespace vioavr::core
+ 

@@ -89,6 +89,17 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     set_quantum(1000);
 }
 
+bool VioSpice::load_hex(std::string_view path) {
+    try {
+        HexImage image = HexImageLoader::load_file(path, bus_.device());
+        if (image.flash_words.empty()) return false;
+        bus_.load_image(image);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 void VioSpice::set_pin_map(std::unique_ptr<PinMap> pin_map) {
     pin_map_ = std::move(pin_map);
     bus_.set_pin_map(pin_map_.get());
@@ -151,6 +162,10 @@ void VioSpice::step_duration(double seconds) {
     cpu_.run_duration(seconds);
 }
 
+void VioSpice::tick_timer2_async(u64 ticks) {
+    if (timer2_) timer2_->tick_async(ticks);
+}
+
 void VioSpice::reset() {
     cpu_.reset();
 }
@@ -164,3 +179,4 @@ void VioSpice::set_quantum(u64 cycles) {
 }
 
 } // namespace vioavr::core
+ 
