@@ -37,10 +37,15 @@ private:
     u64 transfer_cycles_elapsed_{0};
     u64 transfer_duration_{16U}; // Default 8 bits @ /2
 
+    u8 tx_buffer_{0U};
+    u8 shift_register_{0U};
+    bool tx_buffer_full_{false};
+
     static constexpr u8 CTRLA_ENABLE = 0x01U;
     static constexpr u8 CTRLA_MASTER = 0x20U;
     static constexpr u8 INTCTRL_IE = 0x01U;
     static constexpr u8 INTFLAGS_IF = 0x80U;
+    static constexpr u8 INTFLAGS_WRCOL = 0x40U;
 };
 
 } // namespace vioavr::core

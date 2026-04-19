@@ -48,6 +48,7 @@ public:
     void step();
 
     [[nodiscard]] u64 cycles_per_second() const noexcept;
+    [[nodiscard]] u32 get_sleep_wake_latency() const noexcept;
 
     [[nodiscard]] constexpr CpuSnapshot snapshot() const noexcept
     {

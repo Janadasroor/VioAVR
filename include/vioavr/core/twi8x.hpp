@@ -44,6 +44,29 @@ private:
     u8 saddrmask_{0U};
 
     u8 dbgctrl_{0U};
+    
+    u64 cycle_counter_{0};
+    u64 bit_duration_{0};
+    u8 bits_left_{0};
+
+    // MSTATUS Bits
+    static constexpr u8 MSTATUS_RIF = 0x80U;
+    static constexpr u8 MSTATUS_WIF = 0x40U;
+    static constexpr u8 MSTATUS_CLKHOLD = 0x20U;
+    static constexpr u8 MSTATUS_RXACK = 0x10U;
+    static constexpr u8 MSTATUS_ARBLOST = 0x08U;
+    static constexpr u8 MSTATUS_BUSERR = 0x04U;
+    static constexpr u8 MSTATUS_BUSSTATE_MASK = 0x03U;
+
+    // SSTATUS Bits
+    static constexpr u8 SSTATUS_DIF = 0x80U;
+    static constexpr u8 SSTATUS_APIF = 0x40U;
+    static constexpr u8 SSTATUS_CLKHOLD = 0x20U;
+    static constexpr u8 SSTATUS_RXACK = 0x10U;
+    static constexpr u8 SSTATUS_COLL = 0x08U;
+    static constexpr u8 SSTATUS_BUSERR = 0x04U;
+    static constexpr u8 SSTATUS_DIR = 0x02U;
+    static constexpr u8 SSTATUS_AP = 0x01U;
 };
 
 } // namespace vioavr::core

@@ -366,7 +366,10 @@ struct Crc8xDescriptor {
 
 struct Wdt8xDescriptor {
     u16 ctrla_address {};
+    u16 winctrla_address {};
+    u16 intctrl_address {};
     u16 status_address {};
+    u8 vector_index {};
 };
 
 struct CpuIntDescriptor {

@@ -47,7 +47,6 @@ inline constexpr DeviceDescriptor atmega4809 {
     .smcr_sm_mask = 0x0U,
     .smcr_se_mask = 0x0U,
     .flash_rww_end_word = 0x6000U,
-    .boot_start_address = 0x4000U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -261,7 +260,11 @@ inline constexpr DeviceDescriptor atmega4809 {
 
     .wdt8x_count = 1U,
     .wdts8x = {{ {
-            .ctrla_address = 0x100U, .status_address = 0x101U
+            .ctrla_address = 0x100U, 
+            .winctrla_address = 0x0U,
+            .intctrl_address = 0x0U,
+            .status_address = 0x101U,
+            .vector_index = 0U
         } }},
 
     .crc8x_count = 1U,

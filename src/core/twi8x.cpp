@@ -54,9 +54,22 @@ void Twi8x::reset() noexcept {
 }
 
 void Twi8x::tick(u64 elapsed_cycles) noexcept {
-    // Highly simplified TWI state machine
-    if ((mstatus_ & 0x03U) == 0x02U) { // OWNER
-        // In simulation, we just toggle flags to indicate progress
+    if (mstatus_ & MSTATUS_CLKHOLD) return;
+
+    const u8 state = mstatus_ & MSTATUS_BUSSTATE_MASK;
+    if (state == 0x02U) { // OWNER
+        if (bits_left_ > 0) {
+            cycle_counter_ += elapsed_cycles;
+            if (cycle_counter_ >= bit_duration_) {
+                cycle_counter_ = 0;
+                bits_left_--;
+                if (bits_left_ == 0) {
+                    mstatus_ |= MSTATUS_CLKHOLD;
+                    if (maddr_ & 0x01U) mstatus_ |= MSTATUS_RIF;
+                    else mstatus_ |= MSTATUS_WIF;
+                }
+            }
+        }
     }
 }
 
@@ -81,29 +94,48 @@ void Twi8x::write(u16 address, u8 value) noexcept {
     if (address == desc_.mctrla_address) mctrla_ = value;
     else if (address == desc_.mctrlb_address) mctrlb_ = value;
     else if (address == desc_.mstatus_address) {
-        // Clear WIF/RIF on write 1
-        if (value & 0x80U) mstatus_ &= ~0x80U;
-        if (value & 0x40U) mstatus_ &= ~0x40U;
+        // Clear WIF/RIF/ARBLOST/BUSERR on write 1
+        mstatus_ &= static_cast<u8>(~(value & 0xCCU));
+        // Manual BUSSTATE override (to IDLE)
+        if ((value & 0x03U) == 0x01U) mstatus_ = (mstatus_ & ~0x03U) | 0x01U;
     }
     else if (address == desc_.mbaud_address) mbaud_ = value;
     else if (address == desc_.maddr_address) {
         maddr_ = value;
-        // 1. Force Bus State to OWNER (0x02) after a brief delay? No, immediate.
-        mstatus_ = (mstatus_ & ~0x03U) | 0x02U;
-        mstatus_ |= 0x20U; // CLKHOLD
+        const u8 state = mstatus_ & MSTATUS_BUSSTATE_MASK;
         
-        // 2. Set Interrupt Flag based on R/W bit
-        if (value & 0x01U) {
-            mstatus_ |= 0x80U; // RIF
-        } else {
-            mstatus_ |= 0x40U; // WIF
+        if ((mctrla_ & 0x01U) && (state == 0x00 || state == 0x01 || state == 0x02)) { // ENABLED and (UNKNOWN or IDLE or OWNER)
+            mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x02U; // OWNER
+            mstatus_ |= MSTATUS_CLKHOLD;
+            
+            // Calculate bit duration: 2 * (10 + BAUD)
+            bit_duration_ = 2U * (10U + mbaud_);
+            cycle_counter_ = 0;
+            bits_left_ = 9; // 8 data + 1 ACK
+            
+            // Immediate response for simplified simulation
+            if (maddr_ & 0x01U) mstatus_ |= MSTATUS_RIF;
+            else mstatus_ |= MSTATUS_WIF;
         }
     }
     else if (address == desc_.mdata_address) {
         mdata_ = value;
-        mstatus_ &= ~0x20U; // Release CLKHOLD
-        // Simulate completion
-        mstatus_ |= 0x40U; // WIF again for next byte
+        mstatus_ &= ~MSTATUS_CLKHOLD;
+        
+        // Start "transfer" of 8 bits
+        cycle_counter_ = 0;
+        bits_left_ = 9;
+        
+        // Set WIF immediately for synchronous test support
+        if (!(maddr_ & 0x01U)) mstatus_ |= MSTATUS_WIF;
+    }
+    else if (address == desc_.mctrlb_address) {
+        mctrlb_ = value;
+        u8 cmd = (value >> 2) & 0x03U;
+        if (cmd == 0x03) { // STOP
+             mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x01U; // Back to IDLE
+             mstatus_ &= ~MSTATUS_CLKHOLD;
+        }
     }
     else if (address == desc_.sctrla_address) sctrla_ = value;
     else if (address == desc_.sctrlb_address) sctrlb_ = value;

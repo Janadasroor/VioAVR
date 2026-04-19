@@ -40,6 +40,9 @@ void Spi8x::reset() noexcept {
     intctrl_ = 0x00U;
     intflags_ = 0x00U;
     data_ = 0x00U;
+    tx_buffer_ = 0x00U;
+    shift_register_ = 0x00U;
+    tx_buffer_full_ = false;
     transfer_in_progress_ = false;
     transfer_cycles_elapsed_ = 0;
 }
@@ -50,7 +53,25 @@ void Spi8x::tick(u64 elapsed_cycles) noexcept {
         if (transfer_cycles_elapsed_ >= transfer_duration_) {
             transfer_in_progress_ = false;
             intflags_ |= INTFLAGS_IF;
+            
+            // For now, simulate loopback by loading data_ with shift_register_
+            // In a real system, this would be the data shifted in from MISO.
+            data_ = shift_register_;
+            
+            // Auto-load next byte if available
+            if (tx_buffer_full_) {
+                shift_register_ = tx_buffer_;
+                tx_buffer_full_ = false;
+                transfer_in_progress_ = true;
+                transfer_cycles_elapsed_ = 0;
+            }
         }
+    } else if (tx_buffer_full_) {
+        // Start delayed transfer
+        shift_register_ = tx_buffer_;
+        tx_buffer_full_ = false;
+        transfer_in_progress_ = true;
+        transfer_cycles_elapsed_ = 0;
     }
 }
 
@@ -74,27 +95,40 @@ void Spi8x::write(u16 address, u8 value) noexcept {
         if (value & INTFLAGS_IF) intflags_ &= ~INTFLAGS_IF;
     }
     else if (address == desc_.data_address) {
-        data_ = value;
-        if (ctrla_ & CTRLA_ENABLE) {
-            intflags_ &= ~INTFLAGS_IF;
+        if (!(ctrla_ & CTRLA_ENABLE)) return;
+
+        if (tx_buffer_full_) {
+            intflags_ |= INTFLAGS_WRCOL;
+            return;
+        }
+
+        tx_buffer_ = value;
+        tx_buffer_full_ = true;
+        intflags_ &= ~INTFLAGS_IF;
+
+        if (!transfer_in_progress_) {
+            // Start immediately if idle
+            shift_register_ = tx_buffer_;
+            tx_buffer_full_ = false;
             transfer_in_progress_ = true;
             transfer_cycles_elapsed_ = 0;
-            
-            // Simplified duration based on CTRLA.PRESC and CLK2X
-            // PRESC is bits 1-3. CLK2X is bit 7.
-            // Mode: /2, /4, /8, /16, /32, /64, /128
-            u32 divisor = 2; // Default
-            u8 presc = (ctrla_ >> 1) & 0x07U;
-            switch(presc) {
-                case 0: divisor = 4; break;
-                case 1: divisor = 16; break;
-                case 2: divisor = 64; break;
-                case 3: divisor = 128; break;
-                // others are similar
-            }
-            if (ctrla_ & 0x80U) divisor /= 2;
-            transfer_duration_ = divisor * 8;
         }
+
+        // Recalculate duration in case it changed
+        u32 divisor = 4; // Default is /4
+        u8 presc = (ctrla_ >> 1) & 0x07U;
+        switch(presc) {
+            case 0: divisor = 4; break;
+            case 1: divisor = 16; break;
+            case 2: divisor = 64; break;
+            case 3: divisor = 128; break;
+            case 4: divisor = 2; break;
+            case 5: divisor = 8; break;
+            case 6: divisor = 32; break;
+            default: divisor = 4; break;
+        }
+        if (ctrla_ & 0x80U) divisor /= 2;
+        transfer_duration_ = static_cast<u64>(divisor) * 8U;
     }
 }
 
