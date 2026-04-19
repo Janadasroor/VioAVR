@@ -121,6 +121,7 @@ set(TEST_SOURCES
     avr8x_nvm_fidelity_test.cpp
     avr8x_tcb_fidelity_test.cpp
     avr8x_tca_fidelity_test.cpp
+    avr8x_rtc_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
