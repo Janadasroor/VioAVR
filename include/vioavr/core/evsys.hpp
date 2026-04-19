@@ -50,6 +50,10 @@ private:
     // Maps user index -> callback
     std::vector<EventCallback> callbacks_;
     std::unordered_map<u8, std::vector<EventCallback>> generator_callbacks_;
+
+    // Optimized routing cache: generator_id -> list of user indices
+    std::unordered_map<u8, std::vector<u8>> routing_cache_;
+    void rebuild_cache() noexcept;
 };
 
 } // namespace vioavr::core
