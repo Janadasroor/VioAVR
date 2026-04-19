@@ -8,7 +8,7 @@
 using namespace vioavr::core;
 
 TEST_CASE("AVR8X TCA Fidelity: Split Mode Aliasing") {
-    Tca tca(devices::atmega4809.timers_tca[0]);
+    Tca tca("TCA0", devices::atmega4809.timers_tca[0]);
     tca.reset();
 
     // Enable Split Mode
@@ -32,7 +32,7 @@ TEST_CASE("AVR8X TCA Fidelity: Split Mode Aliasing") {
 }
 
 TEST_CASE("AVR8X TCA Fidelity: Normal Mode Double Buffering") {
-    Tca tca(devices::atmega4809.timers_tca[0]);
+    Tca tca("TCA0", devices::atmega4809.timers_tca[0]);
     tca.reset();
 
     // Enable Timer, Single Slope PWM
@@ -88,4 +88,38 @@ TEST_CASE("AVR8X TCA Fidelity: Split Mode Independent Counting") {
     tca.tick(5);
     // LCNT should have reached 10, then reset to 0
     CHECK(tca.read(devices::atmega4809.timers_tca[0].tcnt_address) == 0);
+}
+TEST_CASE("AVR8X TCA Fidelity: Split Mode Dual Interrupts") {
+    Tca tca(devices::atmega4809.timers_tca[0]);
+    tca.reset();
+
+    // Enable Timer and Split Mode
+    tca.write(devices::atmega4809.timers_tca[0].ctrla_address, 0x01);
+    tca.write(devices::atmega4809.timers_tca[0].ctrld_address, 0x01);
+    
+    // Enable interrupts: LUNF (bit 0) and HUNF (bit 1)
+    tca.write(devices::atmega4809.timers_tca[0].intctrl_address, 0x03);
+    
+    // LPER = 10, HPER = 5
+    tca.write(devices::atmega4809.timers_tca[0].period_address, 10);
+    tca.write(devices::atmega4809.timers_tca[0].period_address + 1, 5);
+    
+    // Tick 6 times -> HUNF should fire
+    tca.tick(6);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].intflags_address) & 0x02) != 0);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].intflags_address) & 0x01) == 0);
+    
+    InterruptRequest req;
+    CHECK(tca.pending_interrupt_request(req) == true);
+    CHECK(req.vector_index == devices::atmega4809.timers_tca[0].hunf_vector_index);
+    
+    // Clear HUNF
+    tca.write(devices::atmega4809.timers_tca[0].intflags_address, 0x02);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].intflags_address) & 0x03) == 0);
+    
+    // Tick another 5 times -> LUNF should fire
+    tca.tick(5);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].intflags_address) & 0x01) != 0);
+    CHECK(tca.pending_interrupt_request(req) == true);
+    CHECK(req.vector_index == devices::atmega4809.timers_tca[0].luf_ovf_vector_index);
 }

@@ -123,6 +123,7 @@ set(TEST_SOURCES
     avr8x_tca_fidelity_test.cpp
     avr8x_rtc_fidelity_test.cpp
     avr8x_ccl_fidelity_test.cpp
+    avr8x_ccl_seq_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

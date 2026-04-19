@@ -117,7 +117,7 @@ void Machine::initialize_peripherals()
 
     // Modern TCA
     for (u8 i = 0; i < device_.tca_count; ++i) {
-        auto timer = std::make_unique<Tca>(device_.timers_tca[i]);
+        auto timer = std::make_unique<Tca>("TCA" + std::to_string(i), device_.timers_tca[i]);
         timer->set_memory_bus(bus_.get());
         timer->set_event_system(evsys);
         bus_->attach_peripheral(*timer);
@@ -126,7 +126,7 @@ void Machine::initialize_peripherals()
 
     // Modern TCB
     for (u8 i = 0; i < device_.tcb_count; ++i) {
-        auto timer = std::make_unique<Tcb>(device_.timers_tcb[i]);
+        auto timer = std::make_unique<Tcb>("TCB" + std::to_string(i), device_.timers_tcb[i]);
         timer->set_memory_bus(bus_.get());
         timer->set_event_system(evsys);
         bus_->attach_peripheral(*timer);
@@ -190,7 +190,7 @@ void Machine::initialize_peripherals()
 
     // Modern AC (AVR8X)
     for (u8 i = 0; i < device_.ac8x_count; ++i) {
-        auto ac = std::make_unique<Ac8x>(device_.acs8x[i]);
+        auto ac = std::make_unique<Ac8x>("AC" + std::to_string(i), device_.acs8x[i]);
         ac->set_memory_bus(bus_.get());
         ac->set_event_system(evsys);
         ac->set_analog_signal_bank(&analog_signal_bank_);

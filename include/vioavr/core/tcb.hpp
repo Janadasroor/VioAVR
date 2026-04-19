@@ -14,12 +14,12 @@ class MemoryBus;
  */
 class Tcb : public IoPeripheral {
 public:
-    explicit Tcb(const TcbDescriptor& desc);
+    explicit Tcb(std::string name, const TcbDescriptor& desc);
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
 
-    [[nodiscard]] std::string_view name() const noexcept override { return "TCB"; }
+    [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
 
@@ -27,11 +27,14 @@ public:
     
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    
+    [[nodiscard]] bool get_wo_level() const noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
 
 private:
+    std::string name_;
     const TcbDescriptor desc_;
     MemoryBus* bus_ {nullptr};
     EventSystem* evsys_ {nullptr};

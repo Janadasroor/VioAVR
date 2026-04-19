@@ -1,5 +1,6 @@
 #include "vioavr/core/wdt8x.hpp"
 #include "vioavr/core/avr_cpu.hpp"
+#include "vioavr/core/cpu_control.hpp"
 
 namespace vioavr::core {
 
@@ -55,12 +56,16 @@ u8 Wdt8x::read(u16 address) noexcept {
 
 void Wdt8x::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
-        ctrla_ = value;
-        update_timeout();
+        if (cpu_.cpu_control().is_ccp_unlocked()) {
+            ctrla_ = value;
+            update_timeout();
+        }
     }
     else if (address == desc_.winctrla_address) {
-        winctrla_ = value;
-        update_timeout();
+        if (cpu_.cpu_control().is_ccp_unlocked()) {
+            winctrla_ = value;
+            update_timeout();
+        }
     }
     else if (address == desc_.intctrl_address) {
         intctrl_ = value;

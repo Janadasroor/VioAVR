@@ -16,13 +16,13 @@ class AnalogSignalBank;
  */
 class Ac8x : public IoPeripheral {
 public:
-    explicit Ac8x(const Ac8xDescriptor& desc) noexcept;
+    explicit Ac8x(std::string name, const Ac8xDescriptor& desc) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
     void set_analog_signal_bank(AnalogSignalBank* bank) noexcept { signal_bank_ = bank; }
 
-    [[nodiscard]] std::string_view name() const noexcept override { return "AC"; }
+    [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override { return {ranges_.data(), 1}; }
 
     void tick(u64 elapsed_cycles) noexcept override;
@@ -34,7 +34,10 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    [[nodiscard]] bool get_state() const noexcept { return (status_ & 0x10U) != 0; }
+
 private:
+    std::string name_;
     Ac8xDescriptor desc_;
     MemoryBus* bus_ {nullptr};
     EventSystem* evsys_ {nullptr};

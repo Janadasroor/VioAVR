@@ -29,7 +29,22 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
 
 void MemoryBus::reset() noexcept
 {
-    std::ranges::fill(data_, 0U);
+    // Only clear SRAM to preserve EEPROM/User Row if they are mapped to data space
+    const auto sram = device_.sram_range();
+    if (sram.begin < data_.size()) {
+        const u16 end = std::min<u16>(sram.end, static_cast<u16>(data_.size() - 1));
+        std::fill(data_.begin() + sram.begin, data_.begin() + end + 1, 0U);
+    }
+    
+    // Also clear IO register range to be safe (usually registers have their own reset, but mirrors in data_ should be cleared)
+    if (device_.register_file_range.end < data_.size()) {
+        std::fill(data_.begin(), data_.begin() + device_.register_file_range.end + 1, 0U);
+    }
+    if (device_.io_range.begin < data_.size()) {
+        const u16 io_end = std::min<u16>(device_.extended_io_range.end, static_cast<u16>(data_.size() - 1));
+        std::fill(data_.begin() + device_.io_range.begin, data_.begin() + io_end + 1, 0U);
+    }
+
     fuses_ = device_.fuses;
     spm_busy_cycles_left_ = 0U;
     flash_rww_busy_ = false;

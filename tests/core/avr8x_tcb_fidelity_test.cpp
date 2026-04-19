@@ -2,6 +2,8 @@
 #include "doctest.h"
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/devices/atmega4809.hpp"
+#include "vioavr/core/tcb.hpp"
+#include "vioavr/core/memory_bus.hpp"
 
 using namespace vioavr::core;
 using namespace vioavr::core::devices;
@@ -96,6 +98,27 @@ TEST_CASE("AVR8X TCB - Cascaded Mode Fidelity") {
     // TCA just reached 0 (overflowed on 10th cycle)
     CHECK(bus.read_data(0xA20) == 0);
     CHECK(bus.read_data(0xA8A) == 1);
+}
+TEST_CASE("AVR8X TCB - Single Shot Mode 6") {
+    Tcb tcb(devices::atmega4809.timers_tcb[0]);
+    tcb.reset();
+
+    // Mode 6: Single-shot
+    tcb.write(devices::atmega4809.timers_tcb[0].ctrlb_address, 0x06);
+    // CCMP = 10
+    tcb.write(devices::atmega4809.timers_tcb[0].ccmp_address, 10);
+    tcb.write(devices::atmega4809.timers_tcb[0].ccmp_address + 1, 0);
+    // Enable
+    tcb.write(devices::atmega4809.timers_tcb[0].ctrla_address, 0x01);
+
+    // Tick 10 cycles
+    tcb.tick(10);
+    CHECK((tcb.read(devices::atmega4809.timers_tcb[0].ctrla_address) & 0x01) != 0); // Still enabled at match
+    
+    // One more tick should trigger logic and disable
+    tcb.tick(1);
+    CHECK((tcb.read(devices::atmega4809.timers_tcb[0].ctrla_address) & 0x01) == 0);
+    CHECK((tcb.read(devices::atmega4809.timers_tcb[0].intflags_address) & 0x01) != 0);
 }
 
 TEST_CASE("AVR8X TCB - 8-bit PWM (PWM8) Fidelity") {

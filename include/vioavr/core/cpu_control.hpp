@@ -74,6 +74,8 @@ public:
 
     [[nodiscard]] SleepMode current_sleep_mode() const noexcept { return sleep_mode_; }
     [[nodiscard]] bool sleep_enabled() const noexcept { return sleep_enabled_; }
+    [[nodiscard]] bool is_ccp_unlocked() const noexcept;
+    void unlock_ccp(u8 signature) noexcept;
     void enter_sleep() noexcept { sleeping_ = true; }
     void exit_sleep() noexcept { sleeping_ = false; }
     [[nodiscard]] bool is_sleeping() const noexcept { return sleeping_; }
@@ -91,7 +93,9 @@ private:
     u8 prr_ {};
     u8 prr0_ {};
     u8 prr1_ {};
-    u8 pllcsr_ {};
+    u8 pllcsr_ {0U};
+    u8 ccp_ {0U};
+    u64 ccp_expiry_ {0};
     SleepMode sleep_mode_ {SleepMode::idle};
     bool sleep_enabled_ {false};
     bool sleeping_ {false};

@@ -24,6 +24,7 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
     }
     if (desc.rampz_address != 0U) ranges_.push_back({desc.rampz_address, desc.rampz_address});
     if (desc.eind_address != 0U) ranges_.push_back({desc.eind_address, desc.eind_address});
+    if (desc.ccp_address != 0U) ranges_.push_back({desc.ccp_address, desc.ccp_address});
     // Add PRR/PRR0/PRR1
     if (desc.prr_address != 0U) ranges_.push_back({desc.prr_address, desc.prr_address});
     if (desc.prr0_address != 0U) ranges_.push_back({desc.prr0_address, desc.prr0_address});
@@ -52,6 +53,8 @@ void CpuControl::reset() noexcept
     sleep_mode_ = SleepMode::idle;
     sleep_enabled_ = false;
     sleeping_ = false;
+    ccp_ = 0x00U;
+    ccp_expiry_ = 0;
 }
 
 void CpuControl::set_reset_cause(ResetCause cause) noexcept
@@ -85,6 +88,7 @@ u8 CpuControl::read(const u16 address) noexcept
     if (address == d.sreg_address) return cpu_.sreg();
     if (address == d.rampz_address) return cpu_.rampz();
     if (address == d.eind_address) return cpu_.eind();
+    if (address == d.ccp_address) return ccp_;
     return 0U;
 }
 
@@ -125,6 +129,20 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         cpu_.set_rampz(value);
     } else if (address == d.eind_address) {
         cpu_.set_eind(value);
+    } else if (address == d.ccp_address) {
+        unlock_ccp(value);
+    }
+}
+
+bool CpuControl::is_ccp_unlocked() const noexcept {
+    return cpu_.cycles() < ccp_expiry_;
+}
+
+void CpuControl::unlock_ccp(u8 signature) noexcept {
+    // 0xD8: IOREG, 0x9D: SPM
+    if (signature == 0xD8 || signature == 0x9D) {
+        ccp_ = signature;
+        ccp_expiry_ = cpu_.cycles() + 4;
     }
 }
 
