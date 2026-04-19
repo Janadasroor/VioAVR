@@ -4,7 +4,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 TEST_CASE("CPU Fetch and Basic Program Flow")
 {
@@ -12,9 +12,9 @@ TEST_CASE("CPU Fetch and Basic Program Flow")
     using vioavr::core::CpuState;
     using vioavr::core::HexImage;
     using vioavr::core::MemoryBus;
-    using vioavr::core::devices::atmega328;
+    using vioavr::core::devices::atmega328p;
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
 
     bus.load_image(HexImage {

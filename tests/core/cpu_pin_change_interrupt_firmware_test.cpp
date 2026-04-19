@@ -7,7 +7,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -42,13 +42,13 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
     using vioavr::core::MemoryBus;
     using vioavr::core::PinChangeInterrupt;
     using vioavr::core::SregFlag;
-    using vioavr::core::devices::atmega328;
+    using vioavr::core::devices::atmega328p;
 
     constexpr auto pinb = static_cast<vioavr::core::u16>(0x23U);
     constexpr auto ddrb = static_cast<vioavr::core::u16>(0x24U);
     constexpr auto portb = static_cast<vioavr::core::u16>(0x25U);
     
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
     PinChangeInterruptDescriptor pci0_desc { .pcicr_address = 0x68U, .pcifr_address = 0x3BU, .pcmsk_address = 0x6BU, .pcicr_enable_mask = 0x01U, .pcifr_flag_mask = 0x01U, .vector_index = 3U };
     PinChangeInterrupt pci0 {"PCINT0", pci0_desc, port_b};
@@ -97,7 +97,7 @@ TEST_CASE("Pin Change Interrupt Firmware Test")
         cpu.step(); // Execute NOP due to SEI delay
         cpu.step(); // Service interrupt
         auto snapshot = cpu.snapshot();
-        const auto ramend = atmega328.sram_range().end;
+        const auto ramend = atmega328p.sram_range().end;
         
         CHECK(snapshot.program_counter == 6U); // ISR body is at 6
         CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));

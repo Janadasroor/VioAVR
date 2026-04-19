@@ -4,7 +4,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/spi.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -29,8 +29,8 @@ TEST_CASE("SPI Peripheral Functional Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    MemoryBus bus {atmega328};
-    Spi spi {"SPI", atmega328.spis[0]};
+    MemoryBus bus {atmega328p};
+    Spi spi {"SPI", atmega328p.spis[0]};
     bus.attach_peripheral(spi);
     AvrCpu cpu {bus};
 
@@ -72,7 +72,7 @@ TEST_CASE("SPI Peripheral Functional Test")
         CHECK(cpu.registers()[19] == 0x55U);
         
         // Reading SPSR then SPDR should clear SPIF
-        CHECK((spi.read(atmega328.spis[0].spsr_address) & 0x80U) == 0U);
+        CHECK((spi.read(atmega328p.spis[0].spsr_address) & 0x80U) == 0U);
     }
 
     SUBCASE("SPI Data Order (DORD)") {
@@ -126,7 +126,7 @@ TEST_CASE("SPI Peripheral Functional Test")
         bus.tick_peripherals(1);
         
         CHECK_FALSE(spi.busy());
-        CHECK((spi.read(atmega328.spis[0].spsr_address) & 0x80U) != 0U); // SPIF should be set
-        CHECK(spi.read(atmega328.spis[0].spdr_address) == 0x55);
+        CHECK((spi.read(atmega328p.spis[0].spsr_address) & 0x80U) != 0U); // SPIF should be set
+        CHECK(spi.read(atmega328p.spis[0].spdr_address) == 0x55);
     }
 }

@@ -8,7 +8,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/sync_engine.hpp"
 #include "vioavr/core/timer8.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 #include <array>
 #include <vector>
@@ -48,9 +48,9 @@ TEST_CASE("Timer0 GPIO Toggle Test")
     constexpr auto ddrb = static_cast<vioavr::core::u16>(0x24U);
     constexpr auto portb = static_cast<vioavr::core::u16>(0x25U);
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
-    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
+    Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
 
     timer0.connect_compare_output_a(port_b, 0U);
     bus.attach_peripheral(port_b);
@@ -74,9 +74,9 @@ TEST_CASE("Timer0 GPIO Toggle Test")
 
     cpu.reset();
     bus.write_data(ddrb, 0x01U);
-    bus.write_data(atmega328.timers8[0].ocra_address, 0x02U);
-    bus.write_data(atmega328.timers8[0].tccra_address, 0x12U);  // COM0A toggle + WGM01 for CTC
-    bus.write_data(atmega328.timers8[0].tccrb_address, 0x01U);  // clk/1
+    bus.write_data(atmega328p.timers8[0].ocra_address, 0x02U);
+    bus.write_data(atmega328p.timers8[0].tccra_address, 0x12U);  // COM0A toggle + WGM01 for CTC
+    bus.write_data(atmega328p.timers8[0].tccrb_address, 0x01U);  // clk/1
 
     SUBCASE("Run for cycles and check pin changes") {
         cpu.run(6U);
@@ -84,6 +84,6 @@ TEST_CASE("Timer0 GPIO Toggle Test")
         // Note: Real implementation would trigger pin changes.
         // For now we just verify it runs without crashing and uses new API.
         CHECK(port_b.ddr_register() == 0x01U);
-        CHECK(bus.read_data(atmega328.timers8[0].tcnt_address) == 0x00U);
+        CHECK(bus.read_data(atmega328p.timers8[0].tcnt_address) == 0x00U);
     }
 }

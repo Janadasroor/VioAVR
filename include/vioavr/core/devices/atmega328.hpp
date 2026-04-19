@@ -7,6 +7,7 @@ inline constexpr DeviceDescriptor atmega328 {
     .name = "ATmega328",
     .flash_words = 16384U,
     .sram_bytes = 2048U,
+    .sram_start = 0x100U,
     .eeprom_bytes = 1024U,
     .interrupt_vector_count = 26U,
     .interrupt_vector_size = 4U,
@@ -32,6 +33,7 @@ inline constexpr DeviceDescriptor atmega328 {
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .ccp_address = 0x0U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
@@ -164,6 +166,7 @@ inline constexpr DeviceDescriptor atmega328 {
     .evsys = {},
 
     .ccl = {},
+    .portmux = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -188,7 +191,9 @@ inline constexpr DeviceDescriptor atmega328 {
             .txcie_mask = 0x40U, 
             .udrie_mask = 0x20U,
             .pr_address = 100, .pr_bit = 1,
-            .uart_index = 0U
+            .uart_index = 0U,
+            .txd_pin_address = 0x2BU, .txd_pin_bit = 1U,
+            .rxd_pin_address = 0x29U, .rxd_pin_bit = 0U
         } }},
     
     .uart8x_count = 0U,

@@ -216,6 +216,10 @@ struct Uart8xDescriptor {
     u8 dre_vector_index {};
     
     u16 user_event_address {};
+    u16 txd_pin_address {};
+    u8 txd_pin_bit {};
+    u16 rxd_pin_address {};
+    u8 rxd_pin_bit {};
 };
 
 struct UartDescriptor {
@@ -243,6 +247,10 @@ struct UartDescriptor {
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
     u8 uart_index {0U};
+    u16 txd_pin_address {};
+    u8 txd_pin_bit {};
+    u16 rxd_pin_address {};
+    u8 rxd_pin_bit {};
 };
 
 struct PortMuxDescriptor {

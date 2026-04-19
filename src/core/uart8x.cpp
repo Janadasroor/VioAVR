@@ -4,8 +4,8 @@
 
 namespace vioavr::core {
 
-Uart8x::Uart8x(const Uart8xDescriptor& descriptor) noexcept
-    : desc_(descriptor)
+Uart8x::Uart8x(const Uart8xDescriptor& descriptor, PinMux& pin_mux) noexcept
+    : desc_(descriptor), pin_mux_(&pin_mux)
 {
     const std::array<u16, 9> addrs = {
         desc_.ctrla_address, desc_.ctrlb_address, desc_.ctrlc_address,
@@ -120,15 +120,36 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
             }
         }
 
-        // 2. Receiver (basic simulation of timing)
-        if (rx_in_progress_) {
-            rx_cycle_accumulator_ += 1.0;
-            if (rx_cycle_accumulator_ >= rx_bit_duration_) {
-                rx_cycle_accumulator_ -= rx_bit_duration_;
-                rx_bits_left_--;
-                if (rx_bits_left_ == 0) {
-                    rx_in_progress_ = false;
-                    actually_push_to_fifo(static_cast<u8>(rx_shift_reg_), (rx_shift_reg_ >> 8) & 0x01);
+        // 2. Receiver (bit-level simulation)
+        if (ctrlb_ & CTRLB_RXEN) {
+            u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
+            double bit_duration = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
+
+            bool rx_level_bit = pin_mux_->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
+            PinLevel rx_level = rx_level_bit ? PinLevel::high : PinLevel::low;
+
+            if (!rx_in_progress_ && rx_level == PinLevel::low) {
+                rx_in_progress_ = true;
+                rx_cycle_accumulator_ = bit_duration / 2.0;
+                rx_bits_left_ = 10; // Start + 8 data + 1 stop
+                rx_shift_reg_ = 0;
+                status_ |= STATUS_RXSIF;
+            }
+
+            if (rx_in_progress_) {
+                rx_cycle_accumulator_ += 1.0;
+                if (rx_cycle_accumulator_ + 0.5 >= bit_duration) {
+                    rx_cycle_accumulator_ -= bit_duration;
+                    rx_bits_left_--;
+                    if (rx_bits_left_ > 0 && rx_bits_left_ < 9) { // Bits 0-7
+                        if (rx_level == PinLevel::high) {
+                            rx_shift_reg_ |= (1 << (8 - rx_bits_left_));
+                        }
+                    } else if (rx_bits_left_ == 0) {
+                        actually_push_to_fifo(static_cast<u8>(rx_shift_reg_), false);
+                        rx_in_progress_ = false;
+                        status_ &= ~STATUS_RXSIF;
+                    }
                 }
             }
         }

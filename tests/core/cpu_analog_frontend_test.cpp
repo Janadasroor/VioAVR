@@ -7,7 +7,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
@@ -18,22 +18,22 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     using vioavr::core::AnalogSignalBank;
     using vioavr::core::InterruptRequest;
     using vioavr::core::MemoryBus;
-    using vioavr::core::devices::atmega328;
+    using vioavr::core::devices::atmega328p;
 
     constexpr auto acsr = static_cast<vioavr::core::u16>(0x50U);
-    constexpr auto comparator_vector = atmega328.acs[0].vector_index;
+    constexpr auto comparator_vector = atmega328p.acs[0].vector_index;
 
     AnalogSignalBank signals;
     signals.set_voltage(0U, 0.25);
     signals.set_voltage(1U, 0.70);
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus(atmega328p);
     PinMux pin_mux {8};
-    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
+    Adc adc0("ADC0", atmega328p.adcs[0], pin_mux, 6U, 4U);
     adc0.set_bus(bus);
     adc0.bind_signal_bank(signals);
     
-    AnalogComparator comparator {"AC", atmega328.acs[0], pin_mux, 9U, 0.0}; // Disable hysteresis for deterministic test
+    AnalogComparator comparator("AC", atmega328p.acs[0], pin_mux, 9U, 0.0); // Disable hysteresis for deterministic test
     comparator.bind_signal_bank(signals, 0U, 1U);
     
     bus.attach_peripheral(adc0);
@@ -41,13 +41,13 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     bus.reset();
 
     SUBCASE("ADC Conversion of Signal Bank") {
-        bus.write_data(atmega328.adcs[0].admux_address, 0x00U);
-        bus.write_data(atmega328.adcs[0].adcsra_address, 0xC0U); // ADEN | ADSC
+        bus.write_data(atmega328p.adcs[0].admux_address, 0x00U);
+        bus.write_data(atmega328p.adcs[0].adcsra_address, 0xC0U); // ADEN | ADSC
         bus.tick_peripherals(10U);
         
         const auto result = static_cast<vioavr::core::u16>(
-            bus.read_data(atmega328.adcs[0].adcl_address) |
-            (static_cast<vioavr::core::u16>(bus.read_data(atmega328.adcs[0].adch_address)) << 8U)
+            bus.read_data(atmega328p.adcs[0].adcl_address) |
+            (static_cast<vioavr::core::u16>(bus.read_data(atmega328p.adcs[0].adch_address)) << 8U)
         );
         // 0.25V -> 1024 * 0.25 = 256
         CHECK(result >= 254U);

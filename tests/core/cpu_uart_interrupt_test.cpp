@@ -4,24 +4,24 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/uart.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 TEST_CASE("UART0 Interrupt Flag and Priority Test")
 {
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    MemoryBus bus {atmega328};
-    Uart uart0 {"USART0", atmega328.uarts[0]};
+    MemoryBus bus {atmega328p};
+    PinMux mux{1}; Uart uart0 {"USART0", atmega328p.uarts[0], mux};
     bus.attach_peripheral(uart0);
     bus.reset();
 
-    const auto ucsra = atmega328.uarts[0].ucsra_address;
-    const auto ucsrb = atmega328.uarts[0].ucsrb_address;
-    const auto udr = atmega328.uarts[0].udr_address;
-    const auto rx_vec = atmega328.uarts[0].rx_vector_index;
-    const auto udre_vec = atmega328.uarts[0].udre_vector_index;
-    const auto tx_vec = atmega328.uarts[0].tx_vector_index;
+    const auto ucsra = atmega328p.uarts[0].ucsra_address;
+    const auto ucsrb = atmega328p.uarts[0].ucsrb_address;
+    const auto udr = atmega328p.uarts[0].udr_address;
+    const auto rx_vec = atmega328p.uarts[0].rx_vector_index;
+    const auto udre_vec = atmega328p.uarts[0].udre_vector_index;
+    const auto tx_vec = atmega328p.uarts[0].tx_vector_index;
 
     SUBCASE("Interrupt Priority: RX > UDRE > TX") {
         bus.write_data(ucsrb, 0xF8U); // Enable RXCIE, TXCIE, UDRIE, RXEN, TXEN

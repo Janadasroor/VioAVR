@@ -4,7 +4,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -29,9 +29,9 @@ TEST_CASE("CPU Indirect Control Instructions Test")
     using namespace vioavr::core;
     using namespace vioavr::core::devices;
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
-    const auto initial_sp = atmega328.sram_range().end;
+    const auto initial_sp = atmega328p.sram_range().end;
 
     bus.load_image(HexImage {
         .flash_words = {

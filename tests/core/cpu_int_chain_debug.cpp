@@ -3,7 +3,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/memory_bus.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 constexpr vioavr::core::u16 encode_ldi(vioavr::core::u8 d, vioavr::core::u8 v) {
     return static_cast<vioavr::core::u16>(
@@ -22,16 +22,16 @@ int main() {
     constexpr u16 kReti = 0x9518U;
     constexpr u16 kNop = 0x0000U;
     
-    MemoryBus bus{atmega328};
-    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
+    MemoryBus bus{atmega328p};
+    Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu{bus};
     
     std::vector<u16> program = {
         encode_ldi(16, 0x01),  // 0
-        0x9200 | (16 << 4), atmega328.timers8[0].timsk_address,  // 1,2 STS TIMSK
+        0x9200 | (16 << 4), atmega328p.timers8[0].timsk_address,  // 1,2 STS TIMSK
         encode_ldi(17, 0x01),  // 3
-        0x9200 | (17 << 4), atmega328.timers8[0].tcnt_address,  // 4,5 STS TCNT0
+        0x9200 | (17 << 4), atmega328p.timers8[0].tcnt_address,  // 4,5 STS TCNT0
         kSei,                  // 6
         kNop,                  // 7
         encode_ldi(18, 0x55),  // 8

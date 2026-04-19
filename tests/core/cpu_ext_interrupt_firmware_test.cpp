@@ -6,7 +6,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -35,8 +35,8 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
     constexpr u8 int0_vector = 1U;
 
     PinMux pin_mux {8};
-    MemoryBus bus {atmega328};
-    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupts[0], pin_mux, 4U};
+    MemoryBus bus {atmega328p};
+    ExtInterrupt exti {"EXTINT", atmega328p.ext_interrupts[0], pin_mux, 4U};
     bus.attach_peripheral(exti);
     AvrCpu cpu {bus};
 
@@ -48,9 +48,9 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
             kReti,                    // 3
             kNop,                     // 4
             encode_ldi(16U, 0x02U),   // 5: Entry point: EICRA = falling edge sense
-            encode_sts(16U), atmega328.ext_interrupts[0].eicra_address, // 6, 7
+            encode_sts(16U), atmega328p.ext_interrupts[0].eicra_address, // 6, 7
             encode_ldi(17U, 0x01U),   // 8: EIMSK = enable INT0
-            encode_sts(17U), atmega328.ext_interrupts[0].eimsk_address, // 9, 10
+            encode_sts(17U), atmega328p.ext_interrupts[0].eimsk_address, // 9, 10
             kSei,                     // 11: Enable global interrupts
             kNop,                     // 12: Interrupted point
             encode_ldi(18U, 0x55U),   // 13: Mainline after ISR
@@ -76,7 +76,7 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
         // Next step should service interrupt and jump to ISR at vector 1*2=2
         cpu.step();
         auto s = cpu.snapshot();
-        CHECK(s.stack_pointer == static_cast<u16>(atmega328.sram_range().end - 2U));
+        CHECK(s.stack_pointer == static_cast<u16>(atmega328p.sram_range().end - 2U));
 
 
         // Execute ISR: LDI + RETI
@@ -86,7 +86,7 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
         cpu.step(); // RETI
         s = cpu.snapshot();
         // CHECK(s.program_counter == 12U);
-        // CHECK(s.stack_pointer == static_cast<u16>(atmega328.sram_range().end));
+        // CHECK(s.stack_pointer == static_cast<u16>(atmega328p.sram_range().end));
         // CHECK_FALSE(s.in_interrupt_handler);
 
         // Mainline continues
@@ -95,6 +95,6 @@ TEST_CASE("External Interrupt (INT0) Firmware Test")
         CHECK(cpu.snapshot().gpr[18] == 0x55U);
 
         // EIFR should be cleared
-        CHECK(bus.read_data(atmega328.ext_interrupts[0].eifr_address) == 0x00U);
+        CHECK(bus.read_data(atmega328p.ext_interrupts[0].eifr_address) == 0x00U);
     }
 }

@@ -7,7 +7,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 
@@ -56,10 +56,10 @@ TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
     using namespace vioavr::core::devices;
 
     PinMux pin_mux(8);
-    MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
+    MemoryBus bus {atmega328p};
+    Adc adc0 {"ADC0", atmega328p.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
-    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
+    Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
 
     adc0.connect_timer_overflow_auto_trigger(timer0);
     adc0.set_channel_voltage(0U, 0.33); // 0.33V -> Expected 338
@@ -79,18 +79,18 @@ TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x00U),                     // 0
-            encode_sts(16U), atmega328.adcs[0].admux_address, // 1, 2
+            encode_sts(16U), atmega328p.adcs[0].admux_address, // 1, 2
             encode_ldi(16U, 0x04U),                     // 3 (ADTS=4)
-            encode_sts(16U), atmega328.adcs[0].adcsrb_address, // 4, 5
+            encode_sts(16U), atmega328p.adcs[0].adcsrb_address, // 4, 5
             encode_ldi(18U, 0xA0U),                     // 6 (ADEN | ADATE)
-            encode_sts(18U), atmega328.adcs[0].adcsra_address, // 7, 8
+            encode_sts(18U), atmega328p.adcs[0].adcsra_address, // 7, 8
             encode_ldi(17U, 0xFFU),                     // 9
             encode_out(0x12U, 17U),                     // 10 (TCNT0)
             encode_ldi(17U, 0x01U),                     // 11
             encode_out(0x15U, 17U),                     // 12 (TCCRB - Start)
-            encode_lds(19U), atmega328.adcs[0].adcsra_address, // 13, 14
-            encode_lds(21U), atmega328.adcs[0].adcl_address,   // 15, 16
-            encode_lds(22U), atmega328.adcs[0].adch_address,   // 17, 18
+            encode_lds(19U), atmega328p.adcs[0].adcsra_address, // 13, 14
+            encode_lds(21U), atmega328p.adcs[0].adcl_address,   // 15, 16
+            encode_lds(22U), atmega328p.adcs[0].adch_address,   // 17, 18
             0x0000U
         },
         .entry_word = 0U
@@ -110,7 +110,7 @@ TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
         cpu.step(); // Finish LDS (2 cycles). Cycles=15.
         
         // Overflow should have occurred. ADSC should be set.
-        const u8 status = bus.read_data(atmega328.adcs[0].adcsra_address);
+        const u8 status = bus.read_data(atmega328p.adcs[0].adcsra_address);
         // CHECK((status & 0x40U) != 0U);
         // CHECK((timer0.interrupt_flags() & 0x01U) != 0U);
 

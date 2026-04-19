@@ -7,7 +7,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
@@ -19,16 +19,16 @@ TEST_CASE("CPU Voltage and Ext/PinChange Interrupt Test")
     using vioavr::core::InterruptRequest;
     using vioavr::core::MemoryBus;
     using vioavr::core::PinChangeInterrupt;
-    using vioavr::core::devices::atmega328;
+    using vioavr::core::devices::atmega328p;
 
     constexpr auto pinb = static_cast<vioavr::core::u16>(0x23U);
     constexpr auto ddrb = static_cast<vioavr::core::u16>(0x24U);
     constexpr auto portb = static_cast<vioavr::core::u16>(0x25U);
     
     PinMux pin_mux {8};
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
-    ExtInterrupt exti {"EXTINT", atmega328.ext_interrupts[0], pin_mux, 4U};
+    ExtInterrupt exti {"EXTINT", atmega328p.ext_interrupts[0], pin_mux, 4U};
     
     // PCICR=0x68, PCIFR=0x3B, PCMSK0=0x6B (from ATmega328P datasheet)
     PinChangeInterruptDescriptor pci0_desc {
@@ -47,8 +47,8 @@ TEST_CASE("CPU Voltage and Ext/PinChange Interrupt Test")
     bus.reset();
 
     SUBCASE("External Interrupt 0 Voltage Trigger") {
-        bus.write_data(atmega328.ext_interrupts[0].eicra_address, 0x02U); // Falling edge
-        bus.write_data(atmega328.ext_interrupts[0].eimsk_address, 0x01U); // Enable INT0
+        bus.write_data(atmega328p.ext_interrupts[0].eicra_address, 0x02U); // Falling edge
+        bus.write_data(atmega328p.ext_interrupts[0].eimsk_address, 0x01U); // Enable INT0
         
         exti.set_int0_voltage(0.8); // HIGH
         exti.set_int0_voltage(0.5); // Still above threshold for HIGH? 
@@ -60,7 +60,7 @@ TEST_CASE("CPU Voltage and Ext/PinChange Interrupt Test")
 
         exti.set_int0_voltage(0.1); // Definitely LOW -> Falling edge
         CHECK(bus.pending_interrupt_request(request));
-        CHECK(request.vector_index == atmega328.ext_interrupts[0].vector_indices[0]);
+        CHECK(request.vector_index == atmega328p.ext_interrupts[0].vector_indices[0]);
     }
 
     SUBCASE("Pin Change Interrupt via Voltage") {

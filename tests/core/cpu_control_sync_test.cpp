@@ -4,7 +4,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/cpu_control.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 namespace {
 
@@ -24,7 +24,7 @@ TEST_CASE("CPU Control Synchronization")
 {
     using namespace vioavr::core::devices;
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
     // Note: NOT attaching CpuControl yet
 

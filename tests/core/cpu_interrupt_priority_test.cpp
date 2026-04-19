@@ -4,7 +4,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
@@ -55,7 +55,7 @@ TEST_CASE("MemoryBus Interrupt Priority Test")
     // Timer8::pending_interrupt_request returns source_id as 0, 1, or 2.
 
 
-    MemoryBus bus {atmega328};
+    MemoryBus bus {atmega328p};
     bus.attach_peripheral(high_vector_timer);
     bus.attach_peripheral(low_vector_timer);
     bus.reset();

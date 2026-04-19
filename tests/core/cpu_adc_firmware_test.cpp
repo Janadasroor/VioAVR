@@ -6,7 +6,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
 
@@ -43,11 +43,11 @@ TEST_CASE("ADC Firmware Integration Test")
     using vioavr::core::AvrCpu;
     using vioavr::core::HexImage;
     using vioavr::core::MemoryBus;
-    using vioavr::core::devices::atmega328;
+    using vioavr::core::devices::atmega328p;
 
     PinMux pin_mux(8);
-    MemoryBus bus {atmega328};
-    Adc adc0 {"ADC0", atmega328.adcs[0], pin_mux, 6U, 4U};
+    MemoryBus bus {atmega328p};
+    Adc adc0 {"ADC0", atmega328p.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
     adc0.set_channel_voltage(0U, 0.25);
     bus.attach_peripheral(adc0);
@@ -63,13 +63,13 @@ TEST_CASE("ADC Firmware Integration Test")
     bus.load_image(HexImage {
         .flash_words = {
             encode_ldi(16U, 0x00U),
-            encode_sts(16U), atmega328.adcs[0].admux_address,
+            encode_sts(16U), atmega328p.adcs[0].admux_address,
             encode_ldi(17U, 0xC0U),   // ADEN | ADSC
-            encode_sts(17U), atmega328.adcs[0].adcsra_address,
-            encode_lds(18U), atmega328.adcs[0].adcsra_address,
-            encode_lds(19U), atmega328.adcs[0].adcsra_address,
-            encode_lds(20U), atmega328.adcs[0].adcl_address,
-            encode_lds(21U), atmega328.adcs[0].adch_address,
+            encode_sts(17U), atmega328p.adcs[0].adcsra_address,
+            encode_lds(18U), atmega328p.adcs[0].adcsra_address,
+            encode_lds(19U), atmega328p.adcs[0].adcsra_address,
+            encode_lds(20U), atmega328p.adcs[0].adcl_address,
+            encode_lds(21U), atmega328p.adcs[0].adch_address,
             0x0000U
         },
         .entry_word = 0U

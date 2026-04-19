@@ -5,7 +5,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/sync_engine.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 #include <thread>
 #include <chrono>
@@ -15,7 +15,7 @@ TEST_CASE("SyncEngine Quantum and Pause/Resume Test")
 {
     using namespace vioavr::core;
     
-    MemoryBus bus {devices::atmega328};
+    MemoryBus bus {devices::atmega328p};
     AvrCpu cpu {bus};
     
     // Create a sync engine with a quantum of 100 cycles

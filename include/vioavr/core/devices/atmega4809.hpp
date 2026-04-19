@@ -160,16 +160,20 @@ inline constexpr DeviceDescriptor atmega4809 {
             .lut_count = 4U,
             .luts = { {
                 .ctrla_address = 0x1C8U, .ctrlb_address = 0x1C9U,
-                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU, .generator_id = 24
+                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU,
+                .generator_id = 16U
             }, {
                 .ctrla_address = 0x1CCU, .ctrlb_address = 0x1CDU,
-                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU, .generator_id = 25
+                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU,
+                .generator_id = 17U
             }, {
                 .ctrla_address = 0x1D0U, .ctrlb_address = 0x1D1U,
-                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U, .generator_id = 26
+                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U,
+                .generator_id = 18U
             }, {
                 .ctrla_address = 0x1D4U, .ctrlb_address = 0x1D5U,
-                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U, .generator_id = 27
+                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U,
+                .generator_id = 19U
             }, {0}, {0}, {0}, {0} },
             .vector_index = 0U
         },
@@ -193,28 +197,36 @@ inline constexpr DeviceDescriptor atmega4809 {
             .ctrld_address = 0x80AU, .status_address = 0x804U, .baud_address = 0x808U,
             .rxdata_address = 0x800U, .txdata_address = 0x802U, .dbgctrl_address = 0x80BU,
             .rx_vector_index = 17U, .tx_vector_index = 19U, .dre_vector_index = 18U,
-            .user_event_address = 0x1AFU
+            .user_event_address = 0x1AFU,
+            .txd_pin_address = 0x404U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x408U, .rxd_pin_bit = 1U
         },
         {
             .ctrla_address = 0x825U, .ctrlb_address = 0x826U, .ctrlc_address = 0x827U,
             .ctrld_address = 0x82AU, .status_address = 0x824U, .baud_address = 0x828U,
             .rxdata_address = 0x820U, .txdata_address = 0x822U, .dbgctrl_address = 0x82BU,
             .rx_vector_index = 26U, .tx_vector_index = 28U, .dre_vector_index = 27U,
-            .user_event_address = 0x1B0U
+            .user_event_address = 0x1B0U,
+            .txd_pin_address = 0x444U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x448U, .rxd_pin_bit = 1U
         },
         {
             .ctrla_address = 0x845U, .ctrlb_address = 0x846U, .ctrlc_address = 0x847U,
             .ctrld_address = 0x84AU, .status_address = 0x844U, .baud_address = 0x848U,
             .rxdata_address = 0x840U, .txdata_address = 0x842U, .dbgctrl_address = 0x84BU,
             .rx_vector_index = 31U, .tx_vector_index = 33U, .dre_vector_index = 32U,
-            .user_event_address = 0x1B1U
+            .user_event_address = 0x1B1U,
+            .txd_pin_address = 0x4A4U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x4A8U, .rxd_pin_bit = 1U
         },
         {
             .ctrla_address = 0x865U, .ctrlb_address = 0x866U, .ctrlc_address = 0x867U,
             .ctrld_address = 0x86AU, .status_address = 0x864U, .baud_address = 0x868U,
             .rxdata_address = 0x860U, .txdata_address = 0x862U, .dbgctrl_address = 0x86BU,
             .rx_vector_index = 37U, .tx_vector_index = 39U, .dre_vector_index = 38U,
-            .user_event_address = 0x1B2U
+            .user_event_address = 0x1B2U,
+            .txd_pin_address = 0x424U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x428U, .rxd_pin_bit = 1U
         } }},
 
     .nvm_ctrl_count = 1U,

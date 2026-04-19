@@ -5,7 +5,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/timer8.hpp"
-#include "vioavr/core/devices/atmega328.hpp"
+#include "vioavr/core/devices/atmega328p.hpp"
 
 #include <vector>
 
@@ -51,16 +51,16 @@ TEST_CASE("CPU Interrupt Handling Test")
     using vioavr::core::MemoryBus;
     using vioavr::core::SregFlag;
     using vioavr::core::Timer8;
-    using vioavr::core::devices::atmega328;
+    using vioavr::core::devices::atmega328p;
 
-    MemoryBus bus {atmega328};
-    Timer8 timer0 {"TIMER0", atmega328.timers8[0]};
+    MemoryBus bus {atmega328p};
+    Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};
 
     // Timer0 compare match A vector index is 14, word address = 14 * 2 = 28
     // Flash layout: mainline at 0-13, padding 14-27, ISR at 28-29
-    constexpr u16 isr_word_address = atmega328.timers8[0].compare_a_vector_index * 2U;
+    constexpr u16 isr_word_address = atmega328p.timers8[0].compare_a_vector_index * 2U;
     std::vector<u16> flash_words(30, kNop);
 
     // Mainline code at word addresses 0-13
@@ -68,7 +68,7 @@ TEST_CASE("CPU Interrupt Handling Test")
     flash_words[1] = encode_out(0x27U, 16U);   // 1 OCR0A (I/O 0x27 = mem 0x47)
     flash_words[2] = encode_ldi(19U, 0x02U);   // 2 OCIE0A (bit 1)
     flash_words[3] = encode_sts(19U);           // 3 STS address low byte
-    flash_words[4] = atmega328.timers8[0].timsk_address; // 4 TIMSK0 address
+    flash_words[4] = atmega328p.timers8[0].timsk_address; // 4 TIMSK0 address
     flash_words[5] = encode_ldi(20U, 0x01U);   // 5 CS00
     flash_words[6] = encode_out(0x25U, 20U);   // 6 TCCR0B (0x45 -> 0x25)
     flash_words[7] = kSei;                      // 7
@@ -102,7 +102,7 @@ TEST_CASE("CPU Interrupt Handling Test")
         for (int i = 0; i < 10; ++i) cpu.step(); // Steps through trigger point and ISR LDI
 
         const auto snapshot = cpu.snapshot();
-        const auto ramend = atmega328.sram_range().end;
+        const auto ramend = atmega328p.sram_range().end;
 
         CHECK(snapshot.program_counter == static_cast<u16>(isr_word_address + 1U)); // PC after LDI in ISR
         CHECK(snapshot.stack_pointer == static_cast<vioavr::core::u16>(ramend - 2U));
@@ -129,7 +129,7 @@ TEST_CASE("CPU Interrupt Handling Test")
 
         cpu.step(); // RETI
         snapshot = cpu.snapshot();
-        const auto ramend = atmega328.sram_range().end;
+        const auto ramend = atmega328p.sram_range().end;
         CHECK(snapshot.program_counter == 9U); // PC after RETI
         CHECK(snapshot.stack_pointer == ramend);
         CHECK_FALSE(snapshot.in_interrupt_handler);

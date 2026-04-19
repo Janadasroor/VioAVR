@@ -2,6 +2,7 @@
 
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include <array>
 #include <string>
 #include <string_view>
@@ -10,9 +11,10 @@ namespace vioavr::core {
 
 class Uart final : public IoPeripheral {
 public:
-    explicit Uart(std::string_view name, const UartDescriptor& descriptor) noexcept;
+    explicit Uart(std::string_view name, const UartDescriptor& descriptor, PinMux& pin_mux) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
+    [[nodiscard]] const UartDescriptor& descriptor() const noexcept { return desc_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
     void reset() noexcept override;
@@ -30,6 +32,7 @@ public:
 private:
     std::string name_;
     UartDescriptor desc_;
+    PinMux* pin_mux_;
     std::array<AddressRange, 4> ranges_;
 
     u8 udr_rx_ {};
@@ -39,9 +42,21 @@ private:
     u8 ucsrc_ {};
     u8 ubrrh_ {};
     u8 ubrrl_ {};
-    bool tx_in_progress_ {};
-    u64 tx_cycles_elapsed_ {};
-    u64 tx_duration_ {1000}; // Default bit-time in cycles
+
+    // Bit-level simulation
+    bool tx_active_ {};
+    u16 tx_shift_reg_ {};
+    u8 tx_bits_left_ {};
+    u64 tx_cycle_accumulator_ {};
+    u64 tx_bit_duration_ {1000};
+
+    bool rx_active_ {};
+    u16 rx_shift_reg_ {};
+    u8 rx_bits_left_ {};
+    u64 rx_cycle_accumulator_ {};
+
+    void update_pin_ownership() noexcept;
 };
 
 }  // namespace vioavr::core
+ 
