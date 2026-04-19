@@ -398,6 +398,10 @@ struct TcaDescriptor {
     u16 cmp0_address {};
     u16 cmp1_address {};
     u16 cmp2_address {};
+    u16 perbuf_address {};
+    u16 cmp0buf_address {};
+    u16 cmp1buf_address {};
+    u16 cmp2buf_address {};
 
     // Interrupts (LUF is OVF, others are CMP)
     u8 luf_ovf_vector_index {};
