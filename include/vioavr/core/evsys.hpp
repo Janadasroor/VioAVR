@@ -5,6 +5,7 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include <vector>
 #include <functional>
+#include <unordered_map>
 
 namespace vioavr::core {
 
@@ -33,6 +34,7 @@ public:
     // Callbacks for users
     using EventCallback = std::function<void()>;
     void register_user_callback(u8 user_index, EventCallback callback);
+    void register_generator_callback(u8 generator_id, EventCallback callback);
 
     [[nodiscard]] u16 users_base() const noexcept { return desc_.users_address; }
 
@@ -47,6 +49,7 @@ private:
     
     // Maps user index -> callback
     std::vector<EventCallback> callbacks_;
+    std::unordered_map<u8, std::vector<EventCallback>> generator_callbacks_;
 };
 
 } // namespace vioavr::core
