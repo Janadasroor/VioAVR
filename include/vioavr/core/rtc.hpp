@@ -55,9 +55,11 @@ private:
     u8 pitintctrl_ {0x00};
     u8 pitintflags_ {0x00};
 
-    std::array<AddressRange, 2> ranges_ {};
+    std::array<AddressRange, 4> ranges_ {};
 
     // Internal logic
+    u32 sync_busy_cycles_rtc_ {0};
+    u32 sync_busy_cycles_pit_ {0};
     u64 internal_ticks_ {0};
     u64 pit_ticks_ {0};
     

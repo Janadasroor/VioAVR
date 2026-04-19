@@ -1,6 +1,7 @@
 #include "vioavr/core/rtc.hpp"
 #include "vioavr/core/evsys.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/logger.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -39,6 +40,8 @@ void Rtc::reset() noexcept {
     pitctrla_ = 0; pitstatus_ = 0; pitintctrl_ = 0; pitintflags_ = 0;
     internal_ticks_ = 0;
     pit_ticks_ = 0;
+    sync_busy_cycles_rtc_ = 0;
+    sync_busy_cycles_pit_ = 0;
 }
 
 std::span<const AddressRange> Rtc::mapped_ranges() const noexcept {
@@ -71,24 +74,40 @@ u8 Rtc::read(u16 address) noexcept {
 void Rtc::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value;
+        status_ |= 0x01; // CTRLABUSY
+        sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.intctrl_address) {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value;
     } else if (address == desc_.cnt_address) {
         cnt_ = (cnt_ & 0xFF00U) | value;
+        status_ |= 0x10; // CNTBUSY
+        sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.cnt_address + 1) {
         cnt_ = (cnt_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+        status_ |= 0x10; // CNTBUSY
+        sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.per_address) {
         per_ = (per_ & 0xFF00U) | value;
+        status_ |= 0x02; // PERBUSY
+        sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.per_address + 1) {
         per_ = (per_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+        status_ |= 0x02; // PERBUSY
+        sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.cmp_address) {
         cmp_ = (cmp_ & 0xFF00U) | value;
+        status_ |= 0x04; // CMPBUSY
+        sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.cmp_address + 1) {
         cmp_ = (cmp_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+        status_ |= 0x04; // CMPBUSY
+        sync_busy_cycles_rtc_ = 64;
     } else if (address == desc_.pitctrla_address) {
         pitctrla_ = value;
+        pitstatus_ |= 0x01; // CTRLBUSY
+        sync_busy_cycles_pit_ = 64;
     } else if (address == desc_.pitintctrl_address) {
         pitintctrl_ = value;
     } else if (address == desc_.pitintflags_address) {
@@ -97,10 +116,23 @@ void Rtc::write(u16 address, u8 value) noexcept {
 }
 
 void Rtc::tick(u64 elapsed_cycles) noexcept {
-    // Note: In real chips, RTC runs at a much slower clock (e.g. 32kHz).
-    // Here we tick it at CPU clock because of VioAVR simplification,
-    // but the prescaler will make it behave slowly enough.
-    
+    if (sync_busy_cycles_rtc_ > 0) {
+        if (elapsed_cycles >= sync_busy_cycles_rtc_) {
+            sync_busy_cycles_rtc_ = 0;
+            status_ &= 0xE0; // Clear busy bits status (0-4 bits usually)
+        } else {
+            sync_busy_cycles_rtc_ -= static_cast<u32>(elapsed_cycles);
+        }
+    }
+    if (sync_busy_cycles_pit_ > 0) {
+        if (elapsed_cycles >= sync_busy_cycles_pit_) {
+            sync_busy_cycles_pit_ = 0;
+            pitstatus_ &= 0xFE; // Clear PIT busy bit
+        } else {
+            sync_busy_cycles_pit_ -= static_cast<u32>(elapsed_cycles);
+        }
+    }
+
     if (is_rtc_enabled()) {
         u16 div = get_prescaler();
         for (u64 i = 0; i < elapsed_cycles; ++i) {
@@ -113,7 +145,7 @@ void Rtc::tick(u64 elapsed_cycles) noexcept {
     }
 
     if (is_pit_enabled()) {
-        u16 period = get_pit_period();
+        u32 period = get_pit_period();
         for (u64 i = 0; i < elapsed_cycles; ++i) {
             pit_ticks_++;
             if (pit_ticks_ >= period) {
@@ -125,14 +157,22 @@ void Rtc::tick(u64 elapsed_cycles) noexcept {
 }
 
 void Rtc::handle_rtc_tick() {
-    cnt_++;
+    Logger::debug("RTC: tick cnt=" + std::to_string(cnt_) + " per=" + std::to_string(per_));
     if (cnt_ == per_) {
-        intflags_ |= 0x01; // OVF
         cnt_ = 0;
-        if (evsys_) evsys_->trigger_event(6); // RTC_OVF
+        intflags_ |= 0x01; // OVF
+        if (evsys_ && desc_.ovf_generator_id != 0) {
+            evsys_->trigger_event(desc_.ovf_generator_id);
+        }
+    } else {
+        cnt_++;
     }
+    
     if (cnt_ == cmp_) {
         intflags_ |= 0x02; // CMP
+        if (evsys_ && desc_.cmp_generator_id != 0) {
+            evsys_->trigger_event(desc_.cmp_generator_id);
+        }
     }
 }
 
@@ -143,16 +183,15 @@ void Rtc::handle_pit_tick() {
 u16 Rtc::get_prescaler() const noexcept {
     u8 p = (ctrla_ >> 3) & 0x0F;
     if (p == 0) return 1;
+    if (p > 10) p = 10; // Max 1024
     return 1U << p;
 }
 
 u16 Rtc::get_pit_period() const noexcept {
-    // PIT period depends on CTRLA.PERIOD bits 3:6 usually
     u8 p = (pitctrla_ >> 3) & 0x0F;
-    // Period = 2^(p+2)? No, ATmega4809 datasheet says bits 3-6
-    // 0: OFF, 1: 4 cycles, 2: 8, ... 15: 32768
-    if (p == 0) return 4; // Should be handled by is_pit_enabled but safe
-    return 1U << (p + 2);
+    if (p == 0) return 4;
+    // Period = 2^(p+1)
+    return 1U << (p + 1);
 }
 
 bool Rtc::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -170,7 +209,7 @@ bool Rtc::pending_interrupt_request(InterruptRequest& request) const noexcept {
 bool Rtc::consume_interrupt_request(InterruptRequest& request) noexcept {
     if ((intflags_ & intctrl_) & 0x03) {
         request.vector_index = desc_.ovf_vector_index;
-        intflags_ &= ~0x03; // Clear OLF/CMP? Actually usually only one.
+        intflags_ &= ~0x03;
         return true;
     }
     if ((pitintflags_ & 0x01) && (pitintctrl_ & 0x01)) {
