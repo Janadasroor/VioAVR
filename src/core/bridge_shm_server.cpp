@@ -184,12 +184,21 @@ void BridgeShmServer::handle_command(uint32_t cmd) {
 void BridgeShmServer::update_state_to_shm() {
     auto& cp = avr_.cpu();
     shm_->cpu_state.pc = cp.program_counter();
+    shm_->cpu_state.last_pc = 0; // Not tracked yet
     shm_->cpu_state.sp = cp.stack_pointer();
     shm_->cpu_state.sreg = cp.sreg();
+    shm_->cpu_state.rampz = cp.rampz();
+    shm_->cpu_state.eind = cp.eind();
+    
     auto regs = cp.registers();
     for (int i = 0; i < 32; i++) {
         shm_->cpu_state.gprs[i] = regs[i];
     }
+
+    shm_->telemetry.total_cycles = cp.cycles();
+    shm_->telemetry.total_time_ns = 0; // Needs clock conversion
+    shm_->telemetry.core_state = static_cast<uint8_t>(cp.state());
+    shm_->telemetry.current_instruction_word = avr_.bus().read_program_word(cp.program_counter());
 }
 
 } // namespace vioavr::core

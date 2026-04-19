@@ -12,17 +12,16 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     
     /* Initialization */
     if (mif_private->circuit.init) {
-        /* Hack: Store the bridge pointer in inst_var */
         mif_private->inst_var = (Mif_Inst_Var_Data_t **)malloc(sizeof(void*));
         
-        /* Get Parameters */
-        // hex_file [0], mcu_type [1], frequency [2]
         const char* mcu_instance = mif_private->param[1]->element[0].svalue;
-
         bridge = new BridgeShmClient(mcu_instance);
+        
         if (!bridge->connect()) {
-            char msg[256];
-            snprintf(msg, sizeof(msg), "VioAVR: Failed to connect to SHM Bridge: %s. Is the daemon running?", mcu_instance);
+            char msg[512];
+            snprintf(msg, sizeof(msg), "VioAVR Block '%s' Error: Could not connect to SHM Bridge '/vioavr_shm_%s'. "
+                     "Make sure 'vioavr-daemon --mcu %s' is running.", 
+                     mif_private->instance_name, mcu_instance, mcu_instance);
             cm_message_send(msg);
             delete bridge;
             *((void **)mif_private->inst_var) = nullptr;
@@ -42,42 +41,57 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
 
     /* Simulation Step */
     
-    /* 1. Propagate inputs from SPICE nodes to Bridge */
-    uint32_t digital_port_size = mif_private->conn[0]->size;
-    for (uint32_t i = 0; i < digital_port_size; i++) {
+    /* 1. Collect inputs from SPICE */
+    /* Digital Ports (avr_pins) */
+    uint32_t digital_vec_size = mif_private->conn[0]->size;
+    for (uint32_t i = 0; i < digital_vec_size; i++) {
         Mif_Port_Data_t *port_data = mif_private->conn[0]->port[i];
-        Digital_t *digital_val = (Digital_t *)(port_data->input.pvalue);
-        if (digital_val) {
-            bridge->set_digital_input(i, digital_val->state == ONE);
+        if (port_data->input_type == MIF_DIGITAL) {
+            Digital_t *digital_val = (Digital_t *)(port_data->input.pvalue);
+            if (digital_val) {
+                bridge->set_digital_input(i, digital_val->state == ONE);
+            }
         }
     }
 
-    // 1.b Propagate Analog Voltages (if connected)
-    uint32_t analog_port_size = mif_private->conn[1]->size;
-    for (uint32_t i = 0; i < analog_port_size; i++) {
+    /* Analog Ports (avr_analog_pins) */
+    uint32_t analog_vec_size = mif_private->conn[1]->size;
+    for (uint32_t i = 0; i < analog_vec_size; i++) {
         Mif_Port_Data_t *port_data = mif_private->conn[1]->port[i];
-        // Normalized 0.0 to 1.0 logic depends on SPICE reference, 
-        // but here we pass raw voltage as the Server handles thresholds.
         bridge->set_analog_input(i, (float)port_data->input.rvalue);
     }
 
-    /* 2. Step VioAVR Daemon */
+    /* 2. Run Bridge */
     double delta_t = mif_private->circuit.time - mif_private->circuit.t[1];
-    if (delta_t > 0) {
+    if (delta_t > 1e-15) { // 1fs threshold
         bridge->step(delta_t);
-        // Note: wait_step_done is called inside step()
     }
 
-    /* 3. Collect outputs from Bridge back to SPICE */
-    for (uint32_t i = 0; i < digital_port_size; i++) {
+    /* 3. Deliver Outputs back to SPICE */
+    for (uint32_t i = 0; i < digital_vec_size; i++) {
         Mif_Port_Data_t *port_data = mif_private->conn[0]->port[i];
         bool level = bridge->get_digital_output(i);
         
         Digital_t *digital_val = (Digital_t *)(port_data->output.pvalue);
         if (digital_val) {
-            digital_val->state = level ? ONE : ZERO;
-            digital_val->strength = STRONG;
-            port_data->changed = MIF_TRUE;
+            Digital_State_t state = level ? ONE : ZERO;
+            if (digital_val->state != state) {
+                digital_val->state = state;
+                digital_val->strength = STRONG;
+                port_data->changed = MIF_TRUE;
+            }
+        }
+    }
+    
+    /* Cleanup */
+    if (mif_private->circuit.cleanup) {
+        if (bridge) {
+            bridge->disconnect();
+            delete bridge;
+        }
+        if (mif_private->inst_var) {
+            free(mif_private->inst_var);
+            mif_private->inst_var = nullptr;
         }
     }
 }

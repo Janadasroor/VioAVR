@@ -20,10 +20,24 @@ enum class BridgeStatus : uint32_t {
 
 struct AvrCpuState {
     uint32_t pc;
+    uint32_t last_pc;
     uint16_t sp;
     uint8_t sreg;
-    uint8_t padding;
+    uint8_t rampz;
+    uint8_t eind;
+    uint8_t padding[3];
     uint8_t gprs[32];
+};
+
+struct TelemetryData {
+    uint64_t total_cycles;
+    uint64_t total_time_ns;
+    uint32_t spm_ops;
+    uint32_t interrupts_count;
+    uint32_t sleep_cycles;
+    uint16_t current_instruction_word;
+    uint8_t core_state; // 0=Running, 1=Halted, 2=Sleeping
+    uint8_t flags;      // Bit 0: Breakpoint
 };
 
 /**
@@ -66,9 +80,10 @@ struct VioBridgeShm {
 
     // CPU Insight
     AvrCpuState cpu_state;
+    TelemetryData telemetry;
     
     // Reserved for future expansion
-    uint8_t reserved[1024]; 
+    uint8_t reserved[1024 - sizeof(TelemetryData)]; 
 };
 
 } // namespace vioavr::core
