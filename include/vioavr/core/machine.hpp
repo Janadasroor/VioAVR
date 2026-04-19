@@ -75,6 +75,20 @@ public:
      */
     [[nodiscard]] GpioPort* get_port(std::string_view name) noexcept;
 
+    /**
+     * @brief Get all peripherals of a specific type.
+     */
+    template <typename T>
+    [[nodiscard]] std::vector<T*> peripherals_of_type() noexcept {
+        std::vector<T*> result;
+        for (auto& p : owned_peripherals_) {
+            if (auto* typed = dynamic_cast<T*>(p.get())) {
+                result.push_back(typed);
+            }
+        }
+        return result;
+    }
+
 private:
     void initialize_peripherals();
     void wire_peripherals();

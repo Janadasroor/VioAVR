@@ -32,10 +32,20 @@ public:
     [[nodiscard]] ClockDomain clock_domain() const noexcept override { return ClockDomain::io; }
 
 private:
+    enum class AdcPhase {
+        idle,
+        startup,
+        sample,
+        convert
+    };
+
     [[nodiscard]] bool is_enabled() const noexcept;
+    [[nodiscard]] u16 get_prescaler() const noexcept;
+    [[nodiscard]] u32 get_sample_count() const noexcept;
     
     void start_conversion() noexcept;
     void complete_conversion() noexcept;
+    void process_sample_result(u16 result) noexcept;
 
     Adc8xDescriptor desc_;
     MemoryBus* bus_ {};
@@ -61,8 +71,12 @@ private:
     u16 winlt_ {};
     u16 winht_ {};
 
-    bool converting_ {};
-    u64 cycles_remaining_ {};
+    AdcPhase state_ {AdcPhase::idle};
+    u64 fractional_cycles_ {0};
+    u32 cycles_in_phase_ {0};
+    u32 current_sample_ {0};
+    u32 accumulated_res_ {0};
+    bool converting_ {false};
 };
 
 } // namespace vioavr::core

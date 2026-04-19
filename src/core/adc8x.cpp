@@ -82,7 +82,7 @@ void Adc8x::reset() noexcept {
     ctrld_ = 0;
     ctrle_ = 0;
     sampctrl_ = 0;
-    muxpos_ = 0;
+    muxpos_ = 127; // Reset value for MUXPOS is often 127 (Disconnected) or 0
     muxneg_ = 0;
     command_ = 0;
     evctrl_ = 0;
@@ -93,16 +93,62 @@ void Adc8x::reset() noexcept {
     winlt_ = 0;
     winht_ = 0;
     converting_ = false;
-    cycles_remaining_ = 0;
+    state_ = AdcPhase::idle;
+    fractional_cycles_ = 0;
+    cycles_in_phase_ = 0;
+    current_sample_ = 0;
+    accumulated_res_ = 0;
 }
 
 void Adc8x::tick(u64 elapsed_cycles) noexcept {
-    if (!is_enabled() || !converting_) return;
+    if (!is_enabled()) {
+        state_ = AdcPhase::idle;
+        converting_ = false;
+        return;
+    }
 
-    if (elapsed_cycles >= cycles_remaining_) {
-        complete_conversion();
-    } else {
-        cycles_remaining_ -= elapsed_cycles;
+    if (state_ == AdcPhase::idle) return;
+
+    u16 prescaler = get_prescaler();
+    u64 total_cycles = elapsed_cycles + fractional_cycles_;
+    u64 adc_ticks = total_cycles / prescaler;
+    fractional_cycles_ = total_cycles % prescaler;
+
+    for (u64 t = 0; t < adc_ticks; ++t) {
+        if (cycles_in_phase_ > 0) {
+            cycles_in_phase_--;
+        }
+
+        if (cycles_in_phase_ == 0) {
+            switch (state_) {
+            case AdcPhase::startup:
+                state_ = AdcPhase::sample;
+                cycles_in_phase_ = 2 + (sampctrl_ & 0x1FU); 
+                break;
+
+            case AdcPhase::sample:
+                state_ = AdcPhase::convert;
+                cycles_in_phase_ = 13;
+                break;
+
+            case AdcPhase::convert: {
+                complete_conversion();
+                current_sample_++;
+                if (current_sample_ < get_sample_count()) {
+                    state_ = AdcPhase::sample;
+                    cycles_in_phase_ = 2 + (sampctrl_ & 0x1FU);
+                } else {
+                    state_ = AdcPhase::idle;
+                    converting_ = false;
+                    process_sample_result(static_cast<u16>(accumulated_res_));
+                }
+                break;
+            }
+
+            default:
+                break;
+            }
+        }
     }
 }
 
@@ -116,14 +162,25 @@ u8 Adc8x::read(u16 address) noexcept {
     else if (address == desc_.sampctrl_address) val = sampctrl_;
     else if (address == desc_.muxpos_address) val = muxpos_;
     else if (address == desc_.muxneg_address) val = muxneg_;
-    else if (address == desc_.command_address) val = 0; // Write-only/strobe
+    else if (address == desc_.command_address) val = 0;
     else if (address == desc_.evctrl_address) val = evctrl_;
     else if (address == desc_.intctrl_address) val = intctrl_;
     else if (address == desc_.intflags_address) val = intflags_;
     else if (address == desc_.dbgctrl_address) val = dbgctrl_;
+    else if (address == desc_.temp_address) val = 0; // Temp usually returns LAST read or something
     else if (address == desc_.res_address) val = static_cast<u8>(res_);
     else if (address == desc_.res_address + 1) val = static_cast<u8>(res_ >> 8);
+    else if (address == desc_.winlt_address) val = static_cast<u8>(winlt_);
+    else if (address == desc_.winlt_address + 1) val = static_cast<u8>(winlt_ >> 8);
+    else if (address == desc_.winht_address) val = static_cast<u8>(winht_);
+    else if (address == desc_.winht_address + 1) val = static_cast<u8>(winht_ >> 8);
     
+    // Status at 0x01? (Usually STATUS is addr+1 of CTRLA but varies)
+    // ATmega4809: ADC.STATUS is at 0x60D
+    if (desc_.ctrla_address != 0 && address == desc_.ctrla_address + 13) { // STATUS is usually +13 from CTRLA in ATmega4809
+       if (converting_) val |= 0x01U; // ADCBUSY 
+    }
+
     return val;
 }
 
@@ -154,8 +211,14 @@ void Adc8x::write(u16 address, u8 value) noexcept {
         intflags_ &= ~value; // Clear on write 1
     } else if (address == desc_.dbgctrl_address) {
         dbgctrl_ = value;
-    } else if (address == desc_.res_address) {
-        // RES usually read-only in conversion, but might be writable in some modes
+    } else if (address == desc_.winlt_address) {
+        winlt_ = (winlt_ & 0xFF00U) | value;
+    } else if (address == desc_.winlt_address + 1) {
+        winlt_ = (winlt_ & 0x00FFU) | (static_cast<u16>(value) << 8);
+    } else if (address == desc_.winht_address) {
+        winht_ = (winht_ & 0xFF00U) | value;
+    } else if (address == desc_.winht_address + 1) {
+        winht_ = (winht_ & 0x00FFU) | (static_cast<u16>(value) << 8);
     }
 }
 
@@ -164,7 +227,10 @@ bool Adc8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
         request.vector_index = desc_.res_ready_vector_index;
         return true;
     }
-    // WCOMP not implemented yet
+    if ((intctrl_ & 0x02U) && (intflags_ & 0x02U)) { // WCOMP
+        request.vector_index = desc_.res_ready_vector_index; // Often share same vector or close by
+        return true;
+    }
     return false;
 }
 
@@ -181,22 +247,28 @@ bool Adc8x::is_enabled() const noexcept {
     return (ctrla_ & 0x01U);
 }
 
+u16 Adc8x::get_prescaler() const noexcept {
+    u8 p = ctrlc_ & 0x07U;
+    return 2U << p; // 0->2, 1->4, ..., 7->256
+}
+
+u32 Adc8x::get_sample_count() const noexcept {
+    u8 sampnum = ctrlb_ & 0x07U;
+    return 1U << sampnum;
+}
+
 void Adc8x::start_conversion() noexcept {
     if (converting_) return;
     converting_ = true;
-    
-    // Base 13 cycles + (SAMPNUM contribution)
-    // Actually, each additional sample takes more time.
-    // For now, let's use a simplified model: 13 * (2^SAMPNUM)
-    u8 sampnum = ctrlb_ & 0x07U;
-    u16 samples = 1U << sampnum;
-    cycles_remaining_ = 13ULL * samples; 
+    state_ = AdcPhase::startup;
+    cycles_in_phase_ = 2; // Startup is 2 cycles
+    current_sample_ = 0;
+    accumulated_res_ = 0;
 }
 
 void Adc8x::complete_conversion() noexcept {
-    converting_ = false;
-    
-    double input_voltage = 0.5; // Default mid-scale
+    // This is called AFTER conversion phase ticks complete
+    double input_voltage = 0.5;
     if (signal_bank_) {
         // Simple mapping: AIN0-AIN15 map to bank channels 0-15
         if (muxpos_ < AnalogSignalBank::kChannelCount) {
@@ -228,16 +300,26 @@ void Adc8x::complete_conversion() noexcept {
         raw_result >>= 2U; // 10-bit to 8-bit
     }
 
-    // Handle Accumulation (SAMPNUM)
-    u8 sampnum = ctrlb_ & 0x07U;
-    u32 accumulated_result = raw_result;
-    if (sampnum > 0) {
-        u16 samples = 1U << sampnum;
-        accumulated_result = raw_result * samples;
+    // Handle Accumulation: we add it to the running sum
+    accumulated_res_ += raw_result;
+}
+
+void Adc8x::process_sample_result(u16 result) noexcept {
+    res_ = result;
+    intflags_ |= 0x01U; // RESRDY
+    
+    // Window Comparator Logic
+    u8 wmode = ctrld_ & 0x07U;
+    bool wcomp = false;
+    if (wmode == 0x01U) wcomp = (result < winlt_); // BELOW
+    else if (wmode == 0x02U) wcomp = (result > winht_); // ABOVE
+    else if (wmode == 0x03U) wcomp = (result >= winlt_ && result <= winht_); // INSIDE
+    else if (wmode == 0x04U) wcomp = (result < winlt_ || result > winht_); // OUTSIDE
+    
+    if (wcomp) {
+        intflags_ |= 0x02U; // WCOMP
     }
 
-    res_ = static_cast<u16>(accumulated_result);
-    intflags_ |= 0x01U; // RESRDY
     if (evsys_ && desc_.resrd_generator_id != 0) {
         evsys_->trigger_event(desc_.resrd_generator_id);
     }
