@@ -46,12 +46,15 @@ private:
         u8 ctrlb {0x00};
         u8 ctrlc {0x00};
         u8 truth {0x00};
+        
+        // Input state (0=IN0, 1=IN1, 2=IN2)
+        std::array<bool, 3> inputs {false, false, false};
     };
-    std::array<LutState, 8> luts_ {};
-    std::array<bool, 8> outputs_ {};
+    std::array<LutState, 4> luts_ {}; // ATmega4809 has 4 LUTs
+    std::array<bool, 4> outputs_ {};
     
-    // State for sequential logic
-    std::array<bool, 4> seq_state_ {};
+    // State for sequential logic (SEQ0, SEQ1)
+    std::array<bool, 2> seq_state_ {};
 
     std::array<AddressRange, 6> ranges_ {};
     
