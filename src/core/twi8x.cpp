@@ -161,4 +161,37 @@ bool Twi8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     return true; // Flags cleared by write action in firmware
 }
 
+void Twi8x::inject_bus_start() noexcept {
+    // Reset slave state for new transaction
+}
+
+void Twi8x::inject_bus_address(u8 address) noexcept {
+    if (!(sctrla_ & 0x01U)) return; // Slave disabled
+
+    u8 target = address >> 1;
+    u8 my_addr = saddr_ >> 1;
+    u8 mask = saddrmask_ >> 1;
+
+    if ((target & ~mask) == (my_addr & ~mask)) {
+        // MATCH!
+        sstatus_ |= SSTATUS_APIF | SSTATUS_AP | SSTATUS_CLKHOLD;
+        if (address & 0x01U) sstatus_ |= SSTATUS_DIR; // Read
+        else sstatus_ &= ~SSTATUS_DIR; // Write
+    }
+}
+
+void Twi8x::inject_bus_data(u8 data) noexcept {
+    if (!(sstatus_ & SSTATUS_AP)) return; // Not addressed
+
+    sdata_ = data;
+    sstatus_ |= SSTATUS_DIF | SSTATUS_CLKHOLD;
+}
+
+void Twi8x::inject_bus_stop() noexcept {
+    if (sstatus_ & SSTATUS_AP) {
+        sstatus_ |= SSTATUS_APIF; // Stop interrupt
+        sstatus_ &= ~SSTATUS_AP;
+    }
+}
+
 } // namespace vioavr::core
