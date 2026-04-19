@@ -102,6 +102,11 @@ public:
         return sreg_;
     }
 
+    void set_sreg(u8 value) noexcept
+    {
+        sreg_ = value;
+    }
+
     [[nodiscard]] constexpr u8 rampz() const noexcept
     {
         return rampz_;

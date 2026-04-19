@@ -21,7 +21,7 @@ class Machine;
  */
 class GdbStub final : public ITraceHook {
 public:
-    explicit GdbStub(Machine& machine);
+    explicit GdbStub(AvrCpu& cpu, MemoryBus& bus);
     ~GdbStub() override;
 
     /**
@@ -40,11 +40,11 @@ public:
 
     // ITraceHook implementation
     void on_instruction(u32 address, u16 opcode, std::string_view mnemonic) override;
-    void on_register_write(u8 index, u8 value) override {}
-    void on_sreg_write(u8 value) override {}
-    void on_memory_read(u16 address, u8 value) override {}
-    void on_memory_write(u16 address, u8 value) override {}
-    void on_interrupt(u8 vector) override {}
+    void on_register_write([[maybe_unused]] u8 index, [[maybe_unused]] u8 value) override {}
+    void on_sreg_write([[maybe_unused]] u8 value) override {}
+    void on_memory_read([[maybe_unused]] u16 address, [[maybe_unused]] u8 value) override {}
+    void on_memory_write([[maybe_unused]] u16 address, [[maybe_unused]] u8 value) override {}
+    void on_interrupt([[maybe_unused]] u8 vector) override {}
 
 private:
     void listen_loop();
@@ -59,7 +59,9 @@ private:
     void handle_query(const std::string& cmd);
     void handle_register_read_all();
     void handle_register_read_single(const std::string& cmd);
+    void handle_register_write_single(const std::string& cmd);
     void handle_memory_read(const std::string& cmd);
+    void handle_memory_write(const std::string& cmd);
     void handle_step();
     void handle_continue();
     void handle_vcont(const std::string& cmd);
@@ -70,8 +72,10 @@ private:
     static uint8_t checksum(const std::string& data);
     static std::string hex_encode(const void* data, size_t len);
     static std::vector<uint8_t> hex_decode(const std::string& hex);
+    void send_trap();
 
-    Machine& machine_;
+    AvrCpu& cpu_;
+    MemoryBus& bus_;
     uint16_t port_ {0};
     int server_fd_ {-1};
     int client_fd_ {-1};

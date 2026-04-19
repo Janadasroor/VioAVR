@@ -4,6 +4,8 @@ set(TEST_SOURCES
     cpu_int_arbitration_test.cpp
     smoke_test.cpp
     device_catalog_test.cpp
+    gdb_stub_test.cpp
+    bridge_shm_test.cpp
     cpu_alu_test.cpp
     cpu_analog_comparator_test.cpp
     cpu_analog_comparator_firmware_test.cpp
