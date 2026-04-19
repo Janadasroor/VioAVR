@@ -51,13 +51,16 @@ private:
     u16 cnt_ {0x0000};
     u16 ccmp_ {0x0000};
 
-    std::array<AddressRange, 2> ranges_ {};
+    std::array<AddressRange, 8> ranges_ {};
 
     // Internal logic
     void handle_matches();
-    void perform_tick();
+    void perform_tick(bool clock_event = true);
     bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     u8 get_mode() const noexcept { return ctrlb_ & 0x07; }
+    u8 get_clksel() const noexcept { return (ctrla_ >> 1) & 0x03; }
+
+    u8 prescaler_counter_ {0};
 };
 
 } // namespace vioavr::core

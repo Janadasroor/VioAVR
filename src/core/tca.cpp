@@ -217,19 +217,6 @@ void Tca::handle_matches() {
 
     u8 wgmode = ctrlb_ & 0x07;
     
-    // Overflow / Underflow
-    if (wgmode == 0x00 || wgmode == 0x03) { // Normal / Single Slope
-        if (norm_.tcnt == norm_.per) {
-            intflags_ |= 0x01; // OVF
-            if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
-        }
-    } else if (wgmode >= 0x05) { // Dual Slope
-        if (norm_.tcnt == 0 && !counting_up_) { // BOTTOM
-             intflags_ |= 0x01;
-             if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
-        }
-    }
-
     // Compare matches
     if (norm_.tcnt == norm_.cmp0) {
         intflags_ |= 0x10;
@@ -312,6 +299,9 @@ void Tca::perform_tick() {
     }
 
     if (update_cond) {
+        intflags_ |= 0x01; // OVF
+        if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
+
         if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; }
         if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; }
         if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; }

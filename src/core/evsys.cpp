@@ -78,6 +78,14 @@ void EventSystem::tick(u64) noexcept {
 void EventSystem::trigger_event(u8 generator_id) noexcept {
     if (generator_id == 0) return; // OFF
     
+    // Direct generator listeners
+    if (auto it = generator_callbacks_.find(generator_id); it != generator_callbacks_.end()) {
+        for (auto& cb : it->second) {
+            if (cb) cb();
+        }
+    }
+
+    // Routed users
     for (size_t i = 0; i < channels_.size(); ++i) {
         if (channels_[i] == generator_id) {
             // Signal all users of this channel (i + 1)
@@ -95,6 +103,12 @@ void EventSystem::trigger_event(u8 generator_id) noexcept {
 void EventSystem::register_user_callback(u8 user_index, EventCallback callback) {
     if (user_index < callbacks_.size()) {
         callbacks_[user_index] = std::move(callback);
+    }
+}
+
+void EventSystem::register_generator_callback(u8 generator_id, EventCallback callback) {
+    if (generator_id != 0) {
+        generator_callbacks_[generator_id].push_back(std::move(callback));
     }
 }
 

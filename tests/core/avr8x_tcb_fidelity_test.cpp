@@ -66,3 +66,62 @@ TEST_CASE("AVR8X TCB - Input Capture Fidelity") {
     // Verify Interrupt Flag
     CHECK((bus.read_data(TCB0_INTFLAGS) & 0x01U) != 0);
 }
+TEST_CASE("AVR8X TCB - Cascaded Mode Fidelity") {
+    Machine machine{atmega4809};
+    auto& bus = machine.bus();
+    machine.reset();
+
+    // Load NOPs to maintain 1 cycle per machine.run(1)
+    std::vector<u16> program(1000, 0x0000); 
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    // 1. Configure TCA0 to overflow every 10 cycles
+    bus.write_data(0xA26, 9);
+    bus.write_data(0xA27, 0); // High byte
+    bus.write_data(0xA00, 0x01); // ENABLE
+
+    // 2. Configure TCB0 for Cascaded Mode (CLKSEL=2)
+    bus.write_data(0xA8C, 0xFF); // CCMPL
+    bus.write_data(0xA8D, 0xFF); // CCMPH
+    bus.write_data(0xA80, (0x02 << 1) | 0x01);
+
+    // 3. Tick 5 cycles
+    machine.run(5);
+    CHECK(bus.read_data(0xA20) == 5);
+    CHECK(bus.read_data(0xA8A) == 0);
+
+    // 4. Tick 5 more cycles (Total 10)
+    machine.run(5);
+    // TCA just reached 0 (overflowed on 10th cycle)
+    CHECK(bus.read_data(0xA20) == 0);
+    CHECK(bus.read_data(0xA8A) == 1);
+}
+
+TEST_CASE("AVR8X TCB - 8-bit PWM (PWM8) Fidelity") {
+    Machine machine{atmega4809};
+    auto& bus = machine.bus();
+    machine.reset();
+
+    // Load NOPs
+    std::vector<u16> program(1000, 0x0000);
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    // Configure TCB0 for PWM8 (Mode 1)
+    bus.write_data(0xA81, 0x01); // PWM8
+    bus.write_data(0xA8C, 10);   // CCMPL = 10
+    bus.write_data(0xA80, 0x01); // ENABLE
+
+    // Initial CNT=0
+    CHECK(bus.read_data(0xA8A) == 0);
+
+    // Tick 10 cycles
+    machine.run(10);
+    CHECK(bus.read_data(0xA8A) == 10);
+
+    // Next tick should reset to 0 and set CAPT flag
+    machine.run(1);
+    CHECK(bus.read_data(0xA8A) == 0);
+    CHECK((bus.read_data(0xA86) & 0x01) != 0);
+}

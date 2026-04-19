@@ -92,46 +92,93 @@ void Tcb::write(u16 address, u8 value) noexcept {
 void Tcb::tick(u64 elapsed_cycles) noexcept {
     if (!is_enabled()) return;
     
-    for (u64 i = 0; i < elapsed_cycles; ++i) {
-        handle_matches();
-        perform_tick();
+    u8 clksel = get_clksel();
+
+    if (clksel == 0) { // CLK_PER
+        for (u64 i = 0; i < elapsed_cycles; ++i) {
+            perform_tick(true);
+        }
+    } else if (clksel == 1) { // CLK_PER / 2
+        for (u64 i = 0; i < elapsed_cycles; ++i) {
+            bool fire = false;
+            if (++prescaler_counter_ >= 2) {
+                prescaler_counter_ = 0;
+                fire = true;
+            }
+            perform_tick(fire);
+        }
+    } else {
+        for (u64 i = 0; i < elapsed_cycles; ++i) {
+            perform_tick(false);
+        }
     }
 }
 
 void Tcb::handle_matches() {
-    // Basic periodic interrupt (Mode 0)
-    if (get_mode() == 0 && cnt_ == ccmp_) {
-        intflags_ |= 0x01; // CAPT
+    u8 mode = get_mode();
+    if (mode == 0 || mode == 1) { // Periodic or 8-bit PWM
+        // Handled in perform_tick for precise reset
     }
 }
 
-void Tcb::perform_tick() {
+void Tcb::perform_tick(bool clock_event) {
+    if (!clock_event) return;
+
     u8 mode = get_mode();
-    if (mode == 0) { // Periodic Interrupt
-        if (cnt_ == ccmp_) {
+    
+    // Periodic Interrupt / PWM
+    if (mode == 0) {
+        if (cnt_ >= ccmp_) {
             cnt_ = 0;
+            intflags_ |= 0x01; // CAPT/OVF
         } else {
             cnt_++;
         }
+    } else if (mode == 1 || mode == 6) { // 8-bit PWM
+        // Low byte counts to CCMP-L
+        u8 per = static_cast<u8>(ccmp_ & 0xFFU);
+        u8 cnt_l = static_cast<u8>(cnt_ & 0xFFU);
+        if (cnt_l >= per) {
+            cnt_l = 0;
+            intflags_ |= 0x01;
+        } else {
+            cnt_l++;
+        }
+        cnt_ = (cnt_ & 0xFF00U) | cnt_l;
     } else if (mode == 7) { // Single-shot
-        if (cnt_ == ccmp_) {
+        if (cnt_ >= ccmp_) {
             ctrla_ &= ~0x01; // Disable
             intflags_ |= 0x01;
         } else {
             cnt_++;
         }
     } else {
-        // Capture/Measurement modes: counter usually free-runs or is reset by event
+        // Capture/Measurement: counter free-runs
         cnt_++;
+        if (cnt_ == 0) { // Overflow
+            intflags_ |= 0x02; // OVF? In some devices TCB has OVF bit in INTFLAGS
+        }
     }
 }
 
 void Tcb::set_event_system(EventSystem* evsys) noexcept {
     evsys_ = evsys;
-    if (evsys_ && desc_.user_event_address != 0) {
-        // Calculate user index from address relative to EVSYS users base
-        u8 user_index = static_cast<u8>(desc_.user_event_address - evsys_->users_base());
-        evsys_->register_user_callback(user_index, [this]() { on_event(); });
+    if (evsys_) {
+        // 1. Capture Trigger
+        if (desc_.user_event_address != 0) {
+            u8 user_index = static_cast<u8>(desc_.user_event_address - evsys_->users_base());
+            evsys_->register_user_callback(user_index, [this]() { on_event(); });
+        }
+        
+        // 2. Cascaded Clock (Listen to TCA0 OVF - Generator 128)
+        // Note: Generator ID 128 is a common constant for TCA0.OVF in AVR8X.
+        // We should ideally use desc_.tca_ovf_generator_id if added to descriptor.
+        // For now, assume 128 as per most ATDFs for TCA0.
+        evsys_->register_generator_callback(128, [this]() {
+            if (is_enabled() && get_clksel() == 2) {
+                perform_tick(true);
+            }
+        });
     }
 }
 
@@ -140,11 +187,24 @@ void Tcb::on_event() noexcept {
     if (!(evctrl_ & 0x01)) return; // CAPTEI
 
     u8 mode = get_mode();
-    if (mode == 2 || mode == 3) { // Capture or Frequency Measurement
+    
+    if (mode == 2) { // Input Capture
         ccmp_ = cnt_;
         intflags_ |= 0x01; // CAPT
-        if (mode == 3) {
-            cnt_ = 0; // Reset on capture
+    } else if (mode == 3) { // Frequency Measurement
+        ccmp_ = cnt_;
+        cnt_ = 0;
+        intflags_ |= 0x01; // CAPT
+    } else if (mode == 4 || mode == 5) { // Pulse Width or Frequency/Pulse Width
+        // This requires knowing if it's the first or second edge.
+        // Bit 0 of STATUS usually tracks the input signal level or capture state.
+        if (!(status_ & 0x01)) { // First edge
+            cnt_ = 0;
+            status_ |= 0x01; // Mark as "Running"
+        } else { // Second edge
+            ccmp_ = cnt_;
+            status_ &= ~0x01;
+            intflags_ |= 0x01; // CAPT
         }
     }
 }
