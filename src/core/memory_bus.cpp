@@ -173,7 +173,8 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         address >= device_.mapped_eeprom.data_start &&
         address < device_.mapped_eeprom.data_start + device_.mapped_eeprom.size) {
         const u32 offset = address - device_.mapped_eeprom.data_start;
-        const u32 page_offset = offset % 32;
+        const u32 page_size = (device_.flash_page_size > 0) ? device_.flash_page_size / 2 : 32; // Heuristic or add eeprom_page_size
+        const u32 page_offset = offset % (page_size > 0 ? page_size : 64);
         if (page_offset < eeprom_page_buffer_.size()) {
             eeprom_page_buffer_[page_offset] = value;
             return;
@@ -536,6 +537,11 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
         cycles = 1600000U; // ~100ms at 16MHz
     } else if (command == 0x04 || command == 0x09) { // PBC / EEPBC
         cycles = 1; // Immediate
+        if (command == 0x09) {
+            std::ranges::fill(eeprom_page_buffer_, 0xFFU);
+        } else {
+            std::ranges::fill(flash_page_buffer_, 0xFFFFU);
+        }
     }
     
     spm_busy_cycles_left_ = cycles;
