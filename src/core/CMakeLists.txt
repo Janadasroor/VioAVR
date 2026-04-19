@@ -13,6 +13,7 @@ target_sources(vioavr_core
         cpu_control.cpp
         device.cpp
         device_catalog.cpp
+        gdb_stub.cpp
         eeprom.cpp
         ext_interrupt.cpp
         gpio_port.cpp
@@ -28,6 +29,7 @@ target_sources(vioavr_core
         twi.cpp
         twi8x.cpp
         sync_engine.cpp
+        trace_buffer.cpp
         viospice.cpp
         viospice_c.cpp
         bridge_shm_server.cpp

@@ -143,6 +143,14 @@ void AvrCpu::run_duration(const double seconds)
     }
 }
 
+void AvrCpu::resume() noexcept
+{
+    if (state_ == CpuState::paused) {
+        // Return to functional state (running or sleeping)
+        state_ = control_regs_->is_sleeping() ? CpuState::sleeping : CpuState::running;
+    }
+}
+
 u32 AvrCpu::get_sleep_wake_latency() const noexcept
 {
     // Legacy mapping or Mega-0 mapping
@@ -388,6 +396,7 @@ void AvrCpu::decode_and_execute(const DecodedInstruction& instruction)
                 mnemonic = "TST";
             }
             trace_hook_->on_instruction(instruction.word_address, instruction.opcode, mnemonic);
+            if (state_ == CpuState::paused) return;
         }
 
         (this->*descriptor.handler)(instruction);

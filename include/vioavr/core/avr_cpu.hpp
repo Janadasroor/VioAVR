@@ -47,6 +47,8 @@ public:
     void run(u64 cycle_budget);
     void run_duration(double seconds);
     void step();
+    void halt() noexcept { state_ = CpuState::paused; }
+    void resume() noexcept;
 
     [[nodiscard]] u64 cycles_per_second() const noexcept;
     [[nodiscard]] u32 get_sleep_wake_latency() const noexcept;
