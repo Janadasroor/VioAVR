@@ -759,6 +759,7 @@ struct DeviceDescriptor {
     u8 smcr_sm_mask {0x0EU};
     u8 smcr_se_mask {0x01U};
     u32 flash_rww_end_word {};
+    u32 boot_start_address {};
     u8 spl_reset {0x00U};
     u8 sph_reset {0x00U};
     u8 sreg_reset {0x00U};

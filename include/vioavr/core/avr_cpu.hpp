@@ -141,6 +141,13 @@ public:
     void write_register(u8 index, u8 value) noexcept;
     void write_sreg(u8 value) noexcept;
 
+    // Public for fidelity tests
+    void execute_reti(const DecodedInstruction& instruction);
+    [[nodiscard]] bool service_interrupt_if_needed();
+    void set_flag(SregFlag flag_bit, bool value) noexcept;
+    void push_pc(u32 address) noexcept;
+    [[nodiscard]] u32 interrupt_vector_word_address(u8 vector_index) const noexcept;
+
     [[nodiscard]] constexpr u64 cycles() const noexcept
     {
         return cycles_;
@@ -171,14 +178,9 @@ private:
     void synchronize_if_needed();
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();
-    [[nodiscard]] bool service_interrupt_if_needed();
     [[nodiscard]] u8 active_clock_domains() const noexcept;
 
-    [[nodiscard]] constexpr u32 interrupt_vector_word_address(u8 vector_index) const noexcept
-    {
-        // interrupt_vector_size is in bytes, convert to words
-        return static_cast<u32>(vector_index * (bus_->device().interrupt_vector_size / 2U));
-    }
+
     [[nodiscard]] constexpr bool flag(SregFlag flag_bit) const noexcept
     {
         return (sreg_ & (1U << static_cast<u8>(flag_bit))) != 0U;
@@ -198,7 +200,6 @@ private:
     void set_y_pointer(u16 value) noexcept;
     void set_z_pointer(u16 value) noexcept;
     [[nodiscard]] static constexpr u8 decode_displacement_q(u16 opcode) noexcept;
-    void set_flag(SregFlag flag_bit, bool value) noexcept;
     void update_add_flags(u8 lhs, u8 rhs, u8 result, bool carry_in = false) noexcept;
     void update_sub_flags(u8 lhs, u8 rhs, u8 result, bool carry_in = false) noexcept;
     void update_logic_flags(u8 result) noexcept;
@@ -209,7 +210,6 @@ private:
     void push_word(u16 value) noexcept;
     [[nodiscard]] u16 pop_word() noexcept;
 
-    void push_pc(u32 address) noexcept;
     [[nodiscard]] u32 pop_pc() noexcept;
     void execute_load_indirect(u8 destination, u16 address, bool post_increment, u8 pointer_low_register) noexcept;
     void execute_store_indirect(u16 address, u8 source, bool post_increment, u8 pointer_low_register) noexcept;
@@ -302,7 +302,6 @@ private:
     void execute_icall(const DecodedInstruction& instruction);
     void execute_call(const DecodedInstruction& instruction);
     void execute_ret(const DecodedInstruction& instruction);
-    void execute_reti(const DecodedInstruction& instruction);
     void execute_bclr(const DecodedInstruction& instruction);
     void execute_bset(const DecodedInstruction& instruction);
     void execute_sleep(const DecodedInstruction& instruction);

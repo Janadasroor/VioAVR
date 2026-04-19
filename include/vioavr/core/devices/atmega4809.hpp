@@ -47,6 +47,7 @@ inline constexpr DeviceDescriptor atmega4809 {
     .smcr_sm_mask = 0x0U,
     .smcr_se_mask = 0x0U,
     .flash_rww_end_word = 0x6000U,
+    .boot_start_address = 0x4000U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
