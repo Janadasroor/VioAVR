@@ -221,6 +221,11 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         if ((value & 0x10U) != 0U) {
             flash_rww_busy_ = false;
         }
+        // SIGRD (bit 5) or BLBSET (bit 3) timeout
+        if ((value & 0x28U) != 0U) {
+            lpm_special_mode_timeout_ = 5U;
+            last_spmcsr_val_ = value;
+        }
     }
 
     if (address < data_.size()) {
@@ -232,6 +237,22 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
 
 void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
 {
+    if (io_stall_cycles_ > 0U) {
+        if (elapsed_cycles >= io_stall_cycles_) {
+            io_stall_cycles_ = 0U;
+        } else {
+            io_stall_cycles_ -= static_cast<u32>(elapsed_cycles);
+        }
+    }
+
+    if (lpm_special_mode_timeout_ > 0U) {
+        if (elapsed_cycles >= lpm_special_mode_timeout_) {
+            lpm_special_mode_timeout_ = 0U;
+        } else {
+            lpm_special_mode_timeout_ -= static_cast<u8>(elapsed_cycles);
+        }
+    }
+
     cpu_cycles_ += elapsed_cycles;
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
@@ -482,6 +503,7 @@ u8 MemoryBus::get_wait_states(const u16 address) const noexcept
 }
 
 bool MemoryBus::should_stall_cpu(u32 pc_word) const noexcept {
+    if (io_stall_cycles_ > 0U) return true;
     if (spm_busy_cycles_left_ == 0U) return false;
 
     // Non-RWW devices (e.g., ATmega328P) always halt during SPM operations.
@@ -496,6 +518,10 @@ bool MemoryBus::should_stall_cpu(u32 pc_word) const noexcept {
     if (pc_word <= device_.flash_rww_end_word) return true;
 
     return false;
+}
+
+void MemoryBus::request_cpu_stall(u32 cycles) noexcept {
+    io_stall_cycles_ = std::max(io_stall_cycles_, cycles);
 }
 
 void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data) noexcept {

@@ -288,10 +288,10 @@ void Machine::initialize_peripherals()
     // 7. EEPROM
     for (u8 i = 0; i < device_.eeprom_count; ++i) {
         auto eeprom = std::make_unique<Eeprom>("EEPROM", device_.eeproms[i]);
+        eeprom->set_memory_bus(bus_.get());
         bus_->attach_peripheral(*eeprom);
         owned_peripherals_.push_back(std::move(eeprom));
     }
-
     // 8. Watchdog
     for (u8 i = 0; i < device_.wdt_count; ++i) {
         auto wdt = std::make_unique<WatchdogTimer>("WDT", device_.wdts[i], *cpu_);

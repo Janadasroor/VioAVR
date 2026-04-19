@@ -11,6 +11,7 @@ namespace vioavr::core {
 class Eeprom final : public IoPeripheral {
 public:
     explicit Eeprom(std::string_view name, const EepromDescriptor& descriptor) noexcept;
+    void set_memory_bus(MemoryBus* bus) noexcept { bus_ = bus; }
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -34,6 +35,7 @@ private:
     void start_write() noexcept;
     void complete_write() noexcept;
 
+    MemoryBus* bus_ {nullptr};
     std::string_view name_;
     EepromDescriptor desc_;
     std::array<AddressRange, 2> ranges_ {};

@@ -1,4 +1,5 @@
 #include "vioavr/core/eeprom.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 #include <fstream>
 
@@ -148,6 +149,7 @@ void Eeprom::update_eecr(const u8 value) noexcept
         if (write_cycles_left_ == 0U) {
             const u16 addr = static_cast<u16>(eear_ % size_);
             eedr_ = storage_[addr];
+            if (bus_) bus_->request_cpu_stall(4U);
         }
     }
 
@@ -163,6 +165,7 @@ void Eeprom::update_eecr(const u8 value) noexcept
     if ((value & kEepe) != 0U) {
         if ((eecr_ & kEempe) != 0U && write_cycles_left_ == 0U) {
             start_write();
+            if (bus_) bus_->request_cpu_stall(2U);
         }
     }
 

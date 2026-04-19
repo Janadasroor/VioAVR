@@ -65,6 +65,22 @@ public:
 
     [[nodiscard]] constexpr u8 read_program_byte(u32 byte_address) const noexcept
     {
+        if (lpm_special_mode_timeout_ > 0U) {
+            if ((last_spmcsr_val_ & 0x20U) != 0U) { // SIGRD
+                const u32 offset = byte_address >> 1U;
+                if (offset < device_.signature.size()) return device_.signature[offset];
+                return 0x00U;
+            }
+            if ((last_spmcsr_val_ & 0x08U) != 0U) { // BLBSET
+                // Legacy fuse mapping: Low=0, High=3, Ext=2, Lock=1
+                if (byte_address == 0x0000) return fuses_[0];
+                if (byte_address == 0x0001) return 0xFFU; // Lock bits stub
+                if (byte_address == 0x0002) return fuses_[2];
+                if (byte_address == 0x0003) return fuses_[1];
+                return 0xFFU;
+            }
+        }
+
         const u32 word_address = byte_address >> 1U;
         if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
             return 0xFFU;
@@ -110,6 +126,7 @@ public:
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
     [[nodiscard]] bool should_stall_cpu(u32 pc_word) const noexcept;
+    void request_cpu_stall(u32 cycles) noexcept;
 
     void set_xmem(class Xmem* xmem) noexcept { xmem_ = xmem; }
     [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
@@ -148,9 +165,12 @@ private:
 
     // SPM timing state
     u32 spm_busy_cycles_left_ {0U};
+    u32 io_stall_cycles_ {0U};
     u8 spm_command_ {0U};
     u32 spm_address_ {0U};
     u16 spm_data_ {0U};
+    u8 lpm_special_mode_timeout_ {0U};
+    u8 last_spmcsr_val_ {0U};
     u64 cpu_cycles_ {0U};
 };
 }  // namespace vioavr::core
