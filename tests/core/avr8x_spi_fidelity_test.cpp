@@ -1,45 +1,48 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "vioavr/core/machine.hpp"
-#include "vioavr/core/device_catalog.hpp"
-#include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/spi8x.hpp"
+#include "vioavr/core/devices/atmega4809.hpp"
 
 using namespace vioavr::core;
+using namespace vioavr::core::devices;
 
-TEST_CASE("AVR8X SPI Fidelity Test") {
-    auto device = DeviceCatalog::find("ATmega4809");
-    REQUIRE(device != nullptr);
-    REQUIRE(device->spi8x_count >= 1);
+TEST_CASE("AVR8X SPI - Back-to-back Transfer Fidelity") {
+    Spi8x spi{atmega4809.spis8x[0]};
+    spi.reset();
 
-    Machine machine(*device);
-    auto& bus = machine.bus();
+    const u16 CTRLA = atmega4809.spis8x[0].ctrla_address;
+    const u16 INTFLAGS = atmega4809.spis8x[0].intflags_address;
+    const u16 DATA = atmega4809.spis8x[0].data_address;
 
-    const u16 SPI0_BASE = 0x08C0;
-    const u16 SPI0_CTRLA    = SPI0_BASE + 0x00;
-    const u16 SPI0_CTRLB    = SPI0_BASE + 0x01;
-    const u16 SPI0_INTCTRL  = SPI0_BASE + 0x02;
-    const u16 SPI0_INTFLAGS = SPI0_BASE + 0x03;
-    const u16 SPI0_DATA     = SPI0_BASE + 0x04;
+    // 1. Setup: Enable, Master, /2 Prescaler (divisor 2)
+    // CTRLA: ENABLE=1, MASTER=1, PRESC=010 (case 4 in switch is /2) 
+    // Wait, let's check switch case: switch((ctrla >> 1) & 0x07) { case 4: divisor = 2; }
+    // CTRLA = (4 << 1) | 0x05 (ENABLE=1, MASTER=1) ? 
+    // Actually CTRLA: [0: ENABLE, 1,2,3: PRESC, 4: MASTER, 5: CLK2X, 6: DORD, 7: BUFEN?]
+    // Wait, let's check the code: u8 presc = (ctrla_ >> 1) & 0x07U;
+    spi.write(CTRLA, (4 << 1) | 0x01U); // PRESC=4 (/2), ENABLE=1
 
-    // 1. Enable and configure as Master
-    bus.write_data(SPI0_CTRLA, 0x21); // MASTER=1, ENABLE=1
-    CHECK(bus.read_data(SPI0_CTRLA) == 0x21);
-
-    // 2. Start Transfer
-    bus.write_data(SPI0_DATA, 0x55);
-    CHECK((bus.read_data(SPI0_INTFLAGS) & 0x80) == 0); // IF=0 (busy)
-
-    // 3. Tick (Default duration is 128 cycles for /4 prescaler-ish)
-    // Wait, my impl uses /4 as default (index 0). 4*8 = 32 cycles?
-    // Let's check my Spi8x::write logic.
-    // presc 0 -> /4. divisor=4. duration=divisor*8=32.
-    bus.tick_peripherals(20);
-    CHECK((bus.read_data(SPI0_INTFLAGS) & 0x80) == 0);
-
-    bus.tick_peripherals(15);
-    CHECK((bus.read_data(SPI0_INTFLAGS) & 0x80) == 0x80); // Done!
-
-    // 4. Read clears flag
-    CHECK(bus.read_data(SPI0_DATA) == 0x55);
-    CHECK((bus.read_data(SPI0_INTFLAGS) & 0x80) == 0);
+    // 2. Write Byte 1
+    spi.write(DATA, 0xAA);
+    // Byte 1 duration should be 2 * 8 = 16 cycles.
+    
+    // 3. Write Byte 2 immediately (Double buffering)
+    spi.write(DATA, 0xBB);
+    
+    // 4. Tick exactly 16 cycles
+    spi.tick(16);
+    
+    // Byte 1 should be done, Byte 2 should be in progress
+    // INTFLAGS_IF is 0x80? No, let's check SPI header.
+    // In spi8x.cpp: intflags_ |= INTFLAGS_IF;
+    // Assuming INTFLAGS_IF = 0x80.
+    CHECK((spi.read(INTFLAGS) & 0x80U) != 0);
+    
+    // 5. Clear IF flag and check Byte 2 completion
+    spi.read(DATA); // Reading DATA clears IF in this implementation
+    CHECK((spi.read(INTFLAGS) & 0x80U) == 0);
+    
+    // 6. Tick another 16 cycles
+    spi.tick(16);
+    CHECK((spi.read(INTFLAGS) & 0x80U) != 0); // Byte 2 done
 }

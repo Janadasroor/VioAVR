@@ -48,30 +48,31 @@ void Spi8x::reset() noexcept {
 }
 
 void Spi8x::tick(u64 elapsed_cycles) noexcept {
-    if (transfer_in_progress_) {
-        transfer_cycles_elapsed_ += elapsed_cycles;
-        if (transfer_cycles_elapsed_ >= transfer_duration_) {
-            transfer_in_progress_ = false;
-            intflags_ |= INTFLAGS_IF;
-            
-            // For now, simulate loopback by loading data_ with shift_register_
-            // In a real system, this would be the data shifted in from MISO.
-            data_ = shift_register_;
-            
-            // Auto-load next byte if available
-            if (tx_buffer_full_) {
-                shift_register_ = tx_buffer_;
-                tx_buffer_full_ = false;
-                transfer_in_progress_ = true;
-                transfer_cycles_elapsed_ = 0;
+    for (u64 i = 0; i < elapsed_cycles; ++i) {
+        if (transfer_in_progress_) {
+            transfer_cycles_elapsed_++;
+            if (transfer_cycles_elapsed_ >= transfer_duration_) {
+                transfer_in_progress_ = false;
+                intflags_ |= INTFLAGS_IF;
+                
+                // For now, simulate loopback by loading data_ with shift_register_
+                data_ = shift_register_;
+                
+                // Auto-load next byte if available
+                if (tx_buffer_full_) {
+                    shift_register_ = tx_buffer_;
+                    tx_buffer_full_ = false;
+                    transfer_in_progress_ = true;
+                    transfer_cycles_elapsed_ = 0;
+                }
             }
+        } else if (tx_buffer_full_) {
+            // Start delayed transfer
+            shift_register_ = tx_buffer_;
+            tx_buffer_full_ = false;
+            transfer_in_progress_ = true;
+            transfer_cycles_elapsed_ = 0;
         }
-    } else if (tx_buffer_full_) {
-        // Start delayed transfer
-        shift_register_ = tx_buffer_;
-        tx_buffer_full_ = false;
-        transfer_in_progress_ = true;
-        transfer_cycles_elapsed_ = 0;
     }
 }
 
