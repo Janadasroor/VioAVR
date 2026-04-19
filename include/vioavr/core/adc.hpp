@@ -4,6 +4,7 @@
 #include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/pin_map.hpp"
 
 #include <array>
 
@@ -40,6 +41,7 @@ public:
     [[nodiscard]] ClockDomain clock_domain() const noexcept override;
 
     void bind_signal_bank(const AnalogSignalBank& signal_bank) noexcept;
+    void bind_pin_map(const PinMap& pin_map) noexcept;
     void select_auto_trigger_source(AutoTriggerSource source) noexcept;
     void connect_comparator_auto_trigger(AnalogComparator& comparator) noexcept;
     void connect_external_interrupt_0_auto_trigger(ExtInterrupt& ext_interrupt) noexcept;
@@ -78,6 +80,7 @@ private:
     AdcDescriptor desc_;
     MemoryBus* bus_ {};
     PinMux* pin_mux_ {};
+    const PinMap* pin_map_ {};
     std::array<AddressRange, 5> ranges_;
     size_t ri_ {0};
     u8 source_id_;

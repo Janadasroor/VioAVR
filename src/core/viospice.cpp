@@ -111,6 +111,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     for (u8 i = 0; i < device.adc_count; ++i) {
         auto adc = std::make_unique<Adc>("ADC" + std::to_string(i), device.adcs[i], pin_mux_, 0, 15);
         adc->bind_signal_bank(analog_signal_bank_);
+        if (pin_map_) adc->bind_pin_map(*pin_map_);
         bus_.attach_peripheral(*adc.release());
     }
 
@@ -177,7 +178,14 @@ void VioSpice::set_pin_map(std::unique_ptr<PinMap> pin_map)
 void VioSpice::add_pin_mapping(std::string_view port_name, u8 bit_index, u32 external_id, std::string_view label)
 {
     if (pin_map_) {
-        pin_map_->add_mapping(port_name, bit_index, external_id, label);
+        u16 addr = 0;
+        for (u8 i = 0; i < bus_.device().port_count; ++i) {
+            if (bus_.device().ports[i].name == port_name) {
+                addr = bus_.device().ports[i].pin_address;
+                break;
+            }
+        }
+        pin_map_->add_mapping(port_name, addr, bit_index, external_id, label);
     }
 }
 
