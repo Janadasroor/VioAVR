@@ -59,6 +59,10 @@ void Uart8x::reset() noexcept {
     tx_bits_left_ = 0;
     tx_bit_duration_ = 0.0;
     tx_cycle_accumulator_ = 0.0;
+    rx_in_progress_ = false;
+    rx_bits_left_ = 0;
+    rx_bit_duration_ = 0.0;
+    rx_cycle_accumulator_ = 0.0;
 }
 
 void Uart8x::tick(u64 elapsed_cycles) noexcept {
@@ -95,6 +99,23 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                 if (tx_bits_left_ == 0) {
                     tx_in_progress_ = false;
                     status_ |= STATUS_TXCIF;
+                }
+            }
+        }
+
+        // 3. Progress the receiver shift register
+        if (rx_in_progress_) {
+            rx_cycle_accumulator_ += 1.0;
+            if (rx_cycle_accumulator_ >= rx_bit_duration_) {
+                rx_cycle_accumulator_ -= rx_bit_duration_;
+                if (rx_bits_left_ > 0) {
+                    rx_bits_left_--;
+                }
+                
+                if (rx_bits_left_ == 0) {
+                    rx_in_progress_ = false;
+                    // Move from shift register to FIFO
+                    actually_push_to_fifo(rx_shift_reg_.data, rx_shift_reg_.bit9);
                 }
             }
         }
@@ -182,7 +203,27 @@ bool Uart8x::consume_interrupt_request(InterruptRequest& request) noexcept {
 
 void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
     if (!(ctrlb_ & CTRLB_RXEN)) return;
+    if (rx_in_progress_) return; // Busy receiving
 
+    // Start reception process
+    rx_in_progress_ = true;
+    rx_bits_left_ = 10; // Start + 8 Data + Stop
+    rx_cycle_accumulator_ = 0.0;
+    rx_shift_reg_ = {data, bit9};
+    status_ |= STATUS_RXSIF; // Signal start of frame
+
+    u8 samples_per_bit = 16;
+    u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
+    if (rxmode == 0x01) samples_per_bit = 8;
+    
+    if (baud_ > 64) {
+        rx_bit_duration_ = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
+    } else {
+        rx_bit_duration_ = 16.0;
+    }
+}
+
+void Uart8x::actually_push_to_fifo(u8 data, bool bit9) noexcept {
     // MPCM Filtering
     bool mpc_en = (ctrlb_ & 0x01U); // MPCM bit
     if (mpc_en && !bit9) {

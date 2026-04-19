@@ -146,6 +146,32 @@ void Ccl::update_logic() noexcept {
         }
         if (!changed) break;
     }
+
+    // Evaluate Sequential Logic Units (SEQ0 for LUT0/1, SEQ1 for LUT2/3)
+    for (u8 s = 0; s < 2; ++s) {
+        u8 mode = seqctrl_[s] & 0x07;
+        if (mode == 0) continue; // Disabled
+
+        bool IN0 = outputs_[s * 2];
+        bool IN1 = outputs_[s * 2 + 1];
+        
+        switch (mode) {
+            case 0x01: // D Flip-Flop (IN0 = D, IN1 = CLK)
+                break; // Edge detection todo
+            case 0x02: // JK Flip-Flop
+                break; // Edge detection todo
+            case 0x03: // D Latch (IN0 = D, IN1 = Enable)
+                if (IN1) seq_state_[s] = IN0;
+                break;
+            case 0x04: // RS Latch (IN0 = S, IN1 = R)
+                if (IN0 && !IN1) seq_state_[s] = true;
+                else if (!IN0 && IN1) seq_state_[s] = false;
+                // S=0, R=0 -> Retain
+                // S=1, R=1 -> Reserved/Undefined (usually Reset wins or oscillates, we'll keep previous)
+                break;
+            default: break;
+        }
+    }
 }
 
 void Ccl::set_pin_input(u8 lut_index, u8 input_index, bool level) noexcept {

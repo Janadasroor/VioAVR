@@ -29,6 +29,7 @@ public:
 
     // Logic Interface
     bool get_lut_output(u8 index) const noexcept { return outputs_[index]; }
+    bool get_seq_output(u8 index) const noexcept { return seq_state_[index]; }
     
     // External Input Interface (Pins)
     void set_pin_input(u8 lut_index, u8 input_index, bool level) noexcept;

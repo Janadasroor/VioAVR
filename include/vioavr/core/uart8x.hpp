@@ -28,6 +28,7 @@ public:
     bool consume_transmitted_byte(u16& data) noexcept;
 
 private:
+    void actually_push_to_fifo(u8 data, bool bit9) noexcept;
     struct RxBufferEntry {
         u8 data;
         u8 high; // Contains error bits
@@ -55,6 +56,16 @@ private:
     u8 tx_bits_left_{0};
     double tx_bit_duration_{0.0};
     double tx_cycle_accumulator_{0.0};
+
+    // Receiver state
+    bool rx_in_progress_{false};
+    u8 rx_bits_left_{0};
+    double rx_bit_duration_{0.0};
+    double rx_cycle_accumulator_{0.0};
+    struct {
+        u8 data;
+        bool bit9;
+    } rx_shift_reg_{0, false};
 
     // Bits in STATUS
     static constexpr u8 STATUS_RXCIF = 0x80U;
