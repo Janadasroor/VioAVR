@@ -9,9 +9,9 @@ INCLUDE_DIR="${PROJECT_ROOT}/include"
 OUTPUT_NAME="viospice.cm"
 
 # Find ngspice headers
-NGSPICE_INC="/usr/include/ngspice"
+NGSPICE_INC="/home/jnd/cpp_projects/ngspice/src/include"
 if [ ! -d "$NGSPICE_INC" ]; then
-    NGSPICE_INC="/usr/local/include/ngspice"
+    NGSPICE_INC="/usr/include/ngspice"
 fi
 
 echo "--- Building VioSpice XSPICE Model (Manual Bridge) ---"
@@ -29,6 +29,7 @@ echo "Compiling viospice_bridge.cpp..."
 g++ -std=c++20 -fPIC -O3 \
     -I"${INCLUDE_DIR}" \
     -I"${NGSPICE_INC}" \
+    -I"/home/jnd/cpp_projects/ngspice/release/src/include" \
     -c "${VIOSPICE_DIR}/viospice_bridge.cpp" -o "${BUILD_DIR}/viospice_bridge.o"
 
 # Link into a shared library
@@ -36,6 +37,7 @@ echo "Linking ${OUTPUT_NAME}..."
 g++ -shared -fPIC \
     "${BUILD_DIR}/viospice_bridge.o" \
     "${BUILD_DIR}/src/core/libvioavr_core.a" \
+    -lrt -lpthread \
     -o "${BUILD_DIR}/${OUTPUT_NAME}"
 
 echo "--- Success! ---"
