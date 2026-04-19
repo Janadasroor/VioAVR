@@ -225,13 +225,15 @@ void Ccl::update_logic() noexcept {
 
         bool prev_in1 = prev_outputs_[s * 2];
         bool rising_edge_in1 = in1 && !prev_in1;
-        
+
         bool prev_in2 = prev_luts_in2_[s];
         bool rising_edge_in2 = in2 && !prev_in2;
         
         switch (mode) {
             case 0x01: // D Flip-Flop
-                if (rising_edge_in1) seq_state_[s] = in0;
+                if (rising_edge_in1) {
+                    seq_state_[s] = in0;
+                }
                 break;
             case 0x02: // JK Flip-Flop
                 if (rising_edge_in2) {
@@ -265,6 +267,11 @@ void Ccl::update_logic() noexcept {
                            (intmode == 0x03);
             
             if (trigger) intflags_[i / 2] |= (1 << (i % 2));
+
+            // Trigger Event System
+            if (evsys_ && desc_.luts[i].generator_id != 0) {
+                evsys_->trigger_event(desc_.luts[i].generator_id);
+            }
         }
         
         // Drive physical pin if (luts_[i].ctrla & 0x40) (OUTEN)
