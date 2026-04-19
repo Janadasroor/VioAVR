@@ -89,6 +89,13 @@ float BridgeShmClient::get_analog_output(uint8_t channel) const {
     return 0.0f;
 }
 
+void BridgeShmClient::set_thresholds(uint8_t pin, float vih, float vil) {
+    if (shm_ && pin < 128) {
+        shm_->vih_threshold[pin] = vih;
+        shm_->vil_threshold[pin] = vil;
+    }
+}
+
 AvrCpuState BridgeShmClient::get_cpu_state() const {
     if (shm_) return shm_->cpu_state;
     return {};

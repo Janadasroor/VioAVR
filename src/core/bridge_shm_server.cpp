@@ -37,6 +37,8 @@ BridgeShmServer::BridgeShmServer(const DeviceDescriptor& device, std::string ins
     shm_->digital_inputs.fill(0);
     shm_->digital_outputs.fill(0);
     shm_->analog_inputs.fill(0.0f);
+    shm_->vih_threshold.fill(3.0f); // Default 3.0V for 5V systems
+    shm_->vil_threshold.fill(1.5f); // Default 1.5V for 5V systems
     shm_->analog_outputs.fill(0.0f);
     
     // Initialize semaphores
@@ -101,13 +103,23 @@ void BridgeShmServer::run_loop() {
 void BridgeShmServer::handle_step() {
     // 1. Sync inputs from SHM to VioSpice
     for (uint32_t i = 0; i < 128; ++i) {
-        // Here we need a mapping from "external_id" i to AVR pins.
-        // For simplicity, let's assume a default mapping for this POC.
-        // In reality, this would use BridgeShm fields to describe the mapping.
+        // High-fidelity threshold evaluation (Hysteresis/Schmitt Trigger)
+        float v = shm_->analog_inputs[i];
+        float vih = shm_->vih_threshold[i];
+        float vil = shm_->vil_threshold[i];
+        
+        // If vih/vil are non-zero, we perform analog-to-digital mapping
+        if (vih > 0.0f || vil > 0.0f) {
+            if (v >= vih) shm_->digital_inputs[i] = 1;
+            else if (v <= vil) shm_->digital_inputs[i] = 0;
+            // Between vil and vih, status remains unchanged (hysteresis)
+        }
+
         avr_.set_external_pin(i, shm_->digital_inputs[i] ? PinLevel::high : PinLevel::low);
     }
     
-    for (uint32_t i = 0; i < 32; ++i) {
+    for (uint32_t i = 0; i < 128; ++i) {
+        // Direct analog inputs (ADC/Signal Bank)
         avr_.set_external_voltage(i, shm_->analog_inputs[i]);
     }
 

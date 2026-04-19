@@ -45,14 +45,19 @@ struct VioBridgeShm {
     uint64_t request_cycles;
     char command_arg[256];
 
-    // Digital IO (128 pins max)
+    // Digital I/O (128 pins max)
     // Client writes to inputs, Server writes to outputs
     std::array<uint8_t, 128> digital_inputs;
     std::array<uint8_t, 128> digital_outputs;
 
-    // Analog IO (32 channels max)
-    // Normalized 0.0 to 1.0
-    std::array<float, 32> analog_inputs;
+    // Analog Mapping (Schmitt Trigger / Thresholds)
+    // Client can write voltage to analog_inputs[pin]. 
+    // Server will compare to thresholds to update digital_inputs[pin].
+    std::array<float, 128> analog_inputs;
+    std::array<float, 128> vih_threshold;
+    std::array<float, 128> vil_threshold;
+    
+    // Dedicated Analog Outputs (DAC)
     std::array<float, 32> analog_outputs;
 
     // CPU Insight

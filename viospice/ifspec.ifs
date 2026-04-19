@@ -15,6 +15,15 @@ Allowed_Types:         [d]
 Vector:                yes
 Vector_Bounds:         [24 24]
 
+PORT_TABLE:
+Port_Name:             avr_analog_pins
+Description:           "AVR Analog Inputs (mapped to ADC or Digital Thresholds)"
+Direction:             in
+Default_Type:          v
+Allowed_Types:         [v]
+Vector:                yes
+Vector_Bounds:         [24 24]
+
 PARAMETER_TABLE:
 Parameter_Name:        hex_file
 Description:           "Path to firmware HEX file"
