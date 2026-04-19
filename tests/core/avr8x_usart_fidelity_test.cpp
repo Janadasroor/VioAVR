@@ -1,49 +1,74 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
+#include "vioavr/core/machine.hpp"
+#include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/uart8x.hpp"
-#include "vioavr/core/devices/atmega4809.hpp"
 
 using namespace vioavr::core;
-using namespace vioavr::core::devices;
 
-TEST_CASE("AVR8X USART - Double Buffered TX Fidelity") {
-    Uart8x uart{atmega4809.uarts8x[0]};
-    uart.reset();
+TEST_CASE("AVR8X USART - Baud Rate Fidelity") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    REQUIRE(device != nullptr);
 
-    const u16 STATUS = atmega4809.uarts8x[0].status_address;
-    const u16 CTRLB  = atmega4809.uarts8x[0].ctrlb_address;
-    const u16 TXDATA = atmega4809.uarts8x[0].txdata_address;
-    const u16 BAUD   = atmega4809.uarts8x[0].baud_address;
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
 
-    // 1. Setup: 9600 baud @ 16MHz -> BAUD = (16e6 * 64) / (16 * 9600) = 6666
-    uart.write(CTRLB, 0x40U); // TXEN
-    uart.write(BAUD, 0x0AU);   // Low BAUD for fast testing (duration ~ 25 cycles)
-    uart.write(BAUD + 1, 0x00U);
+    // Find first USART
+    auto uart_list = machine.peripherals_of_type<Uart8x>();
+    REQUIRE(!uart_list.empty());
+    auto* uart = uart_list[0];
 
-    // Initial state: DREIF should be set
-    CHECK((uart.read(STATUS) & 0x20U) != 0);
+    // Configure 9600 baud @ 16MHz
+    // BAUD = (64 * 16,000,000) / (16 * 9,600) = 6666.66 -> 6667
+    const u16 baud_val = 6667;
+    bus.write_data(0x0808, static_cast<u8>(baud_val & 0xFF)); // BAUDL
+    bus.write_data(0x0809, static_cast<u8>(baud_val >> 8));   // BAUDH
 
-    // 2. Write Byte 1
-    uart.write(TXDATA, 'A');
-    CHECK((uart.read(STATUS) & 0x20U) == 0); // DREIF cleared immediately
+    // Enable TX
+    bus.write_data(0x0806, 0x40); // CTRLB.TXEN = 1
 
-    // 3. Tick to move from Data to Shift
-    uart.tick(1);
-    CHECK((uart.read(STATUS) & 0x20U) != 0); // DREIF set again (can take byte 2)
-    CHECK((uart.read(STATUS) & 0x40U) == 0); // TXCIF cleared
+    // Initial Status: DREIF should be 1, TXCIF should be 0
+    CHECK((bus.read_data(0x0804) & 0x20) != 0); // DREIF
+    CHECK((bus.read_data(0x0804) & 0x40) == 0); // TXCIF
 
-    // 4. Write Byte 2 (Queued)
-    uart.write(TXDATA, 'B');
-    CHECK((uart.read(STATUS) & 0x20U) == 0); // DREIF cleared
+    // Write a byte to TXDATA
+    bus.write_data(0x0802, 0xAA);
 
-    // 5. Tick for duration of Byte 1 (approx 25 cycles)
-    // Formula: (BAUD * 16 * 10 / 64) = (10 * 160 / 64) = 25 cycles
-    uart.tick(25);
-    
-    // Byte 1 finished, Byte 2 moved to Shift
-    CHECK((uart.read(STATUS) & 0x20U) != 0); // DREIF set again
-    CHECK((uart.read(STATUS) & 0x40U) != 0); // TXCIF set by completion of Byte 1
-    
-    // Wait... if Byte 2 moved to Shift, TXCIF might be cleared if we wrote that logic.
-    // Hardware: TXCIF is set after ALL transmission is done.
+    // After 1 cycle, DREIF should be 1 (moved to shift reg)
+    // and TXC should be 0.
+    bus.tick_peripherals(1);
+    CHECK((bus.read_data(0x0804) & 0x20) != 0); // DREIF
+    CHECK((bus.read_data(0x0804) & 0x40) == 0); // TXC
+
+    // Duration for 10 bits @ 9600 baud:
+    // (10 * 16,000,000) / 9,600 = 16,666.66 cycles.
+    // Let's tick 16,000 cycles. TXC should still be 0.
+    bus.tick_peripherals(16000);
+    CHECK((bus.read_data(0x0804) & 0x40) == 0);
+
+    // Tick remaining duration
+    bus.tick_peripherals(1000);
+    CHECK((bus.read_data(0x0804) & 0x40) != 0); // TXCIF
+}
+
+TEST_CASE("AVR8X USART - Double Speed Fidelity") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 baud_val = 13333;
+    bus.write_data(0x0808, static_cast<u8>(baud_val & 0xFF));
+    bus.write_data(0x0809, static_cast<u8>(baud_val >> 8));
+
+    bus.write_data(0x0806, 0x40 | (0x01 << 1)); // TXEN + CLK2X
+
+    bus.write_data(0x0802, 0x55);
+    bus.tick_peripherals(1); // Move to shift reg
+
+    bus.tick_peripherals(16400); // 16,666 is target
+    CHECK((bus.read_data(0x0804) & 0x40) == 0);
+    bus.tick_peripherals(500);
+    CHECK((bus.read_data(0x0804) & 0x40) != 0);
 }

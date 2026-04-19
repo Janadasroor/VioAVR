@@ -52,8 +52,9 @@ private:
 
     bool tx_in_progress_{false};
     bool tx_data_busy_{false};
-    u64 tx_cycles_elapsed_{0};
-    u64 tx_duration_{160U};
+    u8 tx_bits_left_{0};
+    double tx_bit_duration_{0.0};
+    double tx_cycle_accumulator_{0.0};
 
     // Bits in STATUS
     static constexpr u8 STATUS_RXCIF = 0x80U;

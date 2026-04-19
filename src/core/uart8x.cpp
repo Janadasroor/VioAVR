@@ -56,8 +56,9 @@ void Uart8x::reset() noexcept {
     rx_fifo_write_idx_ = 0;
     tx_in_progress_ = false;
     tx_data_busy_ = false;
-    tx_cycles_elapsed_ = 0;
-    tx_duration_ = 160U;
+    tx_bits_left_ = 0;
+    tx_bit_duration_ = 0.0;
+    tx_cycle_accumulator_ = 0.0;
 }
 
 void Uart8x::tick(u64 elapsed_cycles) noexcept {
@@ -66,25 +67,35 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
         if (!tx_in_progress_ && tx_data_busy_) {
             tx_in_progress_ = true;
             tx_data_busy_ = false;
-            tx_cycles_elapsed_ = 0;
+            tx_bits_left_ = 10; // Start + 8 Data + Stop
+            tx_cycle_accumulator_ = 0.0;
             status_ |= STATUS_DREIF; // Data register now empty
             
             u8 samples_per_bit = 16;
             u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
             if (rxmode == 0x01) samples_per_bit = 8;
-            if (baud_ > 0) {
-                tx_duration_ = (static_cast<u64>(baud_) * samples_per_bit * 10ULL) / 64ULL;
+            
+            if (baud_ > 64) {
+                // Bit Duration = (S * BAUD) / 64
+                tx_bit_duration_ = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
             } else {
-                tx_duration_ = 160U;
+                tx_bit_duration_ = 16.0; // Minimal default
             }
         }
 
-        // 2. Progress the shift register
+        // 2. Progress the shift register bit-by-bit
         if (tx_in_progress_) {
-            tx_cycles_elapsed_++;
-            if (tx_cycles_elapsed_ >= tx_duration_) {
-                tx_in_progress_ = false;
-                status_ |= STATUS_TXCIF;
+            tx_cycle_accumulator_ += 1.0;
+            if (tx_cycle_accumulator_ >= tx_bit_duration_) {
+                tx_cycle_accumulator_ -= tx_bit_duration_;
+                if (tx_bits_left_ > 0) {
+                    tx_bits_left_--;
+                }
+                
+                if (tx_bits_left_ == 0) {
+                    tx_in_progress_ = false;
+                    status_ |= STATUS_TXCIF;
+                }
             }
         }
     }

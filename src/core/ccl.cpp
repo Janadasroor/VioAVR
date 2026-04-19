@@ -99,12 +99,38 @@ void Ccl::tick(u64) noexcept {
 bool Ccl::compute_lut(u8 index) const noexcept {
     if (!(luts_[index].ctrla & 0x01)) return false; // Not enabled
     
-    // Simplification: In this version, we'll just check the truth table against static inputs
-    // or feedback. We need a way to feed "inputs" to the LUT.
+    // Evaluate 3 inputs based on INSEL
+    bool in[3] = {false, false, false};
     
-    // For now, let's assume we have 3 inputs cached somehow.
-    // In a full implementation, we'd check INSEL and pull from pins/peripherals.
-    return false; 
+    for (int j = 0; j < 3; ++j) {
+        u8 insel = 0;
+        if (j == 0) insel = luts_[index].ctrlb & 0x0F;
+        else if (j == 1) insel = (luts_[index].ctrlb >> 4) & 0x0F;
+        else if (j == 2) insel = luts_[index].ctrlc & 0x0F;
+
+        switch (insel) {
+            case 0x00: // MASK
+                in[j] = false;
+                break;
+            case 0x01: // FEEDBACK
+                in[j] = outputs_[index];
+                break;
+            case 0x02: // LINK
+                in[j] = outputs_[(index + 3) % 4]; // 0->3, 1->0, 2->1, 3->2
+                break;
+            case 0x05: // IO PIN
+                in[j] = luts_[index].inputs[j];
+                break;
+            default:
+                // Other sources (AC, EVENT, etc.) - assume false for now
+                in[j] = false;
+                break;
+        }
+    }
+
+    // Truth Table: bits 0..7 correspond to input pattern 000..111
+    u8 pattern = (in[2] << 2) | (in[1] << 1) | (in[0] << 0);
+    return (luts_[index].truth >> pattern) & 0x01;
 }
 
 void Ccl::update_logic() noexcept {
@@ -123,8 +149,12 @@ void Ccl::update_logic() noexcept {
 }
 
 void Ccl::set_pin_input(u8 lut_index, u8 input_index, bool level) noexcept {
-    // Trigger update if needed
-    (void)lut_index; (void)input_index; (void)level;
+    if (lut_index < 4 && input_index < 3) {
+        if (luts_[lut_index].inputs[input_index] != level) {
+            luts_[lut_index].inputs[input_index] = level;
+            update_logic();
+        }
+    }
 }
 
 } // namespace vioavr::core
