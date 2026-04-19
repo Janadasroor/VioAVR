@@ -63,6 +63,8 @@ public:
         (void)request;
         return false;
     }
+
+    virtual void on_reti() noexcept {}
 };
 
 }  // namespace vioavr::core

@@ -106,6 +106,7 @@ public:
     void propagate_external_pin_change(u32 external_id, PinLevel level) noexcept;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) const noexcept;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) noexcept;
+    void on_reti() noexcept;
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
     [[nodiscard]] bool should_stall_cpu(u32 pc_word) const noexcept;

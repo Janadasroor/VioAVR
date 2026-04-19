@@ -11,22 +11,15 @@ TEST_CASE("AVR8X WDT8X - Window Mode Fidelity") {
     auto& bus = machine.bus();
     machine.reset();
 
-    // 4809 WDT: CTRLA=0x100, STATUS=0x101
-    // CTRLA bits 7:4 is WINDOW, 3:0 is PERIOD.
-    // Set PERIOD=8 (1s), WINDOW=4 (64ms)
-    // 64ms @ 16MHz = 1,024,000 cycles
-    // 1s @ 16MHz = 16,000,000 cycles
-    bus.write_data(0x100, (0x4U << 4U) | 0x08U);
-
-    // Initial check: should be enabled
-    machine.step(); 
-    
-    // 1. Reset TOO EARLY (before 64ms / 1M cycles)
     std::vector<u16> program = {0x95A8U, 0xCFFF}; // WDR, RJMP -1
     bus.load_flash(program);
     machine.cpu().reset();
-    
-    // We already passed 'window' start? No, we are at cycle 0.
+
+    // 4809 WDT: CTRLA=0x100, STATUS=0x101
+    // CTRLA bits 7:4 is WINDOW, 3:0 is PERIOD.
+    // Set PERIOD=8 (1s), WINDOW=4 (64ms -> 1M cycles)
+    bus.write_data(0x100, (0x4U << 4U) | 0x08U);
+
     // 0 is definitely < 1M cycles.
     machine.step(); // Execute WDR
     
