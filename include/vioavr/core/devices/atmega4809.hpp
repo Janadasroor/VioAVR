@@ -86,6 +86,7 @@ inline constexpr DeviceDescriptor atmega4809 {
             .intctrl_address = 0xA0AU, .intflags_address = 0xA0BU, .dbgctrl_address = 0xA0EU,
             .temp_address = 0xA0FU, .tcnt_address = 0xA20U, .period_address = 0xA26U,
             .cmp0_address = 0xA28U, .cmp1_address = 0xA2AU, .cmp2_address = 0xA2CU,
+            .perbuf_address = 0xA36U, .cmp0buf_address = 0xA38U, .cmp1buf_address = 0xA3AU, .cmp2buf_address = 0xA3CU,
             .luf_ovf_vector_index = 7U, .cmp0_vector_index = 9U,
             .cmp1_vector_index = 10U, .cmp2_vector_index = 11U,
             .hunf_vector_index = 8U, .lcmp0_vector_index = 9U,

@@ -831,6 +831,7 @@ def generate_header(data, header_path):
             .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
             .temp_address = {hx(r('TEMP')['offset'])}, .tcnt_address = {hx(r('CNT|TCNT')['offset'])}, .period_address = {hx(r('PER|PERIOD')['offset'])},
             .cmp0_address = {hx(r('CMP0')['offset'])}, .cmp1_address = {hx(r('CMP1')['offset'])}, .cmp2_address = {hx(r('CMP2')['offset'])},
+            .perbuf_address = {hx(r('PERBUF')['offset'])}, .cmp0buf_address = {hx(r('CMP0BUF')['offset'])}, .cmp1buf_address = {hx(r('CMP1BUF')['offset'])}, .cmp2buf_address = {hx(r('CMP2BUF')['offset'])},
             .luf_ovf_vector_index = {get_int('OVF') or get_int('LUF')}U, .cmp0_vector_index = {get_int('CMP0')}U,
             .cmp1_vector_index = {get_int('CMP1')}U, .cmp2_vector_index = {get_int('CMP2')}U,
             .hunf_vector_index = {get_int('HUNF')}U, .lcmp0_vector_index = {get_int('LCMP0')}U,

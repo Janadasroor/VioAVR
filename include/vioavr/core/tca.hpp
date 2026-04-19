@@ -50,27 +50,38 @@ private:
     u8 dbgctrl_ {0x00};
     u8 temp_ {0x00};
 
-    // 16-bit Value Access (Normal Mode)
-    u16 tcnt_ {0x0000};
-    u16 period_ {0xFFFF};
-    u16 cmp0_ {0x0000};
-    u16 cmp1_ {0x0000};
-    u16 cmp2_ {0x0000};
-
-    // 8-bit Value Access (Split Mode)
+    // Register State
     struct {
-        u8 cnt_l {0};
-        u8 per_l {0xFF};
-        u8 cmp0_l {0};
-        u8 cmp1_l {0};
-        u8 cmp2_l {0};
+        u16 tcnt {0x0000};
+        u16 per {0xFFFF};
+        u16 cmp0 {0x0000};
+        u16 cmp1 {0x0000};
+        u16 cmp2 {0x0000};
+    } norm_;
 
-        u8 cnt_h {0};
-        u8 per_h {0xFF};
-        u8 cmp0_h {0};
-        u8 cmp1_h {0};
-        u8 cmp2_h {0};
-    } split_;
+    // Buffer Registers
+    struct {
+        u16 per {0xFFFF};
+        u16 cmp0 {0x0000};
+        u16 cmp1 {0x0000};
+        u16 cmp2 {0x0000};
+        bool per_valid {false};
+        bool cmp0_valid {false};
+        bool cmp1_valid {false};
+        bool cmp2_valid {false};
+    } buf_;
+
+    // Split Mode accessors (convenience)
+    u8& cnt_l() { return reinterpret_cast<u8*>(&norm_.tcnt)[0]; }
+    u8& cnt_h() { return reinterpret_cast<u8*>(&norm_.tcnt)[1]; }
+    u8& per_l() { return reinterpret_cast<u8*>(&norm_.per)[0]; }
+    u8& per_h() { return reinterpret_cast<u8*>(&norm_.per)[1]; }
+    u8& cmp0_l() { return reinterpret_cast<u8*>(&norm_.cmp0)[0]; }
+    u8& cmp0_h() { return reinterpret_cast<u8*>(&norm_.cmp0)[1]; }
+    u8& cmp1_l() { return reinterpret_cast<u8*>(&norm_.cmp1)[0]; }
+    u8& cmp1_h() { return reinterpret_cast<u8*>(&norm_.cmp1)[1]; }
+    u8& cmp2_l() { return reinterpret_cast<u8*>(&norm_.cmp2)[0]; }
+    u8& cmp2_h() { return reinterpret_cast<u8*>(&norm_.cmp2)[1]; }
 
     // Prescaler
     u32 prescaler_counter_ {0};
