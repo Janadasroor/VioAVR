@@ -26,6 +26,9 @@ public:
     bool get_digital_output(uint8_t pin) const;
     void set_analog_input(uint8_t channel, float voltage);
     float get_analog_output(uint8_t channel) const;
+    
+    // Thresholds
+    void set_thresholds(uint8_t pin, float vih, float vil);
 
     // Snapshot
     AvrCpuState get_cpu_state() const;

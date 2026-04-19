@@ -17,7 +17,7 @@ namespace vioavr::core {
  */
 class AnalogSignalBank {
 public:
-    static constexpr std::size_t kChannelCount = 16;
+    static constexpr std::size_t kChannelCount = 128;
 
     /**
      * @brief Set the voltage of a channel.

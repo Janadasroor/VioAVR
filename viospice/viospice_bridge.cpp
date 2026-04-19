@@ -49,6 +49,15 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
         }
     }
 
+    // 1.b Propagate Analog Voltages (if connected)
+    uint32_t analog_port_size = mif_private->conn[1]->size;
+    for (uint32_t i = 0; i < analog_port_size; i++) {
+        Mif_Port_Data_t *port_data = mif_private->conn[1]->port[i];
+        // Normalized 0.0 to 1.0 logic depends on SPICE reference, 
+        // but here we pass raw voltage as the Server handles thresholds.
+        bridge->set_analog_input(i, (float)port_data->input.rvalue);
+    }
+
     /* 2. Step VioAVR Daemon */
     double delta_t = mif_private->circuit.time - mif_private->circuit.t[1];
     if (delta_t > 0) {
