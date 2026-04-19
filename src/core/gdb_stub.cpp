@@ -1,4 +1,5 @@
 #include "vioavr/core/gdb_stub.hpp"
+#include "vioavr/core/logger.hpp"
 #include "vioavr/core/machine.hpp"
 #include <iostream>
 #include <sstream>
@@ -10,7 +11,7 @@
 
 namespace vioavr::core {
 
-GdbStub::GdbStub(Machine& machine) : machine_(machine) {}
+GdbStub::GdbStub(AvrCpu& cpu, MemoryBus& bus) : cpu_(cpu), bus_(bus) {}
 
 GdbStub::~GdbStub() {
     stop();
@@ -99,7 +100,7 @@ std::string GdbStub::receive_packet() {
     while (read(client_fd_, &ch, 1) == 1) {
         if (ch == '$') break;
         if (ch == 0x03) { // Ctrl-C
-            machine_.cpu().halt();
+            cpu_.halt();
             send_packet("S05"); // Signal 5 = TRAP
         }
     }
@@ -122,6 +123,8 @@ std::string GdbStub::receive_packet() {
 }
 
 void GdbStub::send_packet(const std::string& data) {
+    if (client_fd_ == -1) return;
+    
     std::string packet = "$" + data + "#";
     uint8_t sum = checksum(data);
     
@@ -146,8 +149,14 @@ void GdbStub::handle_packet(const std::string& packet) {
         case 'm': // Read memory
             handle_memory_read(packet);
             break;
+        case 'M': // Write memory
+            handle_memory_write(packet);
+            break;
         case 'p': // Read single register
             handle_register_read_single(packet);
+            break;
+        case 'P': // Write single register
+            handle_register_write_single(packet);
             break;
         case 'c': // Continue
             handle_continue();
@@ -178,7 +187,7 @@ void GdbStub::handle_packet(const std::string& packet) {
 }
 
 void GdbStub::handle_register_read_all() {
-    auto snap = machine_.cpu().snapshot();
+    auto snap = cpu_.snapshot();
     std::string res;
     
     // R0..R31 (32 bytes)
@@ -201,7 +210,7 @@ void GdbStub::handle_register_read_all() {
 void GdbStub::handle_register_read_single(const std::string& cmd) {
     // p<hex_index>
     int reg_idx = std::stoi(cmd.substr(1), nullptr, 16);
-    auto snap = machine_.cpu().snapshot();
+    auto snap = cpu_.snapshot();
 
     if (reg_idx < 32) {
         send_packet(hex_encode(&snap.gpr[reg_idx], 1));
@@ -221,24 +230,67 @@ void GdbStub::handle_register_read_single(const std::string& cmd) {
 void GdbStub::handle_memory_read(const std::string& cmd) {
     // m<addr>,<len>
     size_t comma = cmd.find(',');
+    if (comma == std::string::npos) {
+        send_packet("E01");
+        return;
+    }
     uint32_t addr = std::stoul(cmd.substr(1, comma - 1), nullptr, 16);
     uint32_t len = std::stoul(cmd.substr(comma + 1), nullptr, 16);
 
     std::vector<uint8_t> data(len);
     for (uint32_t i = 0; i < len; ++i) {
-        // GDB uses a flat address space. 
-        // 0x0..0x00FFFFFF = Flash (byte addressed)
-        // 0x00800000.. = RAM (shifted)
-        // VioAVR flat map: 0..FlashSize-1 = Flash, FlashSize... = SRAM (IO + RAM)
-        // Adjust based on VioAVR memory map
-        data[i] = machine_.bus().read_data(addr + i); // Simplifying for now
+        uint32_t curr_addr = addr + i;
+        if (curr_addr < 0x800000) {
+            // Flash Space (0x0..0x7FFFFF)
+            data[i] = bus_.read_program_byte(curr_addr);
+        } else if (curr_addr >= 0x800000 && curr_addr < 0x810000) {
+            // Data Space (0x800000..0x80FFFF)
+            data[i] = bus_.read_data(static_cast<uint16_t>(curr_addr - 0x800000));
+        } else {
+            // Unsupported or Reserved
+            data[i] = 0;
+        }
     }
 
     send_packet(hex_encode(data.data(), data.size()));
 }
 
+void GdbStub::handle_memory_write(const std::string& cmd) {
+    // M<addr>,<len>:<data_hex>
+    size_t comma = cmd.find(',');
+    size_t colon = cmd.find(':');
+    if (comma == std::string::npos || colon == std::string::npos) {
+        send_packet("E01");
+        return;
+    }
+
+    uint32_t addr = std::stoul(cmd.substr(1, comma - 1), nullptr, 16);
+    uint32_t len = std::stoul(cmd.substr(comma + 1, colon - comma - 1), nullptr, 16);
+    std::string hex_data = cmd.substr(colon + 1);
+
+    if (hex_data.length() < len * 2) {
+        send_packet("E01");
+        return;
+    }
+
+    for (uint32_t i = 0; i < len; ++i) {
+        std::string byte_hex = hex_data.substr(i * 2, 2);
+        uint8_t val = static_cast<uint8_t>(std::stoul(byte_hex, nullptr, 16));
+        uint32_t curr_addr = addr + i;
+
+        if (curr_addr < 0x800000) {
+            // Flash write (requires NVM/SPM usually, but GDB might want to force it for patches)
+            // For now, only support SRAM writes
+        } else if (curr_addr >= 0x800000 && curr_addr < 0x810000) {
+            bus_.write_data(static_cast<uint16_t>(curr_addr - 0x800000), val);
+        }
+    }
+
+    send_packet("OK");
+}
+
 void GdbStub::handle_continue() {
-    machine_.cpu().resume();
+    cpu_.resume();
 }
 
 void GdbStub::handle_vcont(const std::string& cmd) {
@@ -258,20 +310,67 @@ void GdbStub::handle_vcont(const std::string& cmd) {
 }
 
 void GdbStub::handle_step() {
-    machine_.cpu().resume();
-    machine_.cpu().step();
-    machine_.cpu().halt();
+    cpu_.resume();
+    cpu_.step();
+    cpu_.halt();
     send_packet("S05");
 }
 
 void GdbStub::handle_query(const std::string& cmd) {
     if (cmd == "qSupported") {
-        send_packet("PacketSize=1024;hwbreak+;swbreak+;vContSupported+");
+        send_packet("PacketSize=1024;hwbreak+;swbreak+;vCont+");
     } else if (cmd.find("qAttached") == 0) {
         send_packet("1");
+    } else if (cmd.find("qfThreadInfo") == 0) {
+        send_packet("m1");
+    } else if (cmd.find("qsThreadInfo") == 0) {
+        send_packet("l");
+    } else if (cmd.find("qC") == 0) {
+        send_packet("QC1");
     } else {
         send_packet("");
     }
+}
+
+void GdbStub::handle_register_write_single(const std::string& cmd) {
+    // P<reg>=<val_hex>
+    size_t eq = cmd.find('=');
+    if (eq == std::string::npos) {
+        send_packet("E01");
+        return;
+    }
+    uint32_t reg_idx = std::stoul(cmd.substr(1, eq - 1), nullptr, 16);
+    std::string hex_val = cmd.substr(eq + 1);
+    
+    // Convert hex to bytes (little endian)
+    std::vector<uint8_t> bytes;
+    for (size_t i = 0; i < hex_val.length(); i += 2) {
+        bytes.push_back(static_cast<uint8_t>(std::stoul(hex_val.substr(i, 2), nullptr, 16)));
+    }
+
+    if (bytes.empty()) {
+        send_packet("E01");
+        return;
+    }
+
+    if (reg_idx < 32) {
+        cpu_.registers()[reg_idx] = bytes[0];
+    } else if (reg_idx == 32) { // PC (4 bytes)
+        uint32_t pc = 0;
+        if (bytes.size() >= 4) {
+            pc = bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
+        } else if (bytes.size() >= 2) {
+             pc = bytes[0] | (bytes[1] << 8);
+        }
+        cpu_.set_program_counter(pc / 2);
+    } else if (reg_idx == 33) { // SP (2 bytes)
+        uint16_t sp = bytes[0] | (bytes[1] << 8);
+        cpu_.set_stack_pointer(sp);
+    } else if (reg_idx == 34) { // SREG (1 byte)
+        cpu_.set_sreg(bytes[0]);
+    }
+
+    send_packet("OK");
 }
 
 void GdbStub::handle_breakpoint_set(const std::string& cmd) {
@@ -303,7 +402,7 @@ void GdbStub::on_instruction(u32 address, u16 opcode, std::string_view mnemonic)
     uint32_t byte_addr = address * 2;
     std::lock_guard<std::mutex> lock(mutex_);
     if (breakpoints_.count(byte_addr)) {
-        machine_.cpu().halt();
+        cpu_.halt();
         send_packet("S05");
     }
 }

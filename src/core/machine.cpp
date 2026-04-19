@@ -65,7 +65,7 @@ void Machine::reset(ResetCause cause) noexcept
 void Machine::enable_gdb(uint16_t port)
 {
     if (!gdb_stub_) {
-        gdb_stub_ = std::make_unique<GdbStub>(*this);
+        gdb_stub_ = std::make_unique<GdbStub>(*cpu_, *bus_);
         trace_mux_.add_hook(gdb_stub_.get());
     }
     gdb_stub_->start(port);

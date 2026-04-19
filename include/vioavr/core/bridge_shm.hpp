@@ -14,11 +14,12 @@ enum class BridgeStatus : uint32_t {
     Idle = 0,
     Running = 1,
     Error = 2,
-    Resetting = 3
+    Reset = 3,
+    Quit = 4
 };
 
 struct AvrCpuState {
-    uint16_t pc;
+    uint32_t pc;
     uint16_t sp;
     uint8_t sreg;
     uint8_t padding;

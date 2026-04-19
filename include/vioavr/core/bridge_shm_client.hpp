@@ -15,6 +15,7 @@ public:
     bool connect();
     void disconnect();
     bool is_connected() const { return shm_ != nullptr; }
+    VioBridgeShm* shm() noexcept { return shm_; }
 
     // Control
     void reset();

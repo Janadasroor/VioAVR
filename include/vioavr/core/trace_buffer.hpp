@@ -27,10 +27,10 @@ public:
 
     // ITraceHook implementation
     void on_instruction(u32 address, u16 opcode, std::string_view mnemonic) override;
-    void on_register_write(u8 index, u8 value) override {}
-    void on_sreg_write(u8 value) override {}
-    void on_memory_read(u16 address, u8 value) override {}
-    void on_memory_write(u16 address, u8 value) override {}
+    void on_register_write([[maybe_unused]] u8 index, [[maybe_unused]] u8 value) override {}
+    void on_sreg_write([[maybe_unused]] u8 value) override {}
+    void on_memory_read([[maybe_unused]] u16 address, [[maybe_unused]] u8 value) override {}
+    void on_memory_write([[maybe_unused]] u16 address, [[maybe_unused]] u8 value) override {}
     void on_interrupt(u8 vector) override;
 
 private:

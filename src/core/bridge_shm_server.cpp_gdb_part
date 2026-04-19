@@ -1,0 +1,11 @@
+void BridgeShmServer::start_gdb(uint16_t port) {
+    if (!gdb_stub_) {
+        gdb_stub_ = std::make_unique<GdbStub>(avr_.cpu(), avr_.bus());
+        // We need to attach the GDB stub to the trace hooks of VioSpice or its components.
+        // VioSpice doesn't have a TraceMultiplexer yet. 
+        // For now, attach directly to the bus?
+        // Actually, MemoryBus only has ONE trace hook.
+        // I might need to add a TraceMultiplexer to VioSpice too.
+    }
+    gdb_stub_->start(port);
+}

@@ -24,6 +24,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 {
     pin_map_ = std::make_unique<PinMap>();
     bus_.set_pin_map(pin_map_.get());
+    cpu_.set_trace_hook(&trace_mux_);
 
     // 1. Instantiate and Register Ports
     std::map<u16, GpioPort*> port_by_pin_addr;
@@ -187,6 +188,11 @@ void VioSpice::add_pin_mapping(std::string_view port_name, u8 bit_index, u32 ext
         }
         pin_map_->add_mapping(port_name, addr, bit_index, external_id, label);
     }
+}
+
+void VioSpice::add_trace_hook(ITraceHook* hook)
+{
+    trace_mux_.add_hook(hook);
 }
 
 void VioSpice::set_quantum(u64 cycles)

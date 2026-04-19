@@ -1,4 +1,5 @@
 #include "vioavr/core/bridge_shm_server.hpp"
+#include "vioavr/core/gdb_stub.hpp"
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -65,6 +66,14 @@ BridgeShmServer::~BridgeShmServer() {
     }
 }
 
+void BridgeShmServer::start_gdb(uint16_t port) {
+    if (!gdb_stub_) {
+        gdb_stub_ = std::make_unique<GdbStub>(avr_.cpu(), avr_.bus());
+        avr_.add_trace_hook(gdb_stub_.get());
+    }
+    gdb_stub_->start(port);
+}
+
 void BridgeShmServer::stop() {
     running_ = false;
     // Release any waiting clients or self
@@ -73,7 +82,7 @@ void BridgeShmServer::stop() {
 
 void BridgeShmServer::run_loop() {
     running_ = true;
-    shm_->status = BridgeStatus::Running;
+    shm_->status.store(BridgeStatus::Running);
 
     while (running_) {
         // Wait for request from Client (Simulator)
@@ -84,10 +93,16 @@ void BridgeShmServer::run_loop() {
 
         if (!running_) break;
 
+        // Check for Quit status from client
+        if (shm_->status.load() == BridgeStatus::Quit) {
+            running_ = false;
+            break;
+        }
+
         // Process based on command or step
         uint32_t cmd = shm_->command.exchange(0);
         if (cmd != 0) {
-            handle_command();
+            handle_command(cmd);
         } else {
             handle_step();
         }
@@ -97,7 +112,7 @@ void BridgeShmServer::run_loop() {
         sem_post(&shm_->sem_ack);
     }
 
-    shm_->status = BridgeStatus::Idle;
+    shm_->status.store(BridgeStatus::Idle);
 }
 
 void BridgeShmServer::handle_step() {
@@ -153,16 +168,22 @@ void BridgeShmServer::handle_step() {
     update_state_to_shm();
 }
 
-void BridgeShmServer::handle_command() {
-    // Placeholder for LoadHex, Reset, etc.
-    // cmd 1 = Reset
-    avr_.reset();
+void BridgeShmServer::handle_command(uint32_t cmd) {
+    if (cmd & 0x01) { // RESET
+        avr_.reset();
+    }
+    if (cmd & 0x02) { // LOAD_HEX
+        std::string hex_path(shm_->command_arg);
+        if (!hex_path.empty()) {
+            avr_.load_hex(hex_path);
+        }
+    }
     update_state_to_shm();
 }
 
 void BridgeShmServer::update_state_to_shm() {
     auto& cp = avr_.cpu();
-    shm_->cpu_state.pc = static_cast<uint16_t>(cp.program_counter());
+    shm_->cpu_state.pc = cp.program_counter();
     shm_->cpu_state.sp = cp.stack_pointer();
     shm_->cpu_state.sreg = cp.sreg();
     auto regs = cp.registers();
