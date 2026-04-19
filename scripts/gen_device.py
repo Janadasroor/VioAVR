@@ -924,9 +924,16 @@ def generate_header(data, header_path):
             lb = get_reg(p_data, f'LUT{lut_count}CTRLB') or {'offset': 0}
             lc = get_reg(p_data, f'LUT{lut_count}CTRLC') or {'offset': 0}
             lt = get_reg(p_data, f'TRUTH{lut_count}') or {'offset': 0}
+            
+            # Map LUTn output to EVSYS generator
+            gen_id = event_generators.get(f"CCL_LUT{lut_count}", 0)
+            if not gen_id:
+                 gen_id = event_generators.get(f"CCL_LUT{lut_count}_OUT", 0)
+            
             luts_str.append(f"""{{
                 .ctrla_address = {hx(la['offset'])}, .ctrlb_address = {hx(lb['offset'])},
-                .ctrlc_address = {hx(lc['offset'])}, .truth_address = {hx(lt['offset'])}
+                .ctrlc_address = {hx(lc['offset'])}, .truth_address = {hx(lt['offset'])},
+                .generator_id = {gen_id}U
             }}""")
             lut_count += 1
         while len(luts_str) < 8: luts_str.append("{0}")

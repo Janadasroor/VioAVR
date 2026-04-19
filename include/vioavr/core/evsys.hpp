@@ -35,7 +35,8 @@ public:
     [[nodiscard]] bool get_user_level(u8 user_index) const noexcept;
     
     // Callbacks for users
-    using EventCallback = std::function<void()>;
+    // Callbacks for users: true = active/high/rising, false = inactive/low/falling
+    using EventCallback = std::function<void(bool level)>;
     void register_user_callback(u8 user_index, EventCallback callback);
     void register_generator_callback(u8 generator_id, EventCallback callback);
 

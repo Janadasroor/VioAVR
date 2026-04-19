@@ -62,7 +62,7 @@ void EventSystem::write(u16 address, u8 value) noexcept {
                 channel_levels_[i] = !channel_levels_[i]; // Simple toggle for strobe
                 for (size_t u = 0; u < users_.size(); ++u) {
                     if (users_[u] == (i + 1)) {
-                        if (callbacks_[u]) callbacks_[u]();
+                        if (callbacks_[u]) callbacks_[u](channel_levels_[i]);
                     }
                 }
             }
@@ -93,7 +93,7 @@ void EventSystem::trigger_event(u8 generator_id, bool level) noexcept {
     // Direct generator listeners
     if (auto it = generator_callbacks_.find(generator_id); it != generator_callbacks_.end()) {
         for (auto& cb : it->second) {
-            if (cb) cb();
+            if (cb) cb(level);
         }
     }
 
@@ -101,7 +101,7 @@ void EventSystem::trigger_event(u8 generator_id, bool level) noexcept {
     if (auto it = routing_cache_.find(generator_id); it != routing_cache_.end()) {
         for (u8 user_index : it->second) {
             if (callbacks_[user_index]) {
-                callbacks_[user_index]();
+                callbacks_[user_index](level);
             }
         }
     }

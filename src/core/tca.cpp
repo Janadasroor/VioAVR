@@ -67,7 +67,7 @@ void Tca::set_event_system(EventSystem* evsys) noexcept {
         u16 base = evsys_->users_base();
         if (desc_.user_event_address >= base) {
             u8 idx = static_cast<u8>(desc_.user_event_address - base);
-            evsys_->register_user_callback(idx, [this]() {
+            evsys_->register_user_callback(idx, [this](bool) {
                 this->on_event();
             });
         }
