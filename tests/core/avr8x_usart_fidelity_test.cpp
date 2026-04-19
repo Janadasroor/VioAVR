@@ -57,6 +57,7 @@ TEST_CASE("AVR8X USART Fidelity Test") {
     CHECK((bus.read_data(USART0_STATUS) & 0x60) == 0x60);
 
     // 6. FIFO Test
+    bus.write_data(USART0_CTRLB, 0xC0); // TXEN=1, RXEN=1
     auto* uart = dynamic_cast<Uart8x*>(bus.get_peripheral_by_name("USART8X"));
     REQUIRE(uart != nullptr);
 
@@ -84,4 +85,16 @@ TEST_CASE("AVR8X USART Fidelity Test") {
     // Check second byte + error flag in RXDATAH (offset +1)
     CHECK((bus.read_data(USART0_RXDATAL + 1) & 0x40) != 0); // BUFOVF bit
     CHECK(bus.read_data(USART0_RXDATAL) == '2');
+
+    // 8. MPCM Test
+    bus.write_data(USART0_CTRLB, 0x81); // RXEN=1, MPCM=1
+    
+    // Inject a data frame (bit9=false)
+    uart->inject_received_byte('D', false);
+    CHECK((bus.read_data(USART0_STATUS) & 0x80) == 0); // RXCIF should NOT be set
+    
+    // Inject an address frame (bit9=true)
+    uart->inject_received_byte('A', true);
+    CHECK((bus.read_data(USART0_STATUS) & 0x80) != 0); // RXCIF SHOULD be set
+    CHECK(bus.read_data(USART0_RXDATAL) == 'A');
 }

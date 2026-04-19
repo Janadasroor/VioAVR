@@ -50,6 +50,7 @@ void Uart8x::reset() noexcept {
     status_ = STATUS_DREIF;
     baud_ = 0U;
     dbgctrl_ = 0x00U;
+    txdatah_ = 0x00U;
     rx_fifo_count_ = 0;
     rx_fifo_read_idx_ = 0;
     rx_fifo_write_idx_ = 0;
@@ -108,6 +109,9 @@ void Uart8x::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.baud_address) baud_ = (baud_ & 0xFF00U) | value;
     else if (address == desc_.baud_address + 1) baud_ = (baud_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
+    else if (address == desc_.txdata_address + 1) {
+        txdatah_ = value;
+    }
     else if (address == desc_.txdata_address) {
         if (ctrlb_ & CTRLB_TXEN) {
             status_ &= ~(STATUS_DREIF | STATUS_TXCIF);
@@ -158,9 +162,19 @@ bool Uart8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     return true;
 }
 
-void Uart8x::inject_received_byte(u8 data) noexcept {
+void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
+    if (!(ctrlb_ & CTRLB_RXEN)) return;
+
+    // MPCM Filtering
+    bool mpc_en = (ctrlb_ & 0x01U); // MPCM bit
+    if (mpc_en && !bit9) {
+        return; // Filter out non-address frames
+    }
+
     if (rx_fifo_count_ < 2) {
-        rx_fifo_[rx_fifo_write_idx_] = {data, 0U};
+        u8 high = 0;
+        if (bit9) high |= RXDATAH_DATA8;
+        rx_fifo_[rx_fifo_write_idx_] = {data, high};
         rx_fifo_write_idx_ = (rx_fifo_write_idx_ + 1) % 2;
         rx_fifo_count_++;
         status_ |= STATUS_RXCIF;
@@ -170,14 +184,12 @@ void Uart8x::inject_received_byte(u8 data) noexcept {
     }
 }
 
-bool Uart8x::consume_transmitted_byte(u8& data) noexcept {
+bool Uart8x::consume_transmitted_byte(u16& data) noexcept {
     // This is a test helper, it doesn't represent real hardware pins yet.
     // In a real co-sim, this would be tied to the TXD pin state changes.
-    // For now we just return the 'last' written byte if TXC is set.
+    // For now we just return the 'last' written bit9 if TXC is set.
     if (status_ & STATUS_TXCIF) {
-        // We don't store tx_data_ since we don't have a buffer anymore,
-        // but for testing we can just use 0 or implement a tx buffer if needed.
-        data = 0; 
+        data = (static_cast<u16>(txdatah_ & 0x01U) << 8U);
         return true;
     }
     return false;
