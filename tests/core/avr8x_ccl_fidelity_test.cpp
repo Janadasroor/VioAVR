@@ -101,3 +101,47 @@ TEST_CASE("AVR8X CCL - LUT Linkage Fidelity") {
     CHECK(ccl->get_lut_output(0) == false);
     CHECK(ccl->get_lut_output(1) == false);
 }
+
+TEST_CASE("AVR8X CCL - RS Latch Sequential Fidelity") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    auto* ccl = machine.peripherals_of_type<Ccl>()[0];
+
+    // LUT0: Buffer for IN0 (Truth 0xAA) -> Set
+    bus.write_data(0x01CB, 0xAA); 
+    bus.write_data(0x01C9, 0x05); // INSEL0=IO
+    bus.write_data(0x01C8, 0x01); // Enable
+    
+    // LUT1: Buffer for IN0 (Truth 0xAA) -> Reset
+    bus.write_data(0x01CF, 0xAA);
+    bus.write_data(0x01CD, 0x05); // INSEL0=IO
+    bus.write_data(0x01CC, 0x01); // Enable
+
+    // SEQ0: RS Latch Mode (0x04) at 0x1C1
+    bus.write_data(0x01C1, 0x04);
+    
+    bus.write_data(0x01C0, 0x01); // CCL Enable
+
+    // 1. Initial state 0
+    CHECK(ccl->get_seq_output(0) == false);
+
+    // 2. Set LUT0 (S=1, R=0) -> Q=1
+    ccl->set_pin_input(0, 0, true);
+    ccl->set_pin_input(1, 0, false);
+    CHECK(ccl->get_seq_output(0) == true);
+
+    // 3. Release Set (S=0, R=0) -> Q remains 1
+    ccl->set_pin_input(0, 0, false);
+    CHECK(ccl->get_seq_output(0) == true);
+
+    // 4. Reset LUT1 (S=0, R=1) -> Q=0
+    ccl->set_pin_input(1, 0, true);
+    CHECK(ccl->get_seq_output(0) == false);
+
+    // 5. Release Reset (S=0, R=0) -> Q remains 0
+    ccl->set_pin_input(1, 0, false);
+    CHECK(ccl->get_seq_output(0) == false);
+}

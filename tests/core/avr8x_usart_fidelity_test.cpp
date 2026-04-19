@@ -72,3 +72,35 @@ TEST_CASE("AVR8X USART - Double Speed Fidelity") {
     bus.tick_peripherals(500);
     CHECK((bus.read_data(0x0804) & 0x40) != 0);
 }
+
+TEST_CASE("AVR8X USART - Receiver Fidelity") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    auto* uart = machine.peripherals_of_type<Uart8x>()[0];
+
+    // 9600 baud @ 16MHz
+    const u16 baud_val = 6667;
+    bus.write_data(0x0808, static_cast<u8>(baud_val & 0xFF));
+    bus.write_data(0x0809, static_cast<u8>(baud_val >> 8));
+    bus.write_data(0x0806, 0x80); // CTRLB.RXEN = 1
+
+    // Inject byte
+    uart->inject_received_byte(0x5A);
+
+    // 1. RXSIF should be set immediately
+    CHECK((bus.read_data(0x0804) & 0x10) != 0); // RXSIF
+    // 2. RXCIF should NOT be set yet
+    CHECK((bus.read_data(0x0804) & 0x80) == 0); // RXCIF
+
+    // 3. Wait 16,000 cycles
+    bus.tick_peripherals(16000);
+    CHECK((bus.read_data(0x0804) & 0x80) == 0);
+
+    // 4. Complete reception
+    bus.tick_peripherals(1000);
+    CHECK((bus.read_data(0x0804) & 0x80) != 0); // RXCIF
+    CHECK(bus.read_data(0x0800) == 0x5A); // RXDATA
+}
