@@ -30,6 +30,9 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
         }
         
         *((void **)mif_private->inst_var) = bridge;
+        
+        double freq = mif_private->param[2]->element[0].rvalue;
+        bridge->set_frequency(freq);
         bridge->reset();
     } else {
         bridge = *((BridgeShmClient **)mif_private->inst_var);
@@ -61,12 +64,8 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     /* 2. Step VioAVR Daemon */
     double delta_t = mif_private->circuit.time - mif_private->circuit.t[1];
     if (delta_t > 0) {
-        double freq = mif_private->param[2]->element[0].rvalue;
-        uint64_t cycles = (uint64_t)(delta_t * freq);
-        if (cycles > 0) {
-            bridge->step(cycles);
-            bridge->wait_step_done();
-        }
+        bridge->step(delta_t);
+        // Note: wait_step_done is called inside step()
     }
 
     /* 3. Collect outputs from Bridge back to SPICE */

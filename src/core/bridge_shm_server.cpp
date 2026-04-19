@@ -124,12 +124,20 @@ void BridgeShmServer::handle_step() {
     }
 
     // 2. Step the CPU
-    // If request_cycles is 0, use a default quantum
-    uint64_t cycles = shm_->request_cycles ? shm_->request_cycles : 1000;
-    // VioSpice step_duration or direct cycle step
-    // Converting cycles to seconds for step_duration
-    double freq = 16000000.0; // Assume 16MHz
-    avr_.step_duration(static_cast<double>(cycles) / freq);
+    if (shm_->clock_frequency > 0) {
+        avr_.set_frequency(shm_->clock_frequency);
+    }
+
+    // Use request_duration if provided, else request_cycles
+    if (shm_->request_duration > 0) {
+        avr_.step_duration(shm_->request_duration);
+    } else if (shm_->request_cycles > 0) {
+        double freq = shm_->clock_frequency > 0 ? shm_->clock_frequency : 16000000.0;
+        avr_.step_duration(static_cast<double>(shm_->request_cycles) / freq);
+    } else {
+        // Default quantum if no cycles specified
+        avr_.step_duration(1000.0 / 16000000.0);
+    }
 
     // 3. Sync outputs from VioSpice to SHM
     // We consume changes and update the output array
