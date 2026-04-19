@@ -99,8 +99,8 @@ void Ccl::set_event_system(EventSystem* evsys) noexcept {
         // LUTn User A/B are at index 32 + 2*i and 33 + 2*i
         u8 user_a = 32 + 2 * i;
         u8 user_b = 33 + 2 * i;
-        evsys_->register_user_callback(user_a, [this]() { update_logic(); });
-        evsys_->register_user_callback(user_b, [this]() { update_logic(); });
+        evsys_->register_user_callback(user_a, [this](bool) { update_logic(); });
+        evsys_->register_user_callback(user_b, [this](bool) { update_logic(); });
     }
 }
 
@@ -270,7 +270,7 @@ void Ccl::update_logic() noexcept {
 
             // Trigger Event System
             if (evsys_ && desc_.luts[i].generator_id != 0) {
-                evsys_->trigger_event(desc_.luts[i].generator_id);
+                evsys_->trigger_event(desc_.luts[i].generator_id, outputs_[i]);
             }
         }
         

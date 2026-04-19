@@ -189,14 +189,14 @@ void Tcb::set_event_system(EventSystem* evsys) noexcept {
         // 1. Capture Trigger
         if (desc_.user_event_address != 0) {
             u8 user_index = static_cast<u8>(desc_.user_event_address - evsys_->users_base());
-            evsys_->register_user_callback(user_index, [this]() { on_event(); });
+            evsys_->register_user_callback(user_index, [this](bool level) { on_event(level); });
         }
         
         // 2. Cascaded Clock (Listen to TCA0 OVF - Generator 128)
         // Note: Generator ID 128 is a common constant for TCA0.OVF in AVR8X.
         // We should ideally use desc_.tca_ovf_generator_id if added to descriptor.
         // For now, assume 128 as per most ATDFs for TCA0.
-        evsys_->register_generator_callback(128, [this]() {
+        evsys_->register_generator_callback(128, [this](bool) {
             if (is_enabled() && get_clksel() == 2) {
                 perform_tick(true);
             }
@@ -204,26 +204,31 @@ void Tcb::set_event_system(EventSystem* evsys) noexcept {
     }
 }
 
-void Tcb::on_event() noexcept {
+void Tcb::on_event(bool level) noexcept {
     if (!is_enabled()) return;
     if (!(evctrl_ & 0x01)) return; // CAPTEI
 
     u8 mode = get_mode();
-    
+    bool edge_select = (evctrl_ & 0x02) != 0; // 0=Rising, 1=Falling
+    bool match_edge = (level != edge_select); // true if level=1 and edge=0, or level=0 and edge=1
+
     if (mode == 2) { // Input Capture
-        ccmp_ = cnt_;
-        intflags_ |= 0x01; // CAPT
+        if (match_edge) {
+            ccmp_ = cnt_;
+            intflags_ |= 0x01; // CAPT
+        }
     } else if (mode == 3) { // Frequency Measurement
-        ccmp_ = cnt_;
-        cnt_ = 0;
-        intflags_ |= 0x01; // CAPT
+        if (match_edge) {
+            ccmp_ = cnt_;
+            cnt_ = 0;
+            intflags_ |= 0x01; // CAPT
+        }
     } else if (mode == 4 || mode == 5) { // Pulse Width or Frequency/Pulse Width
-        // This requires knowing if it's the first or second edge.
-        // Bit 0 of STATUS usually tracks the input signal level or capture state.
-        if (!(status_ & 0x01)) { // First edge
+        // Mode 4: Capture on opposite edge, reset on match edge
+        if (match_edge) {
             cnt_ = 0;
             status_ |= 0x01; // Mark as "Running"
-        } else { // Second edge
+        } else if (status_ & 0x01) { // Opposite edge
             ccmp_ = cnt_;
             status_ &= ~0x01;
             intflags_ |= 0x01; // CAPT

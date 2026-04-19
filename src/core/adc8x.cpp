@@ -66,7 +66,7 @@ void Adc8x::set_event_system(EventSystem* evsys) noexcept {
         u16 user_base = evsys_->users_base();
         if (desc_.user_event_address >= user_base) {
             u8 user_index = static_cast<u8>(desc_.user_event_address - user_base);
-            evsys_->register_user_callback(user_index, [this]() {
+            evsys_->register_user_callback(user_index, [this](bool) {
                 if (is_enabled() && (evctrl_ & 0x01U)) {
                     start_conversion();
                 }

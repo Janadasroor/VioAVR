@@ -43,7 +43,7 @@ private:
     EventSystem* evsys_ {nullptr};
     PortMux* port_mux_ {nullptr};
 
-    void on_event() noexcept;
+    void on_event(bool level) noexcept;
     void update_outputs() noexcept;
 
     // Registers
