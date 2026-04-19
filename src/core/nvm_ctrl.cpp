@@ -85,4 +85,22 @@ void NvmCtrl::reset() noexcept {
     data_ = 0;
 }
 
+bool NvmCtrl::pending_interrupt_request(InterruptRequest& request) const noexcept {
+    if ((intctrl_ & 0x01U) && (intflags_ & 0x01U)) {
+        request = {desc_.vector_index, 0U};
+        return true;
+    }
+    return false;
+}
+
+bool NvmCtrl::consume_interrupt_request(InterruptRequest& request) noexcept {
+    if (pending_interrupt_request(request)) {
+        // NVM interrupts are usually cleared by hardware when vectoring or by clearing the flag
+        // On AVR8X, it is clear-on-write-1, but the vectoring doesn't automatically clear it?
+        // Actually, for some peripherals it does. For NVMCTRL, it is usually manual.
+        return true;
+    }
+    return false;
+}
+
 } // namespace vioavr::core

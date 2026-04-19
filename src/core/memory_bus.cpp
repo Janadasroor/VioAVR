@@ -313,6 +313,7 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
             if (nvm_ctrl_) {
                 nvm_ctrl_->set_busy(false, false);
                 nvm_ctrl_->clear_command();
+                nvm_ctrl_->set_done();
             }
         } else {
             spm_busy_cycles_left_ -= static_cast<u32>(elapsed_cycles);
@@ -524,15 +525,23 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
     
     // NVMCTRL commands (AVR8X)
     // 1: PAGEWRITE, 2: PAGEERASE, 3: PAGEERASEWRITE, 5: CHIPERASE, etc.
-    spm_busy_cycles_left_ = 64000U; // ~4ms at 16MHz
+    u32 cycles = 64000U; // ~4ms at 16MHz default
+    
+    if (command == 0x05) { // CHER (Chip Erase)
+        cycles = 1600000U; // ~100ms at 16MHz
+    } else if (command == 0x04 || command == 0x09) { // PBC / EEPBC
+        cycles = 1; // Immediate
+    }
+    
+    spm_busy_cycles_left_ = cycles;
 
     if (nvm_ctrl_) {
         bool flash_busy = (command >= 1 && command <= 5);
-        bool ee_busy = (command == 6);
+        bool ee_busy = (command >= 6 && command <= 8);
         nvm_ctrl_->set_busy(flash_busy, ee_busy);
     }
 
-    Logger::debug("MemoryBus: NVM command " + std::to_string(command) + " started at 0x" + std::to_string(address));
+    Logger::debug("MemoryBus: NVM command " + std::to_string(command) + " (cycles: " + std::to_string(cycles) + ") started at 0x" + std::to_string(address));
 }
 
 }  // namespace vioavr::core

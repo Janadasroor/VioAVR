@@ -137,6 +137,25 @@ void AvrCpu::run_duration(const double seconds)
     }
 }
 
+u32 AvrCpu::get_sleep_wake_latency() const noexcept
+{
+    if (cpu_control_ == nullptr) return 4U;
+    
+    // Legacy mapping or Mega-0 mapping
+    // From Idle: 6 cycles. 
+    // From Power-down: 6 cycles + startup.
+    // We use 6 as a standard for now.
+    switch (cpu_control_->current_sleep_mode()) {
+    case SleepMode::idle: return 6U;
+    case SleepMode::adc_noise_reduction: return 6U;
+    case SleepMode::power_down: return 6U;
+    case SleepMode::power_save: return 6U;
+    case SleepMode::standby: return 6U;
+    case SleepMode::extended_standby: return 6U;
+    default: return 4U;
+    }
+}
+
 void AvrCpu::step()
 {
     if (bus_ == nullptr || bus_->loaded_program_words() == 0U) {
@@ -155,24 +174,21 @@ void AvrCpu::step()
     }
 
     if (state_ == CpuState::sleeping) {
-        if (service_interrupt_if_needed()) {
+        if (interrupt_pending_) {
+            // Wake up latency (4-6 cycles depending on mode)
+            const u32 latency = get_sleep_wake_latency();
+            advance_cycles(latency);
+            
             state_ = CpuState::running;
             cpu_control().exit_sleep();
-            synchronize_if_needed();
+
+            if (service_interrupt_if_needed()) {
+                synchronize_if_needed();
+            }
             return;
         }
 
         advance_cycles(1U);
-        if (service_interrupt_if_needed()) {
-            state_ = CpuState::running;
-            cpu_control().exit_sleep();
-            synchronize_if_needed();
-        } else if (interrupt_pending_) {
-            // Wake up even if global interrupts are disabled
-            state_ = CpuState::running;
-            cpu_control().exit_sleep();
-            synchronize_if_needed();
-        }
         return;
     }
 

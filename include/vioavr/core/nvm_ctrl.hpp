@@ -32,6 +32,8 @@ public:
     void reset() noexcept override;
     void tick(u64) noexcept override {}
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
+    virtual bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
+    virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     void set_bus(class MemoryBus& bus) noexcept { bus_ = &bus; }
 
@@ -42,6 +44,7 @@ public:
     void set_busy(bool flash, bool ee) noexcept {
         status_ = (status_ & ~0x03U) | (flash ? 0x01U : 0x00U) | (ee ? 0x02U : 0x00U);
     }
+    void set_done() noexcept { intflags_ |= 0x01U; }
 
     [[nodiscard]] u16 address() const noexcept { return addr_; }
     [[nodiscard]] u16 data() const noexcept { return data_; }
