@@ -245,6 +245,14 @@ struct UartDescriptor {
     u8 uart_index {0U};
 };
 
+struct PortMuxDescriptor {
+    u16 twispiroutea_address {};
+    u16 usartroutea_address {};
+    u16 evoutroutea_address {};
+    u16 tcaroutea_address {};
+    u16 tcbroutea_address {};
+};
+
 struct PinChangeInterruptDescriptor {
     u16 pcicr_address {};
     u16 pcifr_address {};
@@ -808,6 +816,7 @@ struct DeviceDescriptor {
     EvsysDescriptor evsys {};
 
     CclDescriptor ccl {};
+    PortMuxDescriptor portmux {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};

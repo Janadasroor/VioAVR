@@ -8,6 +8,7 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/cpu_control.hpp"
+#include "vioavr/core/port_mux.hpp"
 
 #include <memory>
 #include <string_view>
@@ -99,6 +100,7 @@ private:
     std::unique_ptr<PinMux> pin_mux_;
     AnalogSignalBank analog_signal_bank_;
     PinChangeInterruptSharedState pcint_shared_state_ {};
+    PortMux* port_mux_{nullptr};
 
     std::vector<std::unique_ptr<IoPeripheral>> owned_peripherals_;
     std::vector<GpioPort*> ports_;

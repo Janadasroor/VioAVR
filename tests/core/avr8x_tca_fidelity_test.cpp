@@ -65,7 +65,7 @@ TEST_CASE("AVR8X TCA Fidelity: Normal Mode Double Buffering") {
 }
 
 TEST_CASE("AVR8X TCA Fidelity: Split Mode Independent Counting") {
-    Tca tca(devices::atmega4809.timers_tca[0]);
+    Tca tca("TCA0", devices::atmega4809.timers_tca[0]);
     tca.reset();
 
     // Enable Timer and Split Mode
@@ -90,7 +90,7 @@ TEST_CASE("AVR8X TCA Fidelity: Split Mode Independent Counting") {
     CHECK(tca.read(devices::atmega4809.timers_tca[0].tcnt_address) == 0);
 }
 TEST_CASE("AVR8X TCA Fidelity: Split Mode Dual Interrupts") {
-    Tca tca(devices::atmega4809.timers_tca[0]);
+    Tca tca("TCA0", devices::atmega4809.timers_tca[0]);
     tca.reset();
 
     // Enable Timer and Split Mode

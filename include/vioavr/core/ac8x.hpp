@@ -2,10 +2,12 @@
 
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
-#include <array>
 #include <string>
+#include <array>
+#include <span>
 
 namespace vioavr::core {
+
 
 class MemoryBus;
 class EventSystem;

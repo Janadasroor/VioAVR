@@ -24,6 +24,11 @@ TEST_CASE("AVR8X RTC - Synchronization Fidelity") {
     std::vector<u16> program(1000, 0x0000);
     bus.load_flash(program);
     machine.cpu().reset();
+    
+    // 0. CHECK PER default value (should be 0xFFFF)
+    u16 per_default = bus.read_data(0x14A) | (bus.read_data(0x14B) << 8);
+    CHECK(per_default == 0xFFFF);
+
 
     // 1. Write to PERL
     bus.write_data(0x14A, 10);
@@ -80,6 +85,39 @@ TEST_CASE("AVR8X RTC - OVF Timing Fidelity") {
     CHECK(cnt == 0);
     CHECK((bus.read_data(0x143) & 0x01) != 0); // OVF flag set
 }
+
+TEST_CASE("AVR8X RTC - 16-bit Register Atomicity") {
+    const auto* device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    // 1. Write PERH=0x12, then PERL=0x34. PER should become 0x1234
+    // Note: Do NOT read in between as it would clobber TEMP if reading Low byte
+    bus.write_data(0x14B, 0x12); // PERH
+    bus.write_data(0x14A, 0x34); // PERL triggers update
+    u16 per = bus.read_data(0x14A) | (bus.read_data(0x14B) << 8);
+    CHECK(per == 0x1234);
+
+    // 2. Read CNTL first, it should latch CNTH into TEMP
+    // Let's set some value first
+    bus.write_data(0x141, 0); // Clear busy bits if any
+    bus.write_data(0x149, 0xAA); // CNTH (via TEMP)
+    bus.write_data(0x148, 0x55); // CNTL triggers update
+    
+    // Now read Low then High
+    u8 low = bus.read_data(0x148);
+    u8 high = bus.read_data(0x149);
+    CHECK(low == 0x55);
+    CHECK(high == 0xAA);
+    
+    // 3. Indirect access via TEMP register (0x144)
+    bus.write_data(0x144, 0xCC); // Write 0xCC to TEMP
+    bus.write_data(0x14A, 0xDD); // Write 0xDD to PERL. Should use 0xCC as High
+    per = bus.read_data(0x14A) | (bus.read_data(0x14B) << 8);
+    CHECK(per == 0xCCDD);
+}
+
 
 TEST_CASE("AVR8X RTC - PIT Timing Fidelity") {
     const auto* device = DeviceCatalog::find("ATmega4809");

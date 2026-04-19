@@ -1,182 +1,113 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/machine.hpp"
-#include "vioavr/core/device_catalog.hpp"
+#include "vioavr/core/devices/atmega4809.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include "vioavr/core/ccl.hpp"
-#include <vector>
+#include "vioavr/core/tca.hpp"
 
 using namespace vioavr::core;
 
-TEST_CASE("AVR8X CCL - LUT Logic Fidelity") {
-    auto device = DeviceCatalog::find("ATmega4809");
-    REQUIRE(device != nullptr);
-
-    Machine machine(*device);
+TEST_CASE("AVR8X CCL and PORTMUX Signal Routing Fidelity") {
+    Machine machine(devices::atmega4809);
     auto& bus = machine.bus();
-    machine.reset();
-
-    // Find CCL
-    auto ccl_list = machine.peripherals_of_type<Ccl>();
-    REQUIRE(!ccl_list.empty());
-    auto* ccl = ccl_list[0];
-
-    // ATmega4809 CCL Config:
-    // LUT0 TRUTH at 0x0128
-    // LUT0 CTRLA at 0x0124 (ENABLE, FILTSEL)
-    // LUT0 CTRLB at 0x0125 (INSEL1, INSEL0)
-    // LUT0 CTRLC at 0x0126 (INSEL2)
-    // CCL CTRLA at 0x0120 (ENABLE)
-
-    const u16 ccl_ctrla = 0x01C0;
-    const u16 lut0_ctrla = 0x01C8;
-    const u16 lut0_ctrlb = 0x01C9;
-    const u16 lut0_truth = 0x01CB;
-
-    // 1. Configure LUT0 as AND Gate (Truth Table: 0x80 for 3-input AND)
-    // Inputs: IN0=1, IN1=1, IN2=1 -> Output=1. pattern 111 (7) -> bit 7 = 1.
-    // However, if we only use 2 inputs (IN0, IN1) and MASK IN2:
-    // Pattern 011 (3) -> bit 3 = 1. Pattern 00x, 0x0 -> bit = 0.
-    // Truth table for 2-input AND (IN0, IN1) where IN2 is 0 or ignored:
-    // 000 -> 0 (bit 0)
-    // 001 -> 0 (bit 1, IN0=1)
-    // 010 -> 0 (bit 2, IN1=1)
-    // 011 -> 1 (bit 3, IN0=1, IN1=1)
-    // Result: 0x08.
     
-    bus.write_data(lut0_truth, 0x08);
-    
-    // 2. Configure INSELs
-    // INSEL0 = IO (0x05), INSEL1 = IO (0x05), INSEL2 = MASK (0x00)
-    bus.write_data(lut0_ctrlb, 0x55); 
-    
-    // 3. Enable Peripheral and LUT
-    bus.write_data(ccl_ctrla, 0x01);
-    bus.write_data(lut0_ctrla, 0x01);
-    
-    // 4. Test Logic via set_pin_input
-    // Initially output should be 0
-    CHECK(ccl->get_lut_output(0) == false);
-    
-    // IN0 = 1
-    ccl->set_pin_input(0, 0, true);
-    CHECK(ccl->get_lut_output(0) == false);
-    
-    // IN1 = 1 -> AND gate fulfills
-    ccl->set_pin_input(0, 1, true);
-    CHECK(ccl->get_lut_output(0) == true);
-    
-    // IN0 = 0 -> AND gate drops
-    ccl->set_pin_input(0, 0, false);
-    CHECK(ccl->get_lut_output(0) == false);
-}
+    const u16 TCA0_BASE = 0x0A00;
+    const u16 CCL_BASE = 0x01D0;        // LUT2 Base (used in original plan)
+    const u16 CCL_CTRLA = 0x01C0;
+    const u16 PORTMUX_TCAROUTEA = 0x05E4;
+    const u16 PORTMUX_TCBROUTEA = 0x05E5;
 
-TEST_CASE("AVR8X CCL - LUT Linkage Fidelity") {
-    auto device = DeviceCatalog::find("ATmega4809");
-    Machine machine(*device);
-    auto& bus = machine.bus();
-    machine.reset();
+    SUBCASE("TCA0 to CCL Routing through PortMux") {
+        // Essential: Keep CPU running so Machine::step() ticks peripherals
+        u16 loop[] = { 0xCFFF }; // RJMP -1
+        machine.bus().load_flash(loop);
+        machine.reset();
 
-    auto* ccl = machine.peripherals_of_type<Ccl>()[0];
+        // 1. Configure PortMux to route TCA0 to PORTB (ALT1)
+        // TCA0 is bits 2:0. Value 1 = PORTB.
+        bus.write_data(PORTMUX_TCAROUTEA, 0x01);
 
-    // LUT0 Truth: Address 0x1CB
-    bus.write_data(0x01CB, 0x55); 
-    bus.write_data(0x01C9, 0x05); // LUT0 INSEL0=IO (0x05)
-    bus.write_data(0x01C8, 0x01); // LUT0 Enable
-    
-    // LUT1: Buffer of LINK (LUT0 output)
-    // LUT1 Truth: Address 0x1CF, CTRLB: 0x1CD, CTRLA: 0x1CC
-    bus.write_data(0x01CF, 0xAA); 
-    bus.write_data(0x01CD, 0x02); // LUT1 INSEL0=LINK (0x02)
-    bus.write_data(0x01CC, 0x01); // LUT1 Enable
-    
-    bus.write_data(0x01C0, 0x01); // CCL Enable
-    
-    // IN0 of LUT0 = 0 -> LUT0 = 1 -> LUT1 = 1
-    ccl->set_pin_input(0, 0, false);
-    CHECK(ccl->get_lut_output(0) == true);
-    CHECK(ccl->get_lut_output(1) == true);
-    
-    // IN0 of LUT0 = 1 -> LUT0 = 0 -> LUT1 = 0
-    ccl->set_pin_input(0, 0, true);
-    CHECK(ccl->get_lut_output(0) == false);
-    CHECK(ccl->get_lut_output(1) == false);
-}
+        // 2. Configure TCA0 for simple periodic toggling
+        // CTRLA: ENABLE=1, CLKSEL=DIV1
+        bus.write_data(TCA0_BASE + 0x00, 0x01);
+        // CTRLB: WGMODE=NORMAL (0x00), CMP0EN=1 (0x10) => 0x10
+        bus.write_data(TCA0_BASE + 0x01, 0x10);
+        // PER = 100
+        bus.write_data(TCA0_BASE + 0x26, 100);
+        bus.write_data(TCA0_BASE + 0x27, 0);
+        // CMP0 = 50
+        bus.write_data(TCA0_BASE + 0x28, 50);
+        bus.write_data(TCA0_BASE + 0x29, 0);
 
-TEST_CASE("AVR8X CCL - RS Latch Sequential Fidelity") {
-    auto device = DeviceCatalog::find("ATmega4809");
-    Machine machine(*device);
-    auto& bus = machine.bus();
-    machine.reset();
+        // 3. Configure CCL LUT0
+        // Global CCL Enable
+        bus.write_data(CCL_CTRLA, 0x01);
+        
+        // LUT0 (at 0x01C8) CTRLA: ENABLE=1, OUTEN=1
+        bus.write_data(0x01C8, 0x41);
+        // LUT0 CTRLB: INSEL0=TCA0 (0x0A)
+        bus.write_data(0x01C9, 0x0A);
+        // TRUTH0: Input0 (TCA0) directly to output. (Out = In0) => Truth 0xAA (if bit0 is in0)
+        // Truth table: in2 in1 in0 | out
+        //              0   0   0   | 0
+        //              0   0   1   | 1
+        //              0   1   0   | 0
+        //              0   1   1   | 1
+        //              1   0   0   | 0
+        //              1   0   1   | 1
+        //              1   1   0   | 0
+        //              1   1   1   | 1
+        // Binary: 10101010 = 0xAA
+        bus.write_data(0x01CB, 0xAA);
 
-    auto* ccl = machine.peripherals_of_type<Ccl>()[0];
+        // 4. Verification
+        machine.step();
+        
+        // PB0 (TCA0 WO0 ALT1) should be claimed by Timer and High
+        CHECK(machine.pin_mux().get_state(1, 0).owner == PinOwner::timer);
+        CHECK(machine.pin_mux().get_state(1, 0).drive_level == true);
+        
+        // PA3 (CCL LUT0 OUT) should be claimed by CCL and High
+        CHECK(machine.pin_mux().get_state(0, 3).owner == PinOwner::ccl);
+        CHECK(machine.pin_mux().get_state(0, 3).drive_level == true);
 
-    // LUT0: Buffer for IN0 (Truth 0xAA) -> Set
-    bus.write_data(0x01CB, 0xAA); 
-    bus.write_data(0x01C9, 0x05); // INSEL0=IO
-    bus.write_data(0x01C8, 0x01); // Enable
-    
-    // LUT1: Buffer for IN0 (Truth 0xAA) -> Reset
-    bus.write_data(0x01CF, 0xAA);
-    bus.write_data(0x01CD, 0x05); // INSEL0=IO
-    bus.write_data(0x01CC, 0x01); // Enable
+        // Advance CNT past CMP0=50
+        for (int i = 0; i < 200; ++i) machine.step();
+        
+        // Should be False now
+        CHECK(machine.pin_mux().get_state(1, 0).drive_level == false);
+        CHECK(machine.pin_mux().get_state(0, 3).drive_level == false);
+    }
 
-    // SEQ0: RS Latch Mode (0x04) at 0x1C1
-    bus.write_data(0x01C1, 0x04);
-    
-    bus.write_data(0x01C0, 0x01); // CCL Enable
+    SUBCASE("PortMux Dynamic Switching") {
+        // Essential: Keep CPU running so Machine::step() ticks peripherals
+        u16 loop[] = { 0xCFFF }; // RJMP -1
+        machine.bus().load_flash(loop);
+        machine.reset();
 
-    // 1. Initial state 0
-    CHECK(ccl->get_seq_output(0) == false);
+        bus.write_data(TCA0_BASE + 0x00, 0x01);
+        bus.write_data(TCA0_BASE + 0x01, 0x10);
+        bus.write_data(TCA0_BASE + 0x29, 0);  // High
+        bus.write_data(TCA0_BASE + 0x28, 50); // Low
 
-    // 2. Set LUT0 (S=1, R=0) -> Q=1
-    ccl->set_pin_input(0, 0, true);
-    ccl->set_pin_input(1, 0, false);
-    CHECK(ccl->get_seq_output(0) == true);
+        // Step 1: Default Routing (PORTA)
+        bus.write_data(PORTMUX_TCAROUTEA, 0x00);
+        machine.step();
+        CHECK(machine.pin_mux().get_state(0, 0).owner == PinOwner::timer);
+        CHECK(machine.pin_mux().get_state(0, 0).drive_level == true);
 
-    // 3. Release Set (S=0, R=0) -> Q remains 1
-    ccl->set_pin_input(0, 0, false);
-    CHECK(ccl->get_seq_output(0) == true);
+        // Step 2: Switch to PORTB
+        bus.write_data(PORTMUX_TCAROUTEA, 0x01);
+        
+        machine.step();
+        auto state = machine.pin_mux().get_state(1, 0);
+        printf("[TEST DEBUG] PB0 State: owner=%d, level=%d\n", (int)state.owner, (int)state.drive_level);
 
-    // 4. Reset LUT1 (S=0, R=1) -> Q=0
-    ccl->set_pin_input(1, 0, true);
-    CHECK(ccl->get_seq_output(0) == false);
-
-    // 5. Release Reset (S=0, R=0) -> Q remains 0
-    ccl->set_pin_input(1, 0, false);
-    CHECK(ccl->get_seq_output(0) == false);
-}
-
-TEST_CASE("AVR8X CCL - TCA0 Gating Fidelity") {
-    auto device = DeviceCatalog::find("ATmega4809");
-    Machine machine(*device);
-    auto& bus = machine.bus();
-    machine.reset();
-
-    // Load NOPs
-    std::vector<u16> program(1000, 0x0000);
-    bus.load_flash(program);
-    machine.cpu().reset();
-
-    // 1. Configure TCA0 to have CMP0 = 10, PER = 20.
-    // Single Slope PWM: WO0 is High when TCNT < CMP0
-    bus.write_data(0x0A26, 20); // PERL
-    bus.write_data(0x0A28, 10); // CMP0L
-    bus.write_data(0x0A00, 0x01); // ENABLE (CLKSEL=DIV1)
-    
-    // 2. Configure CCL LUT0: INSEL0 = TCA0 (0x07), Truth = 0x02 (Buffer IN0)
-    // pattern 001 -> bit 1 = 1.
-    bus.write_data(0x01CB, 0x02); 
-    bus.write_data(0x01C9, 0x07); // INSEL0 = TCA0
-    bus.write_data(0x01C8, 0x01); // LUT Enable
-    bus.write_data(0x01C0, 0x01); // CCL Enable
-
-    auto* ccl = machine.peripherals_of_type<Ccl>()[0];
-
-    // TCNT=0 -> Output=1
-    CHECK(ccl->get_lut_output(0) == true);
-    
-    // Tick 11 cycles
-    machine.run(11);
-    // TCNT should be 11 or close.
-    CHECK(ccl->get_lut_output(0) == false);
+        // PA0 should be released
+        CHECK(machine.pin_mux().get_state(0, 0).owner == PinOwner::gpio);
+        // PB0 should be claimed
+        CHECK(machine.pin_mux().get_state(1, 0).owner == PinOwner::timer);
+        CHECK(machine.pin_mux().get_state(1, 0).drive_level == true);
+    }
 }

@@ -3,6 +3,8 @@
 #include "vioavr/core/tca.hpp"
 #include "vioavr/core/tcb.hpp"
 #include "vioavr/core/ac8x.hpp"
+#include "vioavr/core/evsys.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -55,6 +57,8 @@ void Ccl::reset() noexcept {
     std::fill(prev_outputs_.begin(), prev_outputs_.end(), false);
     std::fill(prev_luts_in2_.begin(), prev_luts_in2_.end(), false);
     std::fill(seq_state_.begin(), seq_state_.end(), false);
+    update_routing();
+    update_logic();
 }
 
 bool Ccl::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -84,6 +88,24 @@ void Ccl::set_memory_bus(MemoryBus* bus) noexcept {
         tcbs_[i] = static_cast<Tcb*>(bus_->get_peripheral_by_name("TCB" + std::to_string(i)));
     }
     ac0_ = static_cast<Ac8x*>(bus_->get_peripheral_by_name("AC0"));
+}
+
+void Ccl::set_event_system(EventSystem* evsys) noexcept {
+    evsys_ = evsys;
+    if (!evsys_) return;
+    
+    // Register callbacks for user events to trigger update_logic
+    for (u8 i = 0; i < desc_.lut_count; ++i) {
+        // LUTn User A/B are at index 32 + 2*i and 33 + 2*i
+        u8 user_a = 32 + 2 * i;
+        u8 user_b = 33 + 2 * i;
+        evsys_->register_user_callback(user_a, [this]() { update_logic(); });
+        evsys_->register_user_callback(user_b, [this]() { update_logic(); });
+    }
+}
+
+void Ccl::set_pin_mux(PinMux* pm) noexcept {
+    pin_mux_ = pm;
 }
 
 u8 Ccl::read(u16 address) noexcept {
@@ -118,12 +140,15 @@ void Ccl::write(u16 address, u8 value) noexcept {
                 if (address == desc_.luts[i].truth_address) { luts_[i].truth = value; found = true; break; }
             }
         }
+        if (!found) return;
     }
+    update_routing(); 
     update_logic();
 }
 
 void Ccl::tick(u64) noexcept {
-    // Mostly asynchronous, update_logic already handles everything on change.
+    // Logic updates on writes or events, but we might want to refresh periodicly if inputs are from timers
+    update_logic();
 }
 
 bool Ccl::compute_lut(u8 index) const noexcept {
@@ -141,22 +166,28 @@ bool Ccl::compute_lut(u8 index) const noexcept {
             case 0x00: // MASK
                 in[j] = false;
                 break;
-            case 0x05: // IO PIN
-                in[j] = luts_[index].inputs[j];
+            case 0x01: // FEEDBACK
+                in[j] = outputs_[index];
                 break;
             case 0x02: // LINK
                 in[j] = outputs_[(index + desc_.lut_count - 1) % desc_.lut_count];
                 break;
-            case 0x01: // FEEDBACK
-                in[j] = outputs_[index];
+            case 0x03: // EVENTA
+                if (evsys_) in[j] = evsys_->get_user_level(32 + 2 * index);
+                break;
+            case 0x04: // EVENTB
+                if (evsys_) in[j] = evsys_->get_user_level(33 + 2 * index);
+                break;
+            case 0x05: // IO PIN
+                in[j] = luts_[index].inputs[j];
                 break;
             case 0x06: // AC
                 if (ac0_) in[j] = ac0_->get_state();
                 break;
-            case 0x07: // TCA
-                if (tca0_) in[j] = tca0_->get_wo_level(j);
+            case 0x0A: // TCA0
+                if (tca0_) in[j] = tca0_->get_wo_level(j); // WO0, WO1, WO2 for IN0, IN1, IN2
                 break;
-            case 0x08: // TCB
+            case 0x0C: // TCB
                 if (tcbs_[index]) in[j] = tcbs_[index]->get_wo_level();
                 break;
             default:
@@ -217,7 +248,6 @@ void Ccl::update_logic() noexcept {
             case 0x04: // RS Latch
                 if (in0 && !in1) seq_state_[s] = true;
                 else if (!in0 && in1) seq_state_[s] = false;
-                // if both are 1, state is unchanged or reset? Datasheet: "S=1, R=1 Reset wins"
                 else if (in0 && in1) seq_state_[s] = false; 
                 break;
             default: break;
@@ -235,8 +265,18 @@ void Ccl::update_logic() noexcept {
                            (intmode == 0x03);
             
             if (trigger) intflags_[i / 2] |= (1 << (i % 2));
-
-            // TODO: Drive physical pin if (luts_[i].ctrla & 0x40) (OUTEN)
+        }
+        
+        // Drive physical pin if (luts_[i].ctrla & 0x40) (OUTEN)
+        if (pin_mux_ && (luts_[i].ctrla & 0x40)) {
+            u8 port_idx = 0;
+            u8 pin_idx = 3; // Standard OUT pins are PA3, PC3, PD3, PF3
+            if (i == 0) port_idx = 0; // PORTA
+            else if (i == 1) port_idx = 2; // PORTC
+            else if (i == 2) port_idx = 3; // PORTD
+            else if (i == 3) port_idx = 5; // PORTF
+            
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::ccl, true, outputs_[i], false);
         }
     }
 
@@ -252,4 +292,21 @@ void Ccl::set_pin_input(u8 lut_index, u8 input_index, bool level) noexcept {
     }
 }
 
+void Ccl::update_routing() noexcept {
+    if (!pin_mux_) return;
+    for (u8 i = 0; i < desc_.lut_count; ++i) {
+        u8 port_idx = 0;
+        u8 pin_idx = 3;
+        if (i == 0) port_idx = 0; // PORTA
+        else if (i == 1) port_idx = 2; // PORTC
+        else if (i == 2) port_idx = 3; // PORTD
+        else if (i == 3) port_idx = 5; // PORTF
+
+        if (ctrla_ & 0x01 && (luts_[i].ctrla & 0x40)) {
+            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::ccl);
+        } else {
+            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::ccl);
+        }
+    }
+}
 } // namespace vioavr::core

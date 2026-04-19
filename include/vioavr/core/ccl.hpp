@@ -25,6 +25,8 @@ public:
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     void set_memory_bus(MemoryBus* bus) noexcept override;
+    void set_event_system(class EventSystem* evsys) noexcept;
+    void set_pin_mux(class PinMux* pm) noexcept;
 
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
 
@@ -40,6 +42,8 @@ public:
 private:
     const CclDescriptor desc_;
     MemoryBus* bus_ {nullptr};
+    class EventSystem* evsys_ {nullptr};
+    class PinMux* pin_mux_ {nullptr};
 
     class Tca* tca0_ {nullptr};
     std::array<class Tcb*, 4> tcbs_ {nullptr, nullptr, nullptr, nullptr};
@@ -70,6 +74,7 @@ private:
     std::array<AddressRange, 6> ranges_ {};
     
     void update_logic() noexcept;
+    void update_routing() noexcept;
     bool compute_lut(u8 index) const noexcept;
 };
 

@@ -114,6 +114,10 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
         if (trigger) {
             status_ |= 0x01U; // CMP flag
         }
+
+        if (evsys_ && desc_.out_generator_id != 0) {
+            evsys_->trigger_event(desc_.out_generator_id, new_state);
+        }
     }
 }
 

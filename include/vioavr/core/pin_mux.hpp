@@ -21,7 +21,8 @@ enum class PinOwner : u8 {
     twi = 6,
     external_clock = 7,
     reset = 8,
-    jtag = 9
+    jtag = 9,
+    ccl = 10
 };
 
 /**
