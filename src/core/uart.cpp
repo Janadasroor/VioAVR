@@ -8,6 +8,7 @@ namespace vioavr::core {
 Uart::Uart(std::string_view name, const UartDescriptor& descriptor, PinMux& pin_mux) noexcept
     : name_(std::string(name)), desc_(descriptor), pin_mux_(&pin_mux)
 {
+    reset();
     const std::array<u16, 6> addrs = {
         desc_.udr_address, desc_.ucsra_address, 
         desc_.ucsrb_address, desc_.ucsrc_address,
@@ -59,20 +60,44 @@ void Uart::reset() noexcept
     tx_cycle_accumulator_ = 0;
     rx_cycle_accumulator_ = 0;
     tx_bit_duration_ = 160U;
+    tx_output_queue_.clear();
+    tx_buffer_full_ = false;
 }
 
 void Uart::tick(const u64 elapsed_cycles) noexcept
 {
+    // Start transmission if buffer is full and shift register is idle
+    if (!tx_active_ && tx_buffer_full_) {
+        tx_shift_reg_ = udr_tx_;
+        tx_active_ = true;
+        tx_buffer_full_ = false;
+        tx_cycle_accumulator_ = 0;
+        ucsra_ |= desc_.udre_mask;   // Buffer now empty
+        ucsra_ &= ~desc_.txc_mask;  // New transmission clears TXC
+    }
+
     if (tx_active_) {
         tx_cycle_accumulator_ += elapsed_cycles;
-        const u16 ubrr = static_cast<u16>((static_cast<u16>(ubrrh_) << 8U) | ubrrl_);
-        const u8 u2x = (ucsra_ & desc_.u2x_mask) ? 1U : 0U;
-        const u64 bit_duration = static_cast<u64>(u2x ? 8 : 16) * (ubrr + 1U);
+        u16 ubrr = (static_cast<u16>(ubrrh_) << 8) | ubrrl_;
+        u32 bit_duration = ((ucsra_ & desc_.u2x_mask) ? 8U : 16U) * (ubrr + 1U);
+        const u64 limit = bit_duration * 10;
         
-        // Simple 10-bit frame duration
-        if (tx_cycle_accumulator_ >= (bit_duration * 10)) {
-            tx_active_ = false;
-            ucsra_ |= (desc_.udre_mask | desc_.txc_mask);
+        if (tx_cycle_accumulator_ >= limit) {
+            // Byte finished shifting
+            tx_output_queue_.push_back(static_cast<u8>(tx_shift_reg_));
+            ucsra_ |= desc_.txc_mask;
+            
+            // Check for next byte in buffer
+            if (tx_buffer_full_) {
+                tx_shift_reg_ = udr_tx_;
+                tx_buffer_full_ = false;
+                ucsra_ |= desc_.udre_mask;
+                ucsra_ &= ~desc_.txc_mask;
+                tx_cycle_accumulator_ -= limit;
+                // tx_active remains true
+            } else {
+                tx_active_ = false;
+            }
         }
     }
 }
@@ -93,12 +118,11 @@ u8 Uart::read(const u16 address) noexcept
 
 void Uart::write(const u16 address, const u8 value) noexcept
 {
+    const u8 old_ucsra = ucsra_;
     if (address == desc_.udr_address) {
         udr_tx_ = value;
-        ucsra_ &= ~(desc_.udre_mask | desc_.txc_mask);
-        tx_active_ = true;
-        tx_cycle_accumulator_ = 0;
-        tx_bits_left_ = 10;
+        tx_buffer_full_ = true;
+        ucsra_ &= ~desc_.udre_mask; // Buffer full
     } else if (address == desc_.ucsra_address) {
         ucsra_ = static_cast<u8>((ucsra_ & ~desc_.u2x_mask) | (value & desc_.u2x_mask));
         if (value & desc_.txc_mask) ucsra_ &= ~desc_.txc_mask;
@@ -115,33 +139,36 @@ void Uart::write(const u16 address, const u8 value) noexcept
 
 bool Uart::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
-    if ((ucsra_ & desc_.rxc_mask) && (ucsrb_ & desc_.rxcie_mask)) {
-        request = {desc_.rx_vector_index, 0U};
-        return true;
-    }
-    if ((ucsra_ & desc_.udre_mask) && (ucsrb_ & desc_.udrie_mask)) {
-        request = {desc_.udre_vector_index, 0U};
-        return true;
-    }
-    if ((ucsra_ & desc_.txc_mask) && (ucsrb_ & desc_.txcie_mask)) {
-        request = {desc_.tx_vector_index, 0U};
-        return true;
+    const bool rxc = (ucsra_ & desc_.rxc_mask) && (ucsrb_ & desc_.rxcie_mask);
+    const bool udre = (ucsra_ & desc_.udre_mask) && (ucsrb_ & desc_.udrie_mask);
+    const bool txc = (ucsra_ & desc_.txc_mask) && (ucsrb_ & desc_.txcie_mask);
+
+    if (rxc || udre || txc) {
+        if (rxc) {
+            request = {desc_.rx_vector_index, 0U};
+            return true;
+        }
+        if (udre) {
+            request = {desc_.udre_vector_index, 0U};
+            return true;
+        }
+        if (txc) {
+            request = {desc_.tx_vector_index, 0U};
+            return true;
+        }
     }
     return false;
 }
 
 bool Uart::consume_interrupt_request(InterruptRequest& request) noexcept
 {
-    if (!pending_interrupt_request(request)) {
-        return false;
-    }
-    
-    if (request.vector_index == desc_.rx_vector_index) {
-        ucsra_ &= ~desc_.rxc_mask;
-    } else if (request.vector_index == desc_.tx_vector_index) {
+    // For legacy UART, flags are handled by hardware as follows:
+    // RXC: cleared by reading UDR
+    // UDRE: cleared by writing UDR
+    // TXC: cleared by jump to vector OR by writing 1 to the bit
+
+    if (request.vector_index == desc_.tx_vector_index) {
         ucsra_ &= ~desc_.txc_mask;
-    } else if (request.vector_index == desc_.udre_vector_index) {
-        ucsra_ &= ~desc_.udre_mask;
     }
     return true;
 }
@@ -154,11 +181,10 @@ void Uart::inject_received_byte(const u8 data) noexcept
 
 bool Uart::consume_transmitted_byte(u8& data) noexcept
 {
-    if (ucsra_ & desc_.txc_mask) {
-        data = udr_tx_;
-        return true;
-    }
-    return false;
+    if (tx_output_queue_.empty()) return false;
+    data = tx_output_queue_.front();
+    tx_output_queue_.pop_front();
+    return true;
 }
 
 }  // namespace vioavr::core

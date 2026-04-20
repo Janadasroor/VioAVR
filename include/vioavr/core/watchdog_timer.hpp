@@ -2,6 +2,8 @@
 
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
+#include <string>
+#include <array>
 
 namespace vioavr::core {
 
@@ -27,7 +29,7 @@ private:
     void complete_timeout() noexcept;
     [[nodiscard]] u32 get_timeout_cycles() const noexcept;
 
-    std::string_view name_;
+    std::string name_;
     WdtDescriptor desc_;
     AvrCpu& cpu_;
     std::array<AddressRange, 1> ranges_;

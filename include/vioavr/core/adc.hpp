@@ -7,6 +7,7 @@
 #include "vioavr/core/pin_map.hpp"
 
 #include <array>
+#include <string>
 
 namespace vioavr::core {
 
@@ -76,7 +77,7 @@ private:
     
     void update_pin_ownership() noexcept;
 
-    std::string_view name_;
+    std::string name_;
     AdcDescriptor desc_;
     MemoryBus* bus_ {};
     PinMux* pin_mux_ {};

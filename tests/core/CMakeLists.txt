@@ -129,6 +129,8 @@ set(TEST_SOURCES
     avr8x_ccl_sequential_test.cpp
     avr8x_ccl_sequential_unit_test.cpp
     avr8x_tcb_pulse_width_test.cpp
+    uart_stress_test_runner.cpp
+    integration_stress_runner.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

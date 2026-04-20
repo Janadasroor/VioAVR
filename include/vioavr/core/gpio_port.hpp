@@ -4,6 +4,7 @@
 #include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/digital_threshold.hpp"
 #include <array>
+#include <string>
 
 namespace vioavr::core {
 class PinMux;
@@ -42,7 +43,7 @@ private:
     void update_pin_latched() noexcept;
 
     PinMux* pin_mux_ {};
-    std::string_view name_;
+    std::string name_;
     std::array<AddressRange, 3> ranges_;
     u16 pin_addr_;
     u16 ddr_addr_;

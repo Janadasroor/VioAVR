@@ -212,7 +212,7 @@ void Tcb::on_event(bool level) noexcept {
     bool edge_select = (evctrl_ & 0x02) != 0; // 0=Rising, 1=Falling
     bool match_edge = (level != edge_select); // true if level=1 and edge=0, or level=0 and edge=1
 
-    if (mode == 2) { // Input Capture
+    if (mode == 2 || mode == 0 || mode == 1) { // Input Capture or Periodic/TEP
         if (match_edge) {
             ccmp_ = cnt_;
             intflags_ |= 0x01; // CAPT

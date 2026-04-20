@@ -586,7 +586,6 @@ void AvrCpu::refresh_interrupt_pending()
     InterruptRequest request;
     interrupt_pending_ = bus_->pending_interrupt_request(request, domains);
 }
-
 bool AvrCpu::service_interrupt_if_needed()
 {
     refresh_interrupt_pending();
@@ -599,7 +598,6 @@ bool AvrCpu::service_interrupt_if_needed()
         interrupt_pending_ = false;
         return false;
     }
-
     if (trace_hook_ != nullptr) {
         trace_hook_->on_interrupt(request.vector_index);
     }

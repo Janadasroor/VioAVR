@@ -4,6 +4,7 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include <array>
 #include <optional>
+#include <string>
 
 namespace vioavr::core {
 class GpioPort;
@@ -11,9 +12,11 @@ class MemoryBus;
 class Adc;
 class Dac;
 
+class PinMux;
+
 class Timer16 final : public IoPeripheral {
 public:
-    explicit Timer16(std::string_view name, const Timer16Descriptor& desc) noexcept;
+    explicit Timer16(std::string_view name, const Timer16Descriptor& desc, PinMux* pin_mux = nullptr) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }
@@ -82,8 +85,10 @@ private:
     [[nodiscard]] PinAction get_pin_action_a() const noexcept;
     [[nodiscard]] PinAction get_pin_action_b() const noexcept;
     [[nodiscard]] PinAction get_pin_action_c() const noexcept;
-
-    std::string_view name_;
+    void update_pin_ownership() noexcept;
+    
+    PinMux* pin_mux_ {};
+    std::string name_;
     Timer16Descriptor desc_;
     std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {};

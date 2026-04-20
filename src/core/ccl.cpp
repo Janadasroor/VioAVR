@@ -96,11 +96,17 @@ void Ccl::set_event_system(EventSystem* evsys) noexcept {
     
     // Register callbacks for user events to trigger update_logic
     for (u8 i = 0; i < desc_.lut_count; ++i) {
-        // LUTn User A/B are at index 32 + 2*i and 33 + 2*i
-        u8 user_a = 32 + 2 * i;
-        u8 user_b = 33 + 2 * i;
-        evsys_->register_user_callback(user_a, [this](bool) { update_logic(); });
-        evsys_->register_user_callback(user_b, [this](bool) { update_logic(); });
+        u16 user_a_addr = desc_.luts[i].user_event_a_address;
+        u16 user_b_addr = desc_.luts[i].user_event_b_address;
+        
+        if (user_a_addr != 0) {
+            u8 user_index = static_cast<u8>(user_a_addr - evsys_->users_base());
+            evsys_->register_user_callback(user_index, [this](bool) { update_logic(); });
+        }
+        if (user_b_addr != 0) {
+            u8 user_index = static_cast<u8>(user_b_addr - evsys_->users_base());
+            evsys_->register_user_callback(user_index, [this](bool) { update_logic(); });
+        }
     }
 }
 

@@ -55,14 +55,15 @@ u8 EventSystem::read(u16 address) noexcept {
 void EventSystem::write(u16 address, u8 value) noexcept {
     if (address == desc_.strobe_address) {
         strobe_ = value;
-        // Handle manual strobes (logic 1 = toggle or pulse?)
-        // EVSYS strobe triggers the USERS of that channel.
         for (u8 i = 0; i < desc_.channel_count; ++i) {
             if (value & (1 << i)) {
-                channel_levels_[i] = !channel_levels_[i]; // Simple toggle for strobe
+                // Strobe generates a pulse (true then false)
                 for (size_t u = 0; u < users_.size(); ++u) {
                     if (users_[u] == (i + 1)) {
-                        if (callbacks_[u]) callbacks_[u](channel_levels_[i]);
+                        if (callbacks_[u]) {
+                            callbacks_[u](true);
+                            callbacks_[u](false);
+                        }
                     }
                 }
             }

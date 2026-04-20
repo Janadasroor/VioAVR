@@ -489,6 +489,8 @@ struct LutDescriptor {
     u16 ctrlb_address {};
     u16 ctrlc_address {};
     u16 truth_address {};
+    u16 user_event_a_address {};
+    u16 user_event_b_address {};
     u8 generator_id {0};
 };
 

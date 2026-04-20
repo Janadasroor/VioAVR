@@ -6,6 +6,7 @@
 #include <array>
 #include <string>
 #include <string_view>
+#include <deque>
 
 namespace vioavr::core {
 
@@ -54,6 +55,9 @@ private:
     u16 rx_shift_reg_ {};
     u8 rx_bits_left_ {};
     u64 rx_cycle_accumulator_ {};
+    bool tx_buffer_full_ {};
+
+    std::deque<u8> tx_output_queue_;
 
     void update_pin_ownership() noexcept;
 };

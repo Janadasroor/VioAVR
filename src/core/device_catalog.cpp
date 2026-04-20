@@ -139,6 +139,14 @@
 namespace vioavr::core {
 
 const DeviceDescriptor* DeviceCatalog::find(std::string_view name) noexcept {
+    auto to_lower = [](std::string_view s) {
+        std::string res;
+        res.reserve(s.size());
+        for (char c : s) res += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return res;
+    };
+    std::string lower_name = to_lower(name);
+
     // Note: This relies on DeviceDescriptor being updated in headers
     static const DeviceDescriptor* catalog[] = {
         &devices::at90can128,
@@ -279,7 +287,7 @@ const DeviceDescriptor* DeviceCatalog::find(std::string_view name) noexcept {
     };
 
     for (const auto* device : catalog) {
-        if (device->name == name) {
+        if (to_lower(device->name) == lower_name) {
             Logger::debug("DeviceCatalog::find: found " + std::string(name) + " TCA count: " + std::to_string(device->tca_count));
             return device;
         }

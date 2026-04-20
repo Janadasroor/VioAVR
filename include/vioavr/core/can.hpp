@@ -4,6 +4,7 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include <vector>
 #include <array>
+#include <string>
 #include <string_view>
 
 namespace vioavr::core {
@@ -42,7 +43,7 @@ private:
         std::array<u8, 8> data {};
     };
 
-    std::string_view name_;
+    std::string name_;
     CanDescriptor desc_;
     std::vector<AddressRange> ranges_;
 

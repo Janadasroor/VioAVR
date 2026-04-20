@@ -469,11 +469,15 @@ bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 ac
     }
 
     if (selected_peripheral == nullptr) {
+        printf("[DEBUG] MemoryBus: Selected selected_request but found no matching peripheral for vec %d!\n", selected_request.vector_index);
         return false;
     }
 
     request = selected_request;
     bool consumed = selected_peripheral->consume_interrupt_request(request);
+    if (!consumed) {
+        printf("[DEBUG] MemoryBus: Peripheral refused to consume vec %d!\n", request.vector_index);
+    }
     if (consumed && cpu_int_) {
         cpu_int_->on_interrupt_acknowledged(request.vector_index);
     }

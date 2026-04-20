@@ -38,7 +38,7 @@ Machine::Machine(const DeviceDescriptor& device)
     : device_(device),
       bus_(std::make_unique<MemoryBus>(device)),
       cpu_(std::make_unique<AvrCpu>(*bus_)),
-      pin_mux_(std::make_unique<PinMux>(static_cast<u8>(device.port_count)))
+      pin_mux_(std::make_unique<PinMux>(8))
 {
     cpu_->set_trace_hook(&trace_mux_);
     initialize_peripherals();
@@ -154,14 +154,14 @@ void Machine::initialize_peripherals()
 
 
     for (u8 i = 0; i < device_.timer8_count; ++i) {
-        auto timer = std::make_unique<Timer8>("TIMER" + std::to_string(device_.timers8[i].timer_index), device_.timers8[i]);
+        auto timer = std::make_unique<Timer8>("TIMER" + std::to_string(device_.timers8[i].timer_index), device_.timers8[i], pin_mux_.get());
         timer->set_bus(*bus_);
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
     }
 
     for (u8 i = 0; i < device_.timer16_count; ++i) {
-        auto timer = std::make_unique<Timer16>("TIMER" + std::to_string(device_.timers16[i].timer_index), device_.timers16[i]);
+        auto timer = std::make_unique<Timer16>("TIMER" + std::to_string(device_.timers16[i].timer_index), device_.timers16[i], pin_mux_.get());
         timer->set_bus(*bus_);
         bus_->attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
@@ -386,16 +386,33 @@ void Machine::wire_peripherals()
     // Wire Timer outputs to GPIO pins
     for (auto& p : owned_peripherals_) {
         if (auto* t8 = dynamic_cast<Timer8*>(p.get())) {
-            // We need to find the descriptor for this timer.
-            // Simplified: loop over device descriptors and match by address.
             for (u8 i = 0; i < device_.timer8_count; ++i) {
                 const auto& desc = device_.timers8[i];
-                if (desc.tcnt_address == t8->mapped_ranges()[0].begin) { // Rough match
+                if (t8->name() == "TIMER" + std::to_string(desc.timer_index)) {
                     if (auto* port = resolve_port(desc.ocra_pin_address)) {
                         t8->connect_compare_output_a(*port, desc.ocra_pin_bit);
                     }
                     if (auto* port = resolve_port(desc.ocrb_pin_address)) {
                         t8->connect_compare_output_b(*port, desc.ocrb_pin_bit);
+                    }
+                    break;
+                }
+            }
+        } else if (auto* t16 = dynamic_cast<Timer16*>(p.get())) {
+            for (u8 i = 0; i < device_.timer16_count; ++i) {
+                const auto& desc = device_.timers16[i];
+                if (t16->name() == "TIMER" + std::to_string(desc.timer_index)) {
+                    if (auto* port = resolve_port(desc.ocra_pin_address)) {
+                        t16->connect_compare_output_a(*port, desc.ocra_pin_bit);
+                    }
+                    if (auto* port = resolve_port(desc.ocrb_pin_address)) {
+                        t16->connect_compare_output_b(*port, desc.ocrb_pin_bit);
+                    }
+                    if (auto* port = resolve_port(desc.ocrc_pin_address)) {
+                        t16->connect_compare_output_c(*port, desc.ocrc_pin_bit);
+                    }
+                    if (auto* port = resolve_port(desc.icp_pin_address)) {
+                        t16->connect_input_capture(*port, desc.icp_pin_bit);
                     }
                     break;
                 }
