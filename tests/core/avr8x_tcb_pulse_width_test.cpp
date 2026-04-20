@@ -33,7 +33,7 @@ TEST_CASE("AVR8X TCB Pulse Width Measurement via CCL") {
     bus.write_data(LUT0_BASE + 3, 0xAA); // TRUTH = In0
     
     // 2. Configure EVSYS
-    bus.write_data(0x0190, 24); // Channel 0 -> Generator 24 (LUT0)
+    bus.write_data(0x0190, 16); // Channel 0 -> Generator 16 (LUT0)
     bus.write_data(0x01B4, 0x01); // User TCB0 -> Channel 0
 
     // 3. Configure TCB0 in Pulse Width Measurement Mode (Mode 4)

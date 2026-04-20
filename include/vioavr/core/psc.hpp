@@ -2,6 +2,7 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/device.hpp"
 #include <string_view>
+#include <string>
 #include <array>
 #include <vector>
 
@@ -31,7 +32,7 @@ public:
     bool consume_interrupt_request(InterruptRequest& req) noexcept override;
 
 private:
-    std::string_view name_;
+    std::string name_;
     const PscDescriptor& desc_;
     std::vector<AddressRange> ranges_;
     

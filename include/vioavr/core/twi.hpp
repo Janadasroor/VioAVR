@@ -4,6 +4,7 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include <vector>
 #include <array>
+#include <string>
 
 namespace vioavr::core {
 
@@ -32,7 +33,7 @@ private:
     void handle_master_step() noexcept;
     void handle_slave_step() noexcept;
 
-    std::string_view name_;
+    std::string name_;
     TwiDescriptor desc_;
     std::array<AddressRange, 1> ranges_;
 

@@ -93,7 +93,6 @@ u8 Adc::read(u16 address) noexcept {
 }
 
 void Adc::write(u16 address, u8 value) noexcept {
-    fprintf(stderr, "ADC: Write address=0x%04X value=0x%02X\n", address, value);
     if (address == desc_.adcsra_address) {
         const bool was_enabled = (adcsra_ & desc_.aden_mask);
         const bool next_enabled = (value & desc_.aden_mask);
@@ -162,10 +161,6 @@ void Adc::start_conversion() noexcept {
         cycles_remaining_ = static_cast<u16>(conv_cycles * prescaler);
     }
     
-    u64 cycle = bus_ ? bus_->cpu_cycles() : 0;
-    fprintf(stderr, "ADC: Start conversion at cycle %lu prescaler=%u remaining=%u first=%s\n", 
-        (unsigned long)cycle, prescaler, cycles_remaining_, (first_conversion_ ? "yes" : "no"));
-        
     first_conversion_ = false;
 }
 
@@ -229,10 +224,6 @@ void Adc::complete_conversion() noexcept {
     adcsra_ &= ~desc_.adsc_mask;
     adcsra_ |= desc_.adif_mask;
     converting_ = false;
-
-    u64 cycle = bus_ ? bus_->cpu_cycles() : 0;
-    fprintf(stderr, "ADC: Conversion complete at cycle %lu result=%u\n", 
-        (unsigned long)cycle, result_);
 
     // Update ports_ state if needed...
 

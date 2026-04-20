@@ -51,14 +51,14 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     // 2. Timers
     for (u8 i = 0; i < device.timer8_count; ++i) {
         const auto& desc = device.timers8[i];
-        auto timer = std::make_unique<Timer8>("TIMER8_" + std::to_string(i), desc);
+        auto timer = std::make_unique<Timer8>("TIMER8_" + std::to_string(i), desc, &pin_mux_);
         timer->set_bus(bus_);
         if (desc.assr_address != 0U) timer2_ = timer.get();
         bus_.attach_peripheral(*timer.release());
     }
 
     for (u8 i = 0; i < device.timer16_count; ++i) {
-        auto timer = std::make_unique<Timer16>("TIMER16_" + std::to_string(i), device.timers16[i]);
+        auto timer = std::make_unique<Timer16>("TIMER16_" + std::to_string(i), device.timers16[i], &pin_mux_);
         bus_.attach_peripheral(*timer.release());
     }
 
@@ -137,7 +137,12 @@ void VioSpice::set_external_pin(u32 external_id, PinLevel level) {
     if (mapping) {
         auto it = port_map_.find(mapping->port_name);
         if (it != port_map_.end()) {
-            (void)it->second->on_external_pin_change(mapping->bit_index, level);
+            it->second->on_external_pin_change(mapping->bit_index, level);
+            
+            // Notify Timer2 if it matches TOSC1
+            if (timer2_) {
+                 timer2_->on_pin_change(it->second->pin_address(), mapping->bit_index, level == PinLevel::high);
+            }
         }
     }
 }

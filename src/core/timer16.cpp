@@ -34,8 +34,8 @@ constexpr u8 kWgm12 = 0x08U;
 constexpr u8 kCsMask = 0x07U;
 }
 
-Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc) noexcept
-    : name_(name), desc_(desc)
+Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc, PinMux* pin_mux) noexcept
+    : name_(name), desc_(desc), pin_mux_(pin_mux)
 {
     std::vector<u16> addrs;
     auto add_16bit = [&](u16 addr) {
@@ -114,6 +114,7 @@ void Timer16::reset() noexcept
     noise_canceler_register_ = 0U;
     noise_canceler_counter_ = 0U;
     cycle_accumulator_ = 0U;
+    update_pin_ownership();
 }
 
 void Timer16::tick(const u64 elapsed_cycles) noexcept
@@ -132,8 +133,8 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
             const u16 divisor = prescalers[cs];
             if (++cycle_accumulator_ >= divisor) {
                 cycle_accumulator_ = 0;
+                
                 should_tick = true;
-                printf("T1: TICK (cs=%d, cycles=%llu, tcnt=%d)\n", (int)cs, (unsigned long long)elapsed_cycles, (int)tcnt_);
             }
         } else {
             // External Clocking (CS=110 falling, 111 rising)
@@ -276,10 +277,11 @@ void Timer16::write(const u16 address, const u8 value) noexcept
     } else if (address == desc_.tccra_address) {
         tccra_ = value;
         update_mode();
+        update_pin_ownership();
     } else if (address == desc_.tccrb_address) {
-        printf("T1: TCCRB WRITE 0x%02x AT CYCLE %lu\n", value, bus_ ? bus_->cpu_cycles() : 0);
         tccrb_ = value;
         update_mode();
+        update_pin_ownership();
     } else if (address == desc_.tccrc_address && desc_.tccrc_address != 0U) {
         tccrc_ = value;
         // Force Output Compare: Only active in non-PWM modes
@@ -555,22 +557,43 @@ void Timer16::connect_dac_auto_trigger(Dac& dac) noexcept {
 
 void Timer16::apply_pin_action(std::optional<BoundPin> pin, PinAction action) noexcept
 {
-    if (!pin) return;
-    const u16 addr = pin->port->port_address();
-    const u8 current = pin->port->read(addr);
+    if (!pin || !pin_mux_) {
+        return;
+    }
     
-    const char* action_str = "none";
-    if (action == PinAction::clear) action_str = "clear";
-    else if (action == PinAction::set) action_str = "set";
-    else if (action == PinAction::toggle) action_str = "toggle";
+    if (action == PinAction::none) return;
 
-    printf("T1: PIN ACTION %s on Pin %d, TCNT=%d, cycle=%lu\n", action_str, (int)pin->bit, (int)tcnt_, bus_ ? bus_->cpu_cycles() : 0);
-
+    auto current_state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
+    bool level = current_state.drive_level;
+    bool is_output = true;
+    
     switch (action) {
-    case PinAction::toggle: pin->port->write(addr, current ^ (1U << pin->bit)); break;
-    case PinAction::clear: pin->port->write(addr, current & ~(1U << pin->bit)); break;
-    case PinAction::set: pin->port->write(addr, current | (1U << pin->bit)); break;
-    default: break;
+    case PinAction::toggle: level = !level; break;
+    case PinAction::clear: level = false; break;
+    case PinAction::set: level = true; break;
+    default: return;
+    }
+
+    pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, is_output, level);
+}
+
+void Timer16::update_pin_ownership() noexcept
+{
+    if (!pin_mux_) return;
+
+    auto update_ownership = [&](std::optional<BoundPin>& pin, PinAction action) {
+        if (!pin) return;
+        if (action != PinAction::none) {
+            pin_mux_->claim_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer);
+        } else {
+            pin_mux_->release_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer);
+        }
+    };
+
+    update_ownership(pin_a_, get_pin_action_a());
+    update_ownership(pin_b_, get_pin_action_b());
+    if (desc_.ocrc_address != 0U) {
+        update_ownership(pin_c_, get_pin_action_c());
     }
 }
 

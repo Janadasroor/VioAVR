@@ -29,7 +29,6 @@ bool PinMux::claim_pin(u8 port_idx, u8 bit_idx, PinOwner owner) noexcept
 
     if (!(entry.active_claims & claim_bit)) {
         entry.active_claims |= claim_bit;
-        printf("[DEBUG] claim_pin: port=%d, bit=%d, owner=%d, mask=0x%X\n", port_idx, bit_idx, (int)owner, (unsigned int)entry.active_claims);
         reevaluate_ownership(port_idx, bit_idx);
     }
     
@@ -77,7 +76,6 @@ void PinMux::update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_out
     const bool effective_pullup = pullup && !pullup_suppressed_;
 
     if (pin.is_output != is_output || pin.drive_level != level || pin.pullup_enabled != effective_pullup) {
-        // printf("[DEBUG] update_pin: port=%d, bit=%d, owner=%d, level=%d\n", port_idx, bit_idx, (int)requester, (int)level);
         pin.is_output = is_output;
         pin.drive_level = level;
         pin.pullup_enabled = effective_pullup;
@@ -145,7 +143,6 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
             }
         }
     }
-    printf("[DEBUG] reevaluate_ownership: port=%d, bit=%d, winner=%d, prio=%d\n", port_idx, bit_idx, (int)highest_owner, (int)highest_prio);
 
     if (entry.state.owner != highest_owner) {
         entry.state.owner = highest_owner;

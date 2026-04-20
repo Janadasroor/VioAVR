@@ -3,6 +3,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
 #include <array>
+#include <string>
 
 namespace vioavr::core {
 
@@ -36,7 +37,7 @@ public:
     void notify_pin_change(u8 mask) noexcept;
 
 private:
-    std::string_view name_;
+    std::string name_;
     PinChangeInterruptDescriptor desc_;
     std::array<AddressRange, 3> ranges_;
     GpioPort& port_;

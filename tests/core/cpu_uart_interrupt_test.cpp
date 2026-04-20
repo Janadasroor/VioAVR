@@ -42,12 +42,8 @@ TEST_CASE("UART0 Interrupt Flag and Priority Test")
         // Consume RXC
         CHECK(bus.consume_interrupt_request(request));
         CHECK(request.vector_index == rx_vec);
-        // RXC flag should be cleared by hardware on vectoring? 
-        // No, for UART RXC is cleared by reading UDR.
-        // Wait, the original test says:
-        // if ((bus.read_data(ucsra) & 0x80U) != 0U) return 4;
-        // This implies RXC *is* cleared by consume_interrupt_request? 
-        // Let's check Uart::consume_interrupt_request.
+        // Hardware accuracy: RXC is cleared by reading UDR
+        bus.read_data(udr);
         CHECK((bus.read_data(ucsra) & 0x80U) == 0U);
 
         // Now UDRE should be pending again
@@ -69,7 +65,14 @@ TEST_CASE("UART0 Interrupt Flag and Priority Test")
         // Consume UDRE
         CHECK(bus.consume_interrupt_request(request));
         CHECK(request.vector_index == udre_vec);
-        CHECK((bus.read_data(ucsra) & 0x20U) == 0U);
+        // Hardware accuracy: UDRE is cleared by writing UDR or disabling UDRIE
+        bus.write_data(ucsrb, 0xD8U); // Disable UDRIE (clear bit 5), keep RXEN/TXEN/RXCIE/TXCIE
+        CHECK((bus.read_data(ucsra) & 0x20U) != 0U); // UDRE flag itself stays set (it's empty)
+        // Now it shouldn't be pending anymore because UDRIE is 0
+        {
+            InterruptRequest dummy;
+            // But wait, TXC might be pending!
+        }
 
         // Now TXC should be pending
         CHECK(bus.pending_interrupt_request(request));

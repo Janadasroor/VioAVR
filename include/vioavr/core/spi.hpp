@@ -3,6 +3,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
 #include <array>
+#include <string>
 
 namespace vioavr::core {
 
@@ -31,7 +32,7 @@ public:
 private:
     void complete_transfer() noexcept;
 
-    std::string_view name_;
+    std::string name_;
     SpiDescriptor desc_;
     std::array<AddressRange, 1> ranges_;
 

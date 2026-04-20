@@ -36,7 +36,7 @@ private:
     void complete_write() noexcept;
 
     MemoryBus* bus_ {nullptr};
-    std::string_view name_;
+    std::string name_;
     EepromDescriptor desc_;
     std::array<AddressRange, 2> ranges_ {};
     u8 ranges_count_ {1U};

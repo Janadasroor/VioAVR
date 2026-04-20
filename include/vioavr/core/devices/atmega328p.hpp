@@ -176,7 +176,7 @@ inline constexpr DeviceDescriptor atmega328p {
 
     .uart_count = 1U,
     .uarts = {{ {
-            .udr_address = 0xC6U, .ucsra_address = 0xC0U, .ucsrb_address = 0xC1U, .ucsrc_address = 0xC1U, .ubrrl_address = 0xC4U, .ubrrh_address = 0xC5U,
+            .udr_address = 0xC6U, .ucsra_address = 0xC0U, .ucsrb_address = 0xC1U, .ucsrc_address = 0xC2U, .ubrrl_address = 0xC4U, .ubrrh_address = 0xC5U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
             .rx_vector_index = 18U,
             .udre_vector_index = 19U,

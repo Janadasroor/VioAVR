@@ -5,6 +5,7 @@
 #include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/digital_threshold.hpp"
 #include <array>
+#include <string>
 
 namespace vioavr::core {
 
@@ -40,7 +41,7 @@ private:
     [[nodiscard]] u8 int0_sense_mode() const noexcept;
     void raise_int0() noexcept;
 
-    std::string_view name_;
+    std::string name_;
     ExtInterruptDescriptor desc_;
     PinMux* pin_mux_ {};
     std::array<AddressRange, 3> ranges_;

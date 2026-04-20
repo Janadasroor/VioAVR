@@ -22,6 +22,8 @@ GpioPort::GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 
     if (name.length() >= 5 && name.starts_with("PORT")) {
         port_idx_ = static_cast<u8>(name[4] - 'A');
         pin_mux_->register_port(pin_address, port_idx_);
+        pin_mux_->register_port(ddr_address, port_idx_);
+        pin_mux_->register_port(port_address, port_idx_);
     }
 }
 

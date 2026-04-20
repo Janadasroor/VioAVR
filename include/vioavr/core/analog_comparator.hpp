@@ -6,6 +6,7 @@
 #include "vioavr/core/device.hpp"
 
 #include <vector>
+#include <string>
 
 namespace vioavr::core {
 
@@ -50,7 +51,7 @@ private:
     [[nodiscard]] u8 interrupt_mode() const noexcept;
     void update_pin_ownership() noexcept;
 
-    std::string_view name_;
+    std::string name_;
     AnalogComparatorDescriptor desc_;
     PinMux* pin_mux_ {};
     std::vector<AddressRange> mapped_ranges_;

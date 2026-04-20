@@ -223,8 +223,8 @@ def generate_header(data, header_path):
         rx_a, rx_b = get_pad_info(port_map, p_data, f'RXD{idx}|RXD', 'PIN')
         
         return f"""{{
-            .udr_address = {hx(udr_addr)}, .ucsra_address = {hx(status_addr)}, .ucsrb_address = {hx(ctrl_ie_addr)}, .ucsrc_address = {hx(ctrl_en_addr)}, .ubrrl_address = {hx(ubrr_addr)}, .ubrrh_address = {hx(ubrr_addr + 1)},
-            .ucsra_reset = {hx(r(f'UCSR{idx}A|UCSRA|STATUS')['initval'])}, .ucsrb_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLA')['initval'])}, .ucsrc_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLB')['initval'])},
+            .udr_address = {hx(udr_addr)}, .ucsra_address = {hx(status_addr)}, .ucsrb_address = {hx(ctrl_ie_addr)}, .ucsrc_address = {hx(ctrl_mode_addr)}, .ubrrl_address = {hx(ubrr_addr)}, .ubrrh_address = {hx(ubrr_addr + 1)},
+            .ucsra_reset = {hx(r(f'UCSR{idx}A|UCSRA|STATUS')['initval'])}, .ucsrb_reset = {hx(r(f'UCSR{idx}B|UCSRB|CTRLA')['initval'])}, .ucsrc_reset = {hx(r(f'UCSR{idx}C|UCSRC|CTRLC')['initval'])},
             .rx_vector_index = {find_vec(['RXC', 'RX'])}U,
             .udre_vector_index = {find_vec(['DRE', 'UDRE'])}U,
             .tx_vector_index = {find_vec(['TXC', 'TX'])}U,
@@ -941,10 +941,21 @@ def generate_header(data, header_path):
             gen_id = event_generators.get(f"CCL_LUT{lut_count}", 0)
             if not gen_id:
                  gen_id = event_generators.get(f"CCL_LUT{lut_count}_OUT", 0)
+
+            # Map EVSYS user registers for this LUT
+            user_a_addr = 0
+            user_b_addr = 0
+            ev_module = data['peripherals'].get('EVSYS')
+            if ev_module:
+                 reg_a = get_reg(ev_module, f'USERCCLLUT{lut_count}A')
+                 reg_b = get_reg(ev_module, f'USERCCLLUT{lut_count}B')
+                 if reg_a: user_a_addr = reg_a['offset']
+                 if reg_b: user_b_addr = reg_b['offset']
             
             luts_str.append(f"""{{
                 .ctrla_address = {hx(la['offset'])}, .ctrlb_address = {hx(lb['offset'])},
                 .ctrlc_address = {hx(lc['offset'])}, .truth_address = {hx(lt['offset'])},
+                .user_event_a_address = {hx(user_a_addr)}, .user_event_b_address = {hx(user_b_addr)},
                 .generator_id = {gen_id}U
             }}""")
             lut_count += 1

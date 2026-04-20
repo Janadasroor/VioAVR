@@ -4,6 +4,7 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include <array>
 #include <vector>
+#include <string>
 
 namespace vioavr::core {
 
@@ -66,7 +67,7 @@ private:
         bool bank_busy {false};   // Bank is owned by SIE for transmission
     };
 
-    std::string_view name_;
+    std::string name_;
     UsbDescriptor desc_;
     MemoryBus* bus_ {};
     std::array<AddressRange, 5> ranges_;

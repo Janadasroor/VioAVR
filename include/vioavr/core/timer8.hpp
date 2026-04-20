@@ -4,12 +4,14 @@
 #include "vioavr/core/io_peripheral.hpp"
 #include <array>
 #include <optional>
+#include <string>
 
 namespace vioavr::core {
 class GpioPort;
 class MemoryBus;
 class Adc;
 class Dac;
+class PinMux;
 
 class Timer8 final : public IoPeripheral {
 public:
@@ -29,7 +31,7 @@ public:
         set
     };
 
-    explicit Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept;
+    explicit Timer8(std::string_view name, const Timer8Descriptor& desc, PinMux* pin_mux = nullptr) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }
@@ -40,7 +42,9 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
-    void tick_async(u64 elapsed_ticks) noexcept;
+    void tick_async(const u64 elapsed_ticks) noexcept;
+    void on_pin_change(u16 address, u8 bit, bool level) noexcept;
+
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
@@ -86,8 +90,10 @@ private:
     void apply_pin_action(std::optional<BoundPin> pin, PinAction action) noexcept;
     [[nodiscard]] PinAction get_pin_action_a() const noexcept;
     [[nodiscard]] PinAction get_pin_action_b() const noexcept;
+    void update_pin_ownership() noexcept;
 
-    std::string_view name_;
+    PinMux* pin_mux_ {};
+    std::string name_;
     Timer8Descriptor desc_;
     std::array<AddressRange, 4> ranges_ {};
     MemoryBus* bus_ {};
@@ -108,9 +114,10 @@ private:
     bool counting_up_ {true};
     std::optional<BoundPin> pin_a_;
     std::optional<BoundPin> pin_b_;
-    u8 last_clk_pin_state_ {};
-    u64 cycle_accumulator_ {};
-    u16 async_busy_countdown_ {};
+    u8 last_clk_pin_state_ {0U};
+    u8 last_tosc1_state_ {0U};
+    u64 cycle_accumulator_ {0U};
+    u16 async_busy_countdown_ {0U};
     class Adc* adc_compare_trigger_ {};
     class Adc* adc_overflow_trigger_ {};
     class Dac* dac_trigger_ {};

@@ -23,8 +23,8 @@ constexpr u8 kAssrAs2 = 0x20U;
 constexpr u8 kAssrExclk = 0x40U;
 }
 
-Timer8::Timer8(std::string_view name, const Timer8Descriptor& desc) noexcept
-    : name_(name), desc_(desc)
+Timer8::Timer8(std::string_view name, const Timer8Descriptor& desc, PinMux* pin_mux) noexcept
+    : name_(name), desc_(desc), pin_mux_(pin_mux)
 {
     std::vector<u16> addrs = {
         desc_.tcnt_address, desc_.ocra_address, desc_.ocrb_address,
@@ -78,6 +78,7 @@ void Timer8::reset() noexcept
     counting_up_ = true;
     cycle_accumulator_ = 0U;
     last_clk_pin_state_ = 0U;
+    update_pin_ownership();
 }
 
 void Timer8::tick(const u64 elapsed_cycles) noexcept
@@ -149,6 +150,18 @@ void Timer8::tick_async(const u64 elapsed_ticks) noexcept
     }
 }
 
+void Timer8::on_pin_change(u16 address, u8 bit, bool level) noexcept
+{
+    if (address == desc_.tosc1_pin_address && bit == desc_.tosc1_pin_bit) {
+        if (async_mode_enabled()) {
+            if (last_tosc1_state_ == 0 && level) { // Rising edge
+                tick_async(1);
+            }
+            last_tosc1_state_ = level ? 1 : 0;
+        }
+    }
+}
+
 u8 Timer8::read(const u16 address) noexcept
 {
     if (address == desc_.tcnt_address) return tcnt_;
@@ -189,11 +202,13 @@ void Timer8::write(const u16 address, const u8 value) noexcept
     else if (address == desc_.tccra_address) {
         tccra_ = value;
         update_mode();
+        update_pin_ownership();
         mark_async_busy(address);
     }
     else if (address == desc_.tccrb_address) {
         tccrb_ = value;
         update_mode();
+        update_pin_ownership();
         // Force Output Compare: only in non-PWM modes
         if (mode_ == Mode::normal || mode_ == Mode::ctc_ocra) {
             if (value & desc_.foca_mask) handle_compare_match_a();
@@ -406,15 +421,40 @@ void Timer8::handle_overflow() noexcept
 
 void Timer8::apply_pin_action(std::optional<BoundPin> pin, PinAction action) noexcept
 {
-    if (!pin) return;
-    const u16 addr = pin->port->port_address();
-    const u8 current = pin->port->read(addr);
+    if (!pin || !pin_mux_) return;
+    
+    bool level = false;
+    bool is_output = true;
+
+    if (action == PinAction::disconnected) return;
+
+    auto current_state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
+    
     switch (action) {
-    case PinAction::toggle: pin->port->write(addr, current ^ (1U << pin->bit)); break;
-    case PinAction::clear: pin->port->write(addr, current & ~(1U << pin->bit)); break;
-    case PinAction::set: pin->port->write(addr, current | (1U << pin->bit)); break;
-    default: break;
+    case PinAction::toggle: level = !current_state.drive_level; break;
+    case PinAction::clear:  level = false; break;
+    case PinAction::set:    level = true; break;
+    default: return;
     }
+
+    pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, is_output, level);
+}
+
+void Timer8::update_pin_ownership() noexcept
+{
+    if (!pin_mux_) return;
+
+    auto update_ownership = [&](std::optional<BoundPin>& pin, PinAction action) {
+        if (!pin) return;
+        if (action != PinAction::disconnected) {
+            pin_mux_->claim_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer);
+        } else {
+            pin_mux_->release_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer);
+        }
+    };
+
+    update_ownership(pin_a_, get_pin_action_a());
+    update_ownership(pin_b_, get_pin_action_b());
 }
 
 Timer8::PinAction Timer8::get_pin_action_a() const noexcept
