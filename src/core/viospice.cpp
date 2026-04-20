@@ -137,7 +137,7 @@ void VioSpice::set_external_pin(u32 external_id, PinLevel level) {
     if (mapping) {
         auto it = port_map_.find(mapping->port_name);
         if (it != port_map_.end()) {
-            it->second->on_external_pin_change(mapping->bit_index, level);
+            (void)it->second->on_external_pin_change(mapping->bit_index, level);
             
             // Notify Timer2 if it matches TOSC1
             if (timer2_) {

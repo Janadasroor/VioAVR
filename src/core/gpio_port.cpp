@@ -10,13 +10,13 @@ GpioPort::GpioPort(const std::string_view name, const u16 base_address, PinMux& 
 }
 
 GpioPort::GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 port_address, PinMux& pin_mux) noexcept
-    : name_(name),
+    : pin_mux_(&pin_mux),
+      name_(name),
       ranges_({AddressRange{pin_address, pin_address}, AddressRange{ddr_address, ddr_address}, AddressRange{port_address, port_address}}),
       pin_addr_(pin_address),
       ddr_addr_(ddr_address),
       port_addr_(port_address),
-      num_ranges_(3U),
-      pin_mux_(&pin_mux)
+      num_ranges_(3U)
 {
     // Infer port index from name (e.g., "PORTA" -> 0)
     if (name.length() >= 5 && name.starts_with("PORT")) {
@@ -50,7 +50,7 @@ void GpioPort::reset() noexcept
 void GpioPort::tick(const u64 elapsed_cycles) noexcept
 {
     (void)elapsed_cycles;
-    sample_levels();
+    (void)sample_levels();
 }
 
 u8 GpioPort::read(const u16 address) noexcept
@@ -189,7 +189,7 @@ void GpioPort::bind_input_signal(const u8 bit_index, const AnalogSignalBank& ban
         .active = true
     };
     has_analog_binding_[bit_index] = true;
-    sample_levels();
+    (void)sample_levels();
 }
 
 void GpioPort::set_input_voltage(const u8 bit_index, const double normalized_voltage) noexcept

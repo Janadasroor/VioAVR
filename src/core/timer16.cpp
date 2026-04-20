@@ -35,7 +35,7 @@ constexpr u8 kCsMask = 0x07U;
 }
 
 Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc, PinMux* pin_mux) noexcept
-    : name_(name), desc_(desc), pin_mux_(pin_mux)
+    : pin_mux_(pin_mux), name_(name), desc_(desc)
 {
     std::vector<u16> addrs;
     auto add_16bit = [&](u16 addr) {
