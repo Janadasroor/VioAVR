@@ -24,7 +24,7 @@ constexpr u8 kAssrExclk = 0x40U;
 }
 
 Timer8::Timer8(std::string_view name, const Timer8Descriptor& desc, PinMux* pin_mux) noexcept
-    : name_(name), desc_(desc), pin_mux_(pin_mux)
+    : pin_mux_(pin_mux), name_(name), desc_(desc)
 {
     std::vector<u16> addrs = {
         desc_.tcnt_address, desc_.ocra_address, desc_.ocrb_address,

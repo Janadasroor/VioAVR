@@ -16,7 +16,7 @@ TEST_CASE("System Integration Stress Test") {
 
     // Load integration_stress.hex
     // Note: integration_stress.hex should be in the same directory as uart_stress_test.hex (build/tests/)
-    auto image = HexImageLoader::load_file("tests/integration_stress.hex", machine.bus().device());
+    auto image = HexImageLoader::load_file("build/tests/integration_stress.hex", machine.bus().device());
     machine.bus().load_image(image);
     machine.reset(); // Crucial: sets PC to entry point and state to running
 
