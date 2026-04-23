@@ -60,16 +60,79 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
 
     const u8 state = mstatus_ & MSTATUS_BUSSTATE_MASK;
     if (state == 0x02U) { // OWNER
-        if (bits_left_ > 0) {
-            cycle_counter_ += elapsed_cycles;
-            while (bits_left_ > 0 && cycle_counter_ >= bit_duration_) {
-                cycle_counter_ -= bit_duration_;
-                bits_left_--;
-                if (bits_left_ == 0) {
-                    mstatus_ |= MSTATUS_CLKHOLD;
-                    if (maddr_ & 0x01U) mstatus_ |= MSTATUS_RIF;
-                    else mstatus_ |= MSTATUS_WIF;
-                    break;
+        for (u64 i = 0; i < elapsed_cycles; ++i) {
+            if (bits_left_ > 0) {
+                cycle_counter_++;
+                
+                u64 half = bit_duration_ / 2;
+                bool scl = (cycle_counter_ >= half);
+                
+                PinLevel sda_level = PinLevel::high;
+                bool sda_enabled = true;
+                
+                if (cycle_counter_ < half) {
+                    // SCL is Low, SDA can change
+                    if (bits_left_ > 1) {
+                        // Data bits 7..0 (MSB first)
+                        bool sda = (shift_register_ >> (bits_left_ - 2)) & 1;
+                        sda_level = sda ? PinLevel::high : PinLevel::low;
+                    } else {
+                        // ACK bit (9th bit)
+                        if (host_phase_ == TwiPhase::read_data) {
+                            // Master drives ACK/NACK based on MCTRLB.ACKACT
+                            bool nack = (mctrlb_ & 0x01U); // 0=ACK (Low), 1=NACK (High)
+                            sda_level = nack ? PinLevel::high : PinLevel::low;
+                        } else {
+                            // Master releases SDA to read slave ACK
+                            sda_enabled = false;
+                        }
+                    }
+                } else if (cycle_counter_ == half + (half / 2)) {
+                    // SCL is High, sample SDA
+                    if (bits_left_ > 1) {
+                        if (host_phase_ == TwiPhase::read_data) {
+                            // Sample data bit from slave
+                            if (port_mux_->get_twi_sda_level(desc_.index) == PinLevel::high) {
+                                data_read_accumulator_ |= (1 << (bits_left_ - 2));
+                            }
+                        }
+                    } else {
+                        // Sample ACK/NACK
+                        if (host_phase_ != TwiPhase::read_data) {
+                            PinLevel sample = port_mux_->get_twi_sda_level(desc_.index);
+                            if (sample == PinLevel::high) mstatus_ |= MSTATUS_RXACK; // NACK
+                            else mstatus_ &= ~MSTATUS_RXACK; // ACK
+                        }
+                    }
+                }
+                
+                port_mux_->drive_twi_scl(desc_.index, scl ? PinLevel::high : PinLevel::low);
+                port_mux_->drive_twi_sda(desc_.index, sda_level, sda_enabled);
+                
+
+                if (cycle_counter_ >= bit_duration_) {
+                    cycle_counter_ = 0;
+                    bits_left_--;
+                    if (bits_left_ == 0) {
+                        mstatus_ |= MSTATUS_CLKHOLD;
+                        
+                        if (host_phase_ == TwiPhase::address) {
+                            bool is_read = (maddr_ & 0x01U);
+                            if (is_read) {
+                                mstatus_ |= MSTATUS_RIF;
+                                host_phase_ = TwiPhase::read_data;
+                            } else {
+                                mstatus_ |= MSTATUS_WIF;
+                                host_phase_ = TwiPhase::write_data;
+                            }
+                        } else if (host_phase_ == TwiPhase::read_data) {
+                            mstatus_ |= MSTATUS_RIF;
+                            mdata_ = data_read_accumulator_;
+                        } else {
+                            mstatus_ |= MSTATUS_WIF;
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -116,30 +179,42 @@ void Twi8x::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.mbaud_address) mbaud_ = value;
     else if (address == desc_.maddr_address) {
-        maddr_ = value;
-        const u8 state = mstatus_ & MSTATUS_BUSSTATE_MASK;
-        
-        if ((mctrla_ & 0x01U) && (state == 0x00 || state == 0x01 || state == 0x02)) { // ENABLED and (UNKNOWN or IDLE or OWNER)
-            mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x02U; // OWNER
-            
-            if (port_mux_) {
-                // Start Condition: SDA goes Low while SCL is High
-                port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
-            }
+            u8 state = mstatus_ & 0x03U;
+            if ((mctrla_ & 0x01U) && (state == 0x00 || state == 0x01 || state == 0x02)) { // ENABLED and (UNKNOWN or IDLE or OWNER)
+                maddr_ = value;
+                mstatus_ &= ~0x03U;
+                mstatus_ |= 0x02U; // OWNER
+                
+                // Drive Start condition
+                if (port_mux_) {
+                    port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+                    port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
+                }
 
             // Calculate bit duration: 2 * (10 + BAUD)
             bit_duration_ = 2U * (10U + mbaud_);
             cycle_counter_ = 0;
             bits_left_ = 9; // 8 data + 1 ACK
+            shift_register_ = value;
+            host_phase_ = TwiPhase::address;
         }
     }
     else if (address == desc_.mdata_address) {
         mdata_ = value;
         mstatus_ &= ~MSTATUS_CLKHOLD;
         
-        // Start "transfer" of 8 bits
-        cycle_counter_ = 0;
-        bits_left_ = 9;
+        if (host_phase_ == TwiPhase::read_data) {
+             // Continue reading
+             bits_left_ = 9;
+             cycle_counter_ = 0;
+             data_read_accumulator_ = 0;
+        } else {
+            // Write data
+            shift_register_ = value;
+            bits_left_ = 9;
+            cycle_counter_ = 0;
+            host_phase_ = TwiPhase::write_data;
+        }
     }
     else if (address == desc_.mctrlb_address) {
         mctrlb_ = value;

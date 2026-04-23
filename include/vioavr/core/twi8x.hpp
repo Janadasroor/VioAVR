@@ -9,6 +9,13 @@ namespace vioavr::core {
 
 class PortMux;
 
+enum class TwiPhase {
+    idle,
+    address,
+    write_data,
+    read_data
+};
+
 class Twi8x final : public IoPeripheral {
 public:
     explicit Twi8x(const Twi8xDescriptor& descriptor) noexcept;
@@ -61,6 +68,9 @@ private:
     u64 cycle_counter_{0};
     u64 bit_duration_{0};
     u8 bits_left_{0};
+    u8 shift_register_{0};
+    u8 data_read_accumulator_{0};
+    TwiPhase host_phase_{TwiPhase::idle};
 
     // MSTATUS Bits
     static constexpr u8 MSTATUS_RIF = 0x80U;

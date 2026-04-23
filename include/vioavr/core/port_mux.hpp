@@ -3,6 +3,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/logger.hpp"
 #include <map>
 #include <array>
 #include <cstdio>
@@ -122,7 +123,6 @@ public:
     void drive_tca0_wo(u8 wo_index, bool level, bool enabled) noexcept {
         if (!pin_mux_ || wo_index >= 6) return;
         u8 port_idx = tcaroutea_ & 0x07;
-        printf("[DEBUG] drive_tca0_wo: wo=%d, port=%d, level=%d, en=%d\n", wo_index, port_idx, level, enabled);
         if (port_idx >= 6) return;
 
         if (enabled) {
