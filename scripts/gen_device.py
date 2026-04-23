@@ -138,7 +138,7 @@ def generate_header(data, header_path):
             'pin_ctrl_base': regs.get('PIN_CTRL_BASE', 0),
             'intflags': regs.get('INTFLAGS', 0),
             'vport_base': vports.get(char, 0xFFFF),
-            'vector': next((i['index'] for i in data['interrupts'] if i['module-instance'] == f"PORT{char}"), 0xFF)
+            'vector': next((i['index'] for i in data['interrupts'] if i.get('module-instance') == f"PORT{char}"), 0xFF)
         })
     ports_raw.sort(key=lambda x: x['name'])
 
@@ -690,10 +690,13 @@ def generate_header(data, header_path):
     
     def gen_uart8x(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
-        ints = p_data.get('interrupts', {})
+        ints_list = data.get('interrupts', [])
+        idx_val = int("".join(filter(str.isdigit, p_name)) or "0")
         def get_int(key):
-            for k, v in ints.items():
-                if key in k.upper(): return v['index']
+            matches = [i['index'] for i in ints_list if key == (i.get('name') or '').upper()]
+            if len(matches) > idx_val: return matches[idx_val]
+            matches = [i['index'] for i in ints_list if key in (i.get('name') or '').upper()]
+            if len(matches) > idx_val: return matches[idx_val]
             return 0
         user_addr = 0
         if groups['EVSYS']:
@@ -711,15 +714,19 @@ def generate_header(data, header_path):
             .rx_vector_index = {get_int('RXC')}U, .tx_vector_index = {get_int('TXC')}U, .dre_vector_index = {get_int('DRE')}U,
             .user_event_address = {hx(user_addr)},
             .txd_pin_address = {tx_a}, .txd_pin_bit = {tx_b}U,
-            .rxd_pin_address = {rx_a}, .rxd_pin_bit = {rx_b}U
+            .rxd_pin_address = {rx_a}, .rxd_pin_bit = {rx_b}U,
+            .index = {idx}U
         }}"""
 
     def gen_spi8x(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
-        ints = p_data.get('interrupts', {})
+        ints = data.get('interrupts', [])
+        idx_val = int("".join(filter(str.isdigit, p_name)) or "0")
         def get_int(key):
-            for k, v in ints.items():
-                if key in k.upper(): return v['index']
+            matches = [i['index'] for i in ints if key == (i.get('name') or '').upper()]
+            if len(matches) > idx_val: return matches[idx_val]
+            matches = [i['index'] for i in ints if key in (i.get('name') or '').upper()]
+            if len(matches) > idx_val: return matches[idx_val]
             return 0
         user_addr = 0
         if groups['EVSYS']:
@@ -728,7 +735,8 @@ def generate_header(data, header_path):
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .data_address = {hx(r('DATA')['offset'])},
             .vector_index = {get_int('INT')}U,
-            .user_event_address = {hx(user_addr)}
+            .user_event_address = {hx(user_addr)},
+            .index = {"".join(filter(str.isdigit, p_name)) or "0"}U
         }}"""
         
     def gen_twi8x(p_name, p_data):
@@ -747,7 +755,8 @@ def generate_header(data, header_path):
             .sctrla_address = {hx(r('SCTRLA')['offset'])}, .sctrlb_address = {hx(r('SCTRLB')['offset'])}, .sstatus_address = {hx(r('SSTATUS')['offset'])}, .saddr_address = {hx(r('SADDR')['offset'])}, .sdata_address = {hx(r('SDATA')['offset'])}, .saddrmask_address = {hx(r('SADDRMASK')['offset'])},
             .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
             .master_vector_index = {get_int('TWIM')}U, .slave_vector_index = {get_int('TWIS')}U,
-            .user_event_address = {hx(user_addr)}
+            .user_event_address = {hx(user_addr)},
+            .index = {"".join(filter(str.isdigit, p_name)) or "0"}U
         }}"""
 
     def gen_can(p_name, p_data):
@@ -1079,12 +1088,67 @@ def generate_header(data, header_path):
 
     def gen_portmux(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        
+        def extract_routes(field_prefix, count, signals_list, prefix_func):
+            routes = []
+            for i in range(count):
+                field = f"{field_prefix}{i}"
+                sigs = []
+                for pn, pd in data.get('peripherals', {}).items():
+                    for s in pd.get('signals', []):
+                        if s.get('field') == field:
+                            sigs.append(s)
+                
+                def find_pad(group, route_idx):
+                    suffix = f"_ALT{route_idx}" if route_idx > 0 else ""
+                    # For SPI/TWI, the function name in ATDF is often just 'SPI' or 'TWI' for route 0
+                    # But for USART it is 'USART0'.
+                    target_func = f"{prefix_func}{i}{suffix}"
+                    # Try both with and without index
+                    targets = [target_func, f"{prefix_func}{suffix}"]
+                    if prefix_func == "TWI":
+                        targets.extend([f"I2C{i}{suffix}", f"I2C{suffix}"])
+                    
+                    for s in sigs:
+                        if s.get('group') == group and s.get('function') in targets:
+                            pad = s.get('pad', '')
+                            if pad.startswith('P'):
+                                p_char = pad[1]
+                                p_bit = int(pad[2:]) if pad[2:].isdigit() else 0
+                                p_addr = port_map.get(p_char, {}).get('PORT', 0)
+                                return hx(p_addr), f"{p_bit}U"
+                    return "0x0U", "0xFFU"
+
+                def gen_route(sigs_to_extract):
+                    res = []
+                    for sig in sigs_to_extract:
+                        addrs, bits = zip(*(find_pad(sig, r) for r in range(4)))
+                        res.append(f".{sig.lower()} = {{ {{ {', '.join(addrs)} }}, {{ {', '.join(bits)} }} }}")
+                    return ",\n                ".join(res)
+
+                if field_prefix.endswith(".USART"):
+                    routes.append(f"{{\n                {gen_route(['TXD', 'RXD'])}\n            }}")
+                elif field_prefix.endswith(".TWI"):
+                    routes.append(f"{{\n                {gen_route(['SDA', 'SCL'])}\n            }}")
+                elif field_prefix.endswith(".SPI"):
+                    routes.append(f"{{\n                {gen_route(['MOSI', 'MISO', 'SCK', 'SS'])}\n            }}")
+            return ",\n                ".join(routes)
+
         return f"""{{
             .twispiroutea_address = {hx(r('TWISPIROUTEA')['offset'])},
             .usartroutea_address = {hx(r('USARTROUTEA')['offset'])},
             .evoutroutea_address = {hx(r('EV.*ROUTEA')['offset'])},
             .tcaroutea_address = {hx(r('TCAROUTEA')['offset'])},
-            .tcbroutea_address = {hx(r('TCBROUTEA')['offset'])}
+            .tcbroutea_address = {hx(r('TCBROUTEA')['offset'])},
+            .usart = {{
+                {extract_routes('PORTMUX.USARTROUTEA.USART', 4, [], 'USART')}
+            }},
+            .spi = {{
+                {extract_routes('PORTMUX.TWISPIROUTEA.SPI', 2, [], 'SPI')}
+            }},
+            .twi = {{
+                {extract_routes('PORTMUX.TWISPIROUTEA.TWI', 2, [], 'TWI')}
+            }}
         }}"""
 
     def gen_vref(p_name, p_data):

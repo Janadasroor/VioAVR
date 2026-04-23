@@ -135,7 +135,8 @@ def parse_atdf(file_path):
                         'group': sig.attrib.get('group'),
                         'pad': sig.attrib.get('pad'),
                         'index': sig.attrib.get('index'),
-                        'function': sig.attrib.get('function')
+                        'function': sig.attrib.get('function'),
+                        'field': sig.attrib.get('field')
                     })
                 
                 # Link registers from module definitions

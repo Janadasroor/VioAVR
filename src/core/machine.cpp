@@ -281,6 +281,7 @@ void Machine::initialize_peripherals()
         auto uart = std::make_unique<Uart8x>(device_.uarts8x[i], *pin_mux_);
         uart->set_memory_bus(bus_.get());
         uart->set_event_system(evsys);
+        uart->set_port_mux(port_mux_);
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
     }
@@ -290,6 +291,7 @@ void Machine::initialize_peripherals()
         auto spi = std::make_unique<Spi8x>(device_.spis8x[i]);
         spi->set_memory_bus(bus_.get());
         spi->set_event_system(evsys);
+        spi->set_port_mux(port_mux_);
         bus_->attach_peripheral(*spi);
         owned_peripherals_.push_back(std::move(spi));
     }
@@ -299,6 +301,7 @@ void Machine::initialize_peripherals()
         auto twi = std::make_unique<Twi8x>(device_.twis8x[i]);
         twi->set_memory_bus(bus_.get());
         twi->set_event_system(evsys);
+        twi->set_port_mux(port_mux_);
         bus_->attach_peripheral(*twi);
         owned_peripherals_.push_back(std::move(twi));
     }

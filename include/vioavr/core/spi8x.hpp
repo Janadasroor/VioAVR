@@ -7,6 +7,8 @@
 
 namespace vioavr::core {
 
+class PortMux;
+
 class Spi8x : public IoPeripheral {
 public:
     explicit Spi8x(const Spi8xDescriptor& descriptor) noexcept;
@@ -24,10 +26,12 @@ public:
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
     
     void set_event_system(class EventSystem* evsys) noexcept;
+    void set_port_mux(class PortMux* pm) noexcept { port_mux_ = pm; }
 
 private:
     const Spi8xDescriptor desc_;
     class EventSystem* evsys_ {nullptr};
+    class PortMux* port_mux_ {nullptr};
     std::array<AddressRange, 2> ranges_{};
 
     u8 ctrla_{0U};

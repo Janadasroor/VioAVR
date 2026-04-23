@@ -1,4 +1,5 @@
 #include "vioavr/core/spi8x.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include <algorithm>
 #include <vector>
 #include "vioavr/core/evsys.hpp"
@@ -49,14 +50,44 @@ void Spi8x::reset() noexcept {
 }
 
 void Spi8x::tick(u64 elapsed_cycles) noexcept {
+    if (!(ctrla_ & CTRLA_ENABLE)) return;
+
     for (u64 i = 0; i < elapsed_cycles; ++i) {
         if (transfer_in_progress_) {
             transfer_cycles_elapsed_++;
+            
+            if (port_mux_ && (ctrla_ & CTRLA_MASTER)) {
+                u64 bit_duration = transfer_duration_ / 8;
+                u8 bit_idx = static_cast<u8>(transfer_cycles_elapsed_ / bit_duration);
+                if (bit_idx > 7) bit_idx = 7;
+
+                // Simple bit-level driving for Master
+                bool mosi = (shift_register_ >> (7 - bit_idx)) & 1;
+                port_mux_->drive_spi_mosi(desc_.index, mosi ? PinLevel::high : PinLevel::low);
+                
+                // SCK toggle (simplified)
+                bool sck = (transfer_cycles_elapsed_ % bit_duration) < (bit_duration / 2);
+                if (ctrla_ & 0x10) sck = !sck; // CPOL
+                port_mux_->drive_spi_sck(desc_.index, sck ? PinLevel::high : PinLevel::low);
+                
+                // SS Active Low
+                port_mux_->drive_spi_ss(desc_.index, PinLevel::low);
+            }
+
             if (transfer_cycles_elapsed_ >= transfer_duration_) {
                 transfer_in_progress_ = false;
                 intflags_ |= INTFLAGS_IF;
                 
+                // Finalize Master pins
+                if (port_mux_ && (ctrla_ & CTRLA_MASTER)) {
+                    port_mux_->drive_spi_ss(desc_.index, PinLevel::high);
+                }
+
                 // For now, simulate loopback by loading data_ with shift_register_
+                // Or if MISO is driven, read it.
+                if (port_mux_ && (ctrla_ & CTRLA_MASTER)) {
+                    // Logic to read MISO bit-by-bit would be in the loop above
+                }
                 data_ = shift_register_;
                 
                 // Auto-load next byte if available
@@ -90,7 +121,22 @@ u8 Spi8x::read(u16 address) noexcept {
 }
 
 void Spi8x::write(u16 address, u8 value) noexcept {
-    if (address == desc_.ctrla_address) ctrla_ = value;
+    if (address == desc_.ctrla_address) {
+        u8 old_ctrla = ctrla_;
+        ctrla_ = value;
+        if (port_mux_) {
+            if (!(value & CTRLA_ENABLE)) {
+                port_mux_->drive_spi_mosi(desc_.index, PinLevel::high, false);
+                port_mux_->drive_spi_sck(desc_.index, PinLevel::high, false);
+                port_mux_->drive_spi_ss(desc_.index, PinLevel::high, false);
+            } else if (!(old_ctrla & CTRLA_ENABLE)) {
+                bool is_master = (value & CTRLA_MASTER);
+                port_mux_->drive_spi_mosi(desc_.index, PinLevel::high, is_master);
+                port_mux_->drive_spi_sck(desc_.index, (value & 0x10) ? PinLevel::high : PinLevel::low, is_master);
+                if (is_master) port_mux_->drive_spi_ss(desc_.index, PinLevel::high, true);
+            }
+        }
+    }
     else if (address == desc_.ctrlb_address) ctrlb_ = value;
     else if (address == desc_.intctrl_address) intctrl_ = value;
     else if (address == desc_.intflags_address) {

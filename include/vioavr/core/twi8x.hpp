@@ -7,7 +7,9 @@
 
 namespace vioavr::core {
 
-class Twi8x : public IoPeripheral {
+class PortMux;
+
+class Twi8x final : public IoPeripheral {
 public:
     explicit Twi8x(const Twi8xDescriptor& descriptor) noexcept;
     virtual ~Twi8x() override = default;
@@ -24,6 +26,7 @@ public:
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
     
     void set_event_system(class EventSystem* evsys) noexcept;
+    void set_port_mux(class PortMux* pm) noexcept { port_mux_ = pm; }
 
     // External Bus Interface (for multi-peripheral simulation)
     void inject_bus_start() noexcept;
@@ -34,6 +37,7 @@ public:
 private:
     const Twi8xDescriptor desc_;
     class EventSystem* evsys_ {nullptr};
+    class PortMux* port_mux_ {nullptr};
     std::array<AddressRange, 4> ranges_{};
 
     // Host

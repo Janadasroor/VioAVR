@@ -3,6 +3,8 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/tracing.hpp"
 #include "vioavr/core/eeprom.hpp"
+#include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/logger.hpp"
 
 #include <chrono>
 #include <exception>
@@ -56,6 +58,10 @@ void print_usage(std::string_view program) {
               << "Options:\n"
               << "  --mcu <name>        Specify MCU (default: ATmega328P)\n"
               << "  --trace             Enable instruction tracing\n"
+              << "  --verbose           Enable debug output (peripheral mapping, etc.)\n"
+              << "  --quiet             Suppress all non-error output\n"
+              << "  --summary           Show execution summary\n"
+              << "  --show-state        Show peripheral state after simulation\n"
               << "  --benchmark         Run 100M cycle benchmark\n"
               << "  --max-cycles <n>    Limit simulation to n cycles\n"
               << "  --eeprom-file <f>   Load/save EEPROM from file\n"
@@ -73,6 +79,10 @@ int main(int argc, char** argv)
     std::string mcu_name = "ATmega328P";
     bool benchmark = false;
     bool trace = false;
+    bool verbose = false;
+    bool quiet = false;
+    bool summary = false;
+    bool show_state = false;
     u64 max_cycles_arg = 0;
     std::string hex_path;
     std::string eeprom_path;
@@ -83,6 +93,14 @@ int main(int argc, char** argv)
             benchmark = true;
         } else if (arg == "--trace") {
             trace = true;
+        } else if (arg == "--verbose") {
+            verbose = true;
+        } else if (arg == "--quiet") {
+            quiet = true;
+        } else if (arg == "--summary") {
+            summary = true;
+        } else if (arg == "--show-state") {
+            show_state = true;
         } else if (arg == "--mcu" && i + 1 < argc) {
             mcu_name = argv[++i];
         } else if (arg == "--max-cycles" && i + 1 < argc) {
@@ -101,6 +119,30 @@ int main(int argc, char** argv)
             hex_path = arg;
         }
     }
+
+    // Set up logger callback based on verbosity
+    if (quiet) {
+        Logger::set_callback([](LogLevel level, std::string_view message) {
+            if (level == LogLevel::error) {
+                std::cerr << "[ERROR] " << message << std::endl;
+            }
+        });
+    } else if (!verbose) {
+        // Default: suppress debug, show info/warning/error
+        Logger::set_callback([](LogLevel level, std::string_view message) {
+            if (level != LogLevel::debug) {
+                const char* level_str = "INFO";
+                switch (level) {
+                    case LogLevel::info: level_str = "INFO"; break;
+                    case LogLevel::warning: level_str = "WARN"; break;
+                    case LogLevel::error: level_str = "ERROR"; break;
+                    default: break;
+                }
+                std::cerr << "[" << level_str << "] " << message << std::endl;
+            }
+        });
+    }
+    // If verbose, use default logger (shows all levels)
 
     auto machine = Machine::create_for_device(mcu_name);
     if (!machine) {
@@ -173,7 +215,37 @@ int main(int argc, char** argv)
         machine->step();
     }
 
-    std::cout << "Simulation finished after " << cpu.cycles() << " cycles." << std::endl;
+    if (!quiet) {
+        if (summary) {
+            std::cout << "=== Simulation Summary ===" << std::endl;
+            std::cout << "Device: " << mcu_name << std::endl;
+            std::cout << "Cycles: " << cpu.cycles() << std::endl;
+            std::cout << "State: ";
+            switch (cpu.state()) {
+                case CpuState::running: std::cout << "Running"; break;
+                case CpuState::halted: std::cout << "Halted"; break;
+                case CpuState::sleeping: std::cout << "Sleeping"; break;
+                case CpuState::paused: std::cout << "Paused"; break;
+            }
+            std::cout << std::endl;
+            std::cout << "PC: 0x" << std::hex << cpu.program_counter() << std::dec << std::endl;
+            std::cout << "SP: 0x" << std::hex << cpu.stack_pointer() << std::dec << std::endl;
+            std::cout << "SREG: 0x" << std::hex << static_cast<int>(cpu.sreg()) << std::dec << std::endl;
+        } else {
+            std::cout << "Simulation finished after " << cpu.cycles() << " cycles." << std::endl;
+        }
+
+        if (show_state) {
+            std::cout << "\n=== Peripheral State ===" << std::endl;
+            // Try to get GPIO state
+            auto ports = machine->peripherals_of_type<GpioPort>();
+            for (auto* port : ports) {
+                std::cout << "PORT" << port->name().back() << ": ";
+                // Note: This is a simplified view - actual implementation would need access to register values
+                std::cout << "(state inspection not fully implemented)" << std::endl;
+            }
+        }
+    }
 
     return 0;
 }

@@ -1,4 +1,5 @@
 #include "vioavr/core/uart8x.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include "vioavr/core/logger.hpp"
 #include <algorithm>
 #include <vector>
@@ -127,6 +128,45 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
 
         if (tx_in_progress_) {
             tx_cycle_accumulator_ += 1.0;
+
+            // Physical pin driving for the current bit
+            if (port_mux_) {
+                u8 bit_idx = tx_total_bits_ - tx_bits_left_;
+                PinLevel bit_level = PinLevel::high;
+                
+                if (bit_idx == 0) {
+                    bit_level = PinLevel::low; // Start bit
+                } else {
+                    u8 char_size = 5 + (ctrlc_ & 0x03U);
+                    if ((ctrlc_ & 0x07U) == 0x07U) char_size = 9;
+                    
+                    if (bit_idx <= char_size) {
+                        bit_level = (tx_shift_reg_ & (1 << (bit_idx - 1))) ? PinLevel::high : PinLevel::low;
+                    } else {
+                        // Parity or Stop bits
+                        u8 pmode = (ctrlc_ & CTRLC_PMODE_MASK) >> 4;
+                        if (pmode >= 2 && bit_idx == char_size + 1) {
+                            // Calculate parity of the data word
+                            u16 data_val = tx_shift_reg_;
+                            // Mask to char_size bits
+                            data_val &= (1 << char_size) - 1;
+                            
+                            bool parity = false;
+                            while (data_val) {
+                                parity = !parity;
+                                data_val &= (data_val - 1);
+                            }
+                            
+                            if (pmode == 3) parity = !parity; // Odd parity
+                            bit_level = parity ? PinLevel::high : PinLevel::low;
+                        } else {
+                            bit_level = PinLevel::high; // Stop bits
+                        }
+                    }
+                }
+                port_mux_->drive_usart_tx(desc_.index, bit_level);
+            }
+
             if (tx_cycle_accumulator_ >= tx_bit_duration_) {
                 tx_cycle_accumulator_ -= tx_bit_duration_;
                 tx_bits_left_--;
@@ -135,13 +175,20 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                     tx_in_progress_ = false;
                     status_ |= STATUS_TXCIF;
                     tx_output_queue_.push_back(tx_shift_reg_);
+
+                    if (port_mux_) {
+                        port_mux_->drive_usart_tx(desc_.index, PinLevel::high); // Idle High
+                    }
                     
                     // Loop-back handling
                     if (ctrla_ & CTRLA_LBME) {
-                        // Push transmitted value back to receiver
                         actually_push_to_fifo(static_cast<u8>(tx_shift_reg_), (tx_shift_reg_ >> 8) & 0x01);
                     }
                 }
+            }
+        } else if (ctrlb_ & CTRLB_TXEN) {
+            if (port_mux_) {
+                port_mux_->drive_usart_tx(desc_.index, PinLevel::high);
             }
         }
 
@@ -150,8 +197,13 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
             u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
             double bit_duration = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
 
-            bool rx_level_bit = pin_mux_->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
-            PinLevel rx_level = rx_level_bit ? PinLevel::high : PinLevel::low;
+            PinLevel rx_level = PinLevel::high;
+            if (port_mux_) {
+                rx_level = port_mux_->get_usart_rx_level(desc_.index);
+            } else {
+                bool rx_level_bit = pin_mux_->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
+                rx_level = rx_level_bit ? PinLevel::high : PinLevel::low;
+            }
 
             if (!rx_in_progress_) {
                 if (rx_last_level_ == PinLevel::high && rx_level == PinLevel::low) {
@@ -220,7 +272,18 @@ u8 Uart8x::read(u16 address) noexcept {
 
 void Uart8x::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) ctrla_ = value;
-    else if (address == desc_.ctrlb_address) ctrlb_ = value;
+    else if (address == desc_.ctrlb_address) {
+        u8 old_ctrlb = ctrlb_;
+        ctrlb_ = value;
+        if (port_mux_) {
+            // Manage TX pin ownership
+            if (!(value & CTRLB_TXEN)) {
+                port_mux_->drive_usart_tx(desc_.index, PinLevel::high, false);
+            } else if (!(old_ctrlb & CTRLB_TXEN)) {
+                port_mux_->drive_usart_tx(desc_.index, PinLevel::high, true);
+            }
+        }
+    }
     else if (address == desc_.ctrlc_address) ctrlc_ = value;
     else if (address == desc_.ctrld_address) ctrld_ = value;
     else if (address == desc_.status_address) {

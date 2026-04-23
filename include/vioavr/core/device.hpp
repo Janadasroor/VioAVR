@@ -221,6 +221,7 @@ struct Uart8xDescriptor {
     u8 txd_pin_bit {};
     u16 rxd_pin_address {};
     u8 rxd_pin_bit {};
+    u8 index {0xFFU};
 };
 
 struct UartDescriptor {
@@ -254,12 +255,37 @@ struct UartDescriptor {
     u8 rxd_pin_bit {};
 };
 
+struct PeripheralRoute {
+    u16 pin_addr[4] {};
+    u8 pin_bit[4] {0xFFU, 0xFFU, 0xFFU, 0xFFU};
+};
+
+struct UsartRouteGroup {
+    PeripheralRoute txd;
+    PeripheralRoute rxd;
+};
+
+struct SpiRouteGroup {
+    PeripheralRoute mosi;
+    PeripheralRoute miso;
+    PeripheralRoute sck;
+    PeripheralRoute ss;
+};
+
+struct TwiRouteGroup {
+    PeripheralRoute sda;
+    PeripheralRoute scl;
+};
+
 struct PortMuxDescriptor {
     u16 twispiroutea_address {};
     u16 usartroutea_address {};
     u16 evoutroutea_address {};
     u16 tcaroutea_address {};
     u16 tcbroutea_address {};
+    UsartRouteGroup usart[4];
+    SpiRouteGroup spi[2];
+    TwiRouteGroup twi[2];
 };
 
 struct PinChangeInterruptDescriptor {
@@ -279,6 +305,7 @@ struct Spi8xDescriptor {
     u16 data_address {};
     u8 vector_index {};
     u16 user_event_address {};
+    u8 index {0xFFU};
 };
 
 struct SpiDescriptor {
@@ -327,6 +354,7 @@ struct Twi8xDescriptor {
     u8 master_vector_index {};
     u8 slave_vector_index {};
     u16 user_event_address {};
+    u8 index {0xFFU};
 };
 
 struct TwiDescriptor {

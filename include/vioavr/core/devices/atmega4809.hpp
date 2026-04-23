@@ -186,7 +186,49 @@ inline constexpr DeviceDescriptor atmega4809 {
             .usartroutea_address = 0x5E2U,
             .evoutroutea_address = 0x5E0U,
             .tcaroutea_address = 0x5E4U,
-            .tcbroutea_address = 0x5E5U
+            .tcbroutea_address = 0x5E5U,
+            .usart = {
+                {
+                .txd = { { 0x404U, 0x404U, 0x0U, 0x0U }, { 0U, 4U, 0xFFU, 0xFFU } },
+                .rxd = { { 0x404U, 0x404U, 0x0U, 0x0U }, { 1U, 5U, 0xFFU, 0xFFU } }
+            },
+                {
+                .txd = { { 0x444U, 0x444U, 0x0U, 0x0U }, { 0U, 4U, 0xFFU, 0xFFU } },
+                .rxd = { { 0x444U, 0x444U, 0x0U, 0x0U }, { 1U, 5U, 0xFFU, 0xFFU } }
+            },
+                {
+                .txd = { { 0x4A4U, 0x4A4U, 0x0U, 0x0U }, { 0U, 4U, 0xFFU, 0xFFU } },
+                .rxd = { { 0x4A4U, 0x4A4U, 0x0U, 0x0U }, { 1U, 5U, 0xFFU, 0xFFU } }
+            },
+                {
+                .txd = { { 0x424U, 0x424U, 0x0U, 0x0U }, { 0U, 4U, 0xFFU, 0xFFU } },
+                .rxd = { { 0x424U, 0x424U, 0x0U, 0x0U }, { 1U, 5U, 0xFFU, 0xFFU } }
+            }
+            },
+            .spi = {
+                {
+                .mosi = { { 0x404U, 0x444U, 0x484U, 0x0U }, { 4U, 0U, 0U, 0xFFU } },
+                .miso = { { 0x404U, 0x444U, 0x484U, 0x0U }, { 5U, 1U, 1U, 0xFFU } },
+                .sck = { { 0x404U, 0x444U, 0x484U, 0x0U }, { 6U, 2U, 2U, 0xFFU } },
+                .ss = { { 0x404U, 0x444U, 0x484U, 0x0U }, { 7U, 3U, 3U, 0xFFU } }
+            },
+                {
+                .mosi = { { 0x0U, 0x0U, 0x0U, 0x0U }, { 0xFFU, 0xFFU, 0xFFU, 0xFFU } },
+                .miso = { { 0x0U, 0x0U, 0x0U, 0x0U }, { 0xFFU, 0xFFU, 0xFFU, 0xFFU } },
+                .sck = { { 0x0U, 0x0U, 0x0U, 0x0U }, { 0xFFU, 0xFFU, 0xFFU, 0xFFU } },
+                .ss = { { 0x0U, 0x0U, 0x0U, 0x0U }, { 0xFFU, 0xFFU, 0xFFU, 0xFFU } }
+            }
+            },
+            .twi = {
+                {
+                .sda = { { 0x404U, 0x444U, 0x4A4U, 0x0U }, { 2U, 2U, 2U, 0xFFU } },
+                .scl = { { 0x404U, 0x444U, 0x4A4U, 0x0U }, { 3U, 3U, 3U, 0xFFU } }
+            },
+                {
+                .sda = { { 0x0U, 0x0U, 0x0U, 0x0U }, { 0xFFU, 0xFFU, 0xFFU, 0xFFU } },
+                .scl = { { 0x0U, 0x0U, 0x0U, 0x0U }, { 0xFFU, 0xFFU, 0xFFU, 0xFFU } }
+            }
+            }
         },
     
     .vref = {
@@ -237,7 +279,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .rx_vector_index = 17U, .tx_vector_index = 19U, .dre_vector_index = 18U,
             .user_event_address = 0x1AFU,
             .txd_pin_address = 0x404U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x408U, .rxd_pin_bit = 1U
+            .rxd_pin_address = 0x408U, .rxd_pin_bit = 1U,
+            .index = 0U
         },
         {
             .ctrla_address = 0x825U, .ctrlb_address = 0x826U, .ctrlc_address = 0x827U,
@@ -247,7 +290,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .rx_vector_index = 26U, .tx_vector_index = 28U, .dre_vector_index = 27U,
             .user_event_address = 0x1B0U,
             .txd_pin_address = 0x444U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x448U, .rxd_pin_bit = 1U
+            .rxd_pin_address = 0x448U, .rxd_pin_bit = 1U,
+            .index = 1U
         },
         {
             .ctrla_address = 0x845U, .ctrlb_address = 0x846U, .ctrlc_address = 0x847U,
@@ -257,7 +301,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .rx_vector_index = 31U, .tx_vector_index = 33U, .dre_vector_index = 32U,
             .user_event_address = 0x1B1U,
             .txd_pin_address = 0x4A4U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x4A8U, .rxd_pin_bit = 1U
+            .rxd_pin_address = 0x4A8U, .rxd_pin_bit = 1U,
+            .index = 2U
         },
         {
             .ctrla_address = 0x865U, .ctrlb_address = 0x866U, .ctrlc_address = 0x867U,
@@ -267,7 +312,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .rx_vector_index = 37U, .tx_vector_index = 39U, .dre_vector_index = 38U,
             .user_event_address = 0x1B2U,
             .txd_pin_address = 0x424U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x428U, .rxd_pin_bit = 1U
+            .rxd_pin_address = 0x428U, .rxd_pin_bit = 1U,
+            .index = 3U
         } }},
 
     .nvm_ctrl_count = 1U,
@@ -298,8 +344,9 @@ inline constexpr DeviceDescriptor atmega4809 {
     .spi8x_count = 1U,
     .spis8x = {{ {
             .ctrla_address = 0x8C0U, .ctrlb_address = 0x8C1U, .intctrl_address = 0x8C2U, .intflags_address = 0x8C3U, .data_address = 0x8C4U,
-            .vector_index = 16U,
-            .user_event_address = 0x0U
+            .vector_index = 12U,
+            .user_event_address = 0x0U,
+            .index = 0U
         } }},
     
     .twi_count = 0U,

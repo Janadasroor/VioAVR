@@ -1,4 +1,5 @@
 #include "vioavr/core/twi8x.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include <algorithm>
 #include <vector>
 #include "vioavr/core/evsys.hpp"
@@ -93,7 +94,19 @@ u8 Twi8x::read(u16 address) noexcept {
 }
 
 void Twi8x::write(u16 address, u8 value) noexcept {
-    if (address == desc_.mctrla_address) mctrla_ = value;
+    if (address == desc_.mctrla_address) {
+        u8 old = mctrla_;
+        mctrla_ = value;
+        if (port_mux_) {
+            if (!(value & 0x01U)) { // ENABLE
+                port_mux_->drive_twi_sda(desc_.index, PinLevel::high, false);
+                port_mux_->drive_twi_scl(desc_.index, PinLevel::high, false);
+            } else if (!(old & 0x01U)) {
+                port_mux_->drive_twi_sda(desc_.index, PinLevel::high, true);
+                port_mux_->drive_twi_scl(desc_.index, PinLevel::high, true);
+            }
+        }
+    }
     else if (address == desc_.mctrlb_address) mctrlb_ = value;
     else if (address == desc_.mstatus_address) {
         // Clear WIF/RIF/ARBLOST/BUSERR on write 1
@@ -109,6 +122,11 @@ void Twi8x::write(u16 address, u8 value) noexcept {
         if ((mctrla_ & 0x01U) && (state == 0x00 || state == 0x01 || state == 0x02)) { // ENABLED and (UNKNOWN or IDLE or OWNER)
             mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x02U; // OWNER
             
+            if (port_mux_) {
+                // Start Condition: SDA goes Low while SCL is High
+                port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
+            }
+
             // Calculate bit duration: 2 * (10 + BAUD)
             bit_duration_ = 2U * (10U + mbaud_);
             cycle_counter_ = 0;
@@ -127,6 +145,10 @@ void Twi8x::write(u16 address, u8 value) noexcept {
         mctrlb_ = value;
         u8 cmd = (value >> 2) & 0x03U;
         if (cmd == 0x03) { // STOP
+             if (port_mux_) {
+                 port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+                 port_mux_->drive_twi_sda(desc_.index, PinLevel::high);
+             }
              mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x01U; // Back to IDLE
              mstatus_ &= ~MSTATUS_CLKHOLD;
         }
