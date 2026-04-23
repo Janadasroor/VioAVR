@@ -1,6 +1,7 @@
 #include "vioavr/core/spi8x.hpp"
 #include <algorithm>
 #include <vector>
+#include "vioavr/core/evsys.hpp"
 
 namespace vioavr::core {
 
@@ -145,6 +146,13 @@ bool Spi8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (!pending_interrupt_request(request)) return false;
     intflags_ &= ~INTFLAGS_IF;
     return true;
+}
+    
+void Spi8x::set_event_system(EventSystem* evsys) noexcept {
+    evsys_ = evsys;
+    // SPI on 4809 doesn't have a direct EVSYS user register in some docs,
+    // but the descriptor allows for it if the device metadata includes it.
+    // We'll leave it prepared for future expansion or specific device needs.
 }
 
 } // namespace vioavr::core

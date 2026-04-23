@@ -22,9 +22,12 @@ public:
     virtual void write(u16 address, u8 value) noexcept override;
     virtual bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    
+    void set_event_system(class EventSystem* evsys) noexcept;
 
 private:
     const Spi8xDescriptor desc_;
+    class EventSystem* evsys_ {nullptr};
     std::array<AddressRange, 2> ranges_{};
 
     u8 ctrla_{0U};

@@ -22,6 +22,8 @@ public:
     virtual void write(u16 address, u8 value) noexcept override;
     virtual bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    
+    void set_event_system(class EventSystem* evsys) noexcept;
 
     // External Bus Interface (for multi-peripheral simulation)
     void inject_bus_start() noexcept;
@@ -31,6 +33,7 @@ public:
 
 private:
     const Twi8xDescriptor desc_;
+    class EventSystem* evsys_ {nullptr};
     std::array<AddressRange, 4> ranges_{};
 
     // Host

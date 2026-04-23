@@ -93,11 +93,12 @@ TEST_CASE("Timer8 Fast PWM Mode Pin Toggle")
 {
     // Fast PWM: TCNT counts 0x00..0xFF, clears to 0x00
     // Non-inverting mode (COM0A=2): OC0A cleared on compare match, set at BOTTOM
-    Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
+    vioavr::core::PinMux pin_mux { 10 };
+    Timer8 timer0 {"TIMER0", atmega328p.timers8[0], &pin_mux};
     MemoryBus bus {atmega328p};
-    vioavr::core::PinMux pm_port_d { 10 }; GpioPort port_d { "PORTD", atmega328p.ports[2].pin_address,
+    GpioPort port_d { "PORTD", atmega328p.ports[2].pin_address,
                                  atmega328p.ports[2].ddr_address,
-                                 atmega328p.ports[2].port_address, pm_port_d };
+                                 atmega328p.ports[2].port_address, pin_mux };
     bus.attach_peripheral(port_d);
     bus.attach_peripheral(timer0);
     timer0.connect_compare_output_a(port_d, 6); // OC0A = PD6
@@ -115,11 +116,13 @@ TEST_CASE("Timer8 Fast PWM Mode Pin Toggle")
     // Initial state: pin should be set at BOTTOM (TCNT=0)
     // After tick to OCR: pin should be cleared
     timer0.tick(128);
-    CHECK((port_d.read(0x29U) & (1U << 6)) == 0U); // OC0A cleared at compare match
+    auto state_after_ocr = pin_mux.get_state_by_address(port_d.port_address(), 6);
+    CHECK(!state_after_ocr.drive_level); // OC0A cleared at compare match
 
     // Continue to TOP (255), overflow should set pin
     timer0.tick(128);
-    CHECK((port_d.read(0x29U) & (1U << 6)) != 0U); // OC0A set at BOTTOM
+    auto state_at_bottom = pin_mux.get_state_by_address(port_d.port_address(), 6);
+    CHECK(state_at_bottom.drive_level); // OC0A set at BOTTOM
 }
 
 TEST_CASE("Timer8 Phase-Correct PWM Direction Change")
@@ -254,11 +257,12 @@ TEST_CASE("Timer16 Fast PWM 10-bit Mode")
 {
     // Fast PWM 10-bit: TCNT counts 0x000..0x3FF, clears to 0x000
     // Period = 1024 ticks (WGM=7: WGM13:0 = 0111)
-    Timer16 timer1 {"TIMER1", atmega328p.timers16[0]};
+    vioavr::core::PinMux pin_mux { 10 };
+    Timer16 timer1 {"TIMER1", atmega328p.timers16[0], &pin_mux};
     MemoryBus bus {atmega328p};
-    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", atmega328p.ports[0].pin_address,
+    GpioPort port_b { "PORTB", atmega328p.ports[0].pin_address,
                                  atmega328p.ports[0].ddr_address,
-                                 atmega328p.ports[0].port_address, pm_port_b };
+                                 atmega328p.ports[0].port_address, pin_mux };
     bus.attach_peripheral(port_b);
     bus.attach_peripheral(timer1);
     timer1.connect_compare_output_a(port_b, 1); // OC1A = PB1
@@ -278,9 +282,11 @@ TEST_CASE("Timer16 Fast PWM 10-bit Mode")
 
     // Tick to OCR: pin should clear on compare match
     timer1.tick(512);
-    CHECK((port_b.read(0x25U) & (1U << 1)) == 0U); // OC1A cleared
+    auto state_after_ocr = pin_mux.get_state_by_address(port_b.port_address(), 1);
+    CHECK(!state_after_ocr.drive_level); // OC1A cleared
 
     // Continue to TOP (1024), overflow should set pin
     timer1.tick(512);
-    CHECK((port_b.read(0x25U) & (1U << 1)) != 0U); // OC1A set at BOTTOM
+    auto state_at_bottom = pin_mux.get_state_by_address(port_b.port_address(), 1);
+    CHECK(state_at_bottom.drive_level); // OC1A set at BOTTOM
 }

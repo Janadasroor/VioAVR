@@ -57,9 +57,11 @@ TEST_CASE("Timer8: CTC Mode Precise") {
 
 TEST_CASE("Timer8: Fast PWM Mode Precise") {
     MemoryBus bus {devices::atmega328p};
-    Timer8 timer0 {"TIMER0", devices::atmega328p.timers8[0]};
+    // Infer port index from name (e.g., "PORTB" -> 1)
+    vioavr::core::PinMux pm { 10 }; 
+    Timer8 timer0 {"TIMER0", devices::atmega328p.timers8[0], &pm};
     bus.attach_peripheral(timer0);
-    vioavr::core::PinMux pm_portb { 10 }; GpioPort portb { "PORTB", 0x23, 0x24, 0x25, pm_portb };
+    GpioPort portb { "PORTB", 0x23, 0x24, 0x25, pm };
     bus.attach_peripheral(portb);
     timer0.connect_compare_output_a(portb, 6); 
     AvrCpu cpu {bus};
@@ -86,7 +88,7 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
     cpu.step(); // C12: 5 (Match)
     CHECK(timer0.counter() == 5);
     cpu.step(); // Match pin update happens here
-    CHECK((portb.read(portb.port_address()) & 0x40) == 0);
+    CHECK((portb.read(0x23) & 0x40) == 0); // Read PINB
 
     // Run 249 more NOPs to reach 255
     for (int i = 0; i < 249; ++i) cpu.step();
@@ -95,7 +97,7 @@ TEST_CASE("Timer8: Fast PWM Mode Precise") {
     cpu.step(); // C263: Wrap to 0
     CHECK(timer0.counter() == 0);
     cpu.step(); // Pin update happens here
-    CHECK((portb.read(portb.port_address()) & 0x40) != 0);
+    CHECK((portb.read(0x23) & 0x40) != 0); // Read PINB
 }
 
 TEST_CASE("Timer8: Phase Correct PWM Precise") {

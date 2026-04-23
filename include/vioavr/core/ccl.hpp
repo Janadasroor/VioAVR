@@ -62,10 +62,15 @@ private:
         
         // Input state (0=IN0, 1=IN1, 2=IN2)
         std::array<bool, 3> inputs {false, false, false};
+
+        // Event User indices
+        u8 user_a_index {0xFF};
+        u8 user_b_index {0xFF};
     };
     std::array<LutState, 4> luts_ {}; // ATmega4809 has 4 LUTs
     std::array<bool, 4> outputs_ {};
     std::array<bool, 4> prev_outputs_ {};
+    std::array<bool, 4> prev_raw_outputs_ {};
     std::array<bool, 2> prev_luts_in2_ {};
     
     // State for sequential logic (SEQ0, SEQ1)

@@ -253,7 +253,6 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
         }
     }
 
-    cpu_cycles_ += elapsed_cycles;
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
             const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());

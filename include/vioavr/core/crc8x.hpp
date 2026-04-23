@@ -22,9 +22,12 @@ public:
     virtual void tick(u64 elapsed_cycles) noexcept override;
     virtual u8 read(u16 address) noexcept override;
     virtual void write(u16 address, u8 value) noexcept override;
+    
+    void set_event_system(class EventSystem* evsys) noexcept;
 
 private:
     const Crc8xDescriptor desc_;
+    class EventSystem* evsys_ {nullptr};
     std::span<const u16> flash_;
     std::array<AddressRange, 1> ranges_{};
 

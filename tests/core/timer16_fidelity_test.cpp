@@ -12,11 +12,11 @@ using namespace vioavr::core::devices;
 TEST_CASE("Timer16 Fidelity: Fast PWM (Mode 14, ICR1 as TOP)")
 {
     MemoryBus bus {atmega328p};
-    Timer16 timer1 {"TIMER1", atmega328p.timers16[0]};
+    vioavr::core::PinMux pm {10};
+    Timer16 timer1 {"TIMER1", atmega328p.timers16[0], &pm};
     timer1.set_bus(bus);
     bus.attach_peripheral(timer1);
 
-    vioavr::core::PinMux pm {10};
     GpioPort port {"PORTB", 0x23, 0x24, 0x25, pm};
     bus.attach_peripheral(port);
     timer1.connect_compare_output_a(port, 1); // OC1A
@@ -24,43 +24,43 @@ TEST_CASE("Timer16 Fidelity: Fast PWM (Mode 14, ICR1 as TOP)")
     port.write(0x24, 0x02); // DDRB
 
     bus.write_data(atmega328p.timers16[0].tccra_address, 0x82U);
-    bus.write_data(atmega328p.timers16[0].tccrb_address, 0x19U);
     bus.write_data(atmega328p.timers16[0].icr_address, 0x04);
     bus.write_data(atmega328p.timers16[0].ocra_address, 0x02);
+    bus.write_data(atmega328p.timers16[0].tccrb_address, 0x19U);
 
-    auto get_oc1a = [&]() { return (port.read(0x25) >> 1) & 0x01; };
+    auto get_oc1a = [&]() { return (port.read(0x23) >> 1) & 0x01; };
 
     // Stabilize
     for(int i=0; i<20; ++i) bus.tick_peripherals(1);
     while(timer1.counter() != 0) bus.tick_peripherals(1);
     
-    // At TCNT=0, handle_matches(0) hasn't run yet for THIS cycle.
-    // Let's tick once to process TCNT=0.
-    bus.tick_peripherals(1); // Process 0, TCNT becomes 1. 
-                            // Mode 14 sets at TOP (4), so at 0 it remains 1.
+    // TCNT was 0 from the loop end. handle_matches(0) just ran and set it to 1.
+    CHECK(get_oc1a() == 1);
+
+    bus.tick_peripherals(1); // TCNT: 0 -> 1. handle_matches(1) ran. Still 1.
     CHECK(get_oc1a() == 1);
     
-    bus.tick_peripherals(1); // Process 1, TCNT becomes 2.
-    CHECK(get_oc1a() == 1);
-    
-    bus.tick_peripherals(1); // Process 2, TCNT becomes 3. Match! Clear.
+    bus.tick_peripherals(1); // TCNT: 1 -> 2. handle_matches(2) ran. MATCH! Clear.
     CHECK(get_oc1a() == 0);
     
-    bus.tick_peripherals(1); // Process 3, TCNT becomes 4.
+    bus.tick_peripherals(1); // TCNT: 2 -> 3.
     CHECK(get_oc1a() == 0);
     
-    bus.tick_peripherals(1); // Process 4, TCNT becomes 0. Match TOP! Set.
+    bus.tick_peripherals(1); // TCNT: 3 -> 4.
+    CHECK(get_oc1a() == 0);
+    
+    bus.tick_peripherals(1); // TCNT: 4 -> 0. handle_matches(0) ran. SET!
     CHECK(get_oc1a() == 1);
 }
 
 TEST_CASE("Timer16 Fidelity: Phase Correct PWM (Mode 1)")
 {
     MemoryBus bus {atmega328p};
-    Timer16 timer1 {"TIMER1", atmega328p.timers16[0]};
+    vioavr::core::PinMux pm {10};
+    Timer16 timer1 {"TIMER1", atmega328p.timers16[0], &pm};
     timer1.set_bus(bus);
     bus.attach_peripheral(timer1);
 
-    vioavr::core::PinMux pm {10};
     GpioPort port {"PORTB", 0x23, 0x24, 0x25, pm};
     bus.attach_peripheral(port);
     timer1.connect_compare_output_a(port, 1);
@@ -70,7 +70,7 @@ TEST_CASE("Timer16 Fidelity: Phase Correct PWM (Mode 1)")
     bus.write_data(atmega328p.timers16[0].tccrb_address, 0x01U);
     bus.write_data(atmega328p.timers16[0].ocra_address, 0x80U);
 
-    auto get_oc1a = [&]() { return (port.read(0x25) >> 1) & 0x01; };
+    auto get_oc1a = [&]() { return (port.read(0x23) >> 1) & 0x01; };
 
     for(int i=0; i<1000; ++i) bus.tick_peripherals(1);
     while(timer1.counter() != 0) bus.tick_peripherals(1);

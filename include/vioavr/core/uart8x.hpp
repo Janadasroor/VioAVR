@@ -6,6 +6,7 @@
 #include "vioavr/core/analog_signal_bank.hpp"
 #include <array>
 #include <string>
+#include <deque>
 
 namespace vioavr::core {
 
@@ -25,6 +26,7 @@ public:
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     void set_memory_bus(class MemoryBus* bus) noexcept override { bus_ = bus; }
+    void set_event_system(class EventSystem* evsys) noexcept;
 
     // Stream interface
     void inject_received_byte(u8 data, bool bit9 = false) noexcept;
@@ -34,6 +36,7 @@ private:
     Uart8xDescriptor desc_;
     PinMux* pin_mux_;
     class MemoryBus* bus_ {nullptr};
+    class EventSystem* evsys_ {nullptr};
     std::array<AddressRange, 8> ranges_;
 
     u8 ctrla_ {};
@@ -43,6 +46,7 @@ private:
     u16 baud_ {};
     u8 status_ {};
     u8 dbgctrl_ {};
+    u8 evctrl_ {};
     
     u8 tx_data_buffer_ {};
     u8 txdatah_ {};
@@ -65,7 +69,9 @@ private:
     double tx_bit_duration_ {};
     double tx_cycle_accumulator_ {};
 
-    bool rx_in_progress_ {};
+    bool rx_in_progress_ = false;
+    bool rx_is_injected_ = false;
+    u8 rx_injected_data_ = 0;
     u16 rx_shift_reg_ {};
     u8 rx_bits_left_ {};
     u8 rx_total_bits_ {};
@@ -99,6 +105,10 @@ private:
 
     void update_pin_ownership() noexcept;
     void actually_push_to_fifo(u8 data, bool bit9) noexcept;
+    
+    PinLevel rx_last_level_ {PinLevel::high};
+    std::deque<u16> tx_output_queue_;
+    bool tx_event_triggered_ {false};
 };
 
 } // namespace vioavr::core
