@@ -37,7 +37,7 @@ full_out.txt
 *_out.txt
 *_compare.txt
 *_trace.txt
-
+*.log
 # Project specific
 docs/datasheets/
 /tmp/

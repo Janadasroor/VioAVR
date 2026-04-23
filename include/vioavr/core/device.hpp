@@ -221,7 +221,7 @@ struct Uart8xDescriptor {
     u8 txd_pin_bit {};
     u16 rxd_pin_address {};
     u8 rxd_pin_bit {};
-    u8 index {0xFFU};
+    u8 index {};
 };
 
 struct UartDescriptor {
@@ -305,7 +305,7 @@ struct Spi8xDescriptor {
     u16 data_address {};
     u8 vector_index {};
     u16 user_event_address {};
-    u8 index {0xFFU};
+    u8 index {};
 };
 
 struct SpiDescriptor {
@@ -354,7 +354,7 @@ struct Twi8xDescriptor {
     u8 master_vector_index {};
     u8 slave_vector_index {};
     u16 user_event_address {};
-    u8 index {0xFFU};
+    u8 index {};
 };
 
 struct TwiDescriptor {

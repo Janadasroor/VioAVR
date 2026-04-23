@@ -81,3 +81,59 @@ TEST_CASE("AVR8X TWI - Slave Address Match") {
     twi->inject_bus_address(0x54 << 1 | 0x00);
     CHECK((bus.read_data(twi0_sstatus) & 0x01) != 0); // Still addressed!
 }
+
+TEST_CASE("AVR8X TWI - Master Physical Timing") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 port_mux_twispiroutea = 0x05E3;
+    const u16 twi0_mctrla = 0x08A3;
+    const u16 twi0_mstatus = 0x08A5;
+    const u16 twi0_mbaud = 0x08A6;
+    const u16 twi0_maddr = 0x08A7;
+
+    // Use default pins (PORTA2/PA3) for TWI0
+    bus.write_data(port_mux_twispiroutea, 0x00);
+
+    // Enable Master
+    bus.write_data(twi0_mctrla, 0x01); 
+    bus.write_data(twi0_mstatus, 0x01); // Force IDLE
+    bus.write_data(twi0_mbaud, 10);     // bit_duration = 40
+    
+    // Start transaction to address 0xA0 (1010000 0) - Write
+    // Data stream bit by bit: Start, 1, 0, 1, 0, 0, 0, 0, 0, ACK
+    bus.write_data(twi0_maddr, 0xA0);
+    
+    // Check internal state: should be BUSY/OWNER (0x02)
+    CHECK((bus.read_data(twi0_mstatus) & 0x03) == 0x02);
+
+    // 1. Check Start Condition (immediately after write)
+    // SCL should be high, SDA should be low (PA3/PA2)
+    // PORTA is at 0x400. PIN2=SDA, PIN3=SCL (default)
+    // Actually, TWI0 default routing on 4809 is:
+    // TWI0: SDA=PA2, SCL=PA3
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == false);
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 3).drive_level == true);
+
+    // 2. Tick to first bit (MSB = 1)
+    // Bit duration 40. First bit: 0..20 SCL Low, 20..40 SCL High.
+    bus.tick_peripherals(10); 
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 3).drive_level == false); // SCL Low
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == true);  // SDA High (bit 7 of 0xA0 is 1)
+
+    bus.tick_peripherals(15);
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 3).drive_level == true);  // SCL High
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == true);  // SDA High stable
+
+    // 3. Next bit (bit 6 = 0)
+    bus.tick_peripherals(20); // total 45
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == false); // SDA Low (bit 6)
+    
+    // 4. Fast forward to ACK bit (9th bit)
+    // Start + 8 bits * 40 = 360 (+ a bit for start logic)
+    bus.tick_peripherals(40 * 7); 
+    // Now at ACK bit phase. Master should release SDA.
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).owner == PinOwner::gpio); // Released
+}
