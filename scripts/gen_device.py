@@ -117,6 +117,8 @@ def generate_header(data, header_path):
                 if r_name == 'OUTTGL': port_map[char]['OUTTGL'] = r_data['offset']
                 if r_name == 'IN' or r_name == f'PIN{char}':
                     port_map[char]['PIN'] = r_data['offset']
+                if r_name == 'INTFLAGS':
+                    port_map[char]['INTFLAGS'] = r_data['offset']
                 if r_name == 'PIN0CTRL':
                     port_map[char]['PIN_CTRL_BASE'] = r_data['offset']
     
@@ -134,7 +136,9 @@ def generate_header(data, header_path):
             'outclr': regs.get('OUTCLR', 0),
             'outtgl': regs.get('OUTTGL', 0),
             'pin_ctrl_base': regs.get('PIN_CTRL_BASE', 0),
-            'vport_base': vports.get(char, 0)
+            'intflags': regs.get('INTFLAGS', 0),
+            'vport_base': vports.get(char, 0xFFFF),
+            'vector': next((i['index'] for i in data['interrupts'] if i['module-instance'] == f"PORT{char}"), 0xFF)
         })
     ports_raw.sort(key=lambda x: x['name'])
 
@@ -1217,7 +1221,7 @@ def generate_header(data, header_path):
                  else data['peripherals'].get('CPU', {}))
     xmem_str = gen_xmem(xmem_data)
 
-    ports_str = ",\n        ".join(f'{{ "{p["name"]}", {hx(p["pin"])}, {hx(p["ddr"])}, {hx(p["port"])}, {hx(p["dirset"])}, {hx(p["dirclr"])}, {hx(p["dirtgl"])}, {hx(p["outset"])}, {hx(p["outclr"])}, {hx(p["outtgl"])}, {hx(p["pin_ctrl_base"])}, {hx(p["vport_base"])} }}' for p in ports_raw)
+    ports_str = ",\n        ".join(f'{{ "{p["name"]}", {hx(p["pin"])}, {hx(p["ddr"])}, {hx(p["port"])}, {hx(p["dirset"])}, {hx(p["dirclr"])}, {hx(p["dirtgl"])}, {hx(p["outset"])}, {hx(p["outclr"])}, {hx(p["outtgl"])}, {hx(p["pin_ctrl_base"])}, {hx(p["intflags"])}, {hx(p["vport_base"])}, {p["vector"]}U }}' for p in ports_raw)
 
     # RWW end word calculation (start of first boot section)
     boot_sections = [m for m in data['memories'].get('prog', []) if 'BOOT_SECTION' in m['name']]

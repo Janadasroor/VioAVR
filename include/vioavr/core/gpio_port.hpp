@@ -26,6 +26,8 @@ public:
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool on_external_pin_change(u8 bit_index, PinLevel level) noexcept override;
     [[nodiscard]] bool consume_pin_change(PinStateChange& change) noexcept override;
+    [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
+    [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     void set_input_levels(u8 levels) noexcept;
 
@@ -56,7 +58,10 @@ private:
     u8 pin_ {};
     u8 pin_latched_ {};
     u8 external_levels_ {};
+    u8 prev_external_levels_ {};
     u8 pending_changes_mask_ {};
+    u8 intflags_ {};
+    std::array<u8, 8> pin_ctrl_ {};
 
     struct AnalogBinding {
         const AnalogSignalBank* bank {};
