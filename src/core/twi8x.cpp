@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <vector>
 #include "vioavr/core/evsys.hpp"
+#include "vioavr/core/logger.hpp"
 
 namespace vioavr::core {
 
@@ -46,101 +47,186 @@ void Twi8x::reset() noexcept {
     mbaud_ = 0x00U;
     maddr_ = 0x00U;
     mdata_ = 0x00U;
+    
     sctrla_ = 0x00U;
     sctrlb_ = 0x00U;
-    sstatus_ = 0x00U;
+    sstatus_ = 0x00U; 
     saddr_ = 0x00U;
     sdata_ = 0x00U;
     saddrmask_ = 0x00U;
+    
     dbgctrl_ = 0x00U;
+    
+    slave_phase_ = TwiSlavePhase::idle;
+    slave_bits_left_ = 0;
+    prev_scl_ = PinLevel::high;
+    prev_sda_ = PinLevel::high;
+    last_intended_sda_ = PinLevel::high;
 }
 
 void Twi8x::tick(u64 elapsed_cycles) noexcept {
-    if (mstatus_ & MSTATUS_CLKHOLD) return;
+    if (!(sctrla_ & 0x01U) && !(mctrla_ & 0x01U)) return;
 
-    const u8 state = mstatus_ & MSTATUS_BUSSTATE_MASK;
-    if (state == 0x02U) { // OWNER
-        for (u64 i = 0; i < elapsed_cycles; ++i) {
-            if (bits_left_ > 0) {
-                cycle_counter_++;
-                
-                u64 half = bit_duration_ / 2;
-                bool scl = (cycle_counter_ >= half);
-                
-                PinLevel sda_level = PinLevel::high;
-                bool sda_enabled = true;
-                
-                if (cycle_counter_ < half) {
-                    // SCL is Low, SDA can change
-                    if (bits_left_ > 1) {
-                        // Data bits 7..0 (MSB first)
-                        bool sda = (shift_register_ >> (bits_left_ - 2)) & 1;
-                        sda_level = sda ? PinLevel::high : PinLevel::low;
-                    } else {
-                        // ACK bit (9th bit)
-                        if (host_phase_ == TwiPhase::read_data) {
-                            // Master drives ACK/NACK based on MCTRLB.ACKACT
-                            bool nack = (mctrlb_ & MCTRLB_ACKACT); // 0=ACK (Low), 4=NACK (High)
-                            sda_level = nack ? PinLevel::high : PinLevel::low;
-                        } else {
-                            // Master releases SDA to read slave ACK
-                            sda_enabled = false;
-                        }
-                    }
-                } else if (cycle_counter_ == half + (half / 2)) {
-                    // SCL is High, sample SDA
-                    if (bits_left_ > 1) {
-                        if (host_phase_ == TwiPhase::read_data) {
-                            // Sample data bit from slave
-                            if (port_mux_->get_twi_sda_level(desc_.index) == PinLevel::high) {
-                                data_read_accumulator_ |= (1 << (bits_left_ - 2));
-                            }
-                        }
-                    } else {
-                        // Sample ACK/NACK
-                        if (host_phase_ != TwiPhase::read_data) {
-                            PinLevel sample = port_mux_->get_twi_sda_level(desc_.index);
-                            if (sample == PinLevel::high) mstatus_ |= MSTATUS_RXACK; // NACK
-                            else mstatus_ &= ~MSTATUS_RXACK; // ACK
-                        }
+    for (u64 c = 0; c < elapsed_cycles; ++c) {
+        PinLevel sda = port_mux_->get_twi_sda_level(desc_.index);
+        PinLevel scl = port_mux_->get_twi_scl_level(desc_.index);
+        
+        // Signal driving (Slave & Master)
+        PinLevel target_sda = PinLevel::high;
+        bool do_ack = (sstatus_ & SSTATUS_AP) != 0;
+        if (slave_phase_ == TwiSlavePhase::tx_data) {
+            if (slave_bits_left_ > 0) {
+                target_sda = (slave_shift_register_ >> (slave_bits_left_ - 1)) & 1 ? PinLevel::high : PinLevel::low;
+            }
+        } else if (slave_phase_ == TwiSlavePhase::ack_pulse || slave_phase_ == TwiSlavePhase::ack_setup) {
+            if (do_ack) target_sda = (sctrlb_ & SCTRLB_ACKACT) ? PinLevel::high : PinLevel::low;
+        }
+        
+        port_mux_->drive_twi_sda(desc_.index, target_sda, true);
+        last_intended_sda_ = target_sda;
+
+        // Slave Monitor
+        if (sctrla_ & 0x01U) {
+            if (scl == PinLevel::high && last_intended_sda_ == PinLevel::high) {
+                if (prev_sda_ == PinLevel::high && sda == PinLevel::low) {
+                    slave_phase_ = TwiSlavePhase::addr;
+                    slave_bits_left_ = 8;
+                    slave_shift_register_ = 0;
+                    sstatus_ |= (SSTATUS_APIF | SSTATUS_AP);
+                    sstatus_ &= ~(SSTATUS_DIF | SSTATUS_CLKHOLD | SSTATUS_RXACK | SSTATUS_DIR | SSTATUS_COLL | SSTATUS_BUSERR);
+                    Logger::debug("TWI8X Slave START");
+                }
+                else if (prev_sda_ == PinLevel::low && sda == PinLevel::high) {
+                    if (slave_phase_ != TwiSlavePhase::idle) {
+                        sstatus_ |= SSTATUS_APIF;
+                        sstatus_ &= ~SSTATUS_AP;
+                        slave_phase_ = TwiSlavePhase::idle;
+                        Logger::debug("TWI8X Slave STOP");
                     }
                 }
-                
-                port_mux_->drive_twi_scl(desc_.index, scl ? PinLevel::high : PinLevel::low);
-                port_mux_->drive_twi_sda(desc_.index, sda_level, sda_enabled);
-                
+            }
 
-                if (cycle_counter_ >= bit_duration_) {
-                    cycle_counter_ = 0;
-                    bits_left_--;
-                    if (bits_left_ == 0) {
-                        mstatus_ |= MSTATUS_CLKHOLD;
-                        
-                        if (host_phase_ == TwiPhase::address || host_phase_ == TwiPhase::write_data) {
-                        // Sample ACK/NACK
-                        bool nack = port_mux_->get_twi_sda_level(desc_.index) == PinLevel::high;
-                        if (nack) mstatus_ |= MSTATUS_RXACK;
-                        else      mstatus_ &= ~MSTATUS_RXACK;
-
-                        if (host_phase_ == TwiPhase::address) {
-                            if (maddr_ & 0x01U) { // Read
-                                mstatus_ |= MSTATUS_RIF;
-                                host_phase_ = TwiPhase::read_data;
-                            } else { // Write
-                                mstatus_ |= MSTATUS_WIF;
+            // EDGE Detection
+            if (prev_scl_ == PinLevel::low && scl == PinLevel::high) {
+                // Rising: Sample bit
+                if (slave_phase_ == TwiSlavePhase::addr || slave_phase_ == TwiSlavePhase::rx_data) {
+                    slave_shift_register_ <<= 1;
+                    if (sda == PinLevel::high) slave_shift_register_ |= 0x01;
+                    
+                    if (slave_bits_left_ == 0) { // All 8 bits inclusive of bit 0
+                        if (slave_phase_ == TwiSlavePhase::addr) {
+                            u8 addr = slave_shift_register_ >> 1;
+                            u8 my_addr = saddr_ >> 1;
+                            u8 mask = saddrmask_ >> 1;
+                            if ((addr & ~mask) == (my_addr & ~mask)) {
+                                sstatus_ |= (SSTATUS_APIF | SSTATUS_AP | SSTATUS_CLKHOLD);
+                                if (slave_shift_register_ & 0x01) sstatus_ |= SSTATUS_DIR;
+                                else sstatus_ &= ~SSTATUS_DIR;
+                                slave_phase_ = TwiSlavePhase::ack_setup;
+                                Logger::debug("TWI8X Slave MATCH DIR=" + std::to_string((bool)(sstatus_ & SSTATUS_DIR)));
+                            } else {
+                                slave_phase_ = TwiSlavePhase::idle;
+                                sstatus_ &= ~SSTATUS_AP;
                             }
-                        } else {
-                            mstatus_ |= MSTATUS_WIF;
+                        } else { // rx_data
+                            sdata_ = slave_shift_register_;
+                            sstatus_ |= (SSTATUS_DIF | SSTATUS_CLKHOLD);
+                            slave_phase_ = TwiSlavePhase::ack_setup;
+                            Logger::debug("TWI8X Slave RX: 0x" + Logger::hex(sdata_));
                         }
-                        mstatus_ |= MSTATUS_CLKHOLD;
-                    } else if (host_phase_ == TwiPhase::read_data) {
-                        mdata_ = data_read_accumulator_;
-                        mstatus_ |= MSTATUS_RIF;
-                        mstatus_ |= MSTATUS_CLKHOLD;
                     }
-                    bits_left_ = 0; // Waiting for software action
+                } else if (slave_phase_ == TwiSlavePhase::tx_data) {
+                    if (slave_bits_left_ == 0) slave_phase_ = TwiSlavePhase::ack_setup;
+                } else if (slave_phase_ == TwiSlavePhase::ack_setup) {
+                    slave_phase_ = TwiSlavePhase::ack_pulse;
+                } else if (slave_phase_ == TwiSlavePhase::ack_pulse) {
+                    if (sstatus_ & SSTATUS_DIR) {
+                        if (sda == PinLevel::high) sstatus_ |= SSTATUS_RXACK;
+                        else sstatus_ &= ~SSTATUS_RXACK;
                     }
                 }
+            } else if (prev_scl_ == PinLevel::high && scl == PinLevel::low) {
+                // Falling: Prep/Decrement
+                if (slave_phase_ == TwiSlavePhase::addr || slave_phase_ == TwiSlavePhase::rx_data || slave_phase_ == TwiSlavePhase::tx_data) {
+                    if (slave_bits_left_ > 0) slave_bits_left_--;
+                }
+                
+                if (slave_phase_ == TwiSlavePhase::ack_pulse) {
+                    if (sstatus_ & SSTATUS_DIR) {
+                        if (sstatus_ & SSTATUS_RXACK) {
+                             slave_phase_ = TwiSlavePhase::idle; 
+                        } else {
+                            slave_phase_ = TwiSlavePhase::tx_data;
+                            slave_bits_left_ = 8;
+                            slave_shift_register_ = sdata_;
+                            Logger::debug("TWI8X Slave TX Load: 0x" + Logger::hex(sdata_));
+                        }
+                    } else {
+                        slave_phase_ = TwiSlavePhase::rx_data;
+                        slave_bits_left_ = 8;
+                        slave_shift_register_ = 0;
+                    }
+                }
+            }
+        }
+
+        // Master Core
+        if (mctrla_ & 0x01U) tick_master_core();
+
+        prev_scl_ = scl;
+        prev_sda_ = sda;
+    }
+}
+
+void Twi8x::tick_master_core() noexcept {
+    cycle_counter_++;
+    u64 half = bit_duration_ / 2;
+    bool scl_high = (cycle_counter_ >= half);
+    
+    PinLevel sda_level = PinLevel::high;
+    bool sda_enabled = true;
+    
+    if (cycle_counter_ < half) {
+        if (bits_left_ > 1) {
+            bool sda_bit = (shift_register_ >> (bits_left_ - 2)) & 1;
+            sda_level = sda_bit ? PinLevel::high : PinLevel::low;
+        } else {
+            if (host_phase_ == TwiPhase::read_data) {
+                bool nack = (mctrlb_ & MCTRLB_ACKACT);
+                sda_level = nack ? PinLevel::high : PinLevel::low;
+            } else sda_enabled = false;
+        }
+    } else if (cycle_counter_ == half + (half / 2)) {
+        if (bits_left_ > 1) {
+            if (host_phase_ == TwiPhase::read_data) {
+                if (port_mux_->get_twi_sda_level(desc_.index) == PinLevel::high) {
+                    data_read_accumulator_ |= (1 << (bits_left_ - 2));
+                }
+            }
+        } else {
+            if (host_phase_ != TwiPhase::read_data) {
+                if (port_mux_->get_twi_sda_level(desc_.index) == PinLevel::high) mstatus_ |= MSTATUS_RXACK;
+                else mstatus_ &= ~MSTATUS_RXACK;
+            }
+        }
+    }
+    
+    port_mux_->drive_twi_scl(desc_.index, scl_high ? PinLevel::high : PinLevel::low);
+    port_mux_->drive_twi_sda(desc_.index, sda_level, sda_enabled);
+
+    if (cycle_counter_ >= bit_duration_) {
+        cycle_counter_ = 0;
+        bits_left_--;
+        if (bits_left_ == 0) {
+            mstatus_ |= MSTATUS_CLKHOLD;
+            if (host_phase_ == TwiPhase::address || host_phase_ == TwiPhase::write_data) {
+                mstatus_ &= ~(MSTATUS_RIF | MSTATUS_WIF);
+                mstatus_ |= (maddr_ & 0x01U) ? MSTATUS_RIF : MSTATUS_WIF;
+                if (maddr_ & 0x01U) host_phase_ = TwiPhase::read_data;
+            } else if (host_phase_ == TwiPhase::read_data) {
+                mdata_ = data_read_accumulator_;
+                mstatus_ &= ~MSTATUS_WIF;
+                mstatus_ |= MSTATUS_RIF;
             }
         }
     }
@@ -156,10 +242,7 @@ u8 Twi8x::read(u16 address) noexcept {
         if (mstatus_ & MSTATUS_RIF) {
             mstatus_ &= ~MSTATUS_RIF;
             mstatus_ &= ~MSTATUS_CLKHOLD;
-            
-            // Smart Mode: Writing/Reading MDATA can trigger commands
             if (mctrla_ & MCTRLA_SMEN) {
-                // If SMEN is 1, reading MDATA triggers a RECVTRANS (0x02)
                 bits_left_ = 9;
                 cycle_counter_ = 0;
                 data_read_accumulator_ = 0;
@@ -183,7 +266,7 @@ void Twi8x::write(u16 address, u8 value) noexcept {
         u8 old = mctrla_;
         mctrla_ = value;
         if (port_mux_) {
-            if (!(value & 0x01U)) { // ENABLE
+            if (!(value & 0x01U)) {
                 port_mux_->drive_twi_sda(desc_.index, PinLevel::high, false);
                 port_mux_->drive_twi_scl(desc_.index, PinLevel::high, false);
             } else if (!(old & 0x01U)) {
@@ -200,81 +283,30 @@ void Twi8x::write(u16 address, u8 value) noexcept {
                 port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
                 port_mux_->drive_twi_sda(desc_.index, PinLevel::high);
             }
-            mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x01U; // Back to IDLE
-            mstatus_ &= ~MSTATUS_CLKHOLD;
-            host_phase_ = TwiPhase::idle;
-        } else if (cmd == MCTRLB_MCMD_RECVTRANS) {
-             mstatus_ &= ~(MSTATUS_RIF | MSTATUS_CLKHOLD);
-             bits_left_ = 9;
-             cycle_counter_ = 0;
-             data_read_accumulator_ = 0;
-             host_phase_ = TwiPhase::read_data;
-        } else if (cmd == MCTRLB_MCMD_REPSTART) {
-            // Issuing a repeated start
-            if (port_mux_) {
-                port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
-                port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
-            }
-            mstatus_ &= ~MSTATUS_CLKHOLD;
-            // Wait for MADDR write to actually start the address phase?
-            // Actually, usually you write MADDR *after* REPSTART if you manually triggered it,
-            // or MADDR write *is* the trigger.
+            mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x01U;
         }
     }
-    else if (address == desc_.mstatus_address) {
-        // Clear WIF/RIF/ARBLOST/BUSERR on write 1
-        mstatus_ &= static_cast<u8>(~(value & 0xCCU));
-        // Manual BUSSTATE override (to IDLE)
-        if ((value & 0x03U) == 0x01U) mstatus_ = (mstatus_ & ~0x03U) | 0x01U;
-    }
-    else if (address == desc_.mbaud_address) mbaud_ = value;
     else if (address == desc_.maddr_address) {
-            if (mctrla_ & 0x01U) { // ENABLED
-                u8 bus_state = mstatus_ & 0x03U;
-                
-                mstatus_ &= ~(MSTATUS_WIF | MSTATUS_RIF | MSTATUS_CLKHOLD);
-                mstatus_ &= ~0x03U;
-                mstatus_ |= 0x02U; // OWNER
-                
-                // Drive Start or Repeated Start condition
-                if (port_mux_) {
-                    if (bus_state == 0x02) { // Already OWNER, so this is a Repeated Start
-                        // To ensure a valid Repeated Start, we must ensure SDA is High before driving it Low while SCL is High.
-                        port_mux_->drive_twi_sda(desc_.index, PinLevel::high);
-                        port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
-                        // Small delay effectively handled by next tick, but we can force state here.
-                        port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
-                    } else {
-                        // Regular Start from IDLE/UNKNOWN
-                        port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
-                        port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
-                    }
-                }
-
-                maddr_ = value;
-                // Calculate bit duration: 2 * (10 + BAUD)
-                bit_duration_ = 2U * (10U + mbaud_);
-                cycle_counter_ = 0;
-                bits_left_ = 9; // 8 data + 1 ACK
-                shift_register_ = value;
-                host_phase_ = TwiPhase::address;
-            }
+        maddr_ = value;
+        mstatus_ &= ~MSTATUS_BUSSTATE_MASK;
+        mstatus_ |= 0x02U;
+        bits_left_ = 9;
+        cycle_counter_ = 0;
+        shift_register_ = value;
+        host_phase_ = TwiPhase::address;
     }
     else if (address == desc_.mdata_address) {
         mdata_ = value;
         mstatus_ &= ~(MSTATUS_WIF | MSTATUS_RIF | MSTATUS_CLKHOLD);
-        
         if (host_phase_ == TwiPhase::read_data) {
-             // Continue reading
              bits_left_ = 9;
              cycle_counter_ = 0;
              data_read_accumulator_ = 0;
         } else {
-            // Write data
-            shift_register_ = value;
-            bits_left_ = 9;
-            cycle_counter_ = 0;
-            host_phase_ = TwiPhase::write_data;
+             shift_register_ = value;
+             bits_left_ = 9;
+             cycle_counter_ = 0;
+             host_phase_ = TwiPhase::write_data;
         }
     }
     else if (address == desc_.sctrla_address) sctrla_ = value;
@@ -290,19 +322,14 @@ void Twi8x::write(u16 address, u8 value) noexcept {
 }
 
 bool Twi8x::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    // Check Host interrupts
-    bool rif = (mstatus_ & MSTATUS_RIF) && (mctrla_ & 0x80U); // RIEN = bit 7
-    bool wif = (mstatus_ & MSTATUS_WIF) && (mctrla_ & 0x40U); // WIEN = bit 6
-
+    bool rif = (mstatus_ & MSTATUS_RIF) && (mctrla_ & 0x80U);
+    bool wif = (mstatus_ & MSTATUS_WIF) && (mctrla_ & 0x40U);
     if (rif || wif) {
         request = {desc_.master_vector_index, 0U};
         return true;
     }
-
-    // Check Client interrupts
-    bool s_drif = (sstatus_ & SSTATUS_DIF) && (sctrla_ & 0x80U); // DIEN = bit 7
-    bool s_apif = (sstatus_ & SSTATUS_APIF) && (sctrla_ & 0x40U); // APIEN = bit 6
-
+    bool s_drif = (sstatus_ & SSTATUS_DIF) && (sctrla_ & 0x80U);
+    bool s_apif = (sstatus_ & SSTATUS_APIF) && (sctrla_ & 0x40U);
     if (s_drif || s_apif) {
         request = {desc_.slave_vector_index, 0U};
         return true;
@@ -311,53 +338,51 @@ bool Twi8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
 }
 
 bool Twi8x::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (request.vector_index == desc_.master_vector_index) {
-        // TWI Host interrupts are usually cleared by hardware actions (writing MADDR/MDATA/MCTRLB)
-        // but can be explicitly cleared here if needed.
-        return true;
-    }
-    if (request.vector_index == desc_.slave_vector_index) {
-        return true;
-    }
-    return false;
+    return true;
 }
 
 void Twi8x::inject_bus_start() noexcept {
-    // Reset slave state for new transaction
+    slave_phase_ = TwiSlavePhase::addr;
+    slave_bits_left_ = 8;
+    slave_shift_register_ = 0;
 }
 
 void Twi8x::inject_bus_address(u8 address) noexcept {
-    if (!(sctrla_ & 0x01U)) return; // Slave disabled
-
-    u8 target = address >> 1;
+    inject_bus_start();
+    slave_shift_register_ = address;
+    u8 addr = address >> 1;
     u8 my_addr = saddr_ >> 1;
     u8 mask = saddrmask_ >> 1;
-
-    if ((target & ~mask) == (my_addr & ~mask)) {
-        // MATCH!
-        sstatus_ |= SSTATUS_APIF | SSTATUS_AP | SSTATUS_CLKHOLD;
-        if (address & 0x01U) sstatus_ |= SSTATUS_DIR; // Read
-        else sstatus_ &= ~SSTATUS_DIR; // Write
-    }
-}
-
-void Twi8x::inject_bus_data(u8 data) noexcept {
-    if (!(sstatus_ & SSTATUS_AP)) return; // Not addressed
-
-    sdata_ = data;
-    sstatus_ |= SSTATUS_DIF | SSTATUS_CLKHOLD;
-}
-
-void Twi8x::inject_bus_stop() noexcept {
-    if (sstatus_ & SSTATUS_AP) {
-        sstatus_ |= SSTATUS_APIF; // Stop interrupt
+    if ((addr & ~mask) == (my_addr & ~mask)) {
+        sstatus_ |= (SSTATUS_APIF | SSTATUS_AP | SSTATUS_CLKHOLD);
+        if (address & 0x01) sstatus_ |= SSTATUS_DIR;
+        else sstatus_ &= ~SSTATUS_DIR;
+        slave_phase_ = TwiSlavePhase::ack_setup;
+    } else {
+        slave_phase_ = TwiSlavePhase::idle;
         sstatus_ &= ~SSTATUS_AP;
     }
 }
 
-    
+void Twi8x::inject_bus_data(u8 data) noexcept {
+    sdata_ = data;
+    slave_shift_register_ = data;
+    sstatus_ |= (SSTATUS_DIF | SSTATUS_CLKHOLD);
+    slave_phase_ = TwiSlavePhase::ack_setup;
+}
+
+void Twi8x::inject_bus_stop() noexcept {
+    sstatus_ |= SSTATUS_APIF;
+    sstatus_ &= ~SSTATUS_AP;
+    slave_phase_ = TwiSlavePhase::idle;
+}
+
 void Twi8x::set_event_system(EventSystem* evsys) noexcept {
     evsys_ = evsys;
+}
+
+void Twi8x::set_port_mux(PortMux* port_mux) noexcept {
+    port_mux_ = port_mux;
 }
 
 } // namespace vioavr::core

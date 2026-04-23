@@ -244,3 +244,179 @@ TEST_CASE("AVR8X TWI - Master Repeated Start") {
     bus.tick_peripherals(400);
     CHECK((bus.read_data(twi0_mstatus) & 0x80) != 0); // RIF set (Read Addr Finished)
 }
+
+TEST_CASE("AVR8X TWI - Slave Address Match via Pins") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 twi0_sctrla = 0x08A9;
+    const u16 twi0_saddr = 0x08AC;
+    const u16 twi0_sstatus = 0x08AB;
+
+    // 1. Setup TWI0 as Slave
+    bus.write_data(twi0_sctrla, 0x01); // ENABLE=1
+    bus.write_data(twi0_saddr, 0x42 << 1); // Address 0x42
+    
+    // 2. Simulate Master driving a START condition on PA2/PA3
+    // Pins: PORTA (index 0), SDA=2, SCL=3
+    machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, true, true); // SDA High
+    machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true); // SCL High
+    bus.tick_peripherals(10);
+    
+    machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, false, true); // SDA Low (START)
+    bus.tick_peripherals(10);
+    
+    // 3. Drive address 0x42 (Write) bit by bit
+    // full_addr = (0x42 << 1) | 0 = 0x84 = 1000 0100
+    u8 full_addr = (0x42 << 1) | 0;
+    for (int i = 7; i >= 0; --i) {
+        bool bit = (full_addr >> i) & 1;
+        // SCL Low
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, false, true);
+        bus.tick_peripherals(10);
+        // SDA set
+        machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, bit, true);
+        bus.tick_peripherals(10);
+        // SCL High (Sample)
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true);
+        bus.tick_peripherals(10);
+    }
+    
+    // After 8 bits, TWI0 should match address
+    u8 sstatus = bus.read_data(twi0_sstatus);
+    CHECK((sstatus & 0x40) != 0); // APIF set
+    CHECK((sstatus & 0x01) != 0); // AP (Addressed) set
+    CHECK((sstatus & 0x02) == 0); // DIR = 0 (Write)
+    
+    // Should be in CLKHOLD
+    CHECK((bus.read_data(twi0_sstatus) & 0x20) != 0);
+}
+
+TEST_CASE("AVR8X TWI - Slave Full Data Reception") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 twi0_sctrla = 0x08A9;
+    const u16 twi0_sctrlb = 0x08AA;
+    const u16 twi0_sstatus = 0x08AB;
+    const u16 twi0_saddr = 0x08AC;
+    const u16 twi0_sdata = 0x08AD;
+
+    // 1. Setup Slave
+    bus.write_data(twi0_sctrla, 0x41); // ENABLE=1, APIEN=1
+    bus.write_data(twi0_saddr, 0x42 << 1);
+
+    // 2. Drive Address matching 0x42 (Write)
+    // START
+    machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, true, true);
+    machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true);
+    bus.tick_peripherals(10);
+    machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, false, true); 
+    bus.tick_peripherals(10);
+
+    u8 full_addr = 0x84;
+    for (int i = 7; i >= 0; --i) {
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, false, true);
+        bus.tick_peripherals(10);
+        machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, (full_addr >> i) & 1, true);
+        bus.tick_peripherals(10);
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true);
+        bus.tick_peripherals(10);
+    }
+    
+    CHECK((bus.read_data(twi0_sstatus) & 0x40) != 0); // APIF set
+
+    // 3. Slave Software responds to APIF
+    bus.write_data(twi0_sctrlb, 0x02); // SCMD=COMPTRANS, ACKACT=ACK
+    
+    // 4. Drive 9th SCL pulse (ACK phase)
+    machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, false, true);
+    bus.tick_peripherals(10);
+    // Slave should drive SDA Low for ACK 
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == false);
+    
+    machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true);
+    bus.tick_peripherals(10);
+
+    // 5. Drive Data Byte 0x55
+    u8 data = 0x55;
+    for (int i = 7; i >= 0; --i) {
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, false, true);
+        bus.tick_peripherals(10);
+        machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, (data >> i) & 1, true);
+        bus.tick_peripherals(10);
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true);
+        bus.tick_peripherals(10);
+    }
+
+    CHECK((bus.read_data(twi0_sstatus) & 0x80) != 0); // DIF set
+    CHECK(bus.read_data(twi0_sdata) == 0x55);
+}
+
+TEST_CASE("AVR8X TWI - Slave Full Data Transmission") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 twi0_sctrla = 0x08A9;
+    const u16 twi0_sctrlb = 0x08AA;
+    const u16 twi0_sstatus = 0x08AB;
+    const u16 twi0_saddr = 0x08AC;
+    const u16 twi0_sdata = 0x08AD;
+
+    bus.write_data(twi0_sctrla, 0x41); // ENABLE=1, APIEN=1
+    bus.write_data(twi0_saddr, 0x42 << 1); 
+
+    // 2. Drive Address matching 0x42 (Read)
+    // START
+    machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, true, true);
+    machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true);
+    bus.tick_peripherals(10);
+    machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, false, true); 
+    bus.tick_peripherals(10);
+
+    u8 addr_byte = (0x42 << 1) | 0x01; // 0x85
+    for (int i = 7; i >= 0; --i) {
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, false, true); // SCL Low
+        bus.tick_peripherals(10);
+        machine.pin_mux().update_pin(0, 2, PinOwner::gpio, true, (addr_byte >> i) & 1, true); // SDA set
+        bus.tick_peripherals(10);
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true); // SCL High (Sample)
+        bus.tick_peripherals(10);
+    }
+
+    CHECK((bus.read_data(twi0_sstatus) & 0x40) != 0); // APIF set
+    CHECK((bus.read_data(twi0_sstatus) & 0x02) != 0); // DIR set (Slave transmits)
+    
+    // 2. ACK the address and load data
+    bus.write_data(twi0_sdata, 0xAA); 
+    bus.write_data(twi0_sctrlb, 0x02); // COMPTRANS + ACK
+
+    // 3. 9th SCL pulse (ACK phase)
+    machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, false, true); 
+    bus.tick_peripherals(10);
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == false); // Slave ACKs
+    
+    machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true);
+    bus.tick_peripherals(10);
+
+    // 4. Sample 8 bits from Slave
+    u8 rx_data = 0;
+    for (int i = 7; i >= 0; --i) {
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, false, true); // SCL Low (Slave drives bit)
+        bus.tick_peripherals(10);
+        
+        machine.pin_mux().update_pin(0, 3, PinOwner::gpio, true, true, true); // SCL High (Master samples)
+        bus.tick_peripherals(10);
+        if (machine.pin_mux().get_state_by_address(0x400, 2).drive_level) {
+            rx_data |= (1 << i);
+        }
+    }
+
+    CHECK(rx_data == 0xAA);
+}

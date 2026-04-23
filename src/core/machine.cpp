@@ -64,6 +64,7 @@ std::unique_ptr<Machine> Machine::create_for_device(std::string_view name)
 void Machine::reset(ResetCause cause) noexcept
 {
     cpu_->reset(cause);
+    pin_mux_->reset();
     for (auto& p : owned_peripherals_) {
         p->reset();
     }
