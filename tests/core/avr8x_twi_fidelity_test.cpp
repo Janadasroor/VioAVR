@@ -172,3 +172,75 @@ TEST_CASE("AVR8X TWI - Master Interrupts") {
     CHECK(bus.pending_interrupt_request(irq_request) == true);
     CHECK(irq_request.vector_index == 15);
 }
+
+TEST_CASE("AVR8X TWI - Master Smart Mode and Stop") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 twi0_mctrla = 0x08A3;
+    const u16 twi0_mctrlb = 0x08A4;
+    const u16 twi0_mstatus = 0x08A5;
+    const u16 twi0_maddr = 0x08A7;
+    const u16 twi0_mdata = 0x08A8;
+
+    // 1. Enable Smart Mode
+    bus.write_data(twi0_mctrla, 0x09); // ENABLE=1, SMEN=1
+    bus.write_data(twi0_mstatus, 0x01); // IDLE
+    bus.write_data(0x08A6, 10); // MBAUD
+    
+    // 2. Start Read
+    bus.write_data(twi0_maddr, 0x85); // Read address 0x42
+    bus.tick_peripherals(400);
+    
+    CHECK((bus.read_data(twi0_mstatus) & 0x80) != 0); // RIF set
+    
+    // 3. Read MDATA - should automatically trigger next byte in Smart Mode
+    bus.read_data(twi0_mdata);
+    
+    // After reading MDATA, RIF should be clear
+    CHECK((bus.read_data(twi0_mstatus) & 0x80) == 0); 
+    
+    // Tick for second byte
+    bus.tick_peripherals(400);
+    CHECK((bus.read_data(twi0_mstatus) & 0x80) != 0); // RIF set again
+    
+    // 4. Send STOP command via MCTRLB
+    bus.write_data(twi0_mctrlb, 0x03); // MCMD=STOP
+    
+    CHECK((bus.read_data(twi0_mstatus) & 0x03) == 0x01); // BUSSTATE = IDLE
+    CHECK((bus.read_data(twi0_mstatus) & 0x20) == 0);   // CLKHOLD clear
+}
+
+TEST_CASE("AVR8X TWI - Master Repeated Start") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 twi0_mctrla = 0x08A3;
+    const u16 twi0_mstatus = 0x08A5;
+    const u16 twi0_maddr = 0x08A7;
+
+    bus.write_data(twi0_mctrla, 0x01); // ENABLE=1
+    bus.write_data(twi0_mstatus, 0x01); // IDLE
+    bus.write_data(0x08A6, 10); // MBAUD
+    
+    // 1. Write byte to slave address 0x42
+    bus.write_data(twi0_maddr, 0x84); // 0x42 << 1 | 0
+    bus.tick_peripherals(400);
+    CHECK((bus.read_data(twi0_mstatus) & 0x40) != 0); // WIF set (Write Addr Finished)
+    CHECK((bus.read_data(twi0_mstatus) & 0x20) != 0); // CLKHOLD set
+    
+    // 2. Perform Repeated Start for Read from 0x42
+    bus.write_data(twi0_maddr, 0x85); // 0x42 << 1 | 1
+    
+    // Check signals - should be in Start condition immediately
+    // SDA should be Low, SCL should be High (at the very beginning of the address phase)
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == false); // SDA Low
+    CHECK(machine.pin_mux().get_state_by_address(0x400, 3).drive_level == true);  // SCL High
+    
+    bus.tick_peripherals(400);
+    CHECK((bus.read_data(twi0_mstatus) & 0x80) != 0); // RIF set (Read Addr Finished)
+}
