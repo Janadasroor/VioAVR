@@ -678,6 +678,17 @@ struct SyscfgDescriptor {
     u16 reves_address {0x0U};
 };
 
+struct BodDescriptor {
+    u16 ctrla_address {0x0U};
+    u16 ctrlb_address {0x0U};
+    u16 vlmctrla_address {0x0U};
+    u16 intctrl_address {0x0U};
+    u16 intflags_address {0x0U};
+    u16 status_address {0x0U};
+    
+    u8 vlm_vector_index {0U};
+};
+
 struct DacDescriptor {
     u16 dacon_address {};
     u16 dacl_address {};
@@ -902,6 +913,7 @@ struct DeviceDescriptor {
     SlpctrlDescriptor slpctrl {};
     RstctrlDescriptor rstctrl {};
     SyscfgDescriptor syscfg {};
+    BodDescriptor bod {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};
