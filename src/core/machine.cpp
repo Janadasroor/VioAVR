@@ -37,6 +37,7 @@
 #include "vioavr/core/syscfg.hpp"
 #include "vioavr/core/vref.hpp"
 #include "vioavr/core/bodctrl.hpp"
+#include "vioavr/core/clkctrl.hpp"
 
 namespace vioavr::core {
 
@@ -183,6 +184,12 @@ void Machine::initialize_peripherals()
     }
     if (device_.bod.ctrla_address != 0U) {
         auto p = std::make_unique<BodCtrl>(device_.bod);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    if (device_.clkctrl.ctrla_address != 0U) {
+        // Default base = 20 MHz. The prescaler-on reset default divides by 6 → 3.333 MHz.
+        auto p = std::make_unique<ClkCtrl>(device_.clkctrl, 20'000'000U);
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
