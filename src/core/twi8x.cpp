@@ -116,22 +116,29 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                     if (bits_left_ == 0) {
                         mstatus_ |= MSTATUS_CLKHOLD;
                         
+                        if (host_phase_ == TwiPhase::address || host_phase_ == TwiPhase::write_data) {
+                        // Sample ACK/NACK
+                        bool nack = port_mux_->get_twi_sda_level(desc_.index) == PinLevel::high;
+                        if (nack) mstatus_ |= MSTATUS_RXACK;
+                        else      mstatus_ &= ~MSTATUS_RXACK;
+
                         if (host_phase_ == TwiPhase::address) {
-                            bool is_read = (maddr_ & 0x01U);
-                            if (is_read) {
+                            if (maddr_ & 0x01U) { // Read
                                 mstatus_ |= MSTATUS_RIF;
                                 host_phase_ = TwiPhase::read_data;
-                            } else {
+                            } else { // Write
                                 mstatus_ |= MSTATUS_WIF;
-                                host_phase_ = TwiPhase::write_data;
                             }
-                        } else if (host_phase_ == TwiPhase::read_data) {
-                            mstatus_ |= MSTATUS_RIF;
-                            mdata_ = data_read_accumulator_;
                         } else {
                             mstatus_ |= MSTATUS_WIF;
                         }
-                        break;
+                        mstatus_ |= MSTATUS_CLKHOLD;
+                    } else if (host_phase_ == TwiPhase::read_data) {
+                        mdata_ = data_read_accumulator_;
+                        mstatus_ |= MSTATUS_RIF;
+                        mstatus_ |= MSTATUS_CLKHOLD;
+                    }
+                    bits_left_ = 0; // Waiting for software action
                     }
                 }
             }
@@ -182,6 +189,7 @@ void Twi8x::write(u16 address, u8 value) noexcept {
             u8 state = mstatus_ & 0x03U;
             if ((mctrla_ & 0x01U) && (state == 0x00 || state == 0x01 || state == 0x02)) { // ENABLED and (UNKNOWN or IDLE or OWNER)
                 maddr_ = value;
+                mstatus_ &= ~(MSTATUS_WIF | MSTATUS_RIF | MSTATUS_CLKHOLD);
                 mstatus_ &= ~0x03U;
                 mstatus_ |= 0x02U; // OWNER
                 
@@ -201,7 +209,7 @@ void Twi8x::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.mdata_address) {
         mdata_ = value;
-        mstatus_ &= ~MSTATUS_CLKHOLD;
+        mstatus_ &= ~(MSTATUS_WIF | MSTATUS_RIF | MSTATUS_CLKHOLD);
         
         if (host_phase_ == TwiPhase::read_data) {
              // Continue reading
@@ -242,12 +250,19 @@ void Twi8x::write(u16 address, u8 value) noexcept {
 
 bool Twi8x::pending_interrupt_request(InterruptRequest& request) const noexcept {
     // Check Host interrupts
-    if (((mstatus_ & 0xC0U) != 0) && (mctrla_ & 0xC0U)) {
+    bool rif = (mstatus_ & MSTATUS_RIF) && (mctrla_ & 0x80U); // RIEN = bit 7
+    bool wif = (mstatus_ & MSTATUS_WIF) && (mctrla_ & 0x40U); // WIEN = bit 6
+
+    if (rif || wif) {
         request = {desc_.master_vector_index, 0U};
         return true;
     }
+
     // Check Client interrupts
-    if (((sstatus_ & 0xC0U) != 0) && (sctrla_ & 0xE0U)) {
+    bool s_drif = (sstatus_ & SSTATUS_DIF) && (sctrla_ & 0x80U); // DIEN = bit 7
+    bool s_apif = (sstatus_ & SSTATUS_APIF) && (sctrla_ & 0x40U); // APIEN = bit 6
+
+    if (s_drif || s_apif) {
         request = {desc_.slave_vector_index, 0U};
         return true;
     }
@@ -255,8 +270,15 @@ bool Twi8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
 }
 
 bool Twi8x::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (!pending_interrupt_request(request)) return false;
-    return true; // Flags cleared by write action in firmware
+    if (request.vector_index == desc_.master_vector_index) {
+        // TWI Host interrupts are usually cleared by hardware actions (writing MADDR/MDATA/MCTRLB)
+        // but can be explicitly cleared here if needed.
+        return true;
+    }
+    if (request.vector_index == desc_.slave_vector_index) {
+        return true;
+    }
+    return false;
 }
 
 void Twi8x::inject_bus_start() noexcept {
