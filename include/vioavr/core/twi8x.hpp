@@ -80,6 +80,20 @@ private:
     static constexpr u8 MSTATUS_ARBLOST = 0x08U;
     static constexpr u8 MSTATUS_BUSERR = 0x04U;
     static constexpr u8 MSTATUS_BUSSTATE_MASK = 0x03U;
+    
+    // MCTRLA Bits
+    static constexpr u8 MCTRLA_ENABLE = 0x01U;
+    static constexpr u8 MCTRLA_SMEN = 0x08U;
+    static constexpr u8 MCTRLA_WIEN = 0x40U;
+    static constexpr u8 MCTRLA_RIEN = 0x80U;
+
+    // MCTRLB Bits
+    static constexpr u8 MCTRLB_ACKACT = 0x04U;
+    static constexpr u8 MCTRLB_MCMD_MASK = 0x03U;
+    static constexpr u8 MCTRLB_MCMD_NOACT = 0x00U;
+    static constexpr u8 MCTRLB_MCMD_REPSTART = 0x01U;
+    static constexpr u8 MCTRLB_MCMD_RECVTRANS = 0x02U;
+    static constexpr u8 MCTRLB_MCMD_STOP = 0x03U;
 
     // SSTATUS Bits
     static constexpr u8 SSTATUS_DIF = 0x80U;

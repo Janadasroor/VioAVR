@@ -80,7 +80,7 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                         // ACK bit (9th bit)
                         if (host_phase_ == TwiPhase::read_data) {
                             // Master drives ACK/NACK based on MCTRLB.ACKACT
-                            bool nack = (mctrlb_ & 0x01U); // 0=ACK (Low), 1=NACK (High)
+                            bool nack = (mctrlb_ & MCTRLB_ACKACT); // 0=ACK (Low), 4=NACK (High)
                             sda_level = nack ? PinLevel::high : PinLevel::low;
                         } else {
                             // Master releases SDA to read slave ACK
@@ -152,7 +152,22 @@ u8 Twi8x::read(u16 address) noexcept {
     if (address == desc_.mstatus_address) return mstatus_;
     if (address == desc_.mbaud_address) return mbaud_;
     if (address == desc_.maddr_address) return maddr_;
-    if (address == desc_.mdata_address) return mdata_;
+    if (address == desc_.mdata_address) {
+        if (mstatus_ & MSTATUS_RIF) {
+            mstatus_ &= ~MSTATUS_RIF;
+            mstatus_ &= ~MSTATUS_CLKHOLD;
+            
+            // Smart Mode: Writing/Reading MDATA can trigger commands
+            if (mctrla_ & MCTRLA_SMEN) {
+                // If SMEN is 1, reading MDATA triggers a RECVTRANS (0x02)
+                bits_left_ = 9;
+                cycle_counter_ = 0;
+                data_read_accumulator_ = 0;
+                host_phase_ = TwiPhase::read_data;
+            }
+        }
+        return mdata_;
+    }
     if (address == desc_.sctrla_address) return sctrla_;
     if (address == desc_.sctrlb_address) return sctrlb_;
     if (address == desc_.sstatus_address) return sstatus_;
@@ -177,7 +192,35 @@ void Twi8x::write(u16 address, u8 value) noexcept {
             }
         }
     }
-    else if (address == desc_.mctrlb_address) mctrlb_ = value;
+    else if (address == desc_.mctrlb_address) {
+        mctrlb_ = value;
+        u8 cmd = value & MCTRLB_MCMD_MASK;
+        if (cmd == MCTRLB_MCMD_STOP) {
+            if (port_mux_) {
+                port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+                port_mux_->drive_twi_sda(desc_.index, PinLevel::high);
+            }
+            mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x01U; // Back to IDLE
+            mstatus_ &= ~MSTATUS_CLKHOLD;
+            host_phase_ = TwiPhase::idle;
+        } else if (cmd == MCTRLB_MCMD_RECVTRANS) {
+             mstatus_ &= ~(MSTATUS_RIF | MSTATUS_CLKHOLD);
+             bits_left_ = 9;
+             cycle_counter_ = 0;
+             data_read_accumulator_ = 0;
+             host_phase_ = TwiPhase::read_data;
+        } else if (cmd == MCTRLB_MCMD_REPSTART) {
+            // Issuing a repeated start
+            if (port_mux_) {
+                port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+                port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
+            }
+            mstatus_ &= ~MSTATUS_CLKHOLD;
+            // Wait for MADDR write to actually start the address phase?
+            // Actually, usually you write MADDR *after* REPSTART if you manually triggered it,
+            // or MADDR write *is* the trigger.
+        }
+    }
     else if (address == desc_.mstatus_address) {
         // Clear WIF/RIF/ARBLOST/BUSERR on write 1
         mstatus_ &= static_cast<u8>(~(value & 0xCCU));
@@ -186,26 +229,36 @@ void Twi8x::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.mbaud_address) mbaud_ = value;
     else if (address == desc_.maddr_address) {
-            u8 state = mstatus_ & 0x03U;
-            if ((mctrla_ & 0x01U) && (state == 0x00 || state == 0x01 || state == 0x02)) { // ENABLED and (UNKNOWN or IDLE or OWNER)
-                maddr_ = value;
+            if (mctrla_ & 0x01U) { // ENABLED
+                u8 bus_state = mstatus_ & 0x03U;
+                
                 mstatus_ &= ~(MSTATUS_WIF | MSTATUS_RIF | MSTATUS_CLKHOLD);
                 mstatus_ &= ~0x03U;
                 mstatus_ |= 0x02U; // OWNER
                 
-                // Drive Start condition
+                // Drive Start or Repeated Start condition
                 if (port_mux_) {
-                    port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
-                    port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
+                    if (bus_state == 0x02) { // Already OWNER, so this is a Repeated Start
+                        // To ensure a valid Repeated Start, we must ensure SDA is High before driving it Low while SCL is High.
+                        port_mux_->drive_twi_sda(desc_.index, PinLevel::high);
+                        port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+                        // Small delay effectively handled by next tick, but we can force state here.
+                        port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
+                    } else {
+                        // Regular Start from IDLE/UNKNOWN
+                        port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+                        port_mux_->drive_twi_sda(desc_.index, PinLevel::low);
+                    }
                 }
 
-            // Calculate bit duration: 2 * (10 + BAUD)
-            bit_duration_ = 2U * (10U + mbaud_);
-            cycle_counter_ = 0;
-            bits_left_ = 9; // 8 data + 1 ACK
-            shift_register_ = value;
-            host_phase_ = TwiPhase::address;
-        }
+                maddr_ = value;
+                // Calculate bit duration: 2 * (10 + BAUD)
+                bit_duration_ = 2U * (10U + mbaud_);
+                cycle_counter_ = 0;
+                bits_left_ = 9; // 8 data + 1 ACK
+                shift_register_ = value;
+                host_phase_ = TwiPhase::address;
+            }
     }
     else if (address == desc_.mdata_address) {
         mdata_ = value;
@@ -222,18 +275,6 @@ void Twi8x::write(u16 address, u8 value) noexcept {
             bits_left_ = 9;
             cycle_counter_ = 0;
             host_phase_ = TwiPhase::write_data;
-        }
-    }
-    else if (address == desc_.mctrlb_address) {
-        mctrlb_ = value;
-        u8 cmd = (value >> 2) & 0x03U;
-        if (cmd == 0x03) { // STOP
-             if (port_mux_) {
-                 port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
-                 port_mux_->drive_twi_sda(desc_.index, PinLevel::high);
-             }
-             mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x01U; // Back to IDLE
-             mstatus_ &= ~MSTATUS_CLKHOLD;
         }
     }
     else if (address == desc_.sctrla_address) sctrla_ = value;
