@@ -28,8 +28,9 @@ public:
 
     explicit BodCtrl(const BodDescriptor& desc) noexcept : desc_(desc) {
         if (desc_.ctrla_address != 0U) {
-            // Registers at ctrla(+0), ctrlb(+1) then vlmctrla(+8), intctrl(+9), intflags(+A), status(+B)
+            // CTRLA(+0) and CTRLB(+1) form one contiguous block
             ranges_[0] = {desc_.ctrla_address, static_cast<u16>(desc_.ctrla_address + 1U)};
+            // VLM registers are at a separate offset (+8..+11 relative to base)
             if (desc_.vlmctrla_address != 0U)
                 ranges_[1] = {desc_.vlmctrla_address, static_cast<u16>(desc_.vlmctrla_address + 3U)};
         }

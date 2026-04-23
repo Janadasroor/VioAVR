@@ -212,6 +212,15 @@ inline constexpr DeviceDescriptor atmega4809 {
     .syscfg = {
             .reves_address = 0xF01U
         },
+    .bod = {
+            .ctrla_address = 0x80U,
+            .ctrlb_address = 0x81U,
+            .vlmctrla_address = 0x88U,
+            .intctrl_address = 0x89U,
+            .intflags_address = 0x8AU,
+            .status_address = 0x8BU,
+            .vlm_vector_index = 2U
+        },
     
     .ext_interrupt_count = 0U,
     .ext_interrupts = {{  }},
