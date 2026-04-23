@@ -816,7 +816,9 @@ struct PortDescriptor {
     u16 outclr_address {0x0U};
     u16 outtgl_address {0x0U};
     u16 pin_ctrl_base {0x0U};
-    u16 vport_base {0x0U};
+    u16 intflags_address {0x0U};
+    u16 vport_base {0xFFFFU};
+    u8 vector_index {0xFFU};
 };
 
 

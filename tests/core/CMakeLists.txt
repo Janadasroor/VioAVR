@@ -122,6 +122,7 @@ set(TEST_SOURCES
     avr8x_wdt_fidelity_test.cpp
     avr8x_clkctrl_fidelity_test.cpp
     avr8x_sysctrl_fidelity_test.cpp
+    avr8x_gpio_fidelity_test.cpp
     avr8x_nvm_fidelity_test.cpp
     avr8x_tcb_fidelity_test.cpp
     avr8x_tca_fidelity_test.cpp
