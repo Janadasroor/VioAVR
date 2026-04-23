@@ -137,3 +137,38 @@ TEST_CASE("AVR8X TWI - Master Physical Timing") {
     // Now at ACK bit phase. Master should release SDA.
     CHECK(machine.pin_mux().get_state_by_address(0x400, 2).owner == PinOwner::gpio); // Released
 }
+
+TEST_CASE("AVR8X TWI - Master Interrupts") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    InterruptRequest irq_request;
+
+    const u16 twi0_mctrla = 0x08A3;
+    const u16 twi0_mstatus = 0x08A5;
+    const u16 twi0_mbaud = 0x08A6;
+    const u16 twi0_maddr = 0x08A7;
+
+    // 1. Test Write Interrupt
+    bus.write_data(twi0_mctrla, 0x41); // ENABLE=1, WIEN=1
+    bus.write_data(twi0_mstatus, 0x01); // Force IDLE
+    bus.write_data(twi0_mbaud, 10);
+    
+    bus.write_data(twi0_maddr, 0x84); // Write address 0x42
+    bus.tick_peripherals(400);
+    
+    CHECK((bus.read_data(twi0_mstatus) & 0x40) != 0); // WIF set
+    CHECK(bus.pending_interrupt_request(irq_request) == true);
+    CHECK(irq_request.vector_index == 15); // TWIM vector
+    
+    // 2. Test Read Interrupt
+    bus.write_data(twi0_mctrla, 0x81); // ENABLE=1, RIEN=1
+    bus.write_data(twi0_mstatus, 0x01); // Reset to IDLE
+    bus.write_data(twi0_maddr, 0x85); // Read address 0x42
+    
+    bus.tick_peripherals(400);
+    CHECK((bus.read_data(twi0_mstatus) & 0x80) != 0); // RIF set
+    CHECK(bus.pending_interrupt_request(irq_request) == true);
+    CHECK(irq_request.vector_index == 15);
+}
