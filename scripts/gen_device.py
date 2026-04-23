@@ -91,6 +91,15 @@ def generate_header(data, header_path):
     # 1. Build Port Map for PinMux
     port_map = {}
     ports_raw = []
+    
+    # Pre-scan for VPORTs
+    vports = {}
+    for p_instance, p_data in data['peripherals'].items():
+        if p_data.get('module') == 'VPORT':
+            char = p_instance[-1]
+            base = min(r['offset'] for r in p_data['registers'].values()) if p_data['registers'] else 0
+            vports[char] = base
+
     for p_instance, p_data in data['peripherals'].items():
         if p_data.get('module') == 'PORT':
             char = p_instance[-1] # Usually PORTA, PORTB etc.
@@ -98,10 +107,18 @@ def generate_header(data, header_path):
             for r_name, r_data in p_data['registers'].items():
                 if r_name == 'DIR' or r_name == f'DDR{char}':
                     port_map[char]['DDR'] = r_data['offset']
+                if r_name == 'DIRSET': port_map[char]['DIRSET'] = r_data['offset']
+                if r_name == 'DIRCLR': port_map[char]['DIRCLR'] = r_data['offset']
+                if r_name == 'DIRTGL': port_map[char]['DIRTGL'] = r_data['offset']
                 if r_name == 'OUT' or r_name == f'PORT{char}':
                     port_map[char]['PORT'] = r_data['offset']
+                if r_name == 'OUTSET': port_map[char]['OUTSET'] = r_data['offset']
+                if r_name == 'OUTCLR': port_map[char]['OUTCLR'] = r_data['offset']
+                if r_name == 'OUTTGL': port_map[char]['OUTTGL'] = r_data['offset']
                 if r_name == 'IN' or r_name == f'PIN{char}':
                     port_map[char]['PIN'] = r_data['offset']
+                if r_name == 'PIN0CTRL':
+                    port_map[char]['PIN_CTRL_BASE'] = r_data['offset']
     
     for char, regs in port_map.items():
         if not regs: continue
@@ -109,7 +126,15 @@ def generate_header(data, header_path):
             'name': f"PORT{char}",
             'port': regs.get('PORT', 0),
             'ddr': regs.get('DDR', 0),
-            'pin': regs.get('PIN', 0)
+            'pin': regs.get('PIN', 0),
+            'dirset': regs.get('DIRSET', 0),
+            'dirclr': regs.get('DIRCLR', 0),
+            'dirtgl': regs.get('DIRTGL', 0),
+            'outset': regs.get('OUTSET', 0),
+            'outclr': regs.get('OUTCLR', 0),
+            'outtgl': regs.get('OUTTGL', 0),
+            'pin_ctrl_base': regs.get('PIN_CTRL_BASE', 0),
+            'vport_base': vports.get(char, 0)
         })
     ports_raw.sort(key=lambda x: x['name'])
 
@@ -139,6 +164,10 @@ def generate_header(data, header_path):
                             event_generators[val_name] = val_def['value']
                         break
                 break
+
+    groups.update({
+        'VREF': [], 'CLKCTRL': [], 'SLPCTRL': [], 'RSTCTRL': [], 'SYSCFG': []
+    })
 
     for p_name, p_data in data['peripherals'].items():
         mod = p_data.get('module')
@@ -1054,6 +1083,44 @@ def generate_header(data, header_path):
             .tcbroutea_address = {hx(r('TCBROUTEA')['offset'])}
         }}"""
 
+    def gen_vref(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])},
+            .ctrlb_address = {hx(r('CTRLB')['offset'])}
+        }}"""
+
+    def gen_clkctrl(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        return f"""{{
+            .ctrla_address = {hx(r('MCLKCTRLA')['offset'])},
+            .ctrlb_address = {hx(r('MCLKCTRLB')['offset'])},
+            .mclklock_address = {hx(r('MCLKLOCK')['offset'])},
+            .mclkstatus_address = {hx(r('MCLKSTATUS')['offset'])},
+            .osc20mctrla_address = {hx(r('OSC20MCTRLA')['offset'])},
+            .osc20mcalib_address = {hx(r('OSC20MCALIBA')['offset'])},
+            .osc32kctrla_address = {hx(r('OSC32KCTRLA')['offset'])},
+            .xosc32kctrla_address = {hx(r('XOSC32KCTRLA')['offset'])}
+        }}"""
+
+    def gen_slpctrl(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])}
+        }}"""
+
+    def gen_rstctrl(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        return f"""{{
+            .rstfr_address = {hx(r('RSTFR')['offset'])}
+        }}"""
+
+    def gen_syscfg(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        return f"""{{
+            .reves_address = {hx(r('REVID')['offset'])}
+        }}"""
+
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
     timers16_str = ",\n        ".join(gen_timer16(n, d) for n, d in groups['TC16'])
@@ -1063,6 +1130,12 @@ def generate_header(data, header_path):
     evsys_descriptor = gen_evsys("EVSYS", groups['EVSYS'][0][1]) if groups['EVSYS'] else "{}"
     ccl_descriptor = gen_ccl("CCL", groups['CCL'][0][1]) if groups['CCL'] else "{}"
     portmux_descriptor = gen_portmux("PORTMUX", groups['PORTMUX'][0][1]) if groups['PORTMUX'] else "{}"
+    vref_descriptor = gen_vref("VREF", groups['VREF'][0][1]) if groups['VREF'] else "{}"
+    clkctrl_descriptor = gen_clkctrl("CLKCTRL", groups['CLKCTRL'][0][1]) if groups['CLKCTRL'] else "{}"
+    slpctrl_descriptor = gen_slpctrl("SLPCTRL", groups['SLPCTRL'][0][1]) if groups['SLPCTRL'] else "{}"
+    rstctrl_descriptor = gen_rstctrl("RSTCTRL", groups['RSTCTRL'][0][1]) if groups['RSTCTRL'] else "{}"
+    syscfg_descriptor = gen_syscfg("SYSCFG", groups['SYSCFG'][0][1]) if groups['SYSCFG'] else "{}"
+    
     adcs_descriptors = []
     adc8x_descriptors = []
     for n, d in groups['ADC']:
@@ -1123,7 +1196,7 @@ def generate_header(data, header_path):
                  else data['peripherals'].get('CPU', {}))
     xmem_str = gen_xmem(xmem_data)
 
-    ports_str = ",\n        ".join(f'{{ "{p["name"]}", {hx(p["pin"])}, {hx(p["ddr"])}, {hx(p["port"])} }}' for p in ports_raw)
+    ports_str = ",\n        ".join(f'{{ "{p["name"]}", {hx(p["pin"])}, {hx(p["ddr"])}, {hx(p["port"])}, {hx(p["dirset"])}, {hx(p["dirclr"])}, {hx(p["dirtgl"])}, {hx(p["outset"])}, {hx(p["outclr"])}, {hx(p["outtgl"])}, {hx(p["pin_ctrl_base"])}, {hx(p["vport_base"])} }}' for p in ports_raw)
 
     # RWW end word calculation (start of first boot section)
     boot_sections = [m for m in data['memories'].get('prog', []) if 'BOOT_SECTION' in m['name']]
@@ -1236,6 +1309,12 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .ccl = {ccl_descriptor},
     .portmux = {portmux_descriptor},
+    
+    .vref = {vref_descriptor},
+    .clkctrl = {clkctrl_descriptor},
+    .slpctrl = {slpctrl_descriptor},
+    .rstctrl = {rstctrl_descriptor},
+    .syscfg = {syscfg_descriptor},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},

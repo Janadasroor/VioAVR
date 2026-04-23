@@ -133,7 +133,7 @@ void Machine::initialize_peripherals()
     // 1. GPIO Ports
     for (u8 i = 0; i < device_.port_count; ++i) {
         const auto& desc = device_.ports[i];
-        auto port = std::make_unique<GpioPort>(desc.name, desc.pin_address, desc.ddr_address, desc.port_address, *pin_mux_);
+        auto port = std::make_unique<GpioPort>(desc, *pin_mux_);
         ports_.push_back(port.get());
         pin_mux_->register_port(desc.pin_address, i);  // PIN address
         pin_mux_->register_port(desc.ddr_address, i);  // DDR address

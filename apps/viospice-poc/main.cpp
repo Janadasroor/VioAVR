@@ -59,7 +59,7 @@ int main() {
     PinMux pin_mux {5};
     MemoryBus bus {devices::atmega328};
     AvrCpu cpu {bus};
-    auto gpio_b = std::make_unique<GpioPort>("PORTB", 0x23, 0x24, 0x25, pin_mux); 
+    auto gpio_b = std::make_unique<GpioPort>(devices::atmega328.ports[1], pin_mux);
     bus.attach_peripheral(*gpio_b);
 
     const u64 quantum = 10000;

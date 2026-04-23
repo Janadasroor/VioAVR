@@ -650,6 +650,34 @@ struct PscDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct VrefDescriptor {
+    u16 ctrla_address {0x0U};
+    u16 ctrlb_address {0x0U};
+};
+
+struct ClkctrlDescriptor {
+    u16 ctrla_address {0x0U};
+    u16 ctrlb_address {0x0U};
+    u16 mclklock_address {0x0U};
+    u16 mclkstatus_address {0x0U};
+    u16 osc20mctrla_address {0x0U};
+    u16 osc20mcalib_address {0x0U};
+    u16 osc32kctrla_address {0x0U};
+    u16 xosc32kctrla_address {0x0U};
+};
+
+struct SlpctrlDescriptor {
+    u16 ctrla_address {0x0U};
+};
+
+struct RstctrlDescriptor {
+    u16 rstfr_address {0x0U};
+};
+
+struct SyscfgDescriptor {
+    u16 reves_address {0x0U};
+};
+
 struct DacDescriptor {
     u16 dacon_address {};
     u16 dacl_address {};
@@ -768,6 +796,16 @@ struct PortDescriptor {
     u16 pin_address {};
     u16 ddr_address {};
     u16 port_address {};
+    
+    // Mega-0 extensions
+    u16 dirset_address {0x0U};
+    u16 dirclr_address {0x0U};
+    u16 dirtgl_address {0x0U};
+    u16 outset_address {0x0U};
+    u16 outclr_address {0x0U};
+    u16 outtgl_address {0x0U};
+    u16 pin_ctrl_base {0x0U};
+    u16 vport_base {0x0U};
 };
 
 
@@ -858,6 +896,12 @@ struct DeviceDescriptor {
 
     CclDescriptor ccl {};
     PortMuxDescriptor portmux {};
+    
+    VrefDescriptor vref {};
+    ClkctrlDescriptor clkctrl {};
+    SlpctrlDescriptor slpctrl {};
+    RstctrlDescriptor rstctrl {};
+    SyscfgDescriptor syscfg {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};

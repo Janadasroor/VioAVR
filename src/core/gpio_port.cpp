@@ -12,18 +12,56 @@ GpioPort::GpioPort(const std::string_view name, const u16 base_address, PinMux& 
 GpioPort::GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 port_address, PinMux& pin_mux) noexcept
     : pin_mux_(&pin_mux),
       name_(name),
+      desc_{name, pin_address, ddr_address, port_address},
       ranges_({AddressRange{pin_address, pin_address}, AddressRange{ddr_address, ddr_address}, AddressRange{port_address, port_address}}),
-      pin_addr_(pin_address),
-      ddr_addr_(ddr_address),
-      port_addr_(port_address),
       num_ranges_(3U)
 {
-    // Infer port index from name (e.g., "PORTA" -> 0)
-    if (name.length() >= 5 && name.starts_with("PORT")) {
-        port_idx_ = static_cast<u8>(name[4] - 'A');
+    if (name_.length() >= 5 && name_.starts_with("PORT")) {
+        port_idx_ = static_cast<u8>(name_[4] - 'A');
         pin_mux_->register_port(pin_address, port_idx_);
         pin_mux_->register_port(ddr_address, port_idx_);
         pin_mux_->register_port(port_address, port_idx_);
+    }
+}
+
+GpioPort::GpioPort(const PortDescriptor& desc, PinMux& pin_mux) noexcept
+    : pin_mux_(&pin_mux),
+      name_(desc.name),
+      desc_(desc)
+{
+    // Infer port index from name (e.g., "PORTA" -> 0)
+    if (name_.length() >= 5 && name_.starts_with("PORT")) {
+        port_idx_ = static_cast<u8>(name_[4] - 'A');
+        
+        // Find all non-zero addresses in descriptor
+        std::vector<u16> addrs = { 
+            desc_.pin_address, desc_.ddr_address, desc_.port_address,
+            desc_.dirset_address, desc_.dirclr_address, desc_.dirtgl_address,
+            desc_.outset_address, desc_.outclr_address, desc_.outtgl_address
+        };
+        for (u8 i=0; i<8; ++i) {
+            if (desc_.pin_ctrl_base) addrs.push_back(desc_.pin_ctrl_base + i);
+        }
+        if (desc_.vport_base) {
+            addrs.push_back(desc_.vport_base + 0); // VPORT DIR
+            addrs.push_back(desc_.vport_base + 1); // VPORT OUT
+            addrs.push_back(desc_.vport_base + 2); // VPORT IN
+            addrs.push_back(desc_.vport_base + 3); // VPORT INTFLAGS
+        }
+        
+        std::sort(addrs.begin(), addrs.end());
+        addrs.erase(std::unique(addrs.begin(), addrs.end()), addrs.end());
+        
+        size_t ri = 0;
+        for (u16 addr : addrs) {
+            if (addr == 0) continue;
+            if (ri > 0 && addr == ranges_[ri-1].end + 1) {
+                ranges_[ri-1].end = addr;
+            } else if (ri < ranges_.size()) {
+                ranges_[ri++] = {addr, addr};
+            }
+        }
+        num_ranges_ = static_cast<u8>(ri);
     }
 }
 
@@ -55,42 +93,60 @@ void GpioPort::tick(const u64 elapsed_cycles) noexcept
 
 u8 GpioPort::read(const u16 address) noexcept
 {
-    if (address == pin_addr_) {
-        // PIN register read: return the current latched value.
-        // We update the latched value here to ensure it's fresh.
+    if (address == desc_.pin_address) {
         update_pin_latched();
         return pin_latched_;
     }
-    if (address == ddr_addr_) {
-        return ddr_;
-    }
-    if (address == port_addr_) {
-        return port_;
+    if (address == desc_.ddr_address) return ddr_;
+    if (address == desc_.port_address) return port_;
+    
+    // Mega-0 Aliases (DIR and OUT reads)
+    if (address == desc_.dirset_address || address == desc_.dirclr_address || address == desc_.dirtgl_address) return ddr_;
+    if (address == desc_.outset_address || address == desc_.outclr_address || address == desc_.outtgl_address) return port_;
+    
+    // VPORT
+    if (desc_.vport_base != 0) {
+        if (address == desc_.vport_base + 0) return ddr_;
+        if (address == desc_.vport_base + 1) return port_;
+        if (address == desc_.vport_base + 2) {
+            update_pin_latched();
+            return pin_latched_;
+        }
+        if (address == desc_.vport_base + 3) return 0; // INTFLAGS not fully modeled in GPIO right now, handled by PORTINT/PCINT? Actually Mega-0 PORT has an INTFLAGS register per PORT!
     }
     return 0U;
 }
 
 void GpioPort::write(const u16 address, const u8 value) noexcept
 {
-    if (address == pin_addr_) {
-        // Writing to PIN register toggles bits in PORT register
-        write(port_addr_, static_cast<u8>(port_ ^ value));
-        update_pin_latched();
-        return;
-    }
-
-    if (address == ddr_addr_) {
-        ddr_ = value;
-        update_pin_latched();
-        return;
-    }
-
-    if (address == port_addr_) {
-        const u8 changed = static_cast<u8>(port_ ^ value);
-        port_ = value;
-        // Any output pin that changed its value needs to publish it
+    auto apply_port = [&](u8 new_val) {
+        const u8 changed = static_cast<u8>(port_ ^ new_val);
+        port_ = new_val;
         pending_changes_mask_ |= (changed & ddr_);
         update_pin_latched();
+    };
+
+    if (address == desc_.pin_address) {
+        apply_port(port_ ^ value);
+        return; // Writing to PIN toggles
+    }
+    if (address == desc_.ddr_address) { ddr_ = value; update_pin_latched(); return; }
+    if (address == desc_.port_address) { apply_port(value); return; }
+    
+    // Mega-0
+    if (address == desc_.dirset_address) { ddr_ |= value; update_pin_latched(); return; }
+    if (address == desc_.dirclr_address) { ddr_ &= ~value; update_pin_latched(); return; }
+    if (address == desc_.dirtgl_address) { ddr_ ^= value; update_pin_latched(); return; }
+    
+    if (address == desc_.outset_address) { apply_port(port_ | value); return; }
+    if (address == desc_.outclr_address) { apply_port(port_ & ~value); return; }
+    if (address == desc_.outtgl_address) { apply_port(port_ ^ value); return; }
+    
+    // VPORT
+    if (desc_.vport_base != 0) {
+        if (address == desc_.vport_base + 0) { ddr_ = value; update_pin_latched(); return; }
+        if (address == desc_.vport_base + 1) { apply_port(value); return; }
+        if (address == desc_.vport_base + 2) { apply_port(port_ ^ value); return; }
     }
 }
 
