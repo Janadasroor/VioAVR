@@ -649,6 +649,37 @@ struct DmaDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct ZcdDescriptor {
+    u16 ctrla_address {0U};
+    u8 vector_index {0U};
+    u8 out_generator_id {0U};
+    u16 pin_address {0U};
+    u8 pin_bit {0xFFU};
+};
+
+struct OpampDescriptor {
+    u16 ctrla_address {0U};
+    u16 ctrlb_address {0U};
+    u16 resctrl_address {0U};
+    u16 muxctrl_address {0U};
+    u16 out_generator_id {0U};
+    u16 pos_pin_address {0U};
+    u8 pos_pin_bit {0xFFU};
+    u16 neg_pin_address {0U};
+    u8 neg_pin_bit {0xFFU};
+    u16 out_pin_address {0U};
+    u8 out_pin_bit {0xFFU};
+};
+
+struct LinDescriptor {
+    u16 ctrla_address {0U};
+    u16 ctrlb_address {0U};
+    u16 status_address {0U};
+    u16 data_address {0U};
+    u16 baud_address {0U};
+    u8 vector_index {0U};
+};
+
 struct PscDescriptor {
     u16 pctl_address {};
     u16 psoc_address {};
@@ -900,6 +931,8 @@ struct DeviceDescriptor {
     u8 smcr_se_mask {0x01U};
     u32 flash_rww_end_word {};
     u32 boot_start_address {};
+    u32 app_start_address {};
+    u32 app_data_start_address {};
     u8 spl_reset {0x00U};
     u8 sph_reset {0x00U};
     u8 sreg_reset {0x00U};
@@ -1004,6 +1037,15 @@ struct DeviceDescriptor {
 
     u8 dma_count {0U};
     std::array<DmaDescriptor, 1> dmas {};
+
+    u8 zcd_count {0U};
+    std::array<ZcdDescriptor, 2> zcds {};
+
+    u8 opamp_count {0U};
+    std::array<OpampDescriptor, 3> opamps {};
+
+    u8 lin_count {0U};
+    std::array<LinDescriptor, 2> lins {};
 
     u16 fuse_address {0x0000U};
     u16 lockbit_address {0x0000U};

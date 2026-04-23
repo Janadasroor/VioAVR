@@ -208,15 +208,16 @@ void AvrCpu::step()
         return;
     }
 
-    if (interrupt_delay_ > 0U) {
-        --interrupt_delay_;
-    } else if (service_interrupt_if_needed()) {
+    if (bus_->should_stall_cpu(program_counter_)) {
+        bus_->consume_stall_cycle();
+        advance_cycles(1U);
         synchronize_if_needed();
         return;
     }
 
-    if (bus_->should_stall_cpu(program_counter_)) {
-        advance_cycles(1U);
+    if (interrupt_delay_ > 0U) {
+        --interrupt_delay_;
+    } else if (service_interrupt_if_needed()) {
         synchronize_if_needed();
         return;
     }
@@ -1541,7 +1542,7 @@ void AvrCpu::execute_lpm(const DecodedInstruction& instruction)
         return;
     }
 
-    write_register(0U, bus_->read_program_byte(z_pointer()));
+    write_register(0U, bus_->read_program_byte(z_pointer(), program_counter_));
     program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
 }
@@ -1553,7 +1554,7 @@ void AvrCpu::execute_lpm_z(const DecodedInstruction& instruction)
         return;
     }
 
-    write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(z_pointer()));
+    write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(z_pointer(), program_counter_));
     program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
 }
@@ -1566,7 +1567,7 @@ void AvrCpu::execute_lpm_z_postinc(const DecodedInstruction& instruction)
     }
 
     const u16 address = z_pointer();
-    write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(address));
+    write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(address, program_counter_));
     set_z_pointer(static_cast<u16>(address + 1U));
     program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
@@ -1580,7 +1581,7 @@ void AvrCpu::execute_elpm(const DecodedInstruction& instruction)
     }
 
     const u32 addr = (static_cast<u32>(rampz_) << 16U) | z_pointer();
-    write_register(0U, bus_->read_program_byte(addr));
+    write_register(0U, bus_->read_program_byte(addr, program_counter_));
     program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
 }
@@ -1593,7 +1594,7 @@ void AvrCpu::execute_elpm_z(const DecodedInstruction& instruction)
     }
 
     const u32 addr = (static_cast<u32>(rampz_) << 16U) | z_pointer();
-    write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(addr));
+    write_register(decode_destination_register(instruction.opcode), bus_->read_program_byte(addr, program_counter_));
     program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
 }
@@ -1607,7 +1608,7 @@ void AvrCpu::execute_elpm_z_postinc(const DecodedInstruction& instruction)
 
     const u32 addr = (static_cast<u32>(rampz_) << 16U) | z_pointer();
     const u8 destination = decode_destination_register(instruction.opcode);
-    write_register(destination, bus_->read_program_byte(addr));
+    write_register(destination, bus_->read_program_byte(addr, program_counter_));
     write_register_pair(30U, static_cast<u16>(z_pointer() + 1U));
     program_counter_ = instruction.word_address + 1U;
     advance_cycles(3U);
@@ -1647,7 +1648,7 @@ void AvrCpu::execute_spm(const DecodedInstruction& instruction)
     const u32 z = z_pointer();
     const u16 data = static_cast<u16>(gpr_[0] | (static_cast<u16>(gpr_[1]) << 8U));
 
-    bus_->execute_spm(spmcsr, z, data);
+    bus_->execute_spm(spmcsr, z, data, program_counter_);
     
     // Clear all SPMCSR command bits [4:0] after execution (hardware behaviour per datasheet)
     write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xE0U));

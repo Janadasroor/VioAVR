@@ -81,6 +81,8 @@ public:
     {
         return program_counter_;
     }
+    void write_data_bus(u16 address, u8 value) noexcept;
+    [[nodiscard]] u8 read_data_bus(u16 address) noexcept;
 
     void set_program_counter(u32 value) noexcept
     {
@@ -184,8 +186,6 @@ private:
     [[nodiscard]] static std::span<const InstructionDescriptor> instruction_table() noexcept;
     void decode_and_execute(const DecodedInstruction& instruction);
     void advance_cycles(u64 delta_cycles);
-    [[nodiscard]] u8 read_data_bus(u16 address) noexcept;
-    void write_data_bus(u16 address, u8 value) noexcept;
     void synchronize_if_needed();
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();

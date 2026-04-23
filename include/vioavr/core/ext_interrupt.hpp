@@ -27,7 +27,7 @@ public:
     void tick(u64 elapsed_cycles) noexcept override;
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
-    [[nodiscard]] bool on_external_pin_change(u8 bit_index, PinLevel level) noexcept override;
+    [[nodiscard]] bool on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 

@@ -105,8 +105,9 @@ void ExtInterrupt::write(const u16 address, const u8 value) noexcept
     }
 }
 
-bool ExtInterrupt::on_external_pin_change(u8 bit_index, PinLevel level) noexcept
+bool ExtInterrupt::on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept
 {
+    (void)pin_address;
     Logger::debug("ExtInterrupt: external pin change bit=" + std::to_string(bit_index));
     // ATmega328P INT0 is on PD2
     if (bit_index == 2) {

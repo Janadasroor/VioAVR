@@ -58,6 +58,9 @@ target_sources(vioavr_core
         nvm_ctrl.cpp
         cpu_int.cpp
         dma.cpp
+        zcd.cpp
+        lin.cpp
+        opamp.cpp
 )
 
 target_include_directories(vioavr_core
