@@ -41,8 +41,9 @@ public:
     [[nodiscard]] virtual u8 read(u16 address) noexcept = 0;
     virtual void write(u16 address, u8 value) noexcept = 0;
     
-    [[nodiscard]] virtual bool on_external_pin_change(u8 bit_index, PinLevel level) noexcept
+    [[nodiscard]] virtual bool on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept
     {
+        (void)pin_address;
         (void)bit_index;
         (void)level;
         return false;

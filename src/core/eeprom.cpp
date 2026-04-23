@@ -94,6 +94,7 @@ u8 Eeprom::read(const u16 address) noexcept
 
     // Unified Data Map Read
     if (desc_.mapped_data.size > 0 && address >= desc_.mapped_data.data_start && address < desc_.mapped_data.data_start + desc_.mapped_data.size) {
+        if (bus_) bus_->request_cpu_stall(4U); // Hardware stall for EEPROM read
         const u16 offset = address - desc_.mapped_data.data_start;
         return (offset < storage_.size()) ? storage_[offset] : 0xFFU;
     }
@@ -119,6 +120,13 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
         eear_ = static_cast<u16>((eear_ & 0xFF00U) | value);
     } else if (address == desc_.eearh_address) {
         eear_ = static_cast<u16>((static_cast<u16>(value) << 8U) | (eear_ & 0x00FFU));
+    } else if (desc_.mapped_data.size > 0 && address >= desc_.mapped_data.data_start && address < desc_.mapped_data.data_start + desc_.mapped_data.size) {
+        // Direct mapped write (AVR8X style)
+        if (bus_) bus_->request_cpu_stall(2U);
+        const u16 offset = address - desc_.mapped_data.data_start;
+        if (offset < storage_.size()) {
+            storage_[offset] = value;
+        }
     }
 }
 

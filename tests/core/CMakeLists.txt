@@ -120,6 +120,7 @@ set(TEST_SOURCES
     timer16_fidelity_test.cpp
     avr8x_cpuint_fidelity_test.cpp
     avr8x_wdt_fidelity_test.cpp
+    avr8x_zcd_fidelity_test.cpp
     avr8x_clkctrl_fidelity_test.cpp
     avr8x_sysctrl_fidelity_test.cpp
     avr8x_gpio_fidelity_test.cpp
@@ -141,6 +142,8 @@ set(TEST_SOURCES
     avr8x_evsys_chain_test.cpp
     avr8x_evsys_dma_chain_test.cpp
     cpu_spm_lpm_fidelity_test.cpp
+    nvm_stall_fidelity_test.cpp
+    lockbit_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

@@ -209,8 +209,9 @@ bool GpioPort::consume_interrupt_request(InterruptRequest& request) noexcept
     return false;
 }
 
-bool GpioPort::on_external_pin_change(u8 bit_index, PinLevel level) noexcept
+bool GpioPort::on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept
 {
+    if (pin_address != desc_.pin_address) return false;
     if (bit_index >= 8) return false;
 
     const u8 mask = (1U << bit_index);

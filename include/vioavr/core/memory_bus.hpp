@@ -28,7 +28,7 @@ public:
     void load_flash(std::span<const u16> words);
     void load_image(const HexImage& image);
 
-    void execute_spm(u8 command, u32 address, u16 data) noexcept;
+    void execute_spm(u8 command, u32 address, u16 data, u32 pc_word) noexcept;
 
     [[nodiscard]] constexpr std::span<const u16> flash_words() const noexcept
     {
@@ -50,44 +50,8 @@ public:
         return data_;
     }
 
-    [[nodiscard]] constexpr u16 read_program_word(u32 word_address) const noexcept
-    {
-        if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
-        if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
-            return 0xFFFFU;
-        }
-        return word_address < flash_.size() ? flash_[word_address] : 0U;
-    }
-
-    [[nodiscard]] constexpr u8 read_program_byte(u32 byte_address) const noexcept
-    {
-        if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
-        if (lpm_special_mode_timeout_ > 0U) {
-            if (device_.sigrd_mask != 0 && (last_spmcsr_val_ & device_.sigrd_mask) != 0U) { // SIGRD
-                const u32 offset = byte_address >> 1U;
-                if (offset < device_.signature.size()) return device_.signature[offset];
-                return 0x00U;
-            }
-            if (device_.blbset_mask != 0 && (last_spmcsr_val_ & device_.blbset_mask) != 0U) { // BLBSET
-                // Legacy fuse mapping: Low=0, High=3, Ext=2, Lock=1
-                if (byte_address == 0x0000) return fuses_[0];
-                if (byte_address == 0x0001) return lockbit_;
-                if (byte_address == 0x0002) return fuses_[2];
-                if (byte_address == 0x0003) return fuses_[1];
-                return 0xFFU;
-            }
-        }
-
-        const u32 word_address = byte_address >> 1U;
-        if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
-            return 0xFFU;
-        }
-        if (word_address >= flash_.size()) {
-            return 0U;
-        }
-        const u16 word = flash_[word_address];
-        return static_cast<u8>(((byte_address & 0x01U) == 0U) ? (word & 0x00FFU) : (word >> 8U));
-    }
+    [[nodiscard]] u16 read_program_word(u32 word_address, u32 pc_word = 0xFFFFFFFFU) const noexcept;
+    [[nodiscard]] u8 read_program_byte(u32 byte_address, u32 pc_word = 0xFFFFFFFFU) const noexcept;
 
     void write_program_word(u32 word_address, u16 value) noexcept;
 
@@ -116,7 +80,7 @@ public:
     void tick_peripherals(u64 elapsed_cycles, u8 active_domains = 0xFFU) noexcept;
     [[nodiscard]] u64 cpu_cycles() const noexcept { return cpu_cycles_; }
     [[nodiscard]] bool consume_pin_change(PinStateChange& change) noexcept;
-    void propagate_external_pin_change(u32 external_id, PinLevel level) noexcept;
+    void propagate_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) const noexcept;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) noexcept;
     void on_reti() noexcept;
@@ -124,6 +88,7 @@ public:
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
     [[nodiscard]] bool should_stall_cpu(u32 pc_word) const noexcept;
     void request_cpu_stall(u32 cycles) const noexcept;
+    void consume_stall_cycle() const noexcept;
 
     void set_xmem(class Xmem* xmem) noexcept { xmem_ = xmem; }
     [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
@@ -134,11 +99,17 @@ public:
 
     void set_flash_wait_states(u8 states) noexcept { flash_wait_states_ = states; }
     [[nodiscard]] u8 flash_wait_states() const noexcept { return flash_wait_states_; }
+
+    void set_zcd(class Zcd* zcd) noexcept { zcd_ = zcd; }
+    [[nodiscard]] class Zcd* zcd() const noexcept { return zcd_; }
     
     [[nodiscard]] const DeviceDescriptor& device() const noexcept { return device_; }
     [[nodiscard]] DeviceDescriptor& device() noexcept { return device_; }
     
     [[nodiscard]] IoPeripheral* get_peripheral_by_name(std::string_view name) noexcept;
+    
+    void set_lockbit(u8 value) noexcept { lockbit_ = value; }
+    [[nodiscard]] u8 lockbit() const noexcept { return lockbit_; }
     
     void execute_nvm_command(u8 command, u32 address, u16 data) noexcept;
 
@@ -157,6 +128,7 @@ private:
     Xmem* xmem_ {nullptr};
     class NvmCtrl* nvm_ctrl_ {nullptr};
     class CpuInt* cpu_int_ {nullptr};
+    class Zcd* zcd_ {nullptr};
     std::vector<IoPeripheral*> peripherals_ {};
     std::vector<IoPeripheral*> dispatch_table_ {};
     u32 loaded_program_words_ {};
@@ -165,6 +137,7 @@ private:
     std::vector<u8> eeprom_page_buffer_;
     std::vector<u8> user_row_;
     std::array<u8, 16> fuses_ {};
+    void perform_deferred_nvm_operation() noexcept;
     u8 lockbit_ {0xFFU};
 
     // SPM timing state

@@ -38,6 +38,9 @@
 #include "vioavr/core/vref.hpp"
 #include "vioavr/core/bodctrl.hpp"
 #include "vioavr/core/clkctrl.hpp"
+#include "vioavr/core/zcd.hpp"
+#include "vioavr/core/lin.hpp"
+#include "vioavr/core/opamp.hpp"
 
 namespace vioavr::core {
 
@@ -439,7 +442,29 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(cpu_int));
     }
 
-    // 14. CCL (Moved to end to ensure all other peripherals are on the bus)
+    // 14. ZCD
+    for (u8 i = 0; i < device_.zcd_count; ++i) {
+        auto zcd = std::make_unique<Zcd>(device_.zcds[i]);
+        if (i == 0) bus_->set_zcd(zcd.get());
+        bus_->attach_peripheral(*zcd);
+        owned_peripherals_.push_back(std::move(zcd));
+    }
+
+    // 15. LIN
+    for (u8 i = 0; i < device_.lin_count; ++i) {
+        auto lin = std::make_unique<LinUART>(device_.lins[i]);
+        bus_->attach_peripheral(*lin);
+        owned_peripherals_.push_back(std::move(lin));
+    }
+
+    // 16. OPAMP
+    for (u8 i = 0; i < device_.opamp_count; ++i) {
+        auto op = std::make_unique<Opamp>(device_.opamps[i]);
+        bus_->attach_peripheral(*op);
+        owned_peripherals_.push_back(std::move(op));
+    }
+
+    // 17. CCL (Moved to end to ensure all other peripherals are on the bus)
     if (device_.ccl.ctrla_address != 0) {
         auto c = std::make_unique<Ccl>(device_.ccl);
         c->set_memory_bus(bus_.get());

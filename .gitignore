@@ -66,4 +66,5 @@ tests/programs/*.csv
 # avr-libc
 avr-libc/
 TODO.md
+*_TODO.md
 
