@@ -32,6 +32,11 @@
 #include "vioavr/core/wdt8x.hpp"
 #include "vioavr/core/crc8x.hpp"
 #include "vioavr/core/dma.hpp"
+#include "vioavr/core/rstctrl.hpp"
+#include "vioavr/core/slpctrl.hpp"
+#include "vioavr/core/syscfg.hpp"
+#include "vioavr/core/vref.hpp"
+#include "vioavr/core/bodctrl.hpp"
 
 namespace vioavr::core {
 
@@ -153,6 +158,33 @@ void Machine::initialize_peripherals()
         }
         bus_->attach_peripheral(*pm);
         owned_peripherals_.push_back(std::move(pm));
+    }
+
+    // 1.6 System Control Peripherals (AVR8X)
+    if (device_.rstctrl.rstfr_address != 0U) {
+        auto p = std::make_unique<RstCtrl>(device_.rstctrl);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    if (device_.slpctrl.ctrla_address != 0U) {
+        auto p = std::make_unique<SlpCtrl>(device_.slpctrl);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    if (device_.syscfg.reves_address != 0U) {
+        auto p = std::make_unique<SysCfg>(device_.syscfg);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    if (device_.vref.ctrla_address != 0U) {
+        auto p = std::make_unique<VRef>(device_.vref);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    if (device_.bod.ctrla_address != 0U) {
+        auto p = std::make_unique<BodCtrl>(device_.bod);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
     }
 
     // Timers
