@@ -118,7 +118,7 @@ def generate_header(data, header_path):
         'USART': [], 'USART8X': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'WDT8X': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
-        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'CRC': [], 'CRCSCAN': [],
+        'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'DMA': [], 'CRC': [], 'CRCSCAN': [],
         'PORTMUX': []
     }
     event_generators = {}
@@ -170,6 +170,8 @@ def generate_header(data, header_path):
             groups['PSC'].append((p_name, p_data))
         elif 'DAC' in mod:
             groups['DAC'].append((p_name, p_data))
+        elif 'DMA' in mod:
+            groups['DMA'].append((p_name, p_data))
 
     for k in groups: groups[k].sort()
 
@@ -498,7 +500,7 @@ def generate_header(data, header_path):
             if user_reg: user_addr = user_reg['offset']
 
         return f"""{{
-            .ctrla_address = {hx(r('CTRLA')['offset'])}, .muxctrla_address = {hx(r('MUXCTRLA')['offset'])}, .dacctrla_address = {hx(r('DACCTRLA')['offset'])},
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .muxctrla_address = {hx(r('MUXCTRLA')['offset'])}, .dacctrla_address = {hx(r('DACREF|DACCTRLA')['offset'])},
             .intctrl_address = {hx(r('INTCTRL')['offset'])}, .status_address = {hx(r('STATUS')['offset'])},
             .vector_index = {get_int('AC')}U,
             .user_event_address = {hx(user_addr)},
@@ -672,6 +674,7 @@ def generate_header(data, header_path):
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .ctrlc_address = {hx(r('CTRLC')['offset'])},
             .ctrld_address = {hx(r('CTRLD')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}, .baud_address = {hx(r('BAUD')['offset'])},
             .rxdata_address = {hx(r('RXDATAL')['offset'])}, .txdata_address = {hx(r('TXDATAL')['offset'])}, .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
+            .evctrl_address = {hx(r('EVCTRL')['offset'])},
             .rx_vector_index = {get_int('RXC')}U, .tx_vector_index = {get_int('TXC')}U, .dre_vector_index = {get_int('DRE')}U,
             .user_event_address = {hx(user_addr)},
             .txd_pin_address = {tx_a}, .txd_pin_bit = {tx_b}U,
@@ -685,9 +688,14 @@ def generate_header(data, header_path):
             for k, v in ints.items():
                 if key in k.upper(): return v['index']
             return 0
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .data_address = {hx(r('DATA')['offset'])},
-            .vector_index = {get_int('INT')}U
+            .vector_index = {get_int('INT')}U,
+            .user_event_address = {hx(user_addr)}
         }}"""
         
     def gen_twi8x(p_name, p_data):
@@ -697,11 +705,16 @@ def generate_header(data, header_path):
             for k, v in ints.items():
                 if key in k.upper(): return v['index']
             return 0
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
         return f"""{{
             .mctrla_address = {hx(r('MCTRLA')['offset'])}, .mctrlb_address = {hx(r('MCTRLB')['offset'])}, .mstatus_address = {hx(r('MSTATUS')['offset'])}, .mbaud_address = {hx(r('MBAUD')['offset'])}, .maddr_address = {hx(r('MADDR')['offset'])}, .mdata_address = {hx(r('MDATA')['offset'])},
             .sctrla_address = {hx(r('SCTRLA')['offset'])}, .sctrlb_address = {hx(r('SCTRLB')['offset'])}, .sstatus_address = {hx(r('SSTATUS')['offset'])}, .saddr_address = {hx(r('SADDR')['offset'])}, .sdata_address = {hx(r('SDATA')['offset'])}, .saddrmask_address = {hx(r('SADDRMASK')['offset'])},
             .dbgctrl_address = {hx(r('DBGCTRL')['offset'])},
-            .master_vector_index = {get_int('TWIM')}U, .slave_vector_index = {get_int('TWIS')}U
+            .master_vector_index = {get_int('TWIM')}U, .slave_vector_index = {get_int('TWIS')}U,
+            .user_event_address = {hx(user_addr)}
         }}"""
 
     def gen_can(p_name, p_data):
@@ -719,8 +732,13 @@ def generate_header(data, header_path):
 
     def gen_crc8x(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        user_addr = 0
+        if groups['EVSYS']:
+            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            if user_reg: user_addr = user_reg['offset']
         return f"""{{
-            .ctrla_address = {hx(r('CTRLA')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}, .data_address = {hx(r('DATA')['offset'])}, .checksum_address = {hx(r('CHECKSUM')['offset'])}
+            .ctrla_address = {hx(r('CTRLA')['offset'])}, .status_address = {hx(r('STATUS')['offset'])}, .data_address = {hx(r('DATA')['offset'])}, .checksum_address = {hx(r('CHECKSUM')['offset'])},
+            .user_event_address = {hx(user_addr)}
         }}"""
 
     def gen_wdt8x(p_name, p_data):
@@ -983,6 +1001,48 @@ def generate_header(data, header_path):
             .luts = {{ {", ".join(luts_str)} }},
             .vector_index = {p_data.get('interrupts', {}).get('INT', {}).get('index', 0)}U
         }}"""
+        
+    def gen_dma(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        
+        channels_str = []
+        ch_idx = 0
+        while True:
+            # Check for channel-specific registers
+            la = get_reg(p_data, f'CH{ch_idx}CTRLA')
+            if not la: break
+            lb = get_reg(p_data, f'CH{ch_idx}CTRLB') or {'offset': 0}
+            src = get_reg(p_data, f'CH{ch_idx}SRCADDR') or {'offset': 0}
+            dst = get_reg(p_data, f'CH{ch_idx}DSTADDR') or {'offset': 0}
+            cnt = get_reg(p_data, f'CH{ch_idx}CNT') or {'offset': 0}
+            trig = get_reg(p_data, f'CH{ch_idx}TRIGSRC') or {'offset': 0}
+            ictl = get_reg(p_data, f'CH{ch_idx}INTCTRL') or {'offset': 0}
+            iflg = get_reg(p_data, f'CH{ch_idx}INTFLAGS') or {'offset': 0}
+            
+            # Map EVSYS user register for this DMA channel
+            user_addr = 0
+            if groups['EVSYS']:
+                user_reg = get_reg(groups['EVSYS'][0][1], f'USERDMA{ch_idx}')
+                if user_reg: user_addr = user_reg['offset']
+
+            channels_str.append(f"""{{
+                .ctrla_address = {hx(la['offset'])}, .ctrlb_address = {hx(lb['offset'])},
+                .srcaddr_address = {hx(src['offset'])}, .dstaddr_address = {hx(dst['offset'])},
+                .cnt_address = {hx(cnt['offset'])}, .trigsrc_address = {hx(trig['offset'])},
+                .intctrl_address = {hx(ictl['offset'])}, .intflags_address = {hx(iflg['offset'])},
+                .user_event_address = {hx(user_addr)}
+            }}""")
+            ch_idx += 1
+            
+        while len(channels_str) < 4: channels_str.append("{0}")
+        
+        return f"""{{
+            .ctrla_address = {hx(r('MCTRLA')['offset'])}, .status_address = {hx(r('MSTATUS')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])},
+            .dbgctrl_address = {hx(r('MDBGCTRL')['offset'])},
+            .channel_count = {ch_idx}U,
+            .channels = {{ {", ".join(channels_str)} }}
+        }}"""
 
     def gen_portmux(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0}
@@ -1048,6 +1108,7 @@ def generate_header(data, header_path):
     usbs_str = ",\n        ".join(gen_usb(n, d) for n, d in groups['USB_DEVICE'])
     pscs_str = ",\n        ".join(gen_psc(n, d) for n, d in groups['PSC'])
     dacs_str = ",\n        ".join(gen_dac(n, d) for n, d in groups['DAC'])
+    dmas_str = ",\n        ".join(gen_dma(n, d) for n, d in groups['DMA'])
     crc8x_descriptors = [gen_crc8x(n, d) for n, d in groups['CRC'] + groups['CRCSCAN']]
     crc8x_str = ",\n        ".join(crc8x_descriptors)
     wdt8x_descriptors = [gen_wdt8x(n, d) for n, d in groups['WDT8X']]
@@ -1228,6 +1289,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .dac_count = {len(groups['DAC'])}U,
     .dacs = {{{{ {dacs_str} }}}},
+    
+    .dma_count = {len(groups['DMA'])}U,
+    .dmas = {{{{ {dmas_str} }}}},
 
     .fuse_address = {hx(next((m['start'] for m in data['memories'].get('fuses', [])), 0))},
     .lockbit_address = {hx(next((m['start'] for m in data['memories'].get('lockbits', [])), 0))},

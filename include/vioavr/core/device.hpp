@@ -210,6 +210,7 @@ struct Uart8xDescriptor {
     u16 rxdata_address {};
     u16 txdata_address {};
     u16 dbgctrl_address {};
+    u16 evctrl_address {};
     
     u8 rx_vector_index {};
     u8 tx_vector_index {};
@@ -277,6 +278,7 @@ struct Spi8xDescriptor {
     u16 intflags_address {};
     u16 data_address {};
     u8 vector_index {};
+    u16 user_event_address {};
 };
 
 struct SpiDescriptor {
@@ -324,6 +326,7 @@ struct Twi8xDescriptor {
     u16 dbgctrl_address {};
     u8 master_vector_index {};
     u8 slave_vector_index {};
+    u16 user_event_address {};
 };
 
 struct TwiDescriptor {
@@ -378,6 +381,7 @@ struct Crc8xDescriptor {
     u16 status_address {};
     u16 data_address {};
     u16 checksum_address {};
+    u16 user_event_address {};
 };
 
 struct Wdt8xDescriptor {
@@ -587,6 +591,32 @@ struct UsbDescriptor {
     u8 ueintx_rxouti_mask {0x04U};
     u8 udaddr_adden_mask {0x80U};
 
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
+struct DmaChannelDescriptor {
+    u16 ctrla_address {0U};
+    u16 ctrlb_address {0U};
+    u16 srcaddr_address {0U};
+    u16 dstaddr_address {0U};
+    u16 cnt_address {0U};
+    u16 trigsrc_address {0U};
+    u16 intctrl_address {0U};
+    u16 intflags_address {0U};
+    u16 user_event_address {0U};
+};
+
+struct DmaDescriptor {
+    u16 ctrla_address {0U};
+    u16 status_address {0U};
+    u16 intctrl_address {0U};
+    u16 intflags_address {0U};
+    u16 dbgctrl_address {0U};
+    
+    u8 channel_count {0U};
+    DmaChannelDescriptor channels[4] {};
+    
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
 };
@@ -882,6 +912,9 @@ struct DeviceDescriptor {
 
     u8 dac_count {0U};
     std::array<DacDescriptor, 1> dacs {};
+
+    u8 dma_count {0U};
+    std::array<DmaDescriptor, 1> dmas {};
 
     u16 fuse_address {0x0000U};
     u16 lockbit_address {0x0000U};

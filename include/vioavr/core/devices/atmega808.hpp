@@ -7,6 +7,7 @@ inline constexpr DeviceDescriptor atmega808 {
     .name = "ATmega808",
     .flash_words = 4096U,
     .sram_bytes = 1024U,
+    .sram_start = 0x3C00U,
     .eeprom_bytes = 256U,
     .interrupt_vector_count = 39U,
     .interrupt_vector_size = 4U,
@@ -32,6 +33,7 @@ inline constexpr DeviceDescriptor atmega808 {
     .smcr_address = 0x0U,
     .mcusr_address = 0x0U,
     .mcucr_address = 0x0U,
+    .ccp_address = 0x34U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
@@ -66,7 +68,7 @@ inline constexpr DeviceDescriptor atmega808 {
     .acs = {{  }},
     .ac8x_count = 1U,
     .acs8x = {{ {
-            .ctrla_address = 0x680U, .muxctrla_address = 0x682U, .dacctrla_address = 0x0U,
+            .ctrla_address = 0x680U, .muxctrla_address = 0x682U, .dacctrla_address = 0x684U,
             .intctrl_address = 0x686U, .status_address = 0x687U,
             .vector_index = 21U,
             .user_event_address = 0x0U,
@@ -86,6 +88,7 @@ inline constexpr DeviceDescriptor atmega808 {
             .intctrl_address = 0xA0AU, .intflags_address = 0xA0BU, .dbgctrl_address = 0xA0EU,
             .temp_address = 0xA0FU, .tcnt_address = 0xA20U, .period_address = 0xA26U,
             .cmp0_address = 0xA28U, .cmp1_address = 0xA2AU, .cmp2_address = 0xA2CU,
+            .perbuf_address = 0xA36U, .cmp0buf_address = 0xA38U, .cmp1buf_address = 0xA3AU, .cmp2buf_address = 0xA3CU,
             .luf_ovf_vector_index = 7U, .cmp0_vector_index = 9U,
             .cmp1_vector_index = 10U, .cmp2_vector_index = 11U,
             .hunf_vector_index = 8U, .lcmp0_vector_index = 9U,
@@ -149,18 +152,33 @@ inline constexpr DeviceDescriptor atmega808 {
             .lut_count = 4U,
             .luts = { {
                 .ctrla_address = 0x1C8U, .ctrlb_address = 0x1C9U,
-                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU
+                .ctrlc_address = 0x1CAU, .truth_address = 0x1CBU,
+                .user_event_a_address = 0x1A0U, .user_event_b_address = 0x1A1U,
+                .generator_id = 16U
             }, {
                 .ctrla_address = 0x1CCU, .ctrlb_address = 0x1CDU,
-                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU
+                .ctrlc_address = 0x1CEU, .truth_address = 0x1CFU,
+                .user_event_a_address = 0x1A2U, .user_event_b_address = 0x1A3U,
+                .generator_id = 17U
             }, {
                 .ctrla_address = 0x1D0U, .ctrlb_address = 0x1D1U,
-                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U
+                .ctrlc_address = 0x1D2U, .truth_address = 0x1D3U,
+                .user_event_a_address = 0x1A4U, .user_event_b_address = 0x1A5U,
+                .generator_id = 18U
             }, {
                 .ctrla_address = 0x1D4U, .ctrlb_address = 0x1D5U,
-                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U
+                .ctrlc_address = 0x1D6U, .truth_address = 0x1D7U,
+                .user_event_a_address = 0x1A6U, .user_event_b_address = 0x1A7U,
+                .generator_id = 19U
             }, {0}, {0}, {0}, {0} },
             .vector_index = 0U
+        },
+    .portmux = {
+            .twispiroutea_address = 0x5E3U,
+            .usartroutea_address = 0x5E2U,
+            .evoutroutea_address = 0x5E0U,
+            .tcaroutea_address = 0x5E4U,
+            .tcbroutea_address = 0x5E5U
         },
     
     .ext_interrupt_count = 0U,
@@ -174,22 +192,31 @@ inline constexpr DeviceDescriptor atmega808 {
             .ctrla_address = 0x805U, .ctrlb_address = 0x806U, .ctrlc_address = 0x807U,
             .ctrld_address = 0x80AU, .status_address = 0x804U, .baud_address = 0x808U,
             .rxdata_address = 0x800U, .txdata_address = 0x802U, .dbgctrl_address = 0x80BU,
+            .evctrl_address = 0x80CU,
             .rx_vector_index = 17U, .tx_vector_index = 19U, .dre_vector_index = 18U,
-            .user_event_address = 0x1AFU
+            .user_event_address = 0x1AFU,
+            .txd_pin_address = 0x404U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x408U, .rxd_pin_bit = 1U
         },
         {
             .ctrla_address = 0x825U, .ctrlb_address = 0x826U, .ctrlc_address = 0x827U,
             .ctrld_address = 0x82AU, .status_address = 0x824U, .baud_address = 0x828U,
             .rxdata_address = 0x820U, .txdata_address = 0x822U, .dbgctrl_address = 0x82BU,
+            .evctrl_address = 0x82CU,
             .rx_vector_index = 26U, .tx_vector_index = 28U, .dre_vector_index = 27U,
-            .user_event_address = 0x1B0U
+            .user_event_address = 0x1B0U,
+            .txd_pin_address = 0x444U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x448U, .rxd_pin_bit = 1U
         },
         {
             .ctrla_address = 0x845U, .ctrlb_address = 0x846U, .ctrlc_address = 0x847U,
             .ctrld_address = 0x84AU, .status_address = 0x844U, .baud_address = 0x848U,
             .rxdata_address = 0x840U, .txdata_address = 0x842U, .dbgctrl_address = 0x84BU,
+            .evctrl_address = 0x84CU,
             .rx_vector_index = 31U, .tx_vector_index = 33U, .dre_vector_index = 32U,
-            .user_event_address = 0x1B1U
+            .user_event_address = 0x1B1U,
+            .txd_pin_address = 0x4A4U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x4A8U, .rxd_pin_bit = 1U
         } }},
 
     .nvm_ctrl_count = 1U,
@@ -220,7 +247,8 @@ inline constexpr DeviceDescriptor atmega808 {
     .spi8x_count = 1U,
     .spis8x = {{ {
             .ctrla_address = 0x8C0U, .ctrlb_address = 0x8C1U, .intctrl_address = 0x8C2U, .intflags_address = 0x8C3U, .data_address = 0x8C4U,
-            .vector_index = 16U
+            .vector_index = 16U,
+            .user_event_address = 0x0U
         } }},
     
     .twi_count = 0U,
@@ -231,7 +259,8 @@ inline constexpr DeviceDescriptor atmega808 {
             .mctrla_address = 0x8A3U, .mctrlb_address = 0x8A4U, .mstatus_address = 0x8A5U, .mbaud_address = 0x8A6U, .maddr_address = 0x8A7U, .mdata_address = 0x8A8U,
             .sctrla_address = 0x8A9U, .sctrlb_address = 0x8AAU, .sstatus_address = 0x8ABU, .saddr_address = 0x8ACU, .sdata_address = 0x8ADU, .saddrmask_address = 0x8AEU,
             .dbgctrl_address = 0x8A2U,
-            .master_vector_index = 15U, .slave_vector_index = 14U
+            .master_vector_index = 15U, .slave_vector_index = 14U,
+            .user_event_address = 0x0U
         } }},
     
     .eeprom_count = 1U,
@@ -245,12 +274,17 @@ inline constexpr DeviceDescriptor atmega808 {
 
     .wdt8x_count = 1U,
     .wdts8x = {{ {
-            .ctrla_address = 0x100U, .status_address = 0x101U
+            .ctrla_address = 0x100U, 
+            .winctrla_address = 0x0U,
+            .intctrl_address = 0x0U,
+            .status_address = 0x101U,
+            .vector_index = 0U
         } }},
 
     .crc8x_count = 1U,
     .crcs8x = {{ {
-            .ctrla_address = 0x120U, .status_address = 0x122U, .data_address = 0x0U, .checksum_address = 0x0U
+            .ctrla_address = 0x120U, .status_address = 0x122U, .data_address = 0x0U, .checksum_address = 0x0U,
+            .user_event_address = 0x0U
         } }},
 
     .can_count = 0U,
@@ -264,6 +298,9 @@ inline constexpr DeviceDescriptor atmega808 {
 
     .dac_count = 0U,
     .dacs = {{  }},
+    
+    .dma_count = 0U,
+    .dmas = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,

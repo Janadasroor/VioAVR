@@ -1,4 +1,6 @@
 #include "vioavr/core/evsys.hpp"
+#include "vioavr/core/logger.hpp"
+#include <cstdio>
 #include <algorithm>
 
 namespace vioavr::core {
@@ -73,6 +75,7 @@ void EventSystem::write(u16 address, u8 value) noexcept {
         rebuild_cache();
     } else if (address >= desc_.users_address && address < desc_.users_address + desc_.user_count) {
         users_[address - desc_.users_address] = value;
+        Logger::debug("EVSYS: User set to channel " + std::to_string(value));
         rebuild_cache();
     }
 }

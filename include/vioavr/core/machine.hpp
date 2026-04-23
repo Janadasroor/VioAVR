@@ -54,6 +54,16 @@ public:
     [[nodiscard]] PinMux& pin_mux() noexcept { return *pin_mux_; }
 
     /**
+     * @brief Get the event system.
+     */
+    [[nodiscard]] EventSystem* event_system() noexcept;
+
+    /**
+     * @brief Manually add a peripheral (useful for testing custom/mock devices).
+     */
+    void add_peripheral(std::unique_ptr<IoPeripheral> peripheral) noexcept;
+
+    /**
      * @brief Get the analog signal bank.
      */
     [[nodiscard]] AnalogSignalBank& analog_signal_bank() noexcept { return analog_signal_bank_; }

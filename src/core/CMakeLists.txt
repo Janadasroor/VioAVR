@@ -57,6 +57,7 @@ target_sources(vioavr_core
         dac.cpp
         nvm_ctrl.cpp
         cpu_int.cpp
+        dma.cpp
 )
 
 target_include_directories(vioavr_core
