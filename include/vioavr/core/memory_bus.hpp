@@ -30,11 +30,6 @@ public:
 
     void execute_spm(u8 command, u32 address, u16 data) noexcept;
 
-    [[nodiscard]] constexpr const DeviceDescriptor& device() const noexcept
-    {
-        return device_;
-    }
-
     [[nodiscard]] constexpr std::span<const u16> flash_words() const noexcept
     {
         return flash_;
@@ -68,15 +63,15 @@ public:
     {
         if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
         if (lpm_special_mode_timeout_ > 0U) {
-            if ((last_spmcsr_val_ & 0x20U) != 0U) { // SIGRD
+            if (device_.sigrd_mask != 0 && (last_spmcsr_val_ & device_.sigrd_mask) != 0U) { // SIGRD
                 const u32 offset = byte_address >> 1U;
                 if (offset < device_.signature.size()) return device_.signature[offset];
                 return 0x00U;
             }
-            if ((last_spmcsr_val_ & 0x08U) != 0U) { // BLBSET
+            if (device_.blbset_mask != 0 && (last_spmcsr_val_ & device_.blbset_mask) != 0U) { // BLBSET
                 // Legacy fuse mapping: Low=0, High=3, Ext=2, Lock=1
                 if (byte_address == 0x0000) return fuses_[0];
-                if (byte_address == 0x0001) return 0xFFU; // Lock bits stub
+                if (byte_address == 0x0001) return lockbit_;
                 if (byte_address == 0x0002) return fuses_[2];
                 if (byte_address == 0x0003) return fuses_[1];
                 return 0xFFU;
@@ -140,6 +135,9 @@ public:
     void set_flash_wait_states(u8 states) noexcept { flash_wait_states_ = states; }
     [[nodiscard]] u8 flash_wait_states() const noexcept { return flash_wait_states_; }
     
+    [[nodiscard]] const DeviceDescriptor& device() const noexcept { return device_; }
+    [[nodiscard]] DeviceDescriptor& device() noexcept { return device_; }
+    
     [[nodiscard]] IoPeripheral* get_peripheral_by_name(std::string_view name) noexcept;
     
     void execute_nvm_command(u8 command, u32 address, u16 data) noexcept;
@@ -150,7 +148,7 @@ private:
     [[nodiscard]] IoPeripheral* find_peripheral(u16 address) noexcept;
     [[nodiscard]] const IoPeripheral* find_peripheral(u16 address) const noexcept;
 
-    const DeviceDescriptor& device_;
+    DeviceDescriptor device_;
     ITraceHook* trace_hook_ {};
     PinMap* pin_map_ {};
     std::vector<u16> flash_;
@@ -167,6 +165,7 @@ private:
     std::vector<u8> eeprom_page_buffer_;
     std::vector<u8> user_row_;
     std::array<u8, 16> fuses_ {};
+    u8 lockbit_ {0xFFU};
 
     // SPM timing state
     u32 spm_busy_cycles_left_ {0U};

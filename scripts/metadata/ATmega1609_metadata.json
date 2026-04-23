@@ -80,216 +80,259 @@
     {
       "name": "NMI",
       "index": 1,
+      "module-instance": "CRCSCAN",
       "caption": null
     },
     {
       "name": "VLM",
       "index": 2,
+      "module-instance": "BOD",
       "caption": null
     },
     {
       "name": "CNT",
       "index": 3,
+      "module-instance": "RTC",
       "caption": null
     },
     {
       "name": "PIT",
       "index": 4,
+      "module-instance": "RTC",
       "caption": null
     },
     {
       "name": "CCL",
       "index": 5,
+      "module-instance": "CCL",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 6,
+      "module-instance": "PORTA",
       "caption": null
     },
     {
       "name": "LUNF",
       "index": 7,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "OVF",
       "index": 7,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "HUNF",
       "index": 8,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "CMP0",
       "index": 9,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "LCMP0",
       "index": 9,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "CMP1",
       "index": 10,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "LCMP1",
       "index": 10,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "CMP2",
       "index": 11,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "LCMP2",
       "index": 11,
+      "module-instance": "TCA0",
       "caption": null
     },
     {
       "name": "INT",
       "index": 12,
+      "module-instance": "TCB0",
       "caption": null
     },
     {
       "name": "INT",
       "index": 13,
+      "module-instance": "TCB1",
       "caption": null
     },
     {
       "name": "TWIS",
       "index": 14,
+      "module-instance": "TWI0",
       "caption": null
     },
     {
       "name": "TWIM",
       "index": 15,
+      "module-instance": "TWI0",
       "caption": null
     },
     {
       "name": "INT",
       "index": 16,
+      "module-instance": "SPI0",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 17,
+      "module-instance": "USART0",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 18,
+      "module-instance": "USART0",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 19,
+      "module-instance": "USART0",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 20,
+      "module-instance": "PORTD",
       "caption": null
     },
     {
       "name": "AC",
       "index": 21,
+      "module-instance": "AC0",
       "caption": null
     },
     {
       "name": "RESRDY",
       "index": 22,
+      "module-instance": "ADC0",
       "caption": null
     },
     {
       "name": "WCOMP",
       "index": 23,
+      "module-instance": "ADC0",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 24,
+      "module-instance": "PORTC",
       "caption": null
     },
     {
       "name": "INT",
       "index": 25,
+      "module-instance": "TCB2",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 26,
+      "module-instance": "USART1",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 27,
+      "module-instance": "USART1",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 28,
+      "module-instance": "USART1",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 29,
+      "module-instance": "PORTF",
       "caption": null
     },
     {
       "name": "EE",
       "index": 30,
+      "module-instance": "NVMCTRL",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 31,
+      "module-instance": "USART2",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 32,
+      "module-instance": "USART2",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 33,
+      "module-instance": "USART2",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 34,
+      "module-instance": "PORTB",
       "caption": null
     },
     {
       "name": "PORT",
       "index": 35,
+      "module-instance": "PORTE",
       "caption": null
     },
     {
       "name": "INT",
       "index": 36,
+      "module-instance": "TCB3",
       "caption": null
     },
     {
       "name": "RXC",
       "index": 37,
+      "module-instance": "USART3",
       "caption": null
     },
     {
       "name": "DRE",
       "index": 38,
+      "module-instance": "USART3",
       "caption": null
     },
     {
       "name": "TXC",
       "index": 39,
+      "module-instance": "USART3",
       "caption": null
     }
   ],
@@ -481,54 +524,67 @@
           }
         }
       },
+      "interrupts": {
+        "AC": {
+          "index": 21
+        }
+      },
       "signals": [
         {
           "group": "N",
           "pad": "PD3",
           "index": "0",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "N",
           "pad": "PD5",
           "index": "1",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "N",
           "pad": "PD7",
           "index": "2",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "OUT",
           "pad": "PA7",
           "index": "0",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD2",
           "index": "0",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD4",
           "index": "1",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD6",
           "index": "2",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD1",
           "index": "3",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         }
       ]
     },
@@ -1026,102 +1082,126 @@
           }
         }
       },
+      "interrupts": {
+        "RESRDY": {
+          "index": 22
+        },
+        "WCOMP": {
+          "index": 23
+        }
+      },
       "signals": [
         {
           "group": "AIN",
           "pad": "PD0",
           "index": "0",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD1",
           "index": "1",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD2",
           "index": "2",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD3",
           "index": "3",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD4",
           "index": "4",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD5",
           "index": "5",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD6",
           "index": "6",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD7",
           "index": "7",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE0",
           "index": "8",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE1",
           "index": "9",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE2",
           "index": "10",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE3",
           "index": "11",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF2",
           "index": "12",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF3",
           "index": "13",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF4",
           "index": "14",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF5",
           "index": "15",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         }
       ]
     },
@@ -1304,6 +1384,11 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "VLM": {
+          "index": 2
         }
       },
       "signals": []
@@ -2548,126 +2633,151 @@
           }
         }
       },
+      "interrupts": {
+        "CCL": {
+          "index": 5
+        }
+      },
       "signals": [
         {
           "group": "LUT0_IN",
           "pad": "PA0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT0"
         },
         {
           "group": "LUT0_IN",
           "pad": "PA1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT0"
         },
         {
           "group": "LUT0_IN",
           "pad": "PA2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT0"
         },
         {
           "group": "LUT0_OUT",
           "pad": "PA3",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT0"
         },
         {
           "group": "LUT0_OUT",
           "pad": "PA6",
           "index": "0",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT0"
         },
         {
           "group": "LUT1_IN",
           "pad": "PC0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT1"
         },
         {
           "group": "LUT1_IN",
           "pad": "PC1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT1"
         },
         {
           "group": "LUT1_IN",
           "pad": "PC2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT1"
         },
         {
           "group": "LUT1_OUT",
           "pad": "PC3",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT1"
         },
         {
           "group": "LUT1_OUT",
           "pad": "PC6",
           "index": "0",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT1"
         },
         {
           "group": "LUT2_IN",
           "pad": "PD0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT2"
         },
         {
           "group": "LUT2_IN",
           "pad": "PD1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT2"
         },
         {
           "group": "LUT2_IN",
           "pad": "PD2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT2"
         },
         {
           "group": "LUT2_OUT",
           "pad": "PD3",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT2"
         },
         {
           "group": "LUT2_OUT",
           "pad": "PD6",
           "index": "1",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT2"
         },
         {
           "group": "LUT3_IN",
           "pad": "PF0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT3"
         },
         {
           "group": "LUT3_IN",
           "pad": "PF1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT3"
         },
         {
           "group": "LUT3_IN",
           "pad": "PF2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT3"
         },
         {
           "group": "LUT3_OUT",
           "pad": "PF3",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT3"
         },
         {
           "group": "LUT3_OUT",
           "pad": "PF6",
           "index": "1",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT3"
         }
       ]
     },
@@ -2930,30 +3040,35 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "CLKI",
           "pad": "PA0",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         },
         {
           "group": "CLKO",
           "pad": "PA7",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         },
         {
           "group": "TOSC1",
           "pad": "PF0",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         },
         {
           "group": "TOSC2",
           "pad": "PF1",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         }
       ]
     },
@@ -3049,6 +3164,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "CPUINT": {
@@ -3131,6 +3247,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "CRCSCAN": {
@@ -3215,6 +3332,11 @@
               "values": {}
             }
           }
+        }
+      },
+      "interrupts": {
+        "NMI": {
+          "index": 1
         }
       },
       "signals": []
@@ -6022,60 +6144,70 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "EVOUT",
           "pad": "PA2",
           "index": "0",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT0"
         },
         {
           "group": "EVOUT",
           "pad": "PA7",
           "index": "0",
-          "function": "EVSYS_ALT1"
+          "function": "EVSYS_ALT1",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT0"
         },
         {
           "group": "EVOUT",
           "pad": "PB2",
           "index": "1",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT1"
         },
         {
           "group": "EVOUT",
           "pad": "PC2",
           "index": "2",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT2"
         },
         {
           "group": "EVOUT",
           "pad": "PC7",
           "index": "2",
-          "function": "EVSYS_ALT1"
+          "function": "EVSYS_ALT1",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT2"
         },
         {
           "group": "EVOUT",
           "pad": "PD2",
           "index": "3",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT3"
         },
         {
           "group": "EVOUT",
           "pad": "PD7",
           "index": "3",
-          "function": "EVSYS_ALT1"
+          "function": "EVSYS_ALT1",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT3"
         },
         {
           "group": "EVOUT",
           "pad": "PE2",
           "index": "4",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT4"
         },
         {
           "group": "EVOUT",
           "pad": "PF2",
           "index": "5",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUT5"
         }
       ]
     },
@@ -6422,6 +6554,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "GPIO": {
@@ -6460,6 +6593,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "LOCKBIT": {
@@ -6489,6 +6623,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "NVMCTRL": {
@@ -6627,6 +6762,11 @@
           "initval": 0,
           "mask": 255,
           "bitfields": {}
+        }
+      },
+      "interrupts": {
+        "EE": {
+          "index": 30
         }
       },
       "signals": []
@@ -7127,54 +7267,67 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 6
+        }
+      },
       "signals": [
         {
           "group": "PIN",
           "pad": "PA0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA7",
           "index": "7",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -7674,42 +7827,53 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 34
+        }
+      },
       "signals": [
         {
           "group": "PIN",
           "pad": "PB0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -8209,54 +8373,67 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 24
+        }
+      },
       "signals": [
         {
           "group": "PIN",
           "pad": "PC0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC7",
           "index": "7",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -8756,54 +8933,67 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 20
+        }
+      },
       "signals": [
         {
           "group": "PIN",
           "pad": "PD0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD7",
           "index": "7",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -9303,30 +9493,39 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 35
+        }
+      },
       "signals": [
         {
           "group": "PIN",
           "pad": "PE0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PE1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PE2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PE3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -9826,48 +10025,60 @@
           }
         }
       },
+      "interrupts": {
+        "PORT": {
+          "index": 29
+        }
+      },
       "signals": [
         {
           "group": "PIN",
           "pad": "PF0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -10223,6 +10434,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "RSTCTRL": {
@@ -10282,12 +10494,14 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "RESET",
           "pad": "PF6",
           "index": null,
-          "function": "OTHER"
+          "function": "OTHER",
+          "field": null
         }
       ]
     },
@@ -10688,6 +10902,14 @@
           }
         }
       },
+      "interrupts": {
+        "CNT": {
+          "index": 3
+        },
+        "PIT": {
+          "index": 4
+        }
+      },
       "signals": []
     },
     "SIGROW": {
@@ -10894,6 +11116,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "SLPCTRL": {
@@ -10932,6 +11155,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "SPI0": {
@@ -11121,78 +11345,95 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 16
+        }
+      },
       "signals": [
         {
           "group": "MISO",
           "pad": "PA5",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MOSI",
           "pad": "PA4",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SCK",
           "pad": "PA6",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SS",
           "pad": "PA7",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MISO",
           "pad": "PC1",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MOSI",
           "pad": "PC0",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SCK",
           "pad": "PC2",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SS",
           "pad": "PC3",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MISO",
           "pad": "PE1",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MOSI",
           "pad": "PE0",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SCK",
           "pad": "PE2",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SS",
           "pad": "PE3",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         }
       ]
     },
@@ -11244,6 +11485,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "TCA0": {
@@ -11792,210 +12034,273 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "LUNF": {
+          "index": 7
+        },
+        "OVF": {
+          "index": 7
+        },
+        "HUNF": {
+          "index": 8
+        },
+        "CMP0": {
+          "index": 9
+        },
+        "LCMP0": {
+          "index": 9
+        },
+        "CMP1": {
+          "index": 10
+        },
+        "LCMP1": {
+          "index": 10
+        },
+        "CMP2": {
+          "index": 11
+        },
+        "LCMP2": {
+          "index": 11
+        }
+      },
       "signals": [
         {
           "group": "WO",
           "pad": "PA0",
           "index": "0",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA1",
           "index": "1",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA2",
           "index": "2",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA3",
           "index": "3",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA4",
           "index": "4",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA5",
           "index": "5",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB0",
           "index": "0",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB1",
           "index": "1",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB2",
           "index": "2",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB3",
           "index": "3",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB4",
           "index": "4",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB5",
           "index": "5",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC0",
           "index": "0",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC1",
           "index": "1",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC2",
           "index": "2",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC3",
           "index": "3",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC4",
           "index": "4",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC5",
           "index": "5",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD0",
           "index": "0",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD1",
           "index": "1",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD2",
           "index": "2",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD3",
           "index": "3",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD4",
           "index": "4",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD5",
           "index": "5",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE0",
           "index": "0",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE1",
           "index": "1",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE2",
           "index": "2",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE3",
           "index": "3",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF0",
           "index": "0",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF1",
           "index": "1",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF2",
           "index": "2",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF3",
           "index": "3",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF4",
           "index": "4",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF5",
           "index": "5",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         }
       ]
     },
@@ -12211,18 +12516,25 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 12
+        }
+      },
       "signals": [
         {
           "group": "WO",
           "pad": "PA2",
           "index": "0",
-          "function": "TCB0"
+          "function": "TCB0",
+          "field": "PORTMUX.TCBROUTEA.TCB0"
         },
         {
           "group": "WO",
           "pad": "PF4",
           "index": "0",
-          "function": "TCB0_ALT1"
+          "function": "TCB0_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB0"
         }
       ]
     },
@@ -12438,18 +12750,25 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 13
+        }
+      },
       "signals": [
         {
           "group": "WO",
           "pad": "PA3",
           "index": "0",
-          "function": "TCB1"
+          "function": "TCB1",
+          "field": "PORTMUX.TCBROUTEA.TCB1"
         },
         {
           "group": "WO",
           "pad": "PF5",
           "index": "0",
-          "function": "TCB1_ALT1"
+          "function": "TCB1_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB1"
         }
       ]
     },
@@ -12665,18 +12984,25 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 25
+        }
+      },
       "signals": [
         {
           "group": "WO",
           "pad": "PC0",
           "index": "0",
-          "function": "TCB2"
+          "function": "TCB2",
+          "field": "PORTMUX.TCBROUTEA.TCB2"
         },
         {
           "group": "WO",
           "pad": "PB4",
           "index": "0",
-          "function": "TCB2_ALT1"
+          "function": "TCB2_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB2"
         }
       ]
     },
@@ -12892,18 +13218,25 @@
           "bitfields": {}
         }
       },
+      "interrupts": {
+        "INT": {
+          "index": 36
+        }
+      },
       "signals": [
         {
           "group": "WO",
           "pad": "PB5",
           "index": "0",
-          "function": "TCB3"
+          "function": "TCB3",
+          "field": "PORTMUX.TCBROUTEA.TCB3"
         },
         {
           "group": "WO",
           "pad": "PC1",
           "index": "0",
-          "function": "TCB3_ALT1"
+          "function": "TCB3_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB3"
         }
       ]
     },
@@ -13380,42 +13713,56 @@
           }
         }
       },
+      "interrupts": {
+        "TWIS": {
+          "index": 14
+        },
+        "TWIM": {
+          "index": 15
+        }
+      },
       "signals": [
         {
           "group": "SCL",
           "pad": "PA3",
           "index": null,
-          "function": "I2C"
+          "function": "I2C",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SDA",
           "pad": "PA2",
           "index": null,
-          "function": "I2C"
+          "function": "I2C",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SCL",
           "pad": "PC3",
           "index": null,
-          "function": "I2C_ALT1"
+          "function": "I2C_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SDA",
           "pad": "PC2",
           "index": null,
-          "function": "I2C_ALT1"
+          "function": "I2C_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SCL",
           "pad": "PF3",
           "index": null,
-          "function": "I2C_ALT2"
+          "function": "I2C_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SDA",
           "pad": "PF2",
           "index": null,
-          "function": "I2C_ALT2"
+          "function": "I2C_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         }
       ]
     },
@@ -13854,54 +14201,73 @@
           }
         }
       },
+      "interrupts": {
+        "RXC": {
+          "index": 17
+        },
+        "DRE": {
+          "index": 18
+        },
+        "TXC": {
+          "index": 19
+        }
+      },
       "signals": [
         {
           "group": "RXD",
           "pad": "PA1",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "TXD",
           "pad": "PA0",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XCK",
           "pad": "PA2",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XDIR",
           "pad": "PA3",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "RXD",
           "pad": "PA5",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "TXD",
           "pad": "PA4",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XCK",
           "pad": "PA6",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XDIR",
           "pad": "PA7",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         }
       ]
     },
@@ -14340,54 +14706,73 @@
           }
         }
       },
+      "interrupts": {
+        "RXC": {
+          "index": 26
+        },
+        "DRE": {
+          "index": 27
+        },
+        "TXC": {
+          "index": 28
+        }
+      },
       "signals": [
         {
           "group": "RXD",
           "pad": "PC1",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "TXD",
           "pad": "PC0",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XCK",
           "pad": "PC2",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XDIR",
           "pad": "PC3",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "RXD",
           "pad": "PC5",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "TXD",
           "pad": "PC4",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XCK",
           "pad": "PC6",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XDIR",
           "pad": "PC7",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         }
       ]
     },
@@ -14826,48 +15211,66 @@
           }
         }
       },
+      "interrupts": {
+        "RXC": {
+          "index": 31
+        },
+        "DRE": {
+          "index": 32
+        },
+        "TXC": {
+          "index": 33
+        }
+      },
       "signals": [
         {
           "group": "RXD",
           "pad": "PF1",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "TXD",
           "pad": "PF0",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "XCK",
           "pad": "PF2",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "XDIR",
           "pad": "PF3",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "RXD",
           "pad": "PF5",
           "index": null,
-          "function": "USART2_ALT1"
+          "function": "USART2_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "TXD",
           "pad": "PF4",
           "index": null,
-          "function": "USART2_ALT1"
+          "function": "USART2_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "XCK",
           "pad": "PF6",
           "index": null,
-          "function": "USART2_ALT1"
+          "function": "USART2_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         }
       ]
     },
@@ -15306,42 +15709,59 @@
           }
         }
       },
+      "interrupts": {
+        "RXC": {
+          "index": 37
+        },
+        "DRE": {
+          "index": 38
+        },
+        "TXC": {
+          "index": 39
+        }
+      },
       "signals": [
         {
           "group": "RXD",
           "pad": "PB1",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "TXD",
           "pad": "PB0",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "XCK",
           "pad": "PB2",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "XDIR",
           "pad": "PB3",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "RXD",
           "pad": "PB5",
           "index": null,
-          "function": "USART3_ALT1"
+          "function": "USART3_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "TXD",
           "pad": "PB4",
           "index": null,
-          "function": "USART3_ALT1"
+          "function": "USART3_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         }
       ]
     },
@@ -15861,6 +16281,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTA": {
@@ -15905,6 +16326,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTB": {
@@ -15949,6 +16371,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTC": {
@@ -15993,6 +16416,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTD": {
@@ -16037,6 +16461,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTE": {
@@ -16081,6 +16506,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VPORTF": {
@@ -16125,6 +16551,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VREF": {
@@ -16215,6 +16642,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "WDT": {
@@ -16357,6 +16785,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     }
   },
@@ -16727,5 +17156,16 @@
         }
       }
     }
+  },
+  "properties": {
+    "BREAK_PIN": "PF6",
+    "BREAK_PIN_ALT": "PF2",
+    "FUSE_ENABLED_VALUE": "1",
+    "INTERRUPT_VECTOR_SIZE": "4",
+    "HV_IMPLEMENTATION": "1",
+    "PROGMEM_OFFSET": "0x00004000",
+    "SIGNATURE0": "0x1E",
+    "SIGNATURE1": "0x94",
+    "SIGNATURE2": "0x26"
   }
 }

@@ -875,6 +875,9 @@ struct DeviceDescriptor {
     u16 rampz_address {};
     u16 eind_address {};
     u16 spmcsr_address {};
+    u8 sigrd_mask {};
+    u8 blbset_mask {};
+    u8 spmen_mask {};
     u16 prr_address {};
     u16 prr0_address {};
     u16 prr1_address {};
@@ -1008,6 +1011,10 @@ struct DeviceDescriptor {
 
     std::array<u8, 3> signature { 0xFFU, 0xFFU, 0xFFU };
     std::array<u8, 16> fuses { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
+    u8 lockbit_reset {0xFFU};
+    double operating_voltage_v {5.0};
+    double vil_factor {0.3};
+    double vih_factor {0.6};
 
     u8 port_count {0U};
     std::array<PortDescriptor, 16> ports {};

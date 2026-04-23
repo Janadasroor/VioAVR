@@ -145,6 +145,27 @@ void VioSpice::set_external_voltage(u8 channel, double normalized_voltage) {
     analog_signal_bank_.set_voltage(channel, normalized_voltage);
 }
 
+void VioSpice::set_external_voltage_to_digital(u32 external_id, double voltage) {
+    if (!pin_map_) return;
+    
+    const double vcc = bus_.device().operating_voltage_v;
+    const double vil = vcc * bus_.device().vil_factor;
+    const double vih = vcc * bus_.device().vih_factor;
+    
+    if (voltage >= vih) {
+        set_external_pin(external_id, PinLevel::high);
+    } else if (voltage <= vil) {
+        set_external_pin(external_id, PinLevel::low);
+    }
+    // Note: Hysteresis is naturally handled because we only call set_external_pin
+    // when we cross the threshold. If the voltage is between vil and vih, 
+    // the pin keeps its previous state.
+}
+
+void VioSpice::set_operating_voltage(double vcc) {
+    bus_.device().operating_voltage_v = vcc;
+}
+
 std::vector<PinStateChange> VioSpice::consume_pin_changes() {
     std::vector<PinStateChange> changes;
     for (auto* port : ports_) {

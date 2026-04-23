@@ -7,6 +7,7 @@ inline constexpr DeviceDescriptor atmega8515 {
     .name = "ATmega8515",
     .flash_words = 4096U,
     .sram_bytes = 512U,
+    .sram_start = 0x60U,
     .eeprom_bytes = 512U,
     .interrupt_vector_count = 17U,
     .interrupt_vector_size = 4U,
@@ -26,12 +27,16 @@ inline constexpr DeviceDescriptor atmega8515 {
     .rampz_address = 0x0U,
     .eind_address = 0x0U,
     .spmcsr_address = 0x0U,
+    .sigrd_mask = 0x0U,
+    .blbset_mask = 0x0U,
+    .spmen_mask = 0x0U,
     .prr_address = 0x0U,
     .prr0_address = 0x0U,
     .prr1_address = 0x0U,
     .smcr_address = 0x0U,
     .mcusr_address = 0x0U,
     .mcucr_address = 0x55U,
+    .ccp_address = 0x0U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
@@ -47,6 +52,7 @@ inline constexpr DeviceDescriptor atmega8515 {
     .smcr_sm_mask = 0x0U,
     .smcr_se_mask = 0x0U,
     .flash_rww_end_word = 0xC00U,
+    .boot_start_address = 0xC00U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -129,6 +135,14 @@ inline constexpr DeviceDescriptor atmega8515 {
     .evsys = {},
 
     .ccl = {},
+    .portmux = {},
+    
+    .vref = {},
+    .clkctrl = {},
+    .slpctrl = {},
+    .rstctrl = {},
+    .syscfg = {},
+    .bod = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -138,11 +152,11 @@ inline constexpr DeviceDescriptor atmega8515 {
 
     .uart_count = 1U,
     .uarts = {{ {
-            .udr_address = 0x2CU, .ucsra_address = 0x2BU, .ucsrb_address = 0x2AU, .ucsrc_address = 0x2AU, .ubrrl_address = 0x0U, .ubrrh_address = 0x1U,
+            .udr_address = 0x2CU, .ucsra_address = 0x2BU, .ucsrb_address = 0x2AU, .ucsrc_address = 0x40U, .ubrrl_address = 0x0U, .ubrrh_address = 0x1U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
-            .rx_vector_index = 0U,
+            .rx_vector_index = 9U,
             .udre_vector_index = 10U,
-            .tx_vector_index = 0U,
+            .tx_vector_index = 11U,
             .u2x_mask = 0x2U, 
             .rxc_mask = 0x80U, 
             .txc_mask = 0x40U, 
@@ -153,7 +167,9 @@ inline constexpr DeviceDescriptor atmega8515 {
             .txcie_mask = 0x40U, 
             .udrie_mask = 0x20U,
             .pr_address = 0, .pr_bit = 255,
-            .uart_index = 0U
+            .uart_index = 0U,
+            .txd_pin_address = 0x0U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x0U, .rxd_pin_bit = 0U
         } }},
     
     .uart8x_count = 0U,
@@ -218,6 +234,9 @@ inline constexpr DeviceDescriptor atmega8515 {
 
     .dac_count = 0U,
     .dacs = {{  }},
+    
+    .dma_count = 0U,
+    .dmas = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
@@ -225,14 +244,19 @@ inline constexpr DeviceDescriptor atmega8515 {
 
     .signature = { 0x1EU, 0x93U, 0x6U },
     .fuses = { 0xE1U, 0xD9U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
+    .lockbit_reset = 0xFFU,
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = 5U,
     .ports = {{
-        { "PORTA", 0x39U, 0x3AU, 0x3BU },
-        { "PORTB", 0x36U, 0x37U, 0x38U },
-        { "PORTC", 0x33U, 0x34U, 0x35U },
-        { "PORTD", 0x30U, 0x31U, 0x32U },
-        { "PORTE", 0x25U, 0x26U, 0x27U }
+        { "PORTA", 0x39U, 0x3AU, 0x3BU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTB", 0x36U, 0x37U, 0x38U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTC", 0x33U, 0x34U, 0x35U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTD", 0x30U, 0x31U, 0x32U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTE", 0x25U, 0x26U, 0x27U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U }
     }}
 };
 

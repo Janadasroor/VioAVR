@@ -62,6 +62,11 @@ void Twi8x::reset() noexcept {
     prev_scl_ = PinLevel::high;
     prev_sda_ = PinLevel::high;
     last_intended_sda_ = PinLevel::high;
+
+    cycle_counter_ = 0;
+    bit_duration_ = 20; // Default for MBAUD=0
+    bits_left_ = 0;
+    host_phase_ = TwiPhase::idle;
 }
 
 void Twi8x::tick(u64 elapsed_cycles) noexcept {
@@ -112,8 +117,9 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                 if (slave_phase_ == TwiSlavePhase::addr || slave_phase_ == TwiSlavePhase::rx_data) {
                     slave_shift_register_ <<= 1;
                     if (sda == PinLevel::high) slave_shift_register_ |= 0x01;
-                    
-                    if (slave_bits_left_ == 0) { // All 8 bits inclusive of bit 0
+
+                    if (slave_bits_left_ == 0) {
+                        // All 8 bits inclusive of bit 0 just sampled.
                         if (slave_phase_ == TwiSlavePhase::addr) {
                             u8 addr = slave_shift_register_ >> 1;
                             u8 my_addr = saddr_ >> 1;
@@ -122,22 +128,18 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                                 sstatus_ |= (SSTATUS_APIF | SSTATUS_AP | SSTATUS_CLKHOLD);
                                 if (slave_shift_register_ & 0x01) sstatus_ |= SSTATUS_DIR;
                                 else sstatus_ &= ~SSTATUS_DIR;
-                                slave_phase_ = TwiSlavePhase::ack_setup;
-                                Logger::debug("TWI8X Slave MATCH DIR=" + std::to_string((bool)(sstatus_ & SSTATUS_DIR)));
+                                slave_phase_ = TwiSlavePhase::ack_setup; // Transition now
                             } else {
-                                slave_phase_ = TwiSlavePhase::idle;
+                                slave_phase_ = TwiSlavePhase::idle; 
                                 sstatus_ &= ~SSTATUS_AP;
                             }
-                        } else { // rx_data
-                            sdata_ = slave_shift_register_;
-                            sstatus_ |= (SSTATUS_DIF | SSTATUS_CLKHOLD);
-                            slave_phase_ = TwiSlavePhase::ack_setup;
-                            Logger::debug("TWI8X Slave RX: 0x" + Logger::hex(sdata_));
-                        }
+                            } else if (slave_phase_ == TwiSlavePhase::rx_data) {
+                                sdata_ = slave_shift_register_;
+                                sstatus_ |= (SSTATUS_DIF | SSTATUS_CLKHOLD);
+                            }
                     }
-                } else if (slave_phase_ == TwiSlavePhase::tx_data) {
-                    if (slave_bits_left_ == 0) slave_phase_ = TwiSlavePhase::ack_setup;
-                } else if (slave_phase_ == TwiSlavePhase::ack_setup) {
+                }
+ else if (slave_phase_ == TwiSlavePhase::ack_setup) {
                     slave_phase_ = TwiSlavePhase::ack_pulse;
                 } else if (slave_phase_ == TwiSlavePhase::ack_pulse) {
                     if (sstatus_ & SSTATUS_DIR) {
@@ -149,6 +151,19 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                 // Falling: Prep/Decrement
                 if (slave_phase_ == TwiSlavePhase::addr || slave_phase_ == TwiSlavePhase::rx_data || slave_phase_ == TwiSlavePhase::tx_data) {
                     if (slave_bits_left_ > 0) slave_bits_left_--;
+                    else {
+                        // Pulse 8 Falling
+                        if (slave_phase_ == TwiSlavePhase::addr) {
+                            // Already transitioned maybe, but just in case
+                            slave_phase_ = TwiSlavePhase::ack_setup;
+                        } else if (slave_phase_ == TwiSlavePhase::rx_data) {
+                            if (sstatus_ & SSTATUS_DIF) {
+                                slave_phase_ = TwiSlavePhase::ack_setup;
+                            }
+                        } else if (slave_phase_ == TwiSlavePhase::tx_data) {
+                            slave_phase_ = TwiSlavePhase::ack_setup;
+                        }
+                    }
                 }
                 
                 if (slave_phase_ == TwiSlavePhase::ack_pulse) {
@@ -159,11 +174,10 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                             slave_phase_ = TwiSlavePhase::tx_data;
                             slave_bits_left_ = 8;
                             slave_shift_register_ = sdata_;
-                            Logger::debug("TWI8X Slave TX Load: 0x" + Logger::hex(sdata_));
                         }
                     } else {
                         slave_phase_ = TwiSlavePhase::rx_data;
-                        slave_bits_left_ = 8;
+                        slave_bits_left_ = 7;
                         slave_shift_register_ = 0;
                     }
                 }
@@ -179,6 +193,8 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
 }
 
 void Twi8x::tick_master_core() noexcept {
+    if (mstatus_ & MSTATUS_CLKHOLD) return;
+
     cycle_counter_++;
     u64 half = bit_duration_ / 2;
     bool scl_high = (cycle_counter_ >= half);
@@ -222,7 +238,10 @@ void Twi8x::tick_master_core() noexcept {
             if (host_phase_ == TwiPhase::address || host_phase_ == TwiPhase::write_data) {
                 mstatus_ &= ~(MSTATUS_RIF | MSTATUS_WIF);
                 mstatus_ |= (maddr_ & 0x01U) ? MSTATUS_RIF : MSTATUS_WIF;
-                if (maddr_ & 0x01U) host_phase_ = TwiPhase::read_data;
+                if (maddr_ & 0x01U) {
+                    host_phase_ = TwiPhase::read_data;
+                    bits_left_ = 8; // Prepare to receive 8 bits of first byte
+                }
             } else if (host_phase_ == TwiPhase::read_data) {
                 mdata_ = data_read_accumulator_;
                 mstatus_ &= ~MSTATUS_WIF;
@@ -243,7 +262,7 @@ u8 Twi8x::read(u16 address) noexcept {
             mstatus_ &= ~MSTATUS_RIF;
             mstatus_ &= ~MSTATUS_CLKHOLD;
             if (mctrla_ & MCTRLA_SMEN) {
-                bits_left_ = 9;
+                bits_left_ = 9; // ACK bit + 8 bits
                 cycle_counter_ = 0;
                 data_read_accumulator_ = 0;
                 host_phase_ = TwiPhase::read_data;
@@ -282,13 +301,47 @@ void Twi8x::write(u16 address, u8 value) noexcept {
             if (port_mux_) {
                 port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
                 port_mux_->drive_twi_sda(desc_.index, PinLevel::high);
+                last_intended_sda_ = PinLevel::high;
             }
             mstatus_ = (mstatus_ & ~MSTATUS_BUSSTATE_MASK) | 0x01U;
+            mstatus_ &= ~(MSTATUS_WIF | MSTATUS_RIF | MSTATUS_CLKHOLD);
+        } else if (cmd == MCTRLB_MCMD_REPSTART) {
+            if (port_mux_) {
+                port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+                port_mux_->drive_twi_sda(desc_.index, PinLevel::low); // Repeated Start
+                last_intended_sda_ = PinLevel::low;
+            }
+            mstatus_ &= ~(MSTATUS_WIF | MSTATUS_RIF | MSTATUS_CLKHOLD);
+        } else if (cmd == MCTRLB_MCMD_RECVTRANS) {
+            mstatus_ &= ~(MSTATUS_RIF | MSTATUS_CLKHOLD);
+            bits_left_ = 9;
+            cycle_counter_ = 0;
+            data_read_accumulator_ = 0;
+            host_phase_ = TwiPhase::read_data;
         }
+    }
+    else if (address == desc_.mstatus_address) {
+        // Only allow writing to BUSSTATE and flags
+        mstatus_ = (mstatus_ & ~0x03U) | (value & 0x03U);
+        if (value & 0x80U) mstatus_ &= ~0x80U; // Clear RIF
+        if (value & 0x40U) mstatus_ &= ~0x40U; // Clear WIF
+        if (value & 0x20U) mstatus_ &= ~0x20U; // Clear CLKHOLD? Wait, MSTATUS.CLKHOLD is read-only or depends on RIF/WIF?
+        // Actually, in many AVRs, writing 1 to flag clears it. 
+        // And CLKHOLD is usually cleared when flags are cleared.
+        if (!(mstatus_ & (MSTATUS_RIF | MSTATUS_WIF))) mstatus_ &= ~MSTATUS_CLKHOLD;
+    }
+    else if (address == desc_.mbaud_address) {
+        mbaud_ = value;
+        bit_duration_ = 2 * (10 + (u64)value);
     }
     else if (address == desc_.maddr_address) {
         maddr_ = value;
-        mstatus_ &= ~MSTATUS_BUSSTATE_MASK;
+        if (port_mux_) {
+            port_mux_->drive_twi_scl(desc_.index, PinLevel::high);
+            port_mux_->drive_twi_sda(desc_.index, PinLevel::low); // Start
+            last_intended_sda_ = PinLevel::low;
+        }
+        mstatus_ &= ~(MSTATUS_BUSSTATE_MASK | MSTATUS_RIF | MSTATUS_WIF | MSTATUS_CLKHOLD);
         mstatus_ |= 0x02U;
         bits_left_ = 9;
         cycle_counter_ = 0;

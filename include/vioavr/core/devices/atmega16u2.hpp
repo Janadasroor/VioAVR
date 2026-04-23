@@ -7,6 +7,7 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .name = "ATmega16U2",
     .flash_words = 8192U,
     .sram_bytes = 512U,
+    .sram_start = 0x100U,
     .eeprom_bytes = 512U,
     .interrupt_vector_count = 29U,
     .interrupt_vector_size = 4U,
@@ -26,12 +27,16 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .rampz_address = 0x0U,
     .eind_address = 0x5CU,
     .spmcsr_address = 0x57U,
+    .sigrd_mask = 0x20U,
+    .blbset_mask = 0x8U,
+    .spmen_mask = 0x1U,
     .prr_address = 0x0U,
     .prr0_address = 0x64U,
     .prr1_address = 0x65U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .ccp_address = 0x0U,
     .pllcsr_address = 0x49U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
@@ -47,6 +52,7 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .smcr_sm_mask = 0xEU,
     .smcr_se_mask = 0x1U,
     .flash_rww_end_word = 0x1800U,
+    .boot_start_address = 0x1800U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -129,6 +135,14 @@ inline constexpr DeviceDescriptor atmega16u2 {
     .evsys = {},
 
     .ccl = {},
+    .portmux = {},
+    
+    .vref = {},
+    .clkctrl = {},
+    .slpctrl = {},
+    .rstctrl = {},
+    .syscfg = {},
+    .bod = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -138,11 +152,11 @@ inline constexpr DeviceDescriptor atmega16u2 {
 
     .uart_count = 1U,
     .uarts = {{ {
-            .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xC9U, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
+            .udr_address = 0xCEU, .ucsra_address = 0xC8U, .ucsrb_address = 0xC9U, .ucsrc_address = 0xCAU, .ubrrl_address = 0xCCU, .ubrrh_address = 0xCDU,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
-            .rx_vector_index = 0U,
+            .rx_vector_index = 23U,
             .udre_vector_index = 24U,
-            .tx_vector_index = 0U,
+            .tx_vector_index = 25U,
             .u2x_mask = 0x2U, 
             .rxc_mask = 0x80U, 
             .txc_mask = 0x40U, 
@@ -153,7 +167,9 @@ inline constexpr DeviceDescriptor atmega16u2 {
             .txcie_mask = 0x40U, 
             .udrie_mask = 0x20U,
             .pr_address = 101, .pr_bit = 0,
-            .uart_index = 1U
+            .uart_index = 1U,
+            .txd_pin_address = 0x2BU, .txd_pin_bit = 3U,
+            .rxd_pin_address = 0x29U, .rxd_pin_bit = 2U
         } }},
     
     .uart8x_count = 0U,
@@ -244,6 +260,9 @@ inline constexpr DeviceDescriptor atmega16u2 {
 
     .dac_count = 0U,
     .dacs = {{  }},
+    
+    .dma_count = 0U,
+    .dmas = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
@@ -251,12 +270,17 @@ inline constexpr DeviceDescriptor atmega16u2 {
 
     .signature = { 0x1EU, 0x94U, 0x89U },
     .fuses = { 0x5EU, 0xD9U, 0xF4U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
+    .lockbit_reset = 0xFFU,
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = 3U,
     .ports = {{
-        { "PORTB", 0x23U, 0x24U, 0x25U },
-        { "PORTC", 0x26U, 0x27U, 0x28U },
-        { "PORTD", 0x29U, 0x2AU, 0x2BU }
+        { "PORTB", 0x23U, 0x24U, 0x25U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTC", 0x26U, 0x27U, 0x28U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTD", 0x29U, 0x2AU, 0x2BU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U }
     }}
 };
 

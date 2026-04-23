@@ -112,106 +112,127 @@
     {
       "name": "RESET",
       "index": 0,
+      "module-instance": null,
       "caption": "External Pin, Power-on Reset, Brown-out Reset, Watchdog Reset and JTAG AVR Reset"
     },
     {
       "name": "INT0",
       "index": 1,
+      "module-instance": null,
       "caption": "External Interrupt Request 0"
     },
     {
       "name": "INT1",
       "index": 2,
+      "module-instance": null,
       "caption": "External Interrupt Request 1"
     },
     {
       "name": "TIMER2_COMP",
       "index": 3,
+      "module-instance": null,
       "caption": "Timer/Counter2 Compare Match"
     },
     {
       "name": "TIMER2_OVF",
       "index": 4,
+      "module-instance": null,
       "caption": "Timer/Counter2 Overflow"
     },
     {
       "name": "TIMER1_CAPT",
       "index": 5,
+      "module-instance": null,
       "caption": "Timer/Counter1 Capture Event"
     },
     {
       "name": "TIMER1_COMPA",
       "index": 6,
+      "module-instance": null,
       "caption": "Timer/Counter1 Compare Match A"
     },
     {
       "name": "TIMER1_COMPB",
       "index": 7,
+      "module-instance": null,
       "caption": "Timer/Counter1 Compare Match B"
     },
     {
       "name": "TIMER1_OVF",
       "index": 8,
+      "module-instance": null,
       "caption": "Timer/Counter1 Overflow"
     },
     {
       "name": "TIMER0_OVF",
       "index": 9,
+      "module-instance": null,
       "caption": "Timer/Counter0 Overflow"
     },
     {
       "name": "SPI_STC",
       "index": 10,
+      "module-instance": null,
       "caption": "Serial Transfer Complete"
     },
     {
       "name": "USART_RXC",
       "index": 11,
+      "module-instance": null,
       "caption": "USART, Rx Complete"
     },
     {
       "name": "USART_UDRE",
       "index": 12,
+      "module-instance": null,
       "caption": "USART Data Register Empty"
     },
     {
       "name": "USART_TXC",
       "index": 13,
+      "module-instance": null,
       "caption": "USART, Tx Complete"
     },
     {
       "name": "ADC",
       "index": 14,
+      "module-instance": null,
       "caption": "ADC Conversion Complete"
     },
     {
       "name": "EE_RDY",
       "index": 15,
+      "module-instance": null,
       "caption": "EEPROM Ready"
     },
     {
       "name": "ANA_COMP",
       "index": 16,
+      "module-instance": null,
       "caption": "Analog Comparator"
     },
     {
       "name": "TWI",
       "index": 17,
+      "module-instance": null,
       "caption": "2-wire Serial Interface"
     },
     {
       "name": "INT2",
       "index": 18,
+      "module-instance": null,
       "caption": "External Interrupt Request 2"
     },
     {
       "name": "TIMER0_COMP",
       "index": 19,
+      "module-instance": null,
       "caption": "Timer/Counter0 Compare Match"
     },
     {
       "name": "SPM_RDY",
       "index": 20,
+      "module-instance": null,
       "caption": "Store Program Memory Ready"
     }
   ],
@@ -384,18 +405,21 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "OC",
           "pad": "PB3",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "T",
           "pad": "PB0",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -613,30 +637,35 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "T",
           "pad": "PB1",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ICP",
           "pad": "PD6",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "OCA",
           "pad": "PD5",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "OCB",
           "pad": "PD4",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -764,24 +793,28 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "INT",
           "pad": "PB2",
           "index": "2",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "INT",
           "pad": "PD3",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "INT",
           "pad": "PD2",
           "index": "0",
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -846,6 +879,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "CPU": {
@@ -1082,6 +1116,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "TC2": {
@@ -1281,24 +1316,28 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "TOSC",
           "pad": "PC7",
           "index": "2",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "TOSC",
           "pad": "PC6",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "OC",
           "pad": "PD7",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -1417,30 +1456,35 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "SCK",
           "pad": "PB7",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "MISO",
           "pad": "PB6",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "MOSI",
           "pad": "PB5",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "SS",
           "pad": "PB4",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -1667,24 +1711,28 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "XCK",
           "pad": "PB0",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "TXD",
           "pad": "PD1",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "RXD",
           "pad": "PD0",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -1819,18 +1867,21 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "SDA",
           "pad": "PC1",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "SCL",
           "pad": "PC0",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -1913,18 +1964,21 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "AIN",
           "pad": "PB2",
           "index": "0",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PB3",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -2098,54 +2152,63 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "ADC",
           "pad": "PA0",
           "index": "0",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ADC",
           "pad": "PA1",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ADC",
           "pad": "PA2",
           "index": "2",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ADC",
           "pad": "PA3",
           "index": "3",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ADC",
           "pad": "PA4",
           "index": "4",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ADC",
           "pad": "PA5",
           "index": "5",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ADC",
           "pad": "PA6",
           "index": "6",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "ADC",
           "pad": "PA7",
           "index": "7",
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -2186,30 +2249,35 @@
           }
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "TDI",
           "pad": "PC5",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "TDO",
           "pad": "PC4",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "TMS",
           "pad": "PC3",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "TCK",
           "pad": "PC2",
           "index": null,
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -2261,6 +2329,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "PORTA": {
@@ -2291,54 +2360,63 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "P",
           "pad": "PA0",
           "index": "0",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PA1",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PA2",
           "index": "2",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PA3",
           "index": "3",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PA4",
           "index": "4",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PA5",
           "index": "5",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PA6",
           "index": "6",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PA7",
           "index": "7",
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -2370,54 +2448,63 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "P",
           "pad": "PB0",
           "index": "0",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PB1",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PB2",
           "index": "2",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PB3",
           "index": "3",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PB4",
           "index": "4",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PB5",
           "index": "5",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PB6",
           "index": "6",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PB7",
           "index": "7",
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -2449,54 +2536,63 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "P",
           "pad": "PC0",
           "index": "0",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PC1",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PC2",
           "index": "2",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PC3",
           "index": "3",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PC4",
           "index": "4",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PC5",
           "index": "5",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PC6",
           "index": "6",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PC7",
           "index": "7",
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -2528,54 +2624,63 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": [
         {
           "group": "P",
           "pad": "PD0",
           "index": "0",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD1",
           "index": "1",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD2",
           "index": "2",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD3",
           "index": "3",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD4",
           "index": "4",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD5",
           "index": "5",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD6",
           "index": "6",
-          "function": "default"
+          "function": "default",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD7",
           "index": "7",
-          "function": "default"
+          "function": "default",
+          "field": null
         }
       ]
     },
@@ -2640,6 +2745,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "FUSE": {
@@ -2973,6 +3079,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "LOCKBIT": {
@@ -3050,6 +3157,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     }
   },
@@ -3456,5 +3564,72 @@
         }
       }
     }
+  },
+  "properties": {
+    "JTAGID": "0x0940303F",
+    "SIGNATURE0": "0x1e",
+    "SIGNATURE1": "0x94",
+    "SIGNATURE2": "0x03",
+    "OCD_REVISION": "2",
+    "OCD_DATAREG": "0x31",
+    "PROGBASE": "0x0000",
+    "ALLOWFULLPAGESTREAM": "0x01",
+    "IspEnterProgMode_timeout": "200",
+    "IspEnterProgMode_stabDelay": "100",
+    "IspEnterProgMode_cmdexeDelay": "25",
+    "IspEnterProgMode_synchLoops": "32",
+    "IspEnterProgMode_byteDelay": "0",
+    "IspEnterProgMode_pollIndex": "3",
+    "IspEnterProgMode_pollValue": "0x53",
+    "IspLeaveProgMode_preDelay": "1",
+    "IspLeaveProgMode_postDelay": "1",
+    "IspChipErase_eraseDelay": "10",
+    "IspChipErase_pollMethod": "0",
+    "IspProgramFlash_mode": "0x21",
+    "IspProgramFlash_blockSize": "128",
+    "IspProgramFlash_delay": "6",
+    "IspProgramFlash_cmd1": "0x40",
+    "IspProgramFlash_cmd2": "0x4C",
+    "IspProgramFlash_cmd3": "0x20",
+    "IspProgramFlash_pollVal1": "0xFF",
+    "IspProgramFlash_pollVal2": "0x00",
+    "IspProgramEeprom_mode": "0x04",
+    "IspProgramEeprom_blockSize": "128",
+    "IspProgramEeprom_delay": "10",
+    "IspProgramEeprom_cmd1": "0xC0",
+    "IspProgramEeprom_cmd2": "0x00",
+    "IspProgramEeprom_cmd3": "0xA0",
+    "IspProgramEeprom_pollVal1": "0xFF",
+    "IspProgramEeprom_pollVal2": "0xFF",
+    "IspReadFlash_blockSize": "256",
+    "IspReadEeprom_blockSize": "256",
+    "IspReadFuse_pollIndex": "4",
+    "IspReadLock_pollIndex": "4",
+    "IspReadSign_pollIndex": "4",
+    "IspReadOsccal_pollIndex": "4",
+    "PpControlStack": "0x0E 0x1E 0x0F 0x1F 0x2E 0x3E 0x2F 0x3F 0x4E 0x5E 0x4F 0x5F 0x6E 0x7E 0x6F 0x7F 0x66 0x76 0x67 0x77 0x6A 0x7A 0x6B 0x7B 0xBE 0xFD 0x0C 0x01 0x00 0x00 0x00 0x00",
+    "PpEnterProgMode_stabDelay": "100",
+    "PpEnterProgMode_progModeDelay": "0",
+    "PpEnterProgMode_latchCycles": "6",
+    "PpEnterProgMode_toggleVtg": "0",
+    "PpEnterProgMode_powerOffDelay": "0",
+    "PpEnterProgMode_resetDelayMs": "0",
+    "PpEnterProgMode_resetDelayUs": "0",
+    "PpLeaveProgMode_stabDelay": "15",
+    "PpLeaveProgMode_resetDelay": "15",
+    "PpChipErase_pulseWidth": "0",
+    "PpChipErase_pollTimeout": "10",
+    "PpProgramFlash_pollTimeout": "5",
+    "PpProgramFlash_mode": "0x0F",
+    "PpProgramFlash_blockSize": "256",
+    "PpReadFlash_blockSize": "256",
+    "PpProgramEeprom_pollTimeout": "5",
+    "PpProgramEeprom_mode": "0x05",
+    "PpProgramEeprom_blockSize": "256",
+    "PpReadEeprom_blockSize": "256",
+    "PpProgramFuse_pulseWidth": "0",
+    "PpProgramFuse_pollTimeout": "5",
+    "PpProgramLock_pulseWidth": "0",
+    "PpProgramLock_pollTimeout": "5"
   }
 }

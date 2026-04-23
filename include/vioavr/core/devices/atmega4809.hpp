@@ -27,6 +27,9 @@ inline constexpr DeviceDescriptor atmega4809 {
     .rampz_address = 0x0U,
     .eind_address = 0x0U,
     .spmcsr_address = 0x0U,
+    .sigrd_mask = 0x0U,
+    .blbset_mask = 0x0U,
+    .spmen_mask = 0x0U,
     .prr_address = 0x0U,
     .prr0_address = 0x0U,
     .prr1_address = 0x0U,
@@ -49,6 +52,7 @@ inline constexpr DeviceDescriptor atmega4809 {
     .smcr_sm_mask = 0x0U,
     .smcr_se_mask = 0x0U,
     .flash_rww_end_word = 0x6000U,
+    .boot_start_address = 0x0U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -358,7 +362,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .sctrla_address = 0x8A9U, .sctrlb_address = 0x8AAU, .sstatus_address = 0x8ABU, .saddr_address = 0x8ACU, .sdata_address = 0x8ADU, .saddrmask_address = 0x8AEU,
             .dbgctrl_address = 0x8A2U,
             .master_vector_index = 15U, .slave_vector_index = 14U,
-            .user_event_address = 0x0U
+            .user_event_address = 0x0U,
+            .index = 0U
         } }},
     
     .eeprom_count = 1U,
@@ -406,6 +411,11 @@ inline constexpr DeviceDescriptor atmega4809 {
 
     .signature = { 0x1EU, 0x96U, 0x51U },
     .fuses = { 0x0U, 0x0U, 0x7EU, 0xFFU, 0xFFU, 0xF6U, 0xFFU, 0x0U, 0x0U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
+    .lockbit_reset = 0xC5U,
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = 6U,
     .ports = {{

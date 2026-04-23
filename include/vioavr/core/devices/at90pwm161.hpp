@@ -7,6 +7,7 @@ inline constexpr DeviceDescriptor at90pwm161 {
     .name = "AT90PWM161",
     .flash_words = 8192U,
     .sram_bytes = 1024U,
+    .sram_start = 0x100U,
     .eeprom_bytes = 512U,
     .interrupt_vector_count = 20U,
     .interrupt_vector_size = 4U,
@@ -26,12 +27,16 @@ inline constexpr DeviceDescriptor at90pwm161 {
     .rampz_address = 0x0U,
     .eind_address = 0x0U,
     .spmcsr_address = 0x57U,
+    .sigrd_mask = 0x20U,
+    .blbset_mask = 0x8U,
+    .spmen_mask = 0x1U,
     .prr_address = 0x86U,
     .prr0_address = 0x0U,
     .prr1_address = 0x0U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .ccp_address = 0x0U,
     .pllcsr_address = 0x87U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
@@ -47,6 +52,7 @@ inline constexpr DeviceDescriptor at90pwm161 {
     .smcr_sm_mask = 0xEU,
     .smcr_se_mask = 0x1U,
     .flash_rww_end_word = 0x1C00U,
+    .boot_start_address = 0x1C00U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -133,6 +139,14 @@ inline constexpr DeviceDescriptor at90pwm161 {
     .evsys = {},
 
     .ccl = {},
+    .portmux = {},
+    
+    .vref = {},
+    .clkctrl = {},
+    .slpctrl = {},
+    .rstctrl = {},
+    .syscfg = {},
+    .bod = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -232,6 +246,9 @@ inline constexpr DeviceDescriptor at90pwm161 {
             .daen_mask = 0x1U, .daate_mask = 0x80U, .dats_mask = 0x70U, .dacoe_mask = 0x0U,
             .pr_address = 0, .pr_bit = 255
         } }},
+    
+    .dma_count = 0U,
+    .dmas = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
@@ -239,12 +256,17 @@ inline constexpr DeviceDescriptor at90pwm161 {
 
     .signature = { 0x1EU, 0x94U, 0x8BU },
     .fuses = { 0x62U, 0xD9U, 0xFDU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
+    .lockbit_reset = 0xFFU,
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = 3U,
     .ports = {{
-        { "PORTB", 0x23U, 0x24U, 0x25U },
-        { "PORTD", 0x29U, 0x2AU, 0x2BU },
-        { "PORTE", 0x2CU, 0x2DU, 0x2EU }
+        { "PORTB", 0x23U, 0x24U, 0x25U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTD", 0x29U, 0x2AU, 0x2BU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTE", 0x2CU, 0x2DU, 0x2EU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U }
     }}
 };
 

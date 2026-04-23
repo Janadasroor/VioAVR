@@ -75,106 +75,127 @@
     {
       "name": "RESET",
       "index": 0,
+      "module-instance": null,
       "caption": "External Pin, Power-on Reset, Brown-out Reset and Watchdog Reset"
     },
     {
       "name": "BPINT",
       "index": 1,
+      "module-instance": null,
       "caption": "Battery Protection Interrupt"
     },
     {
       "name": "VREGMON",
       "index": 2,
+      "module-instance": null,
       "caption": "Voltage regulator monitor interrupt"
     },
     {
       "name": "INT0",
       "index": 3,
+      "module-instance": null,
       "caption": "External Interrupt Request 0"
     },
     {
       "name": "INT1",
       "index": 4,
+      "module-instance": null,
       "caption": "External Interrupt Request 1"
     },
     {
       "name": "INT2",
       "index": 5,
+      "module-instance": null,
       "caption": "External Interrupt Request 2"
     },
     {
       "name": "WDT",
       "index": 6,
+      "module-instance": null,
       "caption": "Watchdog Timeout Interrupt"
     },
     {
       "name": "TIMER1_IC",
       "index": 7,
+      "module-instance": null,
       "caption": "Timer 1 Input capture"
     },
     {
       "name": "TIMER1_COMPA",
       "index": 8,
+      "module-instance": null,
       "caption": "Timer 1 Compare Match A"
     },
     {
       "name": "TIMER1_COMPB",
       "index": 9,
+      "module-instance": null,
       "caption": "Timer 1 Compare Match B"
     },
     {
       "name": "TIMER1_OVF",
       "index": 10,
+      "module-instance": null,
       "caption": "Timer 1 overflow"
     },
     {
       "name": "TIMER0_IC",
       "index": 11,
+      "module-instance": null,
       "caption": "Timer 0 Input Capture"
     },
     {
       "name": "TIMER0_COMPA",
       "index": 12,
+      "module-instance": null,
       "caption": "Timer 0 Compare Match A"
     },
     {
       "name": "TIMER0_COMPB",
       "index": 13,
+      "module-instance": null,
       "caption": "Timer 0 Compare Match B"
     },
     {
       "name": "TIMER0_OVF",
       "index": 14,
+      "module-instance": null,
       "caption": "Timer 0 Overflow"
     },
     {
       "name": "SPI_STC",
       "index": 15,
+      "module-instance": null,
       "caption": "SPI Serial transfer complete"
     },
     {
       "name": "VADC",
       "index": 16,
+      "module-instance": null,
       "caption": "Voltage ADC Conversion Complete"
     },
     {
       "name": "CCADC_CONV",
       "index": 17,
+      "module-instance": null,
       "caption": "Coulomb Counter ADC Conversion Complete"
     },
     {
       "name": "CCADC_REG_CUR",
       "index": 18,
+      "module-instance": null,
       "caption": "Coloumb Counter ADC Regular Current"
     },
     {
       "name": "CCADC_ACC",
       "index": 19,
+      "module-instance": null,
       "caption": "Coloumb Counter ADC Accumulator"
     },
     {
       "name": "EE_READY",
       "index": 20,
+      "module-instance": null,
       "caption": "EEPROM Ready"
     }
   ],
@@ -234,6 +255,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "WDT": {
@@ -315,6 +337,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "BANDGAP": {
@@ -354,6 +377,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "EXINT": {
@@ -463,6 +487,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "PORTC": {
@@ -485,6 +510,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "PORTA": {
@@ -515,6 +541,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "PORTB": {
@@ -545,6 +572,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "FET": {
@@ -580,6 +608,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "SPI": {
@@ -691,6 +720,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "BOOT_LOAD": {
@@ -736,6 +766,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "CPU": {
@@ -1032,6 +1063,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "BATTERY_PROTECTION": {
@@ -1223,6 +1255,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "EEPROM": {
@@ -1292,6 +1325,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "TC1": {
@@ -1452,6 +1486,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "TC0": {
@@ -1603,6 +1638,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "COULOMB_COUNTER": {
@@ -1735,6 +1771,7 @@
           "bitfields": {}
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "VOLTAGE_REGULATOR": {
@@ -1765,6 +1802,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "FUSE": {
@@ -1843,6 +1881,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     },
     "LOCKBIT": {
@@ -1876,6 +1915,7 @@
           }
         }
       },
+      "interrupts": {},
       "signals": []
     }
   },
@@ -1983,5 +2023,71 @@
         }
       }
     }
+  },
+  "properties": {
+    "JTAGID": "0x940C",
+    "SIGNATURE0": "0x1e",
+    "SIGNATURE1": "0x94",
+    "SIGNATURE2": "0x0c",
+    "OCD_REVISION": "1",
+    "OCD_DATAREG": "0x31",
+    "PROGBASE": "0x0000",
+    "ALLOWFULLPAGESTREAM": "0x00",
+    "IspEnterProgMode_timeout": "200",
+    "IspEnterProgMode_stabDelay": "100",
+    "IspEnterProgMode_cmdexeDelay": "25",
+    "IspEnterProgMode_synchLoops": "32",
+    "IspEnterProgMode_byteDelay": "0",
+    "IspEnterProgMode_pollIndex": "3",
+    "IspEnterProgMode_pollValue": "0x53",
+    "IspLeaveProgMode_preDelay": "1",
+    "IspLeaveProgMode_postDelay": "1",
+    "IspChipErase_eraseDelay": "20",
+    "IspChipErase_pollMethod": "1",
+    "IspProgramFlash_mode": "0x41",
+    "IspProgramFlash_blockSize": "128",
+    "IspProgramFlash_delay": "10",
+    "IspProgramFlash_cmd1": "0x40",
+    "IspProgramFlash_cmd2": "0x4C",
+    "IspProgramFlash_cmd3": "0x00",
+    "IspProgramFlash_pollVal1": "0x00",
+    "IspProgramFlash_pollVal2": "0x00",
+    "IspProgramEeprom_mode": "0x41",
+    "IspProgramEeprom_blockSize": "4",
+    "IspProgramEeprom_delay": "20",
+    "IspProgramEeprom_cmd1": "0xC1",
+    "IspProgramEeprom_cmd2": "0xC2",
+    "IspProgramEeprom_cmd3": "0x00",
+    "IspProgramEeprom_pollVal1": "0x00",
+    "IspProgramEeprom_pollVal2": "0x00",
+    "IspReadFlash_blockSize": "256",
+    "IspReadEeprom_blockSize": "256",
+    "IspReadFuse_pollIndex": "4",
+    "IspReadLock_pollIndex": "4",
+    "IspReadSign_pollIndex": "4",
+    "IspReadOsccal_pollIndex": "4",
+    "HvspControlStack": "0x4C 0x0C 0x1C 0x2C 0x3C 0x64 0x74 0x66 0x68 0x78 0x68 0x68 0x7A 0x6A 0x68 0x78 0x78 0x7D 0x6D 0x0C 0x80 0x40 0x20 0x10 0x11 0x08 0x04 0x02 0x03 0x08 0x04 0x0F",
+    "HvspEnterProgMode_stabDelay": "100",
+    "HvspEnterProgMode_cmdexeDelay": "0",
+    "HvspEnterProgMode_synchCycles": "6",
+    "HvspEnterProgMode_latchCycles": "1",
+    "HvspEnterProgMode_toggleVtg": "1",
+    "HvspEnterProgMode_powoffDelay": "25",
+    "HvspEnterProgMode_resetDelay1": "1",
+    "HvspEnterProgMode_resetDelay2": "70",
+    "HvspLeaveProgMode_stabDelay": "101",
+    "HvspLeaveProgMode_resetDelay": "26",
+    "HvspChipErase_pollTimeout": "40",
+    "HvspChipErase_eraseTime": "1",
+    "HvspProgramFlash_mode": "0x0D",
+    "HvspProgramFlash_blockSize": "256",
+    "HvspProgramFlash_pollTimeout": "6",
+    "HvspReadFlash_blockSize": "256",
+    "HvspProgramEeprom_mode": "0x05",
+    "HvspProgramEeprom_blockSize": "256",
+    "HvspProgramEeprom_pollTimeout": "5",
+    "HvspReadEeprom_blockSize": "256",
+    "HvspProgramFuse_pollTimeout": "25",
+    "HvspProgramLock_pollTimeout": "25"
   }
 }
