@@ -120,6 +120,7 @@ set(TEST_SOURCES
     timer16_fidelity_test.cpp
     avr8x_cpuint_fidelity_test.cpp
     avr8x_wdt_fidelity_test.cpp
+    avr8x_clkctrl_fidelity_test.cpp
     avr8x_nvm_fidelity_test.cpp
     avr8x_tcb_fidelity_test.cpp
     avr8x_tca_fidelity_test.cpp
