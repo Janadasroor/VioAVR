@@ -24,7 +24,7 @@ TEST_CASE("Analog Signal to Timer0 External Clock Transition Test")
     signals.set_voltage(0U, 0.20); // LOW
 
     MemoryBus bus {atmega328p};
-    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
+    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { atmega328p.ports[1], pm_port_b };
     port_b.bind_input_signal(0U, signals, 0U); // PB0 bound to signal 0
     
     Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};

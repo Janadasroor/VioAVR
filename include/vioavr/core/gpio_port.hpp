@@ -5,12 +5,14 @@
 #include "vioavr/core/digital_threshold.hpp"
 #include <array>
 #include <string>
+#include "vioavr/core/device.hpp"
 
 namespace vioavr::core {
 class PinMux;
 
 class GpioPort final : public IoPeripheral {
 public:
+    GpioPort(const PortDescriptor& desc, PinMux& pin_mux) noexcept;
     GpioPort(std::string_view name, u16 base_address, PinMux& pin_mux) noexcept;
     GpioPort(std::string_view name, u16 pin_address, u16 ddr_address, u16 port_address, PinMux& pin_mux) noexcept;
 
@@ -30,8 +32,8 @@ public:
     [[nodiscard]] constexpr u8 ddr_register() const noexcept { return ddr_; }
     [[nodiscard]] constexpr u8 port_register() const noexcept { return port_; }
     [[nodiscard]] constexpr u8 output_levels() const noexcept { return static_cast<u8>(port_ & ddr_); }
-    [[nodiscard]] constexpr u16 port_address() const noexcept { return port_addr_; }
-    [[nodiscard]] constexpr u16 pin_address() const noexcept { return pin_addr_; }
+    [[nodiscard]] constexpr u16 port_address() const noexcept { return desc_.port_address; }
+    [[nodiscard]] constexpr u16 pin_address() const noexcept { return desc_.pin_address; }
 
     void bind_input_signal(u8 bit_index, const AnalogSignalBank& bank, u8 channel,
                            DigitalThresholdConfig threshold = {}) noexcept;
@@ -44,10 +46,8 @@ private:
 
     PinMux* pin_mux_ {};
     std::string name_;
-    std::array<AddressRange, 3> ranges_;
-    u16 pin_addr_;
-    u16 ddr_addr_;
-    u16 port_addr_;
+    PortDescriptor desc_;
+    std::array<AddressRange, 32> ranges_;
     u8 num_ranges_ {0};
     u8 port_idx_ {0xFFU};
 

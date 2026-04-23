@@ -35,13 +35,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         const auto& desc = device.ports[i];
         if (desc.name.empty()) continue;
 
-        auto port = std::make_unique<GpioPort>(
-            desc.name, 
-            desc.pin_address, 
-            desc.ddr_address, 
-            desc.port_address,
-            pin_mux_
-        );
+        auto port = std::make_unique<GpioPort>(desc, pin_mux_);
         GpioPort* ptr = port.get();
         ports_.push_back(ptr);
         port_map_[std::string(desc.name)] = ptr;
