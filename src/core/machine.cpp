@@ -31,6 +31,7 @@
 #include "vioavr/core/twi8x.hpp"
 #include "vioavr/core/wdt8x.hpp"
 #include "vioavr/core/crc8x.hpp"
+#include "vioavr/core/dma.hpp"
 
 namespace vioavr::core {
 
@@ -106,6 +107,19 @@ std::vector<CpuSnapshot> Machine::trace_history() const
     return {};
 }
 
+EventSystem* Machine::event_system() noexcept
+{
+    for (auto& p : owned_peripherals_) {
+        if (auto* ev = dynamic_cast<EventSystem*>(p.get())) return ev;
+    }
+    return nullptr;
+}
+
+void Machine::add_peripheral(std::unique_ptr<IoPeripheral> peripheral) noexcept
+{
+    owned_peripherals_.push_back(std::move(peripheral));
+}
+
 GpioPort* Machine::get_port(std::string_view name) noexcept
 {
     for (auto* port : ports_) {
@@ -142,6 +156,17 @@ void Machine::initialize_peripherals()
     }
 
     // Timers
+    Dma* dma = nullptr;
+    if (device_.dma_count > 0) {
+        for (u8 i = 0; i < device_.dma_count; ++i) {
+            auto d = std::make_unique<Dma>(device_.dmas[i]);
+            dma = d.get();
+            d->set_memory_bus(bus_.get());
+            bus_->attach_peripheral(*d);
+            owned_peripherals_.push_back(std::move(d));
+        }
+    }
+
     // Event System
     EventSystem* evsys = nullptr;
     if (device_.evsys.strobe_address != 0) {
@@ -152,7 +177,9 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(e));
     }
 
-
+    if (dma && evsys) {
+        dma->set_event_system(evsys);
+    }
     for (u8 i = 0; i < device_.timer8_count; ++i) {
         auto timer = std::make_unique<Timer8>("TIMER" + std::to_string(device_.timers8[i].timer_index), device_.timers8[i], pin_mux_.get());
         timer->set_bus(*bus_);
@@ -213,6 +240,8 @@ void Machine::initialize_peripherals()
     // Modern UART (AVR8X)
     for (u8 i = 0; i < device_.uart8x_count; ++i) {
         auto uart = std::make_unique<Uart8x>(device_.uarts8x[i], *pin_mux_);
+        uart->set_memory_bus(bus_.get());
+        uart->set_event_system(evsys);
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
     }
@@ -220,6 +249,8 @@ void Machine::initialize_peripherals()
     // Modern SPI (AVR8X)
     for (u8 i = 0; i < device_.spi8x_count; ++i) {
         auto spi = std::make_unique<Spi8x>(device_.spis8x[i]);
+        spi->set_memory_bus(bus_.get());
+        spi->set_event_system(evsys);
         bus_->attach_peripheral(*spi);
         owned_peripherals_.push_back(std::move(spi));
     }
@@ -227,6 +258,8 @@ void Machine::initialize_peripherals()
     // Modern TWI (AVR8X)
     for (u8 i = 0; i < device_.twi8x_count; ++i) {
         auto twi = std::make_unique<Twi8x>(device_.twis8x[i]);
+        twi->set_memory_bus(bus_.get());
+        twi->set_event_system(evsys);
         bus_->attach_peripheral(*twi);
         owned_peripherals_.push_back(std::move(twi));
     }
