@@ -49,6 +49,8 @@ public:
     void write(u16 address, u8 value) noexcept override {
         u8 old_tca = tcaroutea_;
         u8 old_tcb = tcbroutea_;
+        u8 old_usart = usartroutea_;
+        u8 old_twispi = twispiroutea_;
 
         if (address == desc_.twispiroutea_address) twispiroutea_ = value;
         else if (address == desc_.usartroutea_address) usartroutea_ = value;
@@ -56,7 +58,7 @@ public:
         else if (address == desc_.tcaroutea_address) tcaroutea_ = value;
         else if (address == desc_.tcbroutea_address) tcbroutea_ = value;
 
-        if (tcaroutea_ != old_tca || tcbroutea_ != old_tcb) {
+        if (tcaroutea_ != old_tca || tcbroutea_ != old_tcb || usartroutea_ != old_usart || twispiroutea_ != old_twispi) {
              if (pin_mux_) {
                  // Release TCA0 old pins
                  u8 old_tca_port = old_tca & 0x07;
@@ -78,10 +80,19 @@ public:
                     else return;
                     pin_mux_->release_pin(p, b, PinOwner::timer);
                  };
-                 if (tcbroutea_ != old_tcb) {
-                     for (u8 i = 0; i < 4; ++i) release_tcb(i);
-                 }
-             }
+                  if (tcbroutea_ != old_tcb) {
+                      for (u8 i = 0; i < 4; ++i) release_tcb(i);
+                  }
+
+                  if (usartroutea_ != old_usart) {
+                      for (u8 i = 0; i < 4; ++i) {
+                          auto old_txd = get_usart_txd_pin(i, old_usart);
+                          auto old_rxd = get_usart_rxd_pin(i, old_usart);
+                          if (old_txd.first < 6) pin_mux_->release_pin(old_txd.first, old_txd.second, PinOwner::uart);
+                          if (old_rxd.first < 6) pin_mux_->release_pin(old_rxd.first, old_rxd.second, PinOwner::uart);
+                      }
+                  }
+              }
 
              for (auto* observer : observers_) {
                  observer->on_routing_changed();
@@ -122,6 +133,27 @@ public:
         }
     }
 
+    void drive_usart_tx(u8 usart_index, PinLevel level, bool enabled = true) noexcept {
+        if (!pin_mux_ || usart_index >= 4) return;
+        auto [port_idx, pin_idx] = get_usart_txd_pin(usart_index, usartroutea_);
+        if (port_idx >= 6) return;
+
+        if (enabled) {
+            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::uart);
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::uart, true, level == PinLevel::high, false);
+        } else {
+            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::uart);
+        }
+    }
+
+    [[nodiscard]] PinLevel get_usart_rx_level(u8 usart_index) const noexcept {
+        if (!pin_mux_ || usart_index >= 4) return PinLevel::high;
+        auto [port_idx, pin_idx] = get_usart_rxd_pin(usart_index, usartroutea_);
+        if (port_idx >= 6) return PinLevel::high;
+
+        return pin_mux_->get_state(port_idx, pin_idx).drive_level ? PinLevel::high : PinLevel::low;
+    }
+
     void drive_tcb_wo(u8 tcb_index, bool level, bool enabled) noexcept {
         if (!pin_mux_ || tcb_index >= 4) return;
         auto [port_idx, pin_idx] = get_tcb_pin(tcb_index);
@@ -134,6 +166,87 @@ public:
         }
     }
 
+    void drive_spi_mosi(u8 spi_index, PinLevel level, bool enabled = true) noexcept {
+        if (!pin_mux_ || spi_index >= 2) return;
+        auto [port_idx, pin_idx] = get_spi_pin(&SpiRouteGroup::mosi, spi_index);
+        if (port_idx >= 6) return;
+        if (enabled) {
+            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::spi);
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::spi, true, level == PinLevel::high, false);
+        } else {
+            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::spi);
+        }
+    }
+
+    void drive_spi_sck(u8 spi_index, PinLevel level, bool enabled = true) noexcept {
+        if (!pin_mux_ || spi_index >= 2) return;
+        auto [port_idx, pin_idx] = get_spi_pin(&SpiRouteGroup::sck, spi_index);
+        if (port_idx >= 6) return;
+        if (enabled) {
+            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::spi);
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::spi, true, level == PinLevel::high, false);
+        } else {
+            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::spi);
+        }
+    }
+
+    void drive_spi_ss(u8 spi_index, PinLevel level, bool enabled = true) noexcept {
+        if (!pin_mux_ || spi_index >= 2) return;
+        auto [port_idx, pin_idx] = get_spi_pin(&SpiRouteGroup::ss, spi_index);
+        if (port_idx >= 6) return;
+        if (enabled) {
+            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::spi);
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::spi, true, level == PinLevel::high, false);
+        } else {
+            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::spi);
+        }
+    }
+
+    [[nodiscard]] PinLevel get_spi_miso_level(u8 spi_index) const noexcept {
+        if (!pin_mux_ || spi_index >= 2) return PinLevel::high;
+        auto [port_idx, pin_idx] = get_spi_pin(&SpiRouteGroup::miso, spi_index);
+        if (port_idx >= 6) return PinLevel::high;
+        return pin_mux_->get_state(port_idx, pin_idx).drive_level ? PinLevel::high : PinLevel::low;
+    }
+
+    void drive_twi_sda(u8 twi_index, PinLevel level, bool enabled = true) noexcept {
+        if (!pin_mux_ || twi_index >= 2) return;
+        auto [port_idx, pin_idx] = get_twi_pin(&TwiRouteGroup::sda, twi_index);
+        if (port_idx >= 6) return;
+        if (enabled) {
+            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::twi);
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::twi, true, level == PinLevel::high, true); // Wired-AND (Open drain)
+        } else {
+            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::twi);
+        }
+    }
+
+    void drive_twi_scl(u8 twi_index, PinLevel level, bool enabled = true) noexcept {
+        if (!pin_mux_ || twi_index >= 2) return;
+        auto [port_idx, pin_idx] = get_twi_pin(&TwiRouteGroup::scl, twi_index);
+        if (port_idx >= 6) return;
+        if (enabled) {
+            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::twi);
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::twi, true, level == PinLevel::high, true); // Wired-AND
+        } else {
+            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::twi);
+        }
+    }
+
+    [[nodiscard]] PinLevel get_twi_sda_level(u8 twi_index) const noexcept {
+        if (!pin_mux_ || twi_index >= 2) return PinLevel::high;
+        auto [port_idx, pin_idx] = get_twi_pin(&TwiRouteGroup::sda, twi_index);
+        if (port_idx >= 6) return PinLevel::high;
+        return pin_mux_->get_state(port_idx, pin_idx).drive_level ? PinLevel::high : PinLevel::low;
+    }
+
+    [[nodiscard]] PinLevel get_twi_scl_level(u8 twi_index) const noexcept {
+        if (!pin_mux_ || twi_index >= 2) return PinLevel::high;
+        auto [port_idx, pin_idx] = get_twi_pin(&TwiRouteGroup::scl, twi_index);
+        if (port_idx >= 6) return PinLevel::high;
+        return pin_mux_->get_state(port_idx, pin_idx).drive_level ? PinLevel::high : PinLevel::low;
+    }
+
 private:
     std::pair<u8, u8> get_tcb_pin(u8 tcb_index) const noexcept {
         u8 alt = (tcbroutea_ >> tcb_index) & 0x01;
@@ -142,6 +255,64 @@ private:
         if (tcb_index == 2) return (alt == 0) ? std::make_pair(2, 0) : std::make_pair(1, 4);
         if (tcb_index == 3) return (alt == 0) ? std::make_pair(1, 5) : std::make_pair(2, 1);
         return {0, 0};
+    }
+
+    std::pair<u8, u8> get_spi_pin(PeripheralRoute SpiRouteGroup::* member, u8 spi_index) const noexcept {
+        if (spi_index >= 2) return {0xFF, 0xFF};
+        u8 val = (twispiroutea_ >> (spi_index * 2)) & 0x03;
+        
+        const auto& route = (desc_.spi[spi_index].*member);
+        u16 addr = route.pin_addr[val];
+        u8 bit = route.pin_bit[val];
+        
+        if (bit == 0xFFU || addr == 0) return {0xFF, 0xFF};
+        auto it = port_indices_.find(addr);
+        if (it == port_indices_.end()) return {0xFF, 0xFF};
+        return {it->second, bit};
+    }
+
+    std::pair<u8, u8> get_twi_pin(PeripheralRoute TwiRouteGroup::* member, u8 twi_index) const noexcept {
+        if (twi_index >= 2) return {0xFF, 0xFF};
+        u8 val = (twispiroutea_ >> (twi_index * 2 + 4)) & 0x03;
+        
+        const auto& route = (desc_.twi[twi_index].*member);
+        u16 addr = route.pin_addr[val];
+        u8 bit = route.pin_bit[val];
+        
+        if (bit == 0xFFU || addr == 0) return {0xFF, 0xFF};
+        auto it = port_indices_.find(addr);
+        if (it == port_indices_.end()) return {0xFF, 0xFF};
+        return {it->second, bit};
+    }
+
+    std::pair<u8, u8> get_usart_txd_pin(u8 usart_index, u8 route) const noexcept {
+        if (usart_index >= 4) return {0xFF, 0xFF};
+        u8 val = (route >> (usart_index * 2)) & 0x03;
+        if (val >= 4) return {0xFF, 0xFF};
+        
+        u16 addr = desc_.usart[usart_index].txd.pin_addr[val];
+        u8 bit = desc_.usart[usart_index].txd.pin_bit[val];
+        
+        if (bit == 0xFFU || addr == 0) return {0xFF, 0xFF};
+        
+        auto it = port_indices_.find(addr);
+        if (it == port_indices_.end()) return {0xFF, 0xFF};
+        return {it->second, bit};
+    }
+
+    std::pair<u8, u8> get_usart_rxd_pin(u8 usart_index, u8 route) const noexcept {
+        if (usart_index >= 4) return {0xFF, 0xFF};
+        u8 val = (route >> (usart_index * 2)) & 0x03;
+        if (val >= 4) return {0xFF, 0xFF};
+        
+        u16 addr = desc_.usart[usart_index].rxd.pin_addr[val];
+        u8 bit = desc_.usart[usart_index].rxd.pin_bit[val];
+        
+        if (bit == 0xFFU || addr == 0) return {0xFF, 0xFF};
+        
+        auto it = port_indices_.find(addr);
+        if (it == port_indices_.end()) return {0xFF, 0xFF};
+        return {it->second, bit};
     }
 
     const PortMuxDescriptor desc_;

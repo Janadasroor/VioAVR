@@ -10,6 +10,8 @@
 
 namespace vioavr::core {
 
+class PortMux;
+
 class Uart8x final : public IoPeripheral {
 public:
     explicit Uart8x(const Uart8xDescriptor& descriptor, PinMux& pin_mux) noexcept;
@@ -27,6 +29,7 @@ public:
 
     void set_memory_bus(class MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(class EventSystem* evsys) noexcept;
+    void set_port_mux(class PortMux* pm) noexcept { port_mux_ = pm; }
 
     // Stream interface
     void inject_received_byte(u8 data, bool bit9 = false) noexcept;
@@ -35,6 +38,7 @@ public:
 private:
     Uart8xDescriptor desc_;
     PinMux* pin_mux_;
+    class PortMux* port_mux_ {nullptr};
     class MemoryBus* bus_ {nullptr};
     class EventSystem* evsys_ {nullptr};
     std::array<AddressRange, 8> ranges_;

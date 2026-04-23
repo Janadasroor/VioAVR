@@ -122,3 +122,48 @@ TEST_CASE("AVR8X USART - Receiver Fidelity") {
     CHECK((bus.read_data(0x0804) & 0x80) != 0);
     CHECK(bus.read_data(0x0800) == 0x5A); // RXDATA
 }
+
+TEST_CASE("AVR8X USART - PORTMUX Routing Fidelity") {
+    auto device = DeviceCatalog::find("ATmega4809");
+    REQUIRE(device != nullptr);
+
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    // 1. Configure USART0 for TX @ 9600 baud, 16MHz
+    const u16 baud_val = 6667;
+    bus.write_data(0x0808, static_cast<u8>(baud_val & 0xFF)); // BAUDL
+    bus.write_data(0x0809, static_cast<u8>(baud_val >> 8));   // BAUDH
+    bus.write_data(0x0806, 0x40); // CTRLB.TXEN = 1
+
+    // 2. Transmit on DEFAULT pins (PA0)
+    bus.write_data(0x0802, 0x00); // TX 0x00 (all bits low after start bit)
+    bus.tick_peripherals(2000); // Start bit should be active (~1667 cycles)
+    
+    // Check PA0 (0x404) - should be LOW (start bit)
+    CHECK(machine.pin_mux().get_state_by_address(0x404, 0).drive_level == false);
+    CHECK(machine.pin_mux().get_state_by_address(0x404, 0).owner == PinOwner::uart);
+
+    // Check PA4 (0x404, bit 4) - should be HIGH (idle/GPIO)
+    CHECK(machine.pin_mux().get_state_by_address(0x404, 4).owner == PinOwner::gpio);
+
+    // 3. Wait for completion
+    bus.tick_peripherals(20000);
+    CHECK((bus.read_data(0x0804) & 0x40) != 0); // TXCIF
+
+    // 4. Change Routing to ALT1 (PA4)
+    // USARTROUTEA (0x05E2) = 0x01 (USART0 ALT1)
+    bus.write_data(0x05E2, 0x01);
+
+    // 5. Transmit again
+    bus.write_data(0x0802, 0x00);
+    bus.tick_peripherals(2000); 
+
+    // Now PA4 should be LOW (start bit)
+    CHECK(machine.pin_mux().get_state_by_address(0x404, 4).drive_level == false);
+    CHECK(machine.pin_mux().get_state_by_address(0x404, 4).owner == PinOwner::uart);
+
+    // And PA0 should be released back to GPIO
+    CHECK(machine.pin_mux().get_state_by_address(0x404, 0).owner == PinOwner::gpio);
+}
