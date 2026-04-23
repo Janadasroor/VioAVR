@@ -1,16 +1,19 @@
 #include "vioavr/core/uart8x.hpp"
+#include "vioavr/core/logger.hpp"
 #include <algorithm>
 #include <vector>
+#include "vioavr/core/evsys.hpp"
 
 namespace vioavr::core {
 
 Uart8x::Uart8x(const Uart8xDescriptor& descriptor, PinMux& pin_mux) noexcept
     : desc_(descriptor), pin_mux_(&pin_mux)
 {
-    const std::array<u16, 9> addrs = {
+    const std::array<u16, 10> addrs = {
         desc_.ctrla_address, desc_.ctrlb_address, desc_.ctrlc_address,
         desc_.ctrld_address, desc_.status_address, desc_.baud_address,
-        desc_.rxdata_address, desc_.txdata_address, desc_.dbgctrl_address
+        desc_.rxdata_address, desc_.txdata_address, desc_.dbgctrl_address,
+        desc_.evctrl_address
     };
     
     std::vector<u16> sorted;
@@ -61,10 +64,27 @@ void Uart8x::reset() noexcept {
     tx_bit_duration_ = 0.0;
     tx_cycle_accumulator_ = 0.0;
     rx_in_progress_ = false;
-    rx_bits_left_ = 0;
     rx_total_bits_ = 0;
     rx_bit_duration_ = 0.0;
     rx_cycle_accumulator_ = 0.0;
+    rx_last_level_ = PinLevel::high;
+    tx_output_queue_.clear();
+    tx_event_triggered_ = false;
+}
+    
+void Uart8x::set_event_system(EventSystem* evsys) noexcept {
+    evsys_ = evsys;
+    if (evsys_ && desc_.user_event_address != 0) {
+        u16 user_base = evsys_->users_base();
+        if (desc_.user_event_address >= user_base) {
+            u8 user_index = static_cast<u8>(desc_.user_event_address - user_base);
+            evsys_->register_user_callback(user_index, [this](bool level) {
+                if (level && (evctrl_ & 0x01) && (ctrlb_ & CTRLB_TXEN) && tx_data_busy_ && !tx_in_progress_) {
+                    tx_event_triggered_ = true;
+                }
+            });
+        }
+    }
 }
 
 void Uart8x::tick(u64 elapsed_cycles) noexcept {
@@ -81,24 +101,28 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
     for (u64 i = 0; i < elapsed_cycles; ++i) {
         // 1. Transmitter
         if (!tx_in_progress_ && tx_data_busy_) {
-            tx_in_progress_ = true;
-            tx_data_busy_ = false;
-            tx_cycle_accumulator_ = 0.0;
-            tx_bit_duration_ = bit_duration;
-            status_ |= STATUS_DREIF;
-            
-            // Construct frame
-            u8 char_size = 5 + (ctrlc_ & 0x03U);
-            if ((ctrlc_ & 0x07U) == 0x07U) char_size = 9; // 9-bit
-            
-            u16 data = (static_cast<u16>(txdatah_ & 0x01U) << 8U) | tx_data_buffer_;
-            tx_shift_reg_ = data;
-            
-            u8 data_bits = char_size;
-            u8 parity_bits = (ctrlc_ & CTRLC_PMODE_MASK) ? 1 : 0;
-            u8 stop_bits = (ctrlc_ & CTRLC_SBMODE) ? 2 : 1;
-            tx_total_bits_ = 1 + data_bits + parity_bits + stop_bits;
-            tx_bits_left_ = tx_total_bits_;
+            bool can_start = !(evctrl_ & 0x01) || tx_event_triggered_;
+            if (can_start) {
+                tx_in_progress_ = true;
+                tx_event_triggered_ = false;
+                tx_data_busy_ = false;
+                tx_cycle_accumulator_ = 0.0;
+                tx_bit_duration_ = bit_duration;
+                status_ |= STATUS_DREIF;
+                
+                // Construct frame
+                u8 char_size = 5 + (ctrlc_ & 0x03U);
+                if ((ctrlc_ & 0x07U) == 0x07U) char_size = 9; // 9-bit
+                
+                u16 data = (static_cast<u16>(txdatah_ & 0x01U) << 8U) | tx_data_buffer_;
+                tx_shift_reg_ = data;
+                
+                u8 data_bits = char_size;
+                u8 parity_bits = (ctrlc_ & CTRLC_PMODE_MASK) ? 1 : 0;
+                u8 stop_bits = (ctrlc_ & CTRLC_SBMODE) ? 2 : 1;
+                tx_total_bits_ = 1 + data_bits + parity_bits + stop_bits;
+                tx_bits_left_ = tx_total_bits_;
+            }
         }
 
         if (tx_in_progress_) {
@@ -110,6 +134,7 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                 if (tx_bits_left_ == 0) {
                     tx_in_progress_ = false;
                     status_ |= STATUS_TXCIF;
+                    tx_output_queue_.push_back(tx_shift_reg_);
                     
                     // Loop-back handling
                     if (ctrla_ & CTRLA_LBME) {
@@ -128,13 +153,16 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
             bool rx_level_bit = pin_mux_->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
             PinLevel rx_level = rx_level_bit ? PinLevel::high : PinLevel::low;
 
-            if (!rx_in_progress_ && rx_level == PinLevel::low) {
-                rx_in_progress_ = true;
-                rx_cycle_accumulator_ = bit_duration / 2.0;
-                rx_bits_left_ = 10; // Start + 8 data + 1 stop
-                rx_shift_reg_ = 0;
-                status_ |= STATUS_RXSIF;
+            if (!rx_in_progress_) {
+                if (rx_last_level_ == PinLevel::high && rx_level == PinLevel::low) {
+                    rx_in_progress_ = true;
+                    rx_cycle_accumulator_ = bit_duration / 2.0;
+                    rx_bits_left_ = 10; // Start + 8 data + 1 stop
+                    rx_shift_reg_ = 0;
+                    status_ |= STATUS_RXSIF;
+                }
             }
+            rx_last_level_ = rx_level;
 
             if (rx_in_progress_) {
                 rx_cycle_accumulator_ += 1.0;
@@ -142,12 +170,19 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                     rx_cycle_accumulator_ -= bit_duration;
                     rx_bits_left_--;
                     if (rx_bits_left_ > 0 && rx_bits_left_ < 9) { // Bits 0-7
-                        if (rx_level == PinLevel::high) {
-                            rx_shift_reg_ |= (1 << (8 - rx_bits_left_));
+                        bool bit;
+                        if (rx_is_injected_) {
+                            bit = (rx_injected_data_ >> (rx_bits_left_ - 1)) & 1;
+                        } else {
+                            bit = (rx_level == PinLevel::high);
+                        }
+                        if (bit) {
+                            rx_shift_reg_ |= (1 << (rx_bits_left_ - 1));
                         }
                     } else if (rx_bits_left_ == 0) {
                         actually_push_to_fifo(static_cast<u8>(rx_shift_reg_), false);
                         rx_in_progress_ = false;
+                        rx_is_injected_ = false;
                         status_ &= ~STATUS_RXSIF;
                     }
                 }
@@ -179,6 +214,7 @@ u8 Uart8x::read(u16 address) noexcept {
         return high;
     }
     if (address == desc_.dbgctrl_address) return dbgctrl_;
+    if (address == desc_.evctrl_address) return evctrl_;
     return 0U;
 }
 
@@ -199,15 +235,18 @@ void Uart8x::write(u16 address, u8 value) noexcept {
         if (ctrlb_ & CTRLB_TXEN) {
             tx_data_buffer_ = value;
             tx_data_busy_ = true;
+            tx_event_triggered_ = false;
             status_ &= ~STATUS_DREIF;
             status_ &= ~STATUS_TXCIF;
         }
     }
     else if (address == desc_.dbgctrl_address) dbgctrl_ = value;
+    else if (address == desc_.evctrl_address) evctrl_ = value;
 }
 
 bool Uart8x::pending_interrupt_request(InterruptRequest& request) const noexcept {
     if ((status_ & STATUS_RXCIF) && (ctrla_ & CTRLA_RXCIE)) {
+        // printf("[DEBUG] Uart8x: Pending RXCIF interrupt\n");
         request = {desc_.rx_vector_index, 0U};
         return true;
     }
@@ -233,7 +272,9 @@ void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
     if (rx_in_progress_) return;
 
     rx_in_progress_ = true;
-    rx_shift_reg_ = data | (static_cast<u16>(bit9) << 8);
+    rx_is_injected_ = true;
+    rx_injected_data_ = data;
+    rx_shift_reg_ = 0;
     status_ |= STATUS_RXSIF;
 
     u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
@@ -263,11 +304,15 @@ void Uart8x::actually_push_to_fifo(u8 data, bool bit9) noexcept {
 }
 
 bool Uart8x::consume_transmitted_byte(u16& data) noexcept {
-    if (status_ & STATUS_TXCIF) {
-        data = tx_shift_reg_;
-        return true;
+    if (tx_output_queue_.empty()) {
+        return false;
     }
-    return false;
+    data = tx_output_queue_.front();
+    tx_output_queue_.pop_front();
+    if (tx_output_queue_.empty()) {
+        status_ &= ~STATUS_TXCIF;
+    }
+    return true;
 }
 
 } // namespace vioavr::core

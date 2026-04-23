@@ -111,11 +111,11 @@ TEST_CASE("SoC: Timer1 Triggers ADC") {
     bus.write_data(devices::atmega32u4.timers16[0].ocrb_address + 1, 0x00);
     bus.write_data(devices::atmega32u4.timers16[0].ocrb_address, 0x10);
     
-    // Set TCNT = 0x0010 (Direct match)
+    // Set TCNT = 0x000F (one before compare value)
     bus.write_data(devices::atmega32u4.timers16[0].tcnt_address + 1, 0x00);
-    bus.write_data(devices::atmega32u4.timers16[0].tcnt_address, 0x10);
+    bus.write_data(devices::atmega32u4.timers16[0].tcnt_address, 0x0F);
     
-    timer1.tick(1); // Matches 0x10, then increments to 0x11
+    timer1.tick(2); // First tick: 0x0F->0x10 (match), Second tick: 0x10->0x11
     
     tifr = bus.read_data(devices::atmega32u4.timers16[0].tifr_address);
     CHECK((tifr & devices::atmega32u4.timers16[0].compare_b_enable_mask) != 0);

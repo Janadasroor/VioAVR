@@ -83,5 +83,9 @@ u16 Crc8x::calculate_crc16(std::span<const u16> data) noexcept {
     }
     return crc;
 }
+    
+void Crc8x::set_event_system(EventSystem* evsys) noexcept {
+    evsys_ = evsys;
+}
 
 } // namespace vioavr::core

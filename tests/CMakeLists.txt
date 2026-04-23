@@ -14,11 +14,23 @@ if(AVR_GCC AND AVR_OBJCOPY)
         set(elf_file "${CMAKE_CURRENT_BINARY_DIR}/${name}.elf")
         set(hex_file "${CMAKE_CURRENT_BINARY_DIR}/${name}.hex")
 
+        set(TEST_MCU ${AVR_MCU})
+        set(EXTRA_FLAGS "")
+
+        # Detect AVR8X (MegaX) tests
+        if(name MATCHES "8x" OR name MATCHES "avr8x")
+            set(TEST_MCU "atmega4809")
+            # Point to DFP if not in standard gcc paths
+            # Note: -B specifies where to find specs and crt files
+            list(APPEND EXTRA_FLAGS "-B${CMAKE_SOURCE_DIR}/atmega/gcc/dev/atmega4809")
+            list(APPEND EXTRA_FLAGS "-I${CMAKE_SOURCE_DIR}/atmega/include")
+        endif()
+
         add_custom_command(
             OUTPUT ${elf_file}
-            COMMAND ${AVR_GCC} -mmcu=${AVR_MCU} -Os -DF_CPU=${AVR_F_CPU} -o ${elf_file} ${source}
+            COMMAND ${AVR_GCC} -mmcu=${TEST_MCU} ${EXTRA_FLAGS} -Os -DF_CPU=${AVR_F_CPU} -o ${elf_file} ${source}
             DEPENDS ${source}
-            COMMENT "Compiling ${source} to ${elf_file}"
+            COMMENT "Compiling ${source} to ${elf_file} (MCU: ${TEST_MCU})"
         )
 
         add_custom_command(

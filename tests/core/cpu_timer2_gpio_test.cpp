@@ -14,10 +14,11 @@ TEST_CASE("Timer2 compare output can be wired from descriptor pin metadata")
     using vioavr::core::Timer8;
     using vioavr::core::devices::atmega328p;
 
-    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", 0x23U, 0x24U, 0x25U, pm_port_b };
-    vioavr::core::PinMux pm_port_d { 10 }; GpioPort port_d { "PORTD", 0x29U, 0x2AU, 0x2BU, pm_port_d };
+    vioavr::core::PinMux pin_mux { 10 };
+    GpioPort port_b { "PORTB", 0x23U, 0x24U, 0x25U, pin_mux };
+    GpioPort port_d { "PORTD", 0x29U, 0x2AU, 0x2BU, pin_mux };
     MemoryBus bus {atmega328p};
-    Timer8 timer2 {"TIMER2", atmega328p.timers8[1]};
+    Timer8 timer2 {"TIMER2", atmega328p.timers8[1], &pin_mux};
 
     timer2.set_bus(bus);
     timer2.connect_compare_output_a(port_b, atmega328p.timers8[1].ocra_pin_bit);
@@ -34,7 +35,9 @@ TEST_CASE("Timer2 compare output can be wired from descriptor pin metadata")
     bus.write_data(atmega328p.timers8[1].tccra_address, 0x42U); // COM2A toggle + WGM21 CTC
     bus.write_data(atmega328p.timers8[1].tccrb_address, 0x01U); // clk/1
 
-    CHECK((bus.read_data(port_b.port_address()) & oc2a_mask) == 0U);
+    auto initial_state = pin_mux.get_state_by_address(port_b.port_address(), atmega328p.timers8[1].ocra_pin_bit);
+    CHECK(!initial_state.drive_level);
     bus.tick_peripherals(2U);
-    CHECK((bus.read_data(port_b.port_address()) & oc2a_mask) != 0U);
+    auto final_state = pin_mux.get_state_by_address(port_b.port_address(), atmega328p.timers8[1].ocra_pin_bit);
+    CHECK(final_state.drive_level);
 }

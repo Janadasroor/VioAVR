@@ -1,6 +1,7 @@
 #include "vioavr/core/twi8x.hpp"
 #include <algorithm>
 #include <vector>
+#include "vioavr/core/evsys.hpp"
 
 namespace vioavr::core {
 
@@ -192,6 +193,11 @@ void Twi8x::inject_bus_stop() noexcept {
         sstatus_ |= SSTATUS_APIF; // Stop interrupt
         sstatus_ &= ~SSTATUS_AP;
     }
+}
+
+    
+void Twi8x::set_event_system(EventSystem* evsys) noexcept {
+    evsys_ = evsys;
 }
 
 } // namespace vioavr::core

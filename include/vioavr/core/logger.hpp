@@ -1,7 +1,9 @@
 #pragma once
 
 #include <string_view>
+#include <string>
 #include <iostream>
+#include <cstdio>
 
 namespace vioavr::core {
 
@@ -40,6 +42,12 @@ public:
     static void info(std::string_view message) { log(LogLevel::info, message); }
     static void warning(std::string_view message) { log(LogLevel::warning, message); }
     static void error(std::string_view message) { log(LogLevel::error, message); }
+
+    static std::string hex(uint32_t val) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%X", val);
+        return std::string(buf);
+    }
 
 private:
     static void default_log(LogLevel level, std::string_view message)

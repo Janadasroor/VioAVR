@@ -55,6 +55,7 @@ void Ccl::reset() noexcept {
     }
     std::fill(outputs_.begin(), outputs_.end(), false);
     std::fill(prev_outputs_.begin(), prev_outputs_.end(), false);
+    std::fill(prev_raw_outputs_.begin(), prev_raw_outputs_.end(), false);
     std::fill(prev_luts_in2_.begin(), prev_luts_in2_.end(), false);
     std::fill(seq_state_.begin(), seq_state_.end(), false);
     update_routing();
@@ -100,12 +101,12 @@ void Ccl::set_event_system(EventSystem* evsys) noexcept {
         u16 user_b_addr = desc_.luts[i].user_event_b_address;
         
         if (user_a_addr != 0) {
-            u8 user_index = static_cast<u8>(user_a_addr - evsys_->users_base());
-            evsys_->register_user_callback(user_index, [this](bool) { update_logic(); });
+            luts_[i].user_a_index = static_cast<u8>(user_a_addr - evsys_->users_base());
+            evsys_->register_user_callback(luts_[i].user_a_index, [this](bool) { update_logic(); });
         }
         if (user_b_addr != 0) {
-            u8 user_index = static_cast<u8>(user_b_addr - evsys_->users_base());
-            evsys_->register_user_callback(user_index, [this](bool) { update_logic(); });
+            luts_[i].user_b_index = static_cast<u8>(user_b_addr - evsys_->users_base());
+            evsys_->register_user_callback(luts_[i].user_b_index, [this](bool) { update_logic(); });
         }
     }
 }
@@ -179,10 +180,12 @@ bool Ccl::compute_lut(u8 index) const noexcept {
                 in[j] = outputs_[(index + desc_.lut_count - 1) % desc_.lut_count];
                 break;
             case 0x03: // EVENTA
-                if (evsys_) in[j] = evsys_->get_user_level(32 + 2 * index);
+                if (evsys_ && luts_[index].user_a_index != 0xFF) 
+                    in[j] = evsys_->get_user_level(luts_[index].user_a_index);
                 break;
             case 0x04: // EVENTB
-                if (evsys_) in[j] = evsys_->get_user_level(33 + 2 * index);
+                if (evsys_ && luts_[index].user_b_index != 0xFF) 
+                    in[j] = evsys_->get_user_level(luts_[index].user_b_index);
                 break;
             case 0x05: // IO PIN
                 in[j] = luts_[index].inputs[j];
@@ -225,11 +228,13 @@ void Ccl::update_logic() noexcept {
         u8 mode = seqctrl_[s] & 0x07;
         if (mode == 0) continue;
 
-        bool in0 = outputs_[s * 2 + 1]; // Input 0 = LUT(2n+1)
-        bool in1 = outputs_[s * 2];     // Input 1 = LUT(2n)
+        // The sequential units use the RAW outputs of the LUTs as inputs.
+        // We use compute_lut to get the raw state without the SEQ override.
+        bool in0 = compute_lut(s * 2 + 1); // Input 0 = LUT(2n+1)
+        bool in1 = compute_lut(s * 2);     // Input 1 = LUT(2n)
         bool in2 = luts_[s * 2].inputs[2]; // Input 2 = IN2 of LUT(2n)
 
-        bool prev_in1 = prev_outputs_[s * 2];
+        bool prev_in1 = prev_raw_outputs_[s * 2];
         bool rising_edge_in1 = in1 && !prev_in1;
 
         bool prev_in2 = prev_luts_in2_[s];
@@ -260,7 +265,12 @@ void Ccl::update_logic() noexcept {
                 break;
             default: break;
         }
+        prev_raw_outputs_[s * 2] = in1;
+        prev_raw_outputs_[s * 2 + 1] = in0;
         prev_luts_in2_[s] = in2;
+        
+        // When sequential unit is enabled, it overrides LUT(2n) output
+        outputs_[s * 2] = seq_state_[s];
     }
 
     // Interrupts & Output Synchronization

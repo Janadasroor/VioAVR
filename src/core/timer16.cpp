@@ -188,10 +188,9 @@ void Timer16::tick(const u64 elapsed_cycles) noexcept
             }
         }
 
-        // 3. Execution order: Tick -> Compare Match -> Input Capture
         if (should_tick) {
-            handle_matches();
             perform_tick();
+            handle_matches();
         }
 
         if (event_triggered) {
@@ -477,8 +476,8 @@ void Timer16::handle_matches() noexcept
         if (tcnt_ == ocrb_) handle_compare_match_b();
         if (tcnt_ == ocrc_ && desc_.ocrc_address != 0U) handle_compare_match_c();
         
-        // Fast PWM: Set pins at BOTTOM (transition from TOP to 0)
-        if (is_fast_pwm && tcnt_ == get_top()) {
+        // Fast PWM: Set pins at BOTTOM (tcnt_ == 0 and we just wrapped)
+        if (is_fast_pwm && tcnt_ == 0 && get_top() != 0) {
             if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
             if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
             if (get_pin_action_c() == PinAction::clear && desc_.ocrc_address != 0U) apply_pin_action(pin_c_, PinAction::set);

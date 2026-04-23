@@ -56,9 +56,9 @@ void GpioPort::tick(const u64 elapsed_cycles) noexcept
 u8 GpioPort::read(const u16 address) noexcept
 {
     if (address == pin_addr_) {
-        // PIN register read: returns the current value of the pins
-        // If it's an output, it typically returns the port value
-        // If it's an input, it returns the external level
+        // PIN register read: return the current latched value.
+        // We update the latched value here to ensure it's fresh.
+        update_pin_latched();
         return pin_latched_;
     }
     if (address == ddr_addr_) {
