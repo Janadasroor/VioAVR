@@ -166,7 +166,7 @@ def generate_header(data, header_path):
                 break
 
     groups.update({
-        'VREF': [], 'CLKCTRL': [], 'SLPCTRL': [], 'RSTCTRL': [], 'SYSCFG': []
+        'VREF': [], 'CLKCTRL': [], 'SLPCTRL': [], 'RSTCTRL': [], 'SYSCFG': [], 'BOD': []
     })
 
     for p_name, p_data in data['peripherals'].items():
@@ -1120,6 +1120,26 @@ def generate_header(data, header_path):
         return f"""{{
             .reves_address = {hx(r('REVID')['offset'])}
         }}"""
+        
+    def gen_bod(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        vlm_vector_idx = 0
+        for i in data.get('interrupts', []):
+            name = (i.get('name') or i.get('caption') or '').upper()
+            mod = (i.get('module-instance') or '').upper()
+            if 'VLM' in name and 'BOD' in mod:
+                vlm_vector_idx = i['index']
+                break
+                
+        return f"""{{
+            .ctrla_address = {hx(r('CTRLA')['offset'])},
+            .ctrlb_address = {hx(r('CTRLB')['offset'])},
+            .vlmctrla_address = {hx(r('VLMCTRLA')['offset'])},
+            .intctrl_address = {hx(r('INTCTRL')['offset'])},
+            .intflags_address = {hx(r('INTFLAGS')['offset'])},
+            .status_address = {hx(r('STATUS')['offset'])},
+            .vlm_vector_index = {vlm_vector_idx}U
+        }}"""
 
     uarts_str = ",\n        ".join(gen_uart(n, d) for n, d in groups['USART'])
     timers8_str = ",\n        ".join(gen_timer8(n, d) for n, d in (groups['TC8'] + groups['TC8_ASYNC']))
@@ -1135,6 +1155,7 @@ def generate_header(data, header_path):
     slpctrl_descriptor = gen_slpctrl("SLPCTRL", groups['SLPCTRL'][0][1]) if groups['SLPCTRL'] else "{}"
     rstctrl_descriptor = gen_rstctrl("RSTCTRL", groups['RSTCTRL'][0][1]) if groups['RSTCTRL'] else "{}"
     syscfg_descriptor = gen_syscfg("SYSCFG", groups['SYSCFG'][0][1]) if groups['SYSCFG'] else "{}"
+    bod_descriptor = gen_bod("BOD", groups['BOD'][0][1]) if groups['BOD'] else "{}"
     
     adcs_descriptors = []
     adc8x_descriptors = []
@@ -1315,6 +1336,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .slpctrl = {slpctrl_descriptor},
     .rstctrl = {rstctrl_descriptor},
     .syscfg = {syscfg_descriptor},
+    .bod = {bod_descriptor},
     
     .ext_interrupt_count = {len(groups['EXINT'])}U,
     .ext_interrupts = {{{{ {ext_ints_str} }}}},
