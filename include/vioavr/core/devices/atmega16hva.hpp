@@ -7,6 +7,7 @@ inline constexpr DeviceDescriptor atmega16hva {
     .name = "ATmega16HVA",
     .flash_words = 8192U,
     .sram_bytes = 512U,
+    .sram_start = 0x100U,
     .eeprom_bytes = 256U,
     .interrupt_vector_count = 21U,
     .interrupt_vector_size = 4U,
@@ -26,12 +27,16 @@ inline constexpr DeviceDescriptor atmega16hva {
     .rampz_address = 0x0U,
     .eind_address = 0x0U,
     .spmcsr_address = 0x57U,
+    .sigrd_mask = 0x20U,
+    .blbset_mask = 0x0U,
+    .spmen_mask = 0x1U,
     .prr_address = 0x0U,
     .prr0_address = 0x64U,
     .prr1_address = 0x0U,
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .ccp_address = 0x0U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,
@@ -47,6 +52,7 @@ inline constexpr DeviceDescriptor atmega16hva {
     .smcr_sm_mask = 0xEU,
     .smcr_se_mask = 0x1U,
     .flash_rww_end_word = 0x2000U,
+    .boot_start_address = 0x0U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -139,6 +145,14 @@ inline constexpr DeviceDescriptor atmega16hva {
     .evsys = {},
 
     .ccl = {},
+    .portmux = {},
+    
+    .vref = {},
+    .clkctrl = {},
+    .slpctrl = {},
+    .rstctrl = {},
+    .syscfg = {},
+    .bod = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -211,6 +225,9 @@ inline constexpr DeviceDescriptor atmega16hva {
 
     .dac_count = 0U,
     .dacs = {{  }},
+    
+    .dma_count = 0U,
+    .dmas = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
@@ -218,12 +235,17 @@ inline constexpr DeviceDescriptor atmega16hva {
 
     .signature = { 0x1EU, 0x94U, 0xCU },
     .fuses = { 0xDFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
+    .lockbit_reset = 0xFFU,
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = 3U,
     .ports = {{
-        { "PORTA", 0x20U, 0x21U, 0x22U },
-        { "PORTB", 0x23U, 0x24U, 0x25U },
-        { "PORTC", 0x26U, 0x0U, 0x28U }
+        { "PORTA", 0x20U, 0x21U, 0x22U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTB", 0x23U, 0x24U, 0x25U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTC", 0x26U, 0x0U, 0x28U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U }
     }}
 };
 

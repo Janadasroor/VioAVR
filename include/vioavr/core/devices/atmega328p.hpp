@@ -27,6 +27,9 @@ inline constexpr DeviceDescriptor atmega328p {
     .rampz_address = 0x0U,
     .eind_address = 0x0U,
     .spmcsr_address = 0x57U,
+    .sigrd_mask = 0x20U,
+    .blbset_mask = 0x8U,
+    .spmen_mask = 0x1U,
     .prr_address = 0x64U,
     .prr0_address = 0x0U,
     .prr1_address = 0x0U,
@@ -49,6 +52,7 @@ inline constexpr DeviceDescriptor atmega328p {
     .smcr_sm_mask = 0xEU,
     .smcr_se_mask = 0x1U,
     .flash_rww_end_word = 0x3800U,
+    .boot_start_address = 0x3800U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -168,6 +172,13 @@ inline constexpr DeviceDescriptor atmega328p {
     .ccl = {},
     .portmux = {},
     
+    .vref = {},
+    .clkctrl = {},
+    .slpctrl = {},
+    .rstctrl = {},
+    .syscfg = {},
+    .bod = {},
+    
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
             .eicra_address = 0x69U, .eicrb_address = 0x0U, .eimsk_address = 0x3DU, .eifr_address = 0x3CU,
@@ -283,6 +294,9 @@ inline constexpr DeviceDescriptor atmega328p {
 
     .dac_count = 0U,
     .dacs = {{  }},
+    
+    .dma_count = 0U,
+    .dmas = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
@@ -290,12 +304,17 @@ inline constexpr DeviceDescriptor atmega328p {
 
     .signature = { 0x1EU, 0x95U, 0xFU },
     .fuses = { 0x62U, 0xD9U, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
+    .lockbit_reset = 0xFFU,
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = 3U,
     .ports = {{
-        { "PORTB", 0x23U, 0x24U, 0x25U },
-        { "PORTC", 0x26U, 0x27U, 0x28U },
-        { "PORTD", 0x29U, 0x2AU, 0x2BU }
+        { "PORTB", 0x23U, 0x24U, 0x25U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTC", 0x26U, 0x27U, 0x28U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTD", 0x29U, 0x2AU, 0x2BU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U }
     }}
 };
 

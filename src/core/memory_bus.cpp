@@ -46,6 +46,7 @@ void MemoryBus::reset() noexcept
     }
 
     fuses_ = device_.fuses;
+    lockbit_ = device_.lockbit_reset;
     spm_busy_cycles_left_ = 0U;
     flash_rww_busy_ = false;
     cpu_cycles_ = 0U;
@@ -221,8 +222,8 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         if ((value & 0x10U) != 0U) {
             flash_rww_busy_ = false;
         }
-        // SIGRD (bit 5) or BLBSET (bit 3) timeout
-        if ((value & 0x28U) != 0U) {
+        const u8 special_mask = device_.sigrd_mask | device_.blbset_mask;
+        if (special_mask != 0 && (value & special_mask) != 0U) {
             lpm_special_mode_timeout_ = 5U;
             last_spmcsr_val_ = value;
         }
@@ -248,6 +249,9 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
     if (lpm_special_mode_timeout_ > 0U) {
         if (elapsed_cycles >= lpm_special_mode_timeout_) {
             lpm_special_mode_timeout_ = 0U;
+            if (device_.spmcsr_address < data_.size()) {
+                data_[device_.spmcsr_address] &= ~(device_.sigrd_mask | device_.blbset_mask);
+            }
         } else {
             lpm_special_mode_timeout_ -= static_cast<u8>(elapsed_cycles);
         }

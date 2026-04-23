@@ -1290,6 +1290,7 @@ def generate_header(data, header_path):
     # RWW end word calculation (start of first boot section)
     boot_sections = [m for m in data['memories'].get('prog', []) if 'BOOT_SECTION' in m['name']]
     rww_end_word = (min(m['start'] for m in boot_sections) // 2) if boot_sections else (flash['size'] // 2)
+    boot_start_word = (min(m['start'] for m in boot_sections) // 2) if boot_sections else 0
 
     # Address ranges
     io_seg = next((m for m in data['memories'].get('data', []) if m.get('type') == 'io'), {'start': 0x20, 'size': 0x40})
@@ -1303,6 +1304,8 @@ def generate_header(data, header_path):
     m_fuses = get_mapping(data, 'fuses')
     m_sigs = get_mapping(data, 'signatures')
     m_usigs = get_mapping(data, 'user_signatures')
+    
+    spm_reg = get_reg(data['peripherals'].get('CPU', {}), 'SPMCSR') or get_reg(data['peripherals'].get('BOOT_LOAD', {}), 'SPMCSR')
 
     # Extract properties and configuration
     props = data.get('properties', {})
@@ -1315,6 +1318,12 @@ def generate_header(data, header_path):
         off = f_reg.get('offset', 0)
         if off < 16:
             fuses_data[off] = f_reg.get('initval', 0xFF)
+            
+    # Extract lockbits
+    lockbit_val = 0xFF
+    for l_name, l_reg in data.get('configuration', {}).get('lockbits', {}).items():
+        if l_name == 'LOCKBIT':
+            lockbit_val = l_reg.get('initval', 0xFF)
     fuses_str = ", ".join(hx(v) for v in fuses_data)
 
     content = f"""#pragma once
@@ -1345,7 +1354,10 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .sreg_address = {get_reg_addr(cpu, 'SREG')},
     .rampz_address = {get_reg_addr(cpu, 'RAMPZ')},
     .eind_address = {get_reg_addr(cpu, 'EIND')},
-    .spmcsr_address = {hx(get_reg(data['peripherals'].get('CPU', {}), 'SPMCSR')['offset']) if get_reg(data['peripherals'].get('CPU', {}), 'SPMCSR') else hx(get_reg(data['peripherals'].get('BOOT_LOAD', {}), 'SPMCSR')['offset']) if get_reg(data['peripherals'].get('BOOT_LOAD', {}), 'SPMCSR') else '0x0U'},
+    .spmcsr_address = {hx(spm_reg['offset']) if spm_reg else '0x0U'},
+    .sigrd_mask = {hx(get_bit(spm_reg, 'SIGRD'))},
+    .blbset_mask = {hx(get_bit(spm_reg, 'BLBSET'))},
+    .spmen_mask = {hx(get_bit(spm_reg, 'SPMEN|SELFPRGEN'))},
     .prr_address = {hx(r_cpu('PRR')['offset']) if r_cpu('PRR') else '0x0U'},
     .prr0_address = {hx(r_cpu('PRR0')['offset']) if r_cpu('PRR0') else '0x0U'},
     .prr1_address = {hx(r_cpu('PRR1')['offset']) if r_cpu('PRR1') else '0x0U'},
@@ -1368,6 +1380,7 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .smcr_sm_mask = {hx(b_cpu('SMCR', 'SM'))},
     .smcr_se_mask = {hx(b_cpu('SMCR', 'SE'))},
     .flash_rww_end_word = {hx(rww_end_word)},
+    .boot_start_address = {hx(boot_start_word)},
     .spl_reset = {hx(r_cpu('SPL|SP')['initval'])},
     .sph_reset = {hx(r_cpu('SPH|SP')['initval'] if r_cpu('SPH|SP') and r_cpu('SPH|SP')['size'] > 1 else 0)},
     .sreg_reset = {hx(r_cpu('SREG')['initval'])},
@@ -1468,6 +1481,11 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .signature = {{ {", ".join(sigs)} }},
     .fuses = {{ {fuses_str} }},
+    .lockbit_reset = {hx(lockbit_val)},
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = {len(ports_raw)}U,
     .ports = {{{{

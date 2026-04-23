@@ -42,6 +42,8 @@ public:
     
     void set_external_pin(u32 external_id, PinLevel level);
     void set_external_voltage(u8 channel, double normalized_voltage);
+    void set_external_voltage_to_digital(u32 external_id, double voltage);
+    void set_operating_voltage(double vcc);
 
     std::vector<PinStateChange> consume_pin_changes();
     [[nodiscard]] std::optional<u32> get_external_id(std::string_view port_name, u8 bit_index) const;

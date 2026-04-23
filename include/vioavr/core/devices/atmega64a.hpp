@@ -7,6 +7,7 @@ inline constexpr DeviceDescriptor atmega64a {
     .name = "ATmega64A",
     .flash_words = 32768U,
     .sram_bytes = 4096U,
+    .sram_start = 0x100U,
     .eeprom_bytes = 2048U,
     .interrupt_vector_count = 35U,
     .interrupt_vector_size = 4U,
@@ -26,12 +27,16 @@ inline constexpr DeviceDescriptor atmega64a {
     .rampz_address = 0x0U,
     .eind_address = 0x0U,
     .spmcsr_address = 0x68U,
+    .sigrd_mask = 0x0U,
+    .blbset_mask = 0x8U,
+    .spmen_mask = 0x1U,
     .prr_address = 0x0U,
     .prr0_address = 0x0U,
     .prr1_address = 0x0U,
     .smcr_address = 0x0U,
     .mcusr_address = 0x0U,
     .mcucr_address = 0x55U,
+    .ccp_address = 0x0U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x6DU,
     .xmcrb_address = 0x6CU,
@@ -52,6 +57,7 @@ inline constexpr DeviceDescriptor atmega64a {
     .smcr_sm_mask = 0x0U,
     .smcr_se_mask = 0x0U,
     .flash_rww_end_word = 0x7000U,
+    .boot_start_address = 0x7000U,
     .spl_reset = 0x0U,
     .sph_reset = 0x0U,
     .sreg_reset = 0x0U,
@@ -195,6 +201,14 @@ inline constexpr DeviceDescriptor atmega64a {
     .evsys = {},
 
     .ccl = {},
+    .portmux = {},
+    
+    .vref = {},
+    .clkctrl = {},
+    .slpctrl = {},
+    .rstctrl = {},
+    .syscfg = {},
+    .bod = {},
     
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
@@ -204,11 +218,11 @@ inline constexpr DeviceDescriptor atmega64a {
 
     .uart_count = 2U,
     .uarts = {{ {
-            .udr_address = 0x2CU, .ucsra_address = 0x2BU, .ucsrb_address = 0x2AU, .ucsrc_address = 0x2AU, .ubrrl_address = 0x0U, .ubrrh_address = 0x1U,
+            .udr_address = 0x2CU, .ucsra_address = 0x2BU, .ucsrb_address = 0x2AU, .ucsrc_address = 0x95U, .ubrrl_address = 0x0U, .ubrrh_address = 0x1U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
-            .rx_vector_index = 0U,
+            .rx_vector_index = 18U,
             .udre_vector_index = 19U,
-            .tx_vector_index = 0U,
+            .tx_vector_index = 20U,
             .u2x_mask = 0x2U, 
             .rxc_mask = 0x80U, 
             .txc_mask = 0x40U, 
@@ -219,14 +233,16 @@ inline constexpr DeviceDescriptor atmega64a {
             .txcie_mask = 0x40U, 
             .udrie_mask = 0x20U,
             .pr_address = 0, .pr_bit = 255,
-            .uart_index = 0U
+            .uart_index = 0U,
+            .txd_pin_address = 0x23U, .txd_pin_bit = 1U,
+            .rxd_pin_address = 0x21U, .rxd_pin_bit = 0U
         },
         {
-            .udr_address = 0x9CU, .ucsra_address = 0x9BU, .ucsrb_address = 0x9AU, .ucsrc_address = 0x9AU, .ubrrl_address = 0x0U, .ubrrh_address = 0x1U,
+            .udr_address = 0x9CU, .ucsra_address = 0x9BU, .ucsrb_address = 0x9AU, .ucsrc_address = 0x9DU, .ubrrl_address = 0x0U, .ubrrh_address = 0x1U,
             .ucsra_reset = 0x0U, .ucsrb_reset = 0x0U, .ucsrc_reset = 0x0U,
-            .rx_vector_index = 0U,
+            .rx_vector_index = 18U,
             .udre_vector_index = 19U,
-            .tx_vector_index = 0U,
+            .tx_vector_index = 20U,
             .u2x_mask = 0x2U, 
             .rxc_mask = 0x80U, 
             .txc_mask = 0x40U, 
@@ -237,7 +253,9 @@ inline constexpr DeviceDescriptor atmega64a {
             .txcie_mask = 0x40U, 
             .udrie_mask = 0x20U,
             .pr_address = 0, .pr_bit = 255,
-            .uart_index = 1U
+            .uart_index = 1U,
+            .txd_pin_address = 0x32U, .txd_pin_bit = 3U,
+            .rxd_pin_address = 0x30U, .rxd_pin_bit = 2U
         } }},
     
     .uart8x_count = 0U,
@@ -307,6 +325,9 @@ inline constexpr DeviceDescriptor atmega64a {
 
     .dac_count = 0U,
     .dacs = {{  }},
+    
+    .dma_count = 0U,
+    .dmas = {{  }},
 
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
@@ -314,16 +335,21 @@ inline constexpr DeviceDescriptor atmega64a {
 
     .signature = { 0x1EU, 0x96U, 0x2U },
     .fuses = { 0xE1U, 0x99U, 0xFDU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU },
+    .lockbit_reset = 0xFFU,
+
+    .operating_voltage_v = 5.0,
+    .vil_factor = 0.3,
+    .vih_factor = 0.6,
 
     .port_count = 7U,
     .ports = {{
-        { "PORTA", 0x39U, 0x3AU, 0x3BU },
-        { "PORTB", 0x36U, 0x37U, 0x38U },
-        { "PORTC", 0x33U, 0x34U, 0x35U },
-        { "PORTD", 0x30U, 0x31U, 0x32U },
-        { "PORTE", 0x21U, 0x22U, 0x23U },
-        { "PORTF", 0x20U, 0x61U, 0x62U },
-        { "PORTG", 0x63U, 0x64U, 0x65U }
+        { "PORTA", 0x39U, 0x3AU, 0x3BU, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTB", 0x36U, 0x37U, 0x38U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTC", 0x33U, 0x34U, 0x35U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTD", 0x30U, 0x31U, 0x32U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTE", 0x21U, 0x22U, 0x23U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTF", 0x20U, 0x61U, 0x62U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U },
+        { "PORTG", 0x63U, 0x64U, 0x65U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0x0U, 0xFFFFU, 255U }
     }}
 };
 
