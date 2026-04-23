@@ -86,6 +86,7 @@ public:
     bool claim_pin_by_address(u16 pin_address, u8 bit_index, PinOwner owner) noexcept;
     void release_pin_by_address(u16 pin_address, u8 bit_index, PinOwner owner) noexcept;
     void update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, bool is_output, bool level, bool pullup = false) noexcept;
+    void reset() noexcept;
 
     [[nodiscard]] PinState get_state(u8 port_idx, u8 bit_idx) const noexcept;
     [[nodiscard]] PinState get_state_by_address(u16 pin_address, u8 bit_index) const noexcept;
@@ -98,7 +99,10 @@ public:
 private:
     struct PinEntry {
         PinState state {};
-        u32 active_claims {0}; // Bitmask of PinOwner values (1 << static_cast<u8>(owner))
+        u32 active_claims {0}; // Bitmask of PinOwner
+        u32 drive_levels {0xFFFFFFFFU}; // Bitmask of drive levels per owner
+        u32 output_mask {0}; // Bitmask of who wants to be an output
+        u32 pullup_mask {0}; // Bitmask of who wants pullup
     };
 
     std::vector<std::vector<PinEntry>> ports_;

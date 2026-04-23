@@ -1,4 +1,5 @@
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/logger.hpp"
 #include <stdexcept>
 #include <cstdio>
 
@@ -68,19 +69,19 @@ void PinMux::update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_out
 {
     if (port_idx >= ports_.size() || bit_idx >= 8) return;
 
-    auto& pin = ports_[port_idx][bit_idx].state;
+    PinEntry& entry = ports_[port_idx][bit_idx];
+    u32 owner_bit = 1U << static_cast<u32>(requester);
     
-    // Only the current owner can update the pin state
-    if (pin.owner != requester) return;
+    if (level) entry.drive_levels |= owner_bit;
+    else entry.drive_levels &= ~owner_bit;
+    
+    if (is_output) entry.output_mask |= owner_bit;
+    else entry.output_mask &= ~owner_bit;
+    
+    if (pullup) entry.pullup_mask |= owner_bit;
+    else entry.pullup_mask &= ~owner_bit;
 
-    const bool effective_pullup = pullup && !pullup_suppressed_;
-
-    if (pin.is_output != is_output || pin.drive_level != level || pin.pullup_enabled != effective_pullup) {
-        pin.is_output = is_output;
-        pin.drive_level = level;
-        pin.pullup_enabled = effective_pullup;
-        if (callback_) callback_(port_idx, bit_idx, pin);
-    }
+    reevaluate_ownership(port_idx, bit_idx);
 }
 
 void PinMux::update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, bool is_output, bool level, bool pullup) noexcept
@@ -126,6 +127,18 @@ void PinMux::set_callback(PinChangeCallback callback) noexcept
     callback_ = callback;
 }
 
+void PinMux::reset() noexcept {
+    for (u8 p = 0; p < ports_.size(); ++p) {
+        for (u8 b = 0; b < ports_[p].size(); ++b) {
+            PinEntry& entry = ports_[p][b];
+            entry.drive_levels = 0xFFFFFFFFU;
+            entry.output_mask = 0;
+            entry.pullup_mask = 0;
+            reevaluate_ownership(p, b);
+        }
+    }
+}
+
 void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
 {
     auto& entry = ports_[port_idx][bit_idx];
@@ -144,10 +157,26 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
         }
     }
 
-    if (entry.state.owner != highest_owner) {
-        entry.state.owner = highest_owner;
-        if (callback_) callback_(port_idx, bit_idx, entry.state);
+    entry.state.owner = highest_owner;
+
+    // Composite drive level (AND of all active drivers)
+    bool composite_drive = true;
+    u32 mask = entry.active_claims;
+    if ((entry.drive_levels & mask) != mask) {
+        composite_drive = false;
     }
+    entry.state.drive_level = composite_drive;
+    Logger::debug("PinMux: Port" + std::to_string(port_idx) + " Pin" + std::to_string(bit_idx) + 
+                  " Composite Drive: " + std::to_string(composite_drive) + 
+                  " Claims: 0x" + Logger::hex(static_cast<u32>(entry.active_claims)));
+
+    // Composite output state (OR of all active output requests)
+    entry.state.is_output = (entry.output_mask & entry.active_claims) != 0;
+
+    // Composite pullup state
+    entry.state.pullup_enabled = ((entry.pullup_mask & entry.active_claims) != 0) && !pullup_suppressed_;
+
+    if (callback_) callback_(port_idx, bit_idx, entry.state);
 }
 
 } // namespace vioavr::core
