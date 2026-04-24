@@ -676,12 +676,23 @@ struct OpampDescriptor {
 };
 
 struct LinDescriptor {
-    u16 ctrla_address {0U};
-    u16 ctrlb_address {0U};
-    u16 status_address {0U};
-    u16 data_address {0U};
-    u16 baud_address {0U};
+    u16 ctrla_address {0U}; // LINCR
     u8 vector_index {0U};
+    
+    // LINCR masks
+    u8 lincr_lswres_mask {0x80U};
+    u8 lincr_lin13_mask {0x40U};
+    u8 lincr_lconf_mask {0x30U};
+    u8 lincr_lena_mask {0x08U};
+    u8 lincr_lcmd_mask {0x07U};
+
+    // LINSIR masks
+    u8 linsir_lidst_mask {0xE0U};
+    u8 linsir_lbusy_mask {0x10U};
+    u8 linsir_lerr_mask {0x08U};
+    u8 linsir_lidok_mask {0x04U};
+    u8 linsir_ltxok_mask {0x02U};
+    u8 linsir_lrxok_mask {0x01U};
 };
 
 struct PscDescriptor {

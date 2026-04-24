@@ -96,6 +96,9 @@ set(TEST_SOURCES
     usb_enumeration_test.cpp
     usb_set_address_fidelity_test.cpp
     usb_protocol_fidelity_test.cpp
+    usb_double_banking_test.cpp
+    lin_protocol_fidelity_test.cpp
+    can_stability_test.cpp
     pll_test.cpp
     spm_test.cpp
     xmem_fidelity_test.cpp

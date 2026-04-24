@@ -1,6 +1,7 @@
 #pragma once
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/device.hpp"
+#include <vector>
 
 namespace vioavr::core {
 
@@ -23,6 +24,11 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    // Simulation interface
+    void simulate_rx_break() noexcept;
+    void simulate_rx_byte(u8 data) noexcept;
+    [[nodiscard]] std::vector<u8> get_tx_data() const noexcept;
+
 private:
     LinDescriptor desc_;
     std::array<AddressRange, 1> ranges_{};
@@ -34,6 +40,24 @@ private:
     u8 linbtr_{0};
     u8 linidr_{0};
     u8 lindat_{0};
+
+    enum class State {
+        Idle,
+        SyncBreak,
+        SyncField,
+        Identifier,
+        Data,
+        Checksum
+    } state_{State::Idle};
+
+    std::vector<u8> fifo_;
+    u8 fifo_idx_{0};
+    u8 expected_data_len_{0};
+    u8 checksum_{0};
+
+    void update_state() noexcept;
+    void calculate_checksum(u8 data) noexcept;
+    u8 get_frame_length() const noexcept;
 };
 
 } // namespace vioavr::core

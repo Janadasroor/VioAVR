@@ -60,7 +60,7 @@ std::span<const AddressRange> CanBus::mapped_ranges() const noexcept { return ra
 
 void CanBus::reset() noexcept {
     cangcon_ = 0;
-    cangsta_ = 0x01; // ENA (waiting for internal reset? No, ENA bit 0 is enable)
+    cangsta_ = 0x03; // ENA (bit 0) and ERRA (bit 1)
     cangit_ = 0;
     cangie_ = 0;
     canen1_ = 0;
@@ -80,6 +80,9 @@ void CanBus::reset() noexcept {
     canhpmob_ = 0;
     canpage_ = 0;
     
+    tx_wait_cycles_ = 0;
+    current_tx_mob_ = -1;
+    
     for (auto& mob : mobs_) {
         mob.canstmob = 0;
         mob.cancdmob = 0;
@@ -90,23 +93,44 @@ void CanBus::reset() noexcept {
 
 void CanBus::tick(u64 elapsed_cycles) noexcept {
     // Basic timer logic
-    if (cangcon_ & 0x02U) { // ENA bit 1 is enable for AT90CAN
-        // T_Q = (BRP + 1) * (1 / F_CPU)
-        // BRP is bits 5:0 of CANBT1
+    if (cangcon_ & 0x02U) { // ENA
         u32 brp = (canbt1_ & 0x3FU);
         u32 cycles_per_tq = brp + 1;
         
         timer_prescaler_cycles_ += static_cast<u32>(elapsed_cycles);
         while (timer_prescaler_cycles_ >= cycles_per_tq) {
             timer_prescaler_cycles_ -= cycles_per_tq;
-            
-            // CANTIM increments every TQ * (number of segments)?
-            // Actually, CANTIM increments every CAN timer clock.
-            // Simplified: increment every TQ for now.
             cantim_++;
-            if (cantim_ == 0) { // Overflow
+            if (cantim_ == 0) {
                 cangit_ |= 0x01U; // OVRIT
                 evaluate_interrupts();
+            }
+        }
+
+        // Transmission logic
+        if (current_tx_mob_ == -1) {
+            find_high_priority_mob();
+        }
+
+        if (current_tx_mob_ != -1) {
+            if (tx_wait_cycles_ > elapsed_cycles) {
+                tx_wait_cycles_ -= elapsed_cycles;
+            } else {
+                // Tx Complete
+                auto& mob = mobs_[current_tx_mob_];
+                mob.canstmob |= 0x40U; // TXOK
+                cangit_ |= 0x10U; // TXOK bit
+                
+                // Clear conmob
+                mob.cancdmob &= 0x3FU;
+                // Update CANEN
+                if (current_tx_mob_ < 8) canen2_ &= ~(1 << current_tx_mob_);
+                else canen1_ &= ~(1 << (current_tx_mob_ - 8));
+
+                current_tx_mob_ = -1;
+                tx_wait_cycles_ = 0;
+                evaluate_interrupts();
+                find_high_priority_mob();
             }
         }
     }
@@ -219,15 +243,17 @@ void CanBus::write(u16 address, u8 value) noexcept {
         else if (address == desc_.cancdmob_address) {
             mob.cancdmob = value;
             // Update CANEN
-            if (current_mob_idx < 8) canen2_ |= (1 << current_mob_idx);
-            else canen1_ |= (1 << (current_mob_idx - 8));
+            u8 conmob = (value >> 6U);
+            if (conmob != 0x00U) {
+                if (current_mob_idx < 8) canen2_ |= (1 << current_mob_idx);
+                else canen1_ |= (1 << (current_mob_idx - 8));
+            } else {
+                if (current_mob_idx < 8) canen2_ &= ~(1 << current_mob_idx);
+                else canen1_ &= ~(1 << (current_mob_idx - 8));
+            }
 
-            // Trigger transmission simulation if CONMOB=01
-            if ((value >> 6U) == 0x01U) {
-                // TBD: Add to Tx queue or process immediately
-                mob.canstmob |= 0x40U; // TXOK
-                cangit_ |= 0x10U; // CANIT bit for TXOK
-                evaluate_interrupts();
+            if (conmob == 0x01U) { // Transmit
+                find_high_priority_mob();
             }
         }
         else if (address >= desc_.canidt_address && address < desc_.canidt_address + 4U) {
@@ -252,9 +278,7 @@ void CanBus::evaluate_interrupts() noexcept {
     cansit2_ = 0;
 
     for (size_t i = 0; i < mobs_.size(); ++i) {
-        if (mobs_[i].canstmob & 0xFEU) { // Any bit except DLCW?
-            // This MOb has a pending status interrupt.
-            // Check if MOb interrupt is enabled
+        if (mobs_[i].canstmob & 0xFEU) {
             bool enabled = false;
             if (i < 8) {
                 cansit2_ |= (1 << i);
@@ -267,10 +291,8 @@ void CanBus::evaluate_interrupts() noexcept {
         }
     }
 
-    // General interrupts
     if (cangit_ & cangie_) it_pending = true;
-
-    canit_pending_ = it_pending && (cangie_ & 0x01U); // ENIT
+    canit_pending_ = it_pending && (cangie_ & 0x01U);
 }
 
 bool CanBus::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -282,13 +304,59 @@ bool CanBus::pending_interrupt_request(InterruptRequest& request) const noexcept
 }
 
 bool CanBus::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (pending_interrupt_request(request)) return true;
-    return false;
+    return pending_interrupt_request(request);
+}
+
+void CanBus::evaluate_error_state() noexcept {
+    cangsta_ &= ~0x0EU; // Clear ERRA, ERRP, BOFF
+    if (cantec_ > 255) {
+        cangsta_ |= 0x08U; // BOFF
+        cangcon_ &= ~0x02U; // Disable CAN (bus off)
+    } else if (cantec_ >= 128 || canrec_ >= 128) {
+        cangsta_ |= 0x04U; // ERRP
+    } else {
+        cangsta_ |= 0x02U; // ERRA
+    }
+}
+
+void CanBus::find_high_priority_mob() noexcept {
+    int best_idx = -1;
+    u32 best_id = 0xFFFFFFFFU;
+
+    for (size_t i = 0; i < mobs_.size(); ++i) {
+        auto& mob = mobs_[i];
+        if ((mob.cancdmob >> 6U) == 0x01U) { // Transmit
+            u32 id = 0;
+            if (mob.cancdmob & 0x10U) { // IDE
+                id = (static_cast<u32>(mob.canidtags[3]) << 21U) |
+                     (static_cast<u32>(mob.canidtags[2]) << 13U) |
+                     (static_cast<u32>(mob.canidtags[1]) << 5U) |
+                     (static_cast<u32>(mob.canidtags[0] >> 3U));
+            } else {
+                id = (static_cast<u32>(mob.canidtags[3]) << 3U) |
+                     (static_cast<u32>(mob.canidtags[2] >> 5U));
+            }
+            if (id < best_id) {
+                best_id = id;
+                best_idx = static_cast<int>(i);
+            }
+        }
+    }
+
+    if (best_idx != -1) {
+        canhpmob_ = (best_idx << 4);
+        if (current_tx_mob_ == -1) {
+            current_tx_mob_ = best_idx;
+            tx_wait_cycles_ = 1000; // Start Tx timer
+        }
+    } else {
+        canhpmob_ = 0;
+    }
 }
 
 void CanBus::receive_message(const CanMessage& msg) noexcept {
     // 1. Check if CAN is enabled
-    if (!(cangcon_ & 0x02U)) return; // ENA bit 1
+    if (!(cangcon_ & 0x02U)) return; // ENA
 
     // 2. Iterate through MObs to find a match (Priority: lowest index first)
     for (size_t i = 0; i < mobs_.size(); ++i) {
@@ -298,16 +366,13 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
         // Mode must be Receiver (10) or Frame Listen (11)
         if (conmob != 0x02U && conmob != 0x03U) continue;
 
-        // Check IDE (Identifier Extension) consistency
-        bool mob_ide = (mob.cancdmob & 0x10U); // bit 4 is IDE
+        // Check IDE consistency
+        bool mob_ide = (mob.cancdmob & 0x10U); // IDE
         if (mob_ide != msg.ide) continue;
 
         // ID Comparison
         bool match = true;
         if (msg.ide) {
-            // Extended ID (29 bits)
-            // Tags: IDT1(MSB), IDT2, IDT3, IDT4(LSB)
-            // IDT1: ID28:21 (Index 3), IDT2: ID20:13 (Index 2), IDT3: ID12:5 (Index 1), IDT4: ID4:0 + RTRTAG... (Index 0)
             u32 mob_id = (static_cast<u32>(mob.canidtags[3]) << 21U) |
                          (static_cast<u32>(mob.canidtags[2]) << 13U) |
                          (static_cast<u32>(mob.canidtags[1]) << 5U) |
@@ -320,8 +385,6 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
             
             if ((msg.id & mob_mask) != (mob_id & mob_mask)) match = false;
         } else {
-            // Standard ID (11 bits)
-            // Tags: IDT1(ID10:3) (Index 3), IDT2(ID2:0 + RTRTAG + IDE + RB0TAG) (Index 2)
             u32 mob_id = (static_cast<u32>(mob.canidtags[3]) << 3U) |
                          (static_cast<u32>(mob.canidtags[2] >> 5U));
             
@@ -333,23 +396,23 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
 
         if (match) {
             // MOb Match found!
-            // Update Data
             size_t dlc = (mob.cancdmob & 0x0FU);
             for (size_t d = 0; d < std::min<size_t>(msg.data.size(), dlc); ++d) {
                 mob.data[d] = msg.data[d];
             }
             
-            // Update Status
             mob.canstmob |= 0x20U; // RXOK
             if (msg.data.size() != dlc) mob.canstmob |= 0x80U; // DLCW
 
-            cangit_ |= 0x20U; // RXOK bit in CANGIT
+            cangit_ |= 0x20U; // RXOK bit
             
-            // Disable MOb after reception unless in Listen mode? 
-            // Actually, in AT90CAN, CONMOB is cleared after RXOK.
+            // Disable MOb after reception
             mob.cancdmob &= 0x3FU; 
+            if (i < 8) canen2_ &= ~(1 << i);
+            else canen1_ &= ~(1 << (i - 8));
             
             evaluate_interrupts();
+            find_high_priority_mob();
             return;
         }
     }
@@ -357,6 +420,12 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
 
 void CanBus::inject_message(const CanMessage& msg) noexcept {
     receive_message(msg);
+}
+
+void CanBus::simulate_bus_error() noexcept {
+    cantec_ += 8; // Standard CAN error increment
+    evaluate_error_state();
+    evaluate_interrupts();
 }
 
 } // namespace vioavr::core

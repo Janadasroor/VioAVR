@@ -13,7 +13,9 @@ Usb::Usb(std::string_view name, const UsbDescriptor& desc) noexcept
     
     // Initialize FIFOs for endpoints
     for (auto& ep : endpoints_) {
-        ep.fifo.resize(64); // Small default size
+        for (auto& bank : ep.banks) {
+            bank.fifo.resize(64); // Small default size
+        }
     }
 }
 
@@ -43,11 +45,16 @@ void Usb::reset() noexcept {
         ep.status1 = 0;
         ep.interrupt_flags = 0;
         ep.interrupt_enable = 0;
-        ep.read_idx = 0;
-        ep.write_idx = 0;
-        ep.byte_count = 0;
+        ep.cpu_bank = 0;
+        ep.sie_bank = 0;
+        ep.bank_count = 1;
         ep.data_toggle = false;
-        ep.bank_busy = false;
+        for (auto& bank : ep.banks) {
+            bank.read_idx = 0;
+            bank.write_idx = 0;
+            bank.byte_count = 0;
+            bank.busy = false;
+        }
     }
 }
 
@@ -92,18 +99,26 @@ u8 Usb::read(u16 address) noexcept {
     if (address == desc_.uecfg0x_address) return ep.config0;
     if (address == desc_.uecfg1x_address) return ep.config1;
     if (address == desc_.uesta0x_address) return ep.status0;
-    if (address == desc_.uesta1x_address) return ep.status1;
+    if (address == desc_.uesta1x_address) {
+        u8 val = ep.status1 & ~0x07U; // Clear CURRBK and NBUSYBK
+        val |= (ep.cpu_bank & 0x01U); // CURRBK
+        u8 busy_count = 0;
+        for (u8 i = 0; i < ep.bank_count; ++i) if (ep.banks[i].busy) busy_count++;
+        val |= (busy_count << 1U); // NBUSYBK
+        return val;
+    }
     if (address == desc_.ueintx_address) {
         u8 flags = ep.interrupt_flags;
+        auto& bank = ep.banks[ep.cpu_bank];
         // Calculate RWAL (Read/Write Allowed)
         bool is_in = (ep.config0 & 0x80U) != 0;
         bool rwal = false;
         if (is_in) {
-            // IN: RWAL is 1 if bank is not busy (CPU can write)
-            rwal = !ep.bank_busy;
+            // IN: RWAL is 1 if current bank is not busy (CPU can write)
+            rwal = !bank.busy;
         } else {
-            // OUT: RWAL is 1 if bank has data (CPU can read)
-            rwal = (ep.byte_count > 0);
+            // OUT: RWAL is 1 if current bank has data (CPU can read)
+            rwal = (bank.byte_count > 0);
         }
         if (rwal) flags |= desc_.ueintx_rwal_mask;
         else flags &= ~desc_.ueintx_rwal_mask;
@@ -111,14 +126,15 @@ u8 Usb::read(u16 address) noexcept {
         return flags;
     }
     if (address == desc_.ueienx_address) return ep.interrupt_enable;
-    if (address == desc_.uebclx_address) return static_cast<u8>(ep.byte_count & 0xFFU);
-    if (address == desc_.uebchx_address) return static_cast<u8>((ep.byte_count >> 8U) & 0xFFU);
+    if (address == desc_.uebclx_address) return static_cast<u8>(ep.banks[ep.cpu_bank].byte_count & 0xFFU);
+    if (address == desc_.uebchx_address) return static_cast<u8>((ep.banks[ep.cpu_bank].byte_count >> 8U) & 0xFFU);
     
     if (address == desc_.uedatx_address) {
-        if (ep.byte_count > 0) {
-            u8 data = ep.fifo[ep.read_idx];
-            ep.read_idx = (ep.read_idx + 1) % ep.fifo.size();
-            ep.byte_count--;
+        auto& bank = ep.banks[ep.cpu_bank];
+        if (bank.byte_count > 0) {
+            u8 data = bank.fifo[bank.read_idx];
+            bank.read_idx = (bank.read_idx + 1) % bank.fifo.size();
+            bank.byte_count--;
             return data;
         }
         return 0;
@@ -141,9 +157,14 @@ void Usb::write(u16 address, u8 value) noexcept {
         uerst_ = value;
         for (u8 i = 0; i < endpoints_.size(); ++i) {
             if (value & (1U << i)) {
-                endpoints_[i].read_idx = 0;
-                endpoints_[i].write_idx = 0;
-                endpoints_[i].byte_count = 0;
+                for (auto& bank : endpoints_[i].banks) {
+                    bank.read_idx = 0;
+                    bank.write_idx = 0;
+                    bank.byte_count = 0;
+                    bank.busy = false;
+                }
+                endpoints_[i].cpu_bank = 0;
+                endpoints_[i].sie_bank = 0;
                 // Note: bit is not automatically cleared by hardware
             }
         }
@@ -167,10 +188,20 @@ void Usb::write(u16 address, u8 value) noexcept {
         u8 size_idx = (value >> 4U) & 0x07U;
         u16 size = 8U << size_idx;
         if (size > 512) size = 512;
-        ep.fifo.resize(size);
-        ep.read_idx = 0;
-        ep.write_idx = 0;
-        ep.byte_count = 0;
+        
+        // EPBK bits [3:2]
+        u8 banks_idx = (value >> 2U) & 0x03U;
+        ep.bank_count = (banks_idx == 0x01U) ? 2 : 1;
+
+        for (auto& bank : ep.banks) {
+            bank.fifo.resize(size);
+            bank.read_idx = 0;
+            bank.write_idx = 0;
+            bank.byte_count = 0;
+            bank.busy = false;
+        }
+        ep.cpu_bank = 0;
+        ep.sie_bank = 0;
     }
     else if (address == desc_.ueintx_address) {
         u8 old_flags = ep.interrupt_flags;
@@ -180,25 +211,47 @@ void Usb::write(u16 address, u8 value) noexcept {
         // Handle FIFOCON (Bit 7) clearing
         if (!(value & 0x80U)) {
             bool is_in = (ep.config0 & 0x80U) != 0;
+            auto& current_bank = ep.banks[ep.cpu_bank];
             if (is_in) {
-                // IN: FIFOCON cleared -> Bank is full, ready to send
-                ep.bank_busy = true;
-                ep.interrupt_flags &= ~desc_.ueintx_txini_mask; // Also clear TXINI
+                // IN: FIFOCON cleared -> Current bank is full, ready to send
+                current_bank.busy = true;
+                ep.interrupt_flags &= ~desc_.ueintx_txini_mask; // Clear TXINI for current bank
+                
+                // Switch CPU to next bank if available and not busy
+                if (ep.bank_count > 1) {
+                    u8 next_bank = (ep.cpu_bank + 1) % ep.bank_count;
+                    if (!ep.banks[next_bank].busy) {
+                        ep.cpu_bank = next_bank;
+                        ep.interrupt_flags |= desc_.ueintx_txini_mask; // Next bank is ready to be loaded
+                    }
+                }
             } else {
-                // OUT: FIFOCON cleared -> Bank is empty, ready to receive next
-                ep.bank_busy = false;
-                ep.interrupt_flags &= ~desc_.ueintx_rxouti_mask; // Also clear RXOUTI
+                // OUT: FIFOCON cleared -> Current bank is empty, ready to receive next
+                current_bank.busy = false;
+                current_bank.byte_count = 0;
+                current_bank.read_idx = 0;
+                current_bank.write_idx = 0;
+                ep.interrupt_flags &= ~desc_.ueintx_rxouti_mask; // Clear RXOUTI for current bank
+                
+                // Switch CPU to next bank if it has data
+                if (ep.bank_count > 1) {
+                    u8 next_bank = (ep.cpu_bank + 1) % ep.bank_count;
+                    if (ep.banks[next_bank].busy && ep.banks[next_bank].byte_count > 0) {
+                        ep.cpu_bank = next_bank;
+                        ep.interrupt_flags |= desc_.ueintx_rxouti_mask; // Next bank has data
+                    }
+                }
             }
         }
 
         if (cleared_bits & desc_.ueintx_txini_mask) {
-            ep.bank_busy = true;
+            ep.banks[ep.cpu_bank].busy = true;
         }
         if (cleared_bits & desc_.ueintx_rxstpi_mask) {
-            ep.bank_busy = false; 
+            ep.banks[ep.cpu_bank].busy = false; 
         }
         if (cleared_bits & desc_.ueintx_rxouti_mask) {
-            ep.bank_busy = false;
+            ep.banks[ep.cpu_bank].busy = false;
         }
         
         update_ueint();
@@ -208,10 +261,11 @@ void Usb::write(u16 address, u8 value) noexcept {
         update_ueint();
     }
     else if (address == desc_.uedatx_address) {
-        if (ep.byte_count < ep.fifo.size()) {
-            ep.fifo[ep.write_idx] = value;
-            ep.write_idx = (ep.write_idx + 1) % ep.fifo.size();
-            ep.byte_count++;
+        auto& bank = ep.banks[ep.cpu_bank];
+        if (bank.byte_count < bank.fifo.size()) {
+            bank.fifo[bank.write_idx] = value;
+            bank.write_idx = (bank.write_idx + 1) % bank.fifo.size();
+            bank.byte_count++;
         }
     }
 }
@@ -264,21 +318,22 @@ void Usb::simulate_vbus_event(bool high) noexcept {
 
 void Usb::simulate_setup_packet(const SetupPacket& setup) noexcept {
     auto& ep = endpoints_[0];
-    ep.fifo.resize(64);
-    ep.fifo[0] = setup.bmRequestType;
-    ep.fifo[1] = setup.bRequest;
-    ep.fifo[2] = static_cast<u8>(setup.wValue & 0xFFU);
-    ep.fifo[3] = static_cast<u8>((setup.wValue >> 8U) & 0xFFU);
-    ep.fifo[4] = static_cast<u8>(setup.wIndex & 0xFFU);
-    ep.fifo[5] = static_cast<u8>((setup.wIndex >> 8U) & 0xFFU);
-    ep.fifo[6] = static_cast<u8>(setup.wLength & 0xFFU);
-    ep.fifo[7] = static_cast<u8>((setup.wLength >> 8U) & 0xFFU);
-    ep.read_idx = 0;
-    ep.write_idx = 8;
-    ep.byte_count = 8;
+    auto& bank = ep.banks[0]; // Setup always bank 0
+    bank.fifo.resize(64);
+    bank.fifo[0] = setup.bmRequestType;
+    bank.fifo[1] = setup.bRequest;
+    bank.fifo[2] = static_cast<u8>(setup.wValue & 0xFFU);
+    bank.fifo[3] = static_cast<u8>((setup.wValue >> 8U) & 0xFFU);
+    bank.fifo[4] = static_cast<u8>(setup.wIndex & 0xFFU);
+    bank.fifo[5] = static_cast<u8>((setup.wIndex >> 8U) & 0xFFU);
+    bank.fifo[6] = static_cast<u8>(setup.wLength & 0xFFU);
+    bank.fifo[7] = static_cast<u8>((setup.wLength >> 8U) & 0xFFU);
+    bank.read_idx = 0;
+    bank.write_idx = 8;
+    bank.byte_count = 8;
+    bank.busy = true; 
     ep.interrupt_flags |= desc_.ueintx_rxstpi_mask; // RXSTPI
-    ep.bank_busy = true; 
-    ep.data_toggle = false; // SETUP always resets to DATA0? No, but typically.
+    ep.data_toggle = false; 
     update_ueint();
 }
 
@@ -292,14 +347,29 @@ void Usb::simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept {
         return;
     }
 
-    size_t to_copy = std::min(data.size(), ep.fifo.size() - ep.byte_count);
-    for (size_t i = 0; i < to_copy; ++i) {
-        ep.fifo[ep.write_idx] = data[i];
-        ep.write_idx = (ep.write_idx + 1) % ep.fifo.size();
+    // Find next free bank for SIE
+    u8 target_bank = ep.sie_bank;
+    if (ep.banks[target_bank].busy) {
+        // Current bank busy, check next if double banked
+        if (ep.bank_count > 1) {
+            u8 next = (target_bank + 1) % ep.bank_count;
+            if (!ep.banks[next].busy) target_bank = next;
+            else return; // Both busy
+        } else return; // Single bank busy
     }
-    ep.byte_count += static_cast<u16>(to_copy);
+
+    auto& bank = ep.banks[target_bank];
+    size_t to_copy = std::min(data.size(), bank.fifo.size());
+    for (size_t i = 0; i < to_copy; ++i) {
+        bank.fifo[i] = data[i];
+    }
+    bank.write_idx = to_copy;
+    bank.read_idx = 0;
+    bank.byte_count = static_cast<u16>(to_copy);
+    bank.busy = true;
+    
+    ep.sie_bank = (target_bank + 1) % ep.bank_count;
     ep.interrupt_flags |= desc_.ueintx_rxouti_mask; // RXOUTI
-    ep.bank_busy = true;
     ep.data_toggle = !ep.data_toggle;
     update_ueint();
 }
@@ -314,13 +384,27 @@ void Usb::simulate_in_token(u8 ep_idx) noexcept {
         return;
     }
 
-    // If bank is 'busy' (data loaded and TXINI cleared by SW), send it
-    if (ep.bank_busy && !(ep.interrupt_flags & desc_.ueintx_txini_mask)) {
-        ep.read_idx = 0;
-        ep.write_idx = 0;
-        ep.byte_count = 0;
-        ep.bank_busy = false;
+    // Check if SIE's current bank is busy (loaded by CPU and ready to send)
+    auto& bank = ep.banks[ep.sie_bank];
+    if (bank.busy) {
+        // Data sent! Clear busy and trigger TXINI
+        bank.read_idx = 0;
+        bank.write_idx = 0;
+        bank.byte_count = 0;
+        bank.busy = false;
+        
+        ep.sie_bank = (ep.sie_bank + 1) % ep.bank_count;
         ep.data_toggle = !ep.data_toggle;
+        
+        // If CPU was waiting for a free bank (TXINI was 0), set it now
+        bool is_in = (ep.config0 & 0x80U) != 0;
+        if (is_in && !(ep.interrupt_flags & desc_.ueintx_txini_mask)) {
+            // Check if the bank we just freed is the one the CPU should use next
+            // In double banking, if TXINI is 0, it means all banks are busy.
+            // Freed bank becomes the next available.
+            ep.interrupt_flags |= desc_.ueintx_txini_mask;
+        }
+
         ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI (Handshake ACK)
         update_ueint();
     }
@@ -329,14 +413,16 @@ void Usb::simulate_in_token(u8 ep_idx) noexcept {
 std::vector<u8> Usb::get_endpoint_data(u8 ep_idx) const noexcept {
     if (ep_idx >= endpoints_.size()) return {};
     const auto& ep = endpoints_[ep_idx];
-    if (ep.byte_count == 0) return {};
+    
+    const auto& bank = ep.banks[ep.sie_bank];
+    if (bank.byte_count == 0) return {};
     
     std::vector<u8> data;
-    data.reserve(ep.byte_count);
-    size_t idx = ep.read_idx;
-    for (u16 i = 0; i < ep.byte_count; ++i) {
-        data.push_back(ep.fifo[idx]);
-        idx = (idx + 1) % ep.fifo.size();
+    data.reserve(bank.byte_count);
+    size_t idx = bank.read_idx;
+    for (u16 i = 0; i < bank.byte_count; ++i) {
+        data.push_back(bank.fifo[idx]);
+        idx = (idx + 1) % bank.fifo.size();
     }
     return data;
 }

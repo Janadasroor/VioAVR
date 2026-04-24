@@ -32,6 +32,7 @@ public:
     };
 
     void inject_message(const CanMessage& msg) noexcept;
+    void simulate_bus_error() noexcept;
 
 private:
     struct MessageObject {
@@ -64,8 +65,8 @@ private:
     u8 cantcon_ {};
     u16 cantim_ {};
     u16 canttc_ {};
-    u8 cantec_ {};
-    u8 canrec_ {};
+    u16 cantec_ {};
+    u16 canrec_ {};
     u8 canhpmob_ {};
     u8 canpage_ {};
 
@@ -76,7 +77,12 @@ private:
     u32 timer_prescaler_cycles_ {};
     u8 timer_temp_ {0U};
 
+    u64 tx_wait_cycles_ {0};
+    int current_tx_mob_ {-1};
+
     void evaluate_interrupts() noexcept;
+    void evaluate_error_state() noexcept;
+    void find_high_priority_mob() noexcept;
     void receive_message(const CanMessage& msg) noexcept;
 };
 
