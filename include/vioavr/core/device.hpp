@@ -617,6 +617,10 @@ struct UsbDescriptor {
     u8 ueintx_txini_mask {0x01U};
     u8 ueintx_rxstpi_mask {0x08U};
     u8 ueintx_rxouti_mask {0x04U};
+    u8 ueintx_stalledi_mask {0x02U};
+    u8 ueintx_rwal_mask {0x20U};
+    u8 ueintx_fifocon_mask {0x80U};
+    u8 ueconx_stallrq_mask {0x02U};
     u8 udaddr_adden_mask {0x80U};
 
     u16 pr_address {0U};

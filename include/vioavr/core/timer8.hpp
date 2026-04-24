@@ -117,6 +117,7 @@ private:
     u8 last_clk_pin_state_ {0U};
     u8 last_tosc1_state_ {0U};
     u64 cycle_accumulator_ {0U};
+    u64 tosc_accumulator_ {0U};
     u16 async_busy_countdown_ {0U};
     class Adc* adc_compare_trigger_ {};
     class Adc* adc_overflow_trigger_ {};
