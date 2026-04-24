@@ -1,4 +1,5 @@
 #include "vioavr/core/twi.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -73,6 +74,8 @@ void Twi::reset() noexcept
 
 void Twi::tick(const u64 elapsed_cycles) noexcept
 {
+    if (power_reduction_enabled()) return;
+
     if (step_cycles_left_ > 0) {
         if (elapsed_cycles >= step_cycles_left_) {
             step_cycles_left_ = 0;
@@ -245,5 +248,13 @@ void Twi::set_rx_buffer(const std::vector<u8>& data) noexcept
 
 const std::vector<u8>& Twi::tx_buffer() const noexcept { return tx_buffer_; }
 bool Twi::busy() const noexcept { return step_cycles_left_ > 0; }
+
+bool Twi::power_reduction_enabled() const noexcept
+{
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
+        return false;
+    }
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
+}
 
 } // namespace vioavr::core

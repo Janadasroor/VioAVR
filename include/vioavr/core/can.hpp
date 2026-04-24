@@ -13,6 +13,8 @@ class CanBus final : public IoPeripheral {
 public:
     explicit CanBus(std::string_view name, const CanDescriptor& descriptor) noexcept;
 
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
@@ -46,6 +48,7 @@ private:
 
     std::string name_;
     CanDescriptor desc_;
+    MemoryBus* bus_ {};
     std::vector<AddressRange> ranges_;
 
     // General Registers
@@ -84,6 +87,7 @@ private:
     void evaluate_error_state() noexcept;
     void find_high_priority_mob() noexcept;
     void receive_message(const CanMessage& msg) noexcept;
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
 };
 
 }  // namespace vioavr::core

@@ -1,4 +1,5 @@
 #include "vioavr/core/can.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -92,6 +93,8 @@ void CanBus::reset() noexcept {
 }
 
 void CanBus::tick(u64 elapsed_cycles) noexcept {
+    if (power_reduction_enabled()) return;
+
     // Basic timer logic
     if (cangcon_ & 0x02U) { // ENA
         u32 brp = (canbt1_ & 0x3FU);
@@ -426,6 +429,11 @@ void CanBus::simulate_bus_error() noexcept {
     cantec_ += 8; // Standard CAN error increment
     evaluate_error_state();
     evaluate_interrupts();
+}
+
+bool CanBus::power_reduction_enabled() const noexcept {
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) return false;
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
 }
 
 } // namespace vioavr::core

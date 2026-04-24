@@ -1,4 +1,5 @@
 #include "vioavr/core/uart.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 #include <vector>
 #include <string>
@@ -66,6 +67,8 @@ void Uart::reset() noexcept
 
 void Uart::tick(const u64 elapsed_cycles) noexcept
 {
+    if (power_reduction_enabled()) return;
+
     // Start transmission if buffer is full and shift register is idle
     if (!tx_active_ && tx_buffer_full_) {
         tx_shift_reg_ = udr_tx_;
@@ -185,6 +188,14 @@ bool Uart::consume_transmitted_byte(u8& data) noexcept
     data = tx_output_queue_.front();
     tx_output_queue_.pop_front();
     return true;
+}
+
+bool Uart::power_reduction_enabled() const noexcept
+{
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
+        return false;
+    }
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
 }
 
 }  // namespace vioavr::core

@@ -1,4 +1,5 @@
 #include "vioavr/core/spi.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -48,6 +49,8 @@ void Spi::reset() noexcept
 
 void Spi::tick(const u64 elapsed_cycles) noexcept
 {
+    if (power_reduction_enabled()) return;
+
     if (transfer_cycles_left_ == 0U) {
         return;
     }
@@ -189,6 +192,14 @@ void Spi::complete_transfer() noexcept
     spdr_ = received;
     spsr_ |= desc_.spif_mask;
     interrupt_pending_ = true;
+}
+
+bool Spi::power_reduction_enabled() const noexcept
+{
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
+        return false;
+    }
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
 }
 
 }  // namespace vioavr::core

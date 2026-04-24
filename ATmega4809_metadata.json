@@ -534,49 +534,57 @@
           "group": "N",
           "pad": "PD3",
           "index": "0",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "N",
           "pad": "PD5",
           "index": "1",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "N",
           "pad": "PD7",
           "index": "2",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "OUT",
           "pad": "PA7",
           "index": "0",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD2",
           "index": "0",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD4",
           "index": "1",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD6",
           "index": "2",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         },
         {
           "group": "P",
           "pad": "PD1",
           "index": "3",
-          "function": "AC0"
+          "function": "AC0",
+          "field": null
         }
       ]
     },
@@ -1087,97 +1095,113 @@
           "group": "AIN",
           "pad": "PD0",
           "index": "0",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD1",
           "index": "1",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD2",
           "index": "2",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD3",
           "index": "3",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD4",
           "index": "4",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD5",
           "index": "5",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD6",
           "index": "6",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PD7",
           "index": "7",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE0",
           "index": "8",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE1",
           "index": "9",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE2",
           "index": "10",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PE3",
           "index": "11",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF2",
           "index": "12",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF3",
           "index": "13",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF4",
           "index": "14",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         },
         {
           "group": "AIN",
           "pad": "PF5",
           "index": "15",
-          "function": "AIN0"
+          "function": "AIN0",
+          "field": null
         }
       ]
     },
@@ -2619,121 +2643,141 @@
           "group": "LUT0_IN",
           "pad": "PA0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT0_IN",
           "pad": "PA1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT0_IN",
           "pad": "PA2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT1_IN",
           "pad": "PC0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT1_IN",
           "pad": "PC1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT1_IN",
           "pad": "PC2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT2_IN",
           "pad": "PD0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT2_IN",
           "pad": "PD1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT2_IN",
           "pad": "PD2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT3_IN",
           "pad": "PF0",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT3_IN",
           "pad": "PF1",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT3_IN",
           "pad": "PF2",
           "index": "2",
-          "function": "CCL"
+          "function": "CCL",
+          "field": null
         },
         {
           "group": "LUT0_OUT",
           "pad": "PA3",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT0"
         },
         {
           "group": "LUT0_OUT",
           "pad": "PA6",
           "index": "0",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT0"
         },
         {
           "group": "LUT1_OUT",
           "pad": "PC3",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT1"
         },
         {
           "group": "LUT1_OUT",
           "pad": "PC6",
           "index": "0",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT1"
         },
         {
           "group": "LUT2_OUT",
           "pad": "PD3",
           "index": "0",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT2"
         },
         {
           "group": "LUT2_OUT",
           "pad": "PD6",
           "index": "1",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT2"
         },
         {
           "group": "LUT3_OUT",
           "pad": "PF3",
           "index": "1",
-          "function": "CCL"
+          "function": "CCL",
+          "field": "PORTMUX.CCLROUTEA.LUT3"
         },
         {
           "group": "LUT3_OUT",
           "pad": "PF6",
           "index": "1",
-          "function": "CCL_ALT1"
+          "function": "CCL_ALT1",
+          "field": "PORTMUX.CCLROUTEA.LUT3"
         }
       ]
     },
@@ -3002,25 +3046,29 @@
           "group": "CLKI",
           "pad": "PA0",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         },
         {
           "group": "CLKO",
           "pad": "PA7",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         },
         {
           "group": "TOSC1",
           "pad": "PF0",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         },
         {
           "group": "TOSC2",
           "pad": "PF1",
           "index": null,
-          "function": "CLKCTRL"
+          "function": "CLKCTRL",
+          "field": null
         }
       ]
     },
@@ -6102,55 +6150,64 @@
           "group": "EVOUT",
           "pad": "PA2",
           "index": "0",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTA"
         },
         {
           "group": "EVOUT",
           "pad": "PA7",
           "index": "0",
-          "function": "EVSYS_ALT1"
+          "function": "EVSYS_ALT1",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTA"
         },
         {
           "group": "EVOUT",
           "pad": "PB2",
           "index": "1",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTB"
         },
         {
           "group": "EVOUT",
           "pad": "PC2",
           "index": "2",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTC"
         },
         {
           "group": "EVOUT",
           "pad": "PC7",
           "index": "2",
-          "function": "EVSYS_ALT1"
+          "function": "EVSYS_ALT1",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTC"
         },
         {
           "group": "EVOUT",
           "pad": "PD2",
           "index": "3",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTD"
         },
         {
           "group": "EVOUT",
           "pad": "PD7",
           "index": "3",
-          "function": "EVSYS_ALT1"
+          "function": "EVSYS_ALT1",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTD"
         },
         {
           "group": "EVOUT",
           "pad": "PE2",
           "index": "4",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTE"
         },
         {
           "group": "EVOUT",
           "pad": "PF2",
           "index": "5",
-          "function": "EVSYS"
+          "function": "EVSYS",
+          "field": "PORTMUX.EVSYSROUTEA.EVOUTF"
         }
       ]
     },
@@ -7220,49 +7277,57 @@
           "group": "PIN",
           "pad": "PA0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PA7",
           "index": "7",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -7772,37 +7837,43 @@
           "group": "PIN",
           "pad": "PB0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PB5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -8312,49 +8383,57 @@
           "group": "PIN",
           "pad": "PC0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PC7",
           "index": "7",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -8864,49 +8943,57 @@
           "group": "PIN",
           "pad": "PD0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PD7",
           "index": "7",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -9416,25 +9503,29 @@
           "group": "PIN",
           "pad": "PE0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PE1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PE2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PE3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -9944,43 +10035,50 @@
           "group": "PIN",
           "pad": "PF0",
           "index": "0",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF1",
           "index": "1",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF2",
           "index": "2",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF3",
           "index": "3",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF4",
           "index": "4",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF5",
           "index": "5",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         },
         {
           "group": "PIN",
           "pad": "PF6",
           "index": "6",
-          "function": "IOPORT"
+          "function": "IOPORT",
+          "field": null
         }
       ]
     },
@@ -10402,7 +10500,8 @@
           "group": "RESET",
           "pad": "PF6",
           "index": null,
-          "function": "OTHER"
+          "function": "OTHER",
+          "field": null
         }
       ]
     },
@@ -11256,73 +11355,85 @@
           "group": "MISO",
           "pad": "PA5",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MOSI",
           "pad": "PA4",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SCK",
           "pad": "PA6",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SS",
           "pad": "PA7",
           "index": null,
-          "function": "SPI"
+          "function": "SPI",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MISO",
           "pad": "PC1",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MOSI",
           "pad": "PC0",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SCK",
           "pad": "PC2",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SS",
           "pad": "PC3",
           "index": null,
-          "function": "SPI_ALT1"
+          "function": "SPI_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MISO",
           "pad": "PE1",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "MOSI",
           "pad": "PE0",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SCK",
           "pad": "PE2",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         },
         {
           "group": "SS",
           "pad": "PE3",
           "index": null,
-          "function": "SPI_ALT2"
+          "function": "SPI_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.SPI0"
         }
       ]
     },
@@ -11957,205 +12068,239 @@
           "group": "WO",
           "pad": "PA0",
           "index": "0",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA1",
           "index": "1",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA2",
           "index": "2",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA3",
           "index": "3",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA4",
           "index": "4",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PA5",
           "index": "5",
-          "function": "TCA"
+          "function": "TCA",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB0",
           "index": "0",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB1",
           "index": "1",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB2",
           "index": "2",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB3",
           "index": "3",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB4",
           "index": "4",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PB5",
           "index": "5",
-          "function": "TCA_ALT1"
+          "function": "TCA_ALT1",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC0",
           "index": "0",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC1",
           "index": "1",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC2",
           "index": "2",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC3",
           "index": "3",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC4",
           "index": "4",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PC5",
           "index": "5",
-          "function": "TCA_ALT2"
+          "function": "TCA_ALT2",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD0",
           "index": "0",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD1",
           "index": "1",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD2",
           "index": "2",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD3",
           "index": "3",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD4",
           "index": "4",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PD5",
           "index": "5",
-          "function": "TCA_ALT3"
+          "function": "TCA_ALT3",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE0",
           "index": "0",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE1",
           "index": "1",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE2",
           "index": "2",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PE3",
           "index": "3",
-          "function": "TCA_ALT4"
+          "function": "TCA_ALT4",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF0",
           "index": "0",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF1",
           "index": "1",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF2",
           "index": "2",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF3",
           "index": "3",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF4",
           "index": "4",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         },
         {
           "group": "WO",
           "pad": "PF5",
           "index": "5",
-          "function": "TCA_ALT5"
+          "function": "TCA_ALT5",
+          "field": "PORTMUX.TCAROUTEA.TCA0"
         }
       ]
     },
@@ -12381,13 +12526,15 @@
           "group": "WO",
           "pad": "PA2",
           "index": "0",
-          "function": "TCB0"
+          "function": "TCB0",
+          "field": "PORTMUX.TCBROUTEA.TCB0"
         },
         {
           "group": "WO",
           "pad": "PF4",
           "index": "0",
-          "function": "TCB0_ALT1"
+          "function": "TCB0_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB0"
         }
       ]
     },
@@ -12613,13 +12760,15 @@
           "group": "WO",
           "pad": "PA3",
           "index": "0",
-          "function": "TCB1"
+          "function": "TCB1",
+          "field": "PORTMUX.TCBROUTEA.TCB1"
         },
         {
           "group": "WO",
           "pad": "PF5",
           "index": "0",
-          "function": "TCB1_ALT1"
+          "function": "TCB1_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB1"
         }
       ]
     },
@@ -12845,13 +12994,15 @@
           "group": "WO",
           "pad": "PC0",
           "index": "0",
-          "function": "TCB2"
+          "function": "TCB2",
+          "field": "PORTMUX.TCBROUTEA.TCB2"
         },
         {
           "group": "WO",
           "pad": "PB4",
           "index": "0",
-          "function": "TCB2_ALT1"
+          "function": "TCB2_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB2"
         }
       ]
     },
@@ -13077,13 +13228,15 @@
           "group": "WO",
           "pad": "PB5",
           "index": "0",
-          "function": "TCB3"
+          "function": "TCB3",
+          "field": "PORTMUX.TCBROUTEA.TCB3"
         },
         {
           "group": "WO",
           "pad": "PC1",
           "index": "0",
-          "function": "TCB3_ALT1"
+          "function": "TCB3_ALT1",
+          "field": "PORTMUX.TCBROUTEA.TCB3"
         }
       ]
     },
@@ -13573,37 +13726,43 @@
           "group": "SCL",
           "pad": "PA3",
           "index": null,
-          "function": "I2C"
+          "function": "I2C",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SDA",
           "pad": "PA2",
           "index": null,
-          "function": "I2C"
+          "function": "I2C",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SCL",
           "pad": "PC3",
           "index": null,
-          "function": "I2C_ALT1"
+          "function": "I2C_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SDA",
           "pad": "PC2",
           "index": null,
-          "function": "I2C_ALT1"
+          "function": "I2C_ALT1",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SCL",
           "pad": "PF3",
           "index": null,
-          "function": "I2C_ALT2"
+          "function": "I2C_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         },
         {
           "group": "SDA",
           "pad": "PF2",
           "index": null,
-          "function": "I2C_ALT2"
+          "function": "I2C_ALT2",
+          "field": "PORTMUX.TWISPIROUTEA.TWI0"
         }
       ]
     },
@@ -14058,49 +14217,57 @@
           "group": "RXD",
           "pad": "PA1",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "TXD",
           "pad": "PA0",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XCK",
           "pad": "PA2",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XDIR",
           "pad": "PA3",
           "index": null,
-          "function": "USART0"
+          "function": "USART0",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "RXD",
           "pad": "PA5",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "TXD",
           "pad": "PA4",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XCK",
           "pad": "PA6",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         },
         {
           "group": "XDIR",
           "pad": "PA7",
           "index": null,
-          "function": "USART0_ALT1"
+          "function": "USART0_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART0"
         }
       ]
     },
@@ -14555,49 +14722,57 @@
           "group": "RXD",
           "pad": "PC1",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "TXD",
           "pad": "PC0",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XCK",
           "pad": "PC2",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XDIR",
           "pad": "PC3",
           "index": null,
-          "function": "USART1"
+          "function": "USART1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "RXD",
           "pad": "PC5",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "TXD",
           "pad": "PC4",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XCK",
           "pad": "PC6",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         },
         {
           "group": "XDIR",
           "pad": "PC7",
           "index": null,
-          "function": "USART1_ALT1"
+          "function": "USART1_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART1"
         }
       ]
     },
@@ -15052,43 +15227,50 @@
           "group": "RXD",
           "pad": "PF1",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "TXD",
           "pad": "PF0",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "XCK",
           "pad": "PF2",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "XDIR",
           "pad": "PF3",
           "index": null,
-          "function": "USART2"
+          "function": "USART2",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "RXD",
           "pad": "PF5",
           "index": null,
-          "function": "USART2_ALT1"
+          "function": "USART2_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "TXD",
           "pad": "PF4",
           "index": null,
-          "function": "USART2_ALT1"
+          "function": "USART2_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         },
         {
           "group": "XCK",
           "pad": "PF6",
           "index": null,
-          "function": "USART2_ALT1"
+          "function": "USART2_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART2"
         }
       ]
     },
@@ -15543,37 +15725,43 @@
           "group": "RXD",
           "pad": "PB1",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "TXD",
           "pad": "PB0",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "XCK",
           "pad": "PB2",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "XDIR",
           "pad": "PB3",
           "index": null,
-          "function": "USART3"
+          "function": "USART3",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "RXD",
           "pad": "PB5",
           "index": null,
-          "function": "USART3_ALT1"
+          "function": "USART3_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         },
         {
           "group": "TXD",
           "pad": "PB4",
           "index": null,
-          "function": "USART3_ALT1"
+          "function": "USART3_ALT1",
+          "field": "PORTMUX.USARTROUTEA.USART3"
         }
       ]
     },

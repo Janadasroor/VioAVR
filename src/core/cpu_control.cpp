@@ -29,6 +29,8 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
     if (desc.prr_address != 0U) ranges_.push_back({desc.prr_address, desc.prr_address});
     if (desc.prr0_address != 0U) ranges_.push_back({desc.prr0_address, desc.prr0_address});
     if (desc.prr1_address != 0U) ranges_.push_back({desc.prr1_address, desc.prr1_address});
+    if (desc.clkpr_address != 0U) ranges_.push_back({desc.clkpr_address, desc.clkpr_address});
+    if (desc.osccal_address != 0U) ranges_.push_back({desc.osccal_address, desc.osccal_address});
     // PLLCSR is managed by Timer10/Timer4
 }
 
@@ -55,6 +57,9 @@ void CpuControl::reset() noexcept
     sleeping_ = false;
     ccp_ = 0x00U;
     ccp_expiry_ = 0;
+    clkpr_ = 0x00U; // Default is 1:1 or 1:8 depending on fuse CKDIV8
+    clkpr_expiry_ = 0;
+    osccal_ = 0x80U;
 }
 
 void CpuControl::set_reset_cause(ResetCause cause) noexcept
@@ -82,6 +87,8 @@ u8 CpuControl::read(const u16 address) noexcept
     if (address == d.prr0_address) return prr0_;
     if (address == d.prr1_address) return prr1_;
     if (address == d.pllcsr_address) return pllcsr_;
+    if (address == d.clkpr_address) return clkpr_;
+    if (address == d.osccal_address) return osccal_;
     
     if (address == d.spl_address) return static_cast<u8>(cpu_.stack_pointer() & 0xFFU);
     if (address == d.sph_address) return static_cast<u8>((cpu_.stack_pointer() >> 8U) & 0xFFU);
@@ -117,6 +124,19 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         prr1_ = value;
     } else if (address == d.pllcsr_address) {
         pllcsr_ = value;
+    } else if (address == d.clkpr_address) {
+        if (value == 0x80U) {
+            // Write to CLKPCE
+            clkpr_expiry_ = cpu_.cycles() + 4;
+        } else if (cpu_.cycles() < clkpr_expiry_) {
+            // Update CLKPS if CE is not set in this write
+            if (!(value & 0x80U)) {
+                clkpr_ = value & 0x0FU;
+                clkpr_expiry_ = 0;
+            }
+        }
+    } else if (address == d.osccal_address) {
+        osccal_ = value;
     } else if (address == d.spl_address) {
         const u16 sp = cpu_.stack_pointer();
         cpu_.set_stack_pointer(static_cast<u16>((sp & 0xFF00U) | value));
@@ -144,6 +164,12 @@ void CpuControl::unlock_ccp(u8 signature) noexcept {
         ccp_ = signature;
         ccp_expiry_ = cpu_.cycles() + 4;
     }
+}
+
+u8 CpuControl::clock_prescaler() const noexcept {
+    u8 ps = clkpr_ & 0x0FU;
+    if (ps > 8) return 1; // Reserved
+    return static_cast<u8>(1U << ps);
 }
 
 }  // namespace vioavr::core
