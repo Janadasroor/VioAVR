@@ -80,3 +80,25 @@ TEST_CASE("USB Protocol Fidelity - SOF Timing")
     fnum |= (static_cast<u16>(bus.read_data(atmega32u4.usbs[0].udfnum_address + 1)) << 8U);
     CHECK(fnum == 1);
 }
+
+TEST_CASE("USB Protocol Fidelity - STALL Handshake")
+{
+    Usb usb {"USB", atmega32u4.usbs[0]};
+    MemoryBus bus {atmega32u4};
+    usb.set_memory_bus(&bus);
+    bus.attach_peripheral(usb);
+    UsbHostSim host {usb};
+
+    usb.reset();
+    bus.write_data(atmega32u4.usbs[0].usbcon_address, 0x80); // USBE=1
+
+    // 1. Configure EP1 as IN and set STALLRQ
+    bus.write_data(atmega32u4.usbs[0].uenum_address, 1);
+    bus.write_data(atmega32u4.usbs[0].ueconx_address, 0x03); // EPEN=1, STALLRQ=1
+
+    // 2. Host sends IN token
+    host.receive_in_packet(1);
+
+    // 3. Verify STALLEDI is set
+    CHECK((bus.read_data(atmega32u4.usbs[0].ueintx_address) & 0x02) != 0);
+}

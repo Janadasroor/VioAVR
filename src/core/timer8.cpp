@@ -92,6 +92,14 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
     }
 
     if (async_mode_enabled()) {
+        if (!(assr_ & desc_.exclk_mask)) {
+            tosc_accumulator_ += elapsed_cycles;
+            const u64 tosc_ticks = tosc_accumulator_ / 488;
+            tosc_accumulator_ %= 488;
+            if (tosc_ticks > 0) {
+                tick_async(tosc_ticks);
+            }
+        }
         return;
     }
 
@@ -499,12 +507,13 @@ void Timer8::retire_async_busy(const u64 cycles) noexcept
         return;
     }
     
-    // Only bother if any busy bits are set
     const u8 busy_mask = static_cast<u8>(desc_.tcn2ub_mask | desc_.ocr2aub_mask | desc_.ocr2bub_mask | desc_.tcr2aub_mask | desc_.tcr2bub_mask);
     if ((assr_ & busy_mask) == 0) {
         return;
     }
 
+    // A busy bit should last at least 1 TOSC cycle.
+    // At 16MHz CPU and 32.768kHz TOSC, that's ~488 cycles.
     if (async_busy_countdown_ > cycles) {
         async_busy_countdown_ -= static_cast<u16>(cycles);
     } else {

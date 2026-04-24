@@ -93,7 +93,23 @@ u8 Usb::read(u16 address) noexcept {
     if (address == desc_.uecfg1x_address) return ep.config1;
     if (address == desc_.uesta0x_address) return ep.status0;
     if (address == desc_.uesta1x_address) return ep.status1;
-    if (address == desc_.ueintx_address) return ep.interrupt_flags;
+    if (address == desc_.ueintx_address) {
+        u8 flags = ep.interrupt_flags;
+        // Calculate RWAL (Read/Write Allowed)
+        bool is_in = (ep.config0 & 0x80U) != 0;
+        bool rwal = false;
+        if (is_in) {
+            // IN: RWAL is 1 if bank is not busy (CPU can write)
+            rwal = !ep.bank_busy;
+        } else {
+            // OUT: RWAL is 1 if bank has data (CPU can read)
+            rwal = (ep.byte_count > 0);
+        }
+        if (rwal) flags |= desc_.ueintx_rwal_mask;
+        else flags &= ~desc_.ueintx_rwal_mask;
+        
+        return flags;
+    }
     if (address == desc_.ueienx_address) return ep.interrupt_enable;
     if (address == desc_.uebclx_address) return static_cast<u8>(ep.byte_count & 0xFFU);
     if (address == desc_.uebchx_address) return static_cast<u8>((ep.byte_count >> 8U) & 0xFFU);
@@ -157,18 +173,32 @@ void Usb::write(u16 address, u8 value) noexcept {
         ep.byte_count = 0;
     }
     else if (address == desc_.ueintx_address) {
-        u8 cleared_bits = ep.interrupt_flags & (~value);
-        ep.interrupt_flags &= value; // Clear on write 0
+        u8 old_flags = ep.interrupt_flags;
+        ep.interrupt_flags &= (value | 0xA0U); // Only allow clearing bits 0-4, 6. Bit 5 (RWAL) and 7 (FIFOCON) handled separately.
+        u8 cleared_bits = old_flags & (~value);
         
-        if (cleared_bits & desc_.ueintx_txini_mask) { // TXINI cleared
-            // Software acknowledged TXINI, SIE should now send the data
+        // Handle FIFOCON (Bit 7) clearing
+        if (!(value & 0x80U)) {
+            bool is_in = (ep.config0 & 0x80U) != 0;
+            if (is_in) {
+                // IN: FIFOCON cleared -> Bank is full, ready to send
+                ep.bank_busy = true;
+                ep.interrupt_flags &= ~desc_.ueintx_txini_mask; // Also clear TXINI
+            } else {
+                // OUT: FIFOCON cleared -> Bank is empty, ready to receive next
+                ep.bank_busy = false;
+                ep.interrupt_flags &= ~desc_.ueintx_rxouti_mask; // Also clear RXOUTI
+            }
+        }
+
+        if (cleared_bits & desc_.ueintx_txini_mask) {
             ep.bank_busy = true;
         }
-        if (cleared_bits & desc_.ueintx_rxstpi_mask) { // RXSTPI cleared
-            ep.bank_busy = false; // Readiness for next setup
+        if (cleared_bits & desc_.ueintx_rxstpi_mask) {
+            ep.bank_busy = false; 
         }
-        if (cleared_bits & desc_.ueintx_rxouti_mask) { // RXOUTI cleared
-            ep.bank_busy = false; // Readiness for next out
+        if (cleared_bits & desc_.ueintx_rxouti_mask) {
+            ep.bank_busy = false;
         }
         
         update_ueint();
@@ -255,6 +285,13 @@ void Usb::simulate_setup_packet(const SetupPacket& setup) noexcept {
 void Usb::simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept {
     if (ep_idx >= endpoints_.size()) return;
     auto& ep = endpoints_[ep_idx];
+    
+    if (ep.control & desc_.ueconx_stallrq_mask) {
+        ep.interrupt_flags |= desc_.ueintx_stalledi_mask;
+        update_ueint();
+        return;
+    }
+
     size_t to_copy = std::min(data.size(), ep.fifo.size() - ep.byte_count);
     for (size_t i = 0; i < to_copy; ++i) {
         ep.fifo[ep.write_idx] = data[i];
@@ -271,6 +308,12 @@ void Usb::simulate_in_token(u8 ep_idx) noexcept {
     if (ep_idx >= endpoints_.size()) return;
     auto& ep = endpoints_[ep_idx];
     
+    if (ep.control & desc_.ueconx_stallrq_mask) {
+        ep.interrupt_flags |= desc_.ueintx_stalledi_mask;
+        update_ueint();
+        return;
+    }
+
     // If bank is 'busy' (data loaded and TXINI cleared by SW), send it
     if (ep.bank_busy && !(ep.interrupt_flags & desc_.ueintx_txini_mask)) {
         ep.read_idx = 0;

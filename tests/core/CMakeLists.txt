@@ -144,6 +144,7 @@ set(TEST_SOURCES
     cpu_spm_lpm_fidelity_test.cpp
     nvm_stall_fidelity_test.cpp
     lockbit_fidelity_test.cpp
+    timer2_async_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
