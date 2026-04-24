@@ -948,6 +948,7 @@ struct DeviceDescriptor {
     u8 prtimer2_bit {0xFFU};
     u8 smcr_sm_mask {0x0EU};
     u8 smcr_se_mask {0x01U};
+    u8 mcucr_pud_mask {0x10U}; // Default for ATmega328P (bit 4)
     u32 flash_rww_end_word {};
     u32 boot_start_address {};
     u32 app_start_address {};
@@ -956,7 +957,8 @@ struct DeviceDescriptor {
     u8 sph_reset {0x00U};
     u8 sreg_reset {0x00U};
     u64 cpu_frequency_hz {16'000'000U};
-
+    bool internal_rc_active {false};
+ 
     // Peripheral Arrays
     u8 adc_count {0U};
     std::array<AdcDescriptor, 4> adcs {};

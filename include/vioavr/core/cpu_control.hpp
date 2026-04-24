@@ -85,6 +85,8 @@ public:
     [[nodiscard]] u8 mcucr() const noexcept { return mcucr_; }
     void set_reset_cause(ResetCause cause) noexcept;
     void clear_mcusr() noexcept { mcusr_ = 0U; }
+ 
+    [[nodiscard]] u64 effective_frequency() const noexcept;
 
 private:
     u8 spmcsr_ {};
@@ -104,6 +106,8 @@ private:
     bool sleep_enabled_ {false};
     bool sleeping_ {false};
     AvrCpu& cpu_;
+    u64 base_frequency_hz_ {16000000U};
+    bool internal_rc_active_ {false};
     std::vector<AddressRange> ranges_;
 };
 

@@ -100,11 +100,7 @@ void PinMux::update_pullup_suppressed(bool suppressed) noexcept
     // re-evaluate all pins
     for (u8 p = 0; p < static_cast<u8>(ports_.size()); ++p) {
         for (u8 b = 0; b < 8; ++b) {
-            // This is tricky because PinMux doesn't store the "requested" pullup state,
-            // it only stores the "effective" one in PinState.
-            // In a better design, PinEntry should store requested state per owner.
-            // For now, let's just trigger a callback if something might have changed?
-            // Actually, we'll need to store requested_pullup in PinEntry for this to work perfectly.
+            reevaluate_ownership(p, b);
         }
     }
 }
@@ -158,24 +154,17 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
     }
 
     entry.state.owner = highest_owner;
+    
+    // Drive level follows the highest priority owner
+    u32 owner_bit = (1U << static_cast<u32>(highest_owner));
+    entry.state.drive_level = (entry.drive_levels & owner_bit) != 0;
 
-    // Composite drive level (AND of all active drivers)
-    bool composite_drive = true;
-    u32 mask = entry.active_claims;
-    if ((entry.drive_levels & mask) != mask) {
-        composite_drive = false;
-    }
-    entry.state.drive_level = composite_drive;
-    Logger::debug("PinMux: Port" + std::to_string(port_idx) + " Pin" + std::to_string(bit_idx) + 
-                  " Composite Drive: " + std::to_string(composite_drive) + 
-                  " Claims: 0x" + Logger::hex(static_cast<u32>(entry.active_claims)));
-
-    // Composite output state (OR of all active output requests)
-    entry.state.is_output = (entry.output_mask & entry.active_claims) != 0;
+    // Composite output state
+    entry.state.is_output = (entry.output_mask & owner_bit) != 0;
 
     // Composite pullup state
-    entry.state.pullup_enabled = ((entry.pullup_mask & entry.active_claims) != 0) && !pullup_suppressed_;
-
+    entry.state.pullup_enabled = ((entry.pullup_mask & owner_bit) != 0) && !pullup_suppressed_;
+ 
     if (callback_) callback_(port_idx, bit_idx, entry.state);
 }
 

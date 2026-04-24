@@ -6,6 +6,7 @@
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/timer10.hpp"
 #include "vioavr/core/cpu_int.hpp"
+#include "vioavr/core/clkctrl.hpp"
 
 #include <array>
 #include <cstddef>
@@ -33,6 +34,8 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
                 watchdog_timer_ = wdt;
             } else if (auto* wdt8x = dynamic_cast<Wdt8x*>(peripheral)) {
                 wdt8x_ = wdt8x;
+            } else if (auto* clk = dynamic_cast<ClkCtrl*>(peripheral)) {
+                clk_ctrl_ = clk;
             }
         }
     }
@@ -125,7 +128,8 @@ void AvrCpu::run(const u64 cycle_budget)
 
 u64 AvrCpu::cycles_per_second() const noexcept
 {
-    return bus_ != nullptr ? bus_->device().cpu_frequency_hz : 0U;
+    if (clk_ctrl_ != nullptr) return clk_ctrl_->cpu_frequency_hz();
+    return control_regs_ != nullptr ? control_regs_->effective_frequency() : (bus_ != nullptr ? bus_->device().cpu_frequency_hz : 0U);
 }
 
 void AvrCpu::run_duration(const double seconds)
@@ -209,9 +213,7 @@ void AvrCpu::step()
     }
 
     if (bus_->should_stall_cpu(program_counter_)) {
-        bus_->consume_stall_cycle();
         advance_cycles(1U);
-        synchronize_if_needed();
         return;
     }
 

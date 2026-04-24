@@ -17,6 +17,7 @@ namespace vioavr::core {
 
 class WatchdogTimer;
 class Wdt8x;
+class ClkCtrl;
 
 struct DecodedInstruction {
     std::array<u16, 2> words {};
@@ -343,7 +344,8 @@ private:
     u8 sreg_ {};
     u8 rampz_ {};
     u8 eind_ {};
-    u64 cycles_ {};
+    ClkCtrl* clk_ctrl_ {nullptr};
+    u64 cycles_ {0};
     double cycle_accumulator_ {0.0};
     bool interrupt_pending_ {};
     u8 interrupt_depth_ {};

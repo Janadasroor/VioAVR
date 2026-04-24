@@ -9,12 +9,11 @@ using namespace vioavr::core;
 TEST_CASE("ZCD Peripheral Fidelity") {
     DeviceDescriptor desc{};
     desc.zcd_count = 1;
-    desc.zcds[0] = {
-        .name = "ZCD",
+    desc.zcds[0] = ZcdDescriptor{
         .ctrla_address = 0x0080,
-        .pin_address = 0x1234,
-        .pin_bit = 0,
-        .vector_index = 5
+        .vector_index  = 5,
+        .pin_address   = 0x1234,
+        .pin_bit       = 0,
     };
     
     Machine machine(desc);

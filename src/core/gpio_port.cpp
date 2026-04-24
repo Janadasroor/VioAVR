@@ -90,6 +90,13 @@ void GpioPort::reset() noexcept
     pending_changes_mask_ = 0U;
     intflags_ = 0U;
     pin_ctrl_.fill(0U);
+
+    if (pin_mux_) {
+        for (u8 i = 0; i < 8; ++i) {
+            pin_mux_->claim_pin(port_idx_, i, PinOwner::gpio);
+        }
+    }
+    update_pin_latched();
 }
 
 void GpioPort::tick(const u64 elapsed_cycles) noexcept
@@ -272,9 +279,16 @@ void GpioPort::update_pin_latched() noexcept
         // Output inversion
         if (inven && is_out) level = !level;
 
-        // On Mega-0, pullup is explicitly PULLUPEN
-        bool pullup = !is_out && pullupen;
-
+        // Pull-up logic
+        bool pullup = false;
+        if (desc_.pin_ctrl_base != 0) {
+            // Modern AVR (Mega-0 / AVR8X)
+            pullup = !is_out && pullupen;
+        } else {
+            // Classic AVR (ATmega328P, etc.)
+            pullup = !is_out && level;
+        }
+ 
         // Notify PinMux of GPIO's intended state
         if (pin_mux_) {
             pin_mux_->update_pin(port_idx_, i, PinOwner::gpio, is_out, level, pullup);

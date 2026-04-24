@@ -106,8 +106,8 @@ TEST_CASE("GpioPort (AVR8X) — Interrupt triggering (RISING)")
     CHECK_FALSE(port.pending_interrupt_request(req));
     
     // Toggle PA0 Low -> High
-    (void)port.on_external_pin_change(0, PinLevel::low);
-    (void)port.on_external_pin_change(0, PinLevel::high);
+    (void)port.on_external_pin_change(desc.pin_address, 0, PinLevel::low);
+    (void)port.on_external_pin_change(desc.pin_address, 0, PinLevel::high);
     
     CHECK(port.pending_interrupt_request(req));
     CHECK(req.vector_index == desc.vector_index);
@@ -131,12 +131,12 @@ TEST_CASE("GpioPort (AVR8X) — Interrupt triggering (BOTHEDGES)")
     port.write(desc.pin_ctrl_base + 0, 0x01U); // ISC=1
     
     // Low -> High
-    (void)port.on_external_pin_change(0, PinLevel::high);
+    (void)port.on_external_pin_change(desc.pin_address, 0, PinLevel::high);
     CHECK((port.read(desc.intflags_address) & 0x01U) != 0U);
     port.write(desc.intflags_address, 0x01U);
     
     // High -> Low
-    (void)port.on_external_pin_change(0, PinLevel::low);
+    (void)port.on_external_pin_change(desc.pin_address, 0, PinLevel::low);
     CHECK((port.read(desc.intflags_address) & 0x01U) != 0U);
 }
 
@@ -206,9 +206,9 @@ TEST_CASE("GpioPort (AVR8X) — VPORT access")
     CHECK(port.read(desc.port_address) == 0x55U);
     
     // VPORT INTFLAGS
-    (void)port.on_external_pin_change(0, PinLevel::high); // ISC=0 still? Wait default ISC is 0.
+    (void)port.on_external_pin_change(desc.pin_address, 0, PinLevel::high); // ISC=0 still? Wait default ISC is 0.
     port.write(desc.pin_ctrl_base + 0, 0x01U); // BOTHEDGES
-    (void)port.on_external_pin_change(0, PinLevel::low);
+    (void)port.on_external_pin_change(desc.pin_address, 0, PinLevel::low);
     
     CHECK((port.read(vbase + 3) & 0x01U) != 0U);
     

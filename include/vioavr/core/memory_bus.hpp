@@ -24,6 +24,8 @@ public:
     void reset() noexcept;
     void set_trace_hook(ITraceHook* trace_hook) noexcept;
     void set_pin_map(PinMap* pin_map) noexcept;
+    void set_pin_mux(class PinMux* pin_mux) noexcept { pin_mux_ = pin_mux; }
+    [[nodiscard]] class PinMux* pin_mux() const noexcept { return pin_mux_; }
     void attach_peripheral(IoPeripheral& peripheral);
     void load_flash(std::span<const u16> words);
     void load_image(const HexImage& image);
@@ -122,6 +124,7 @@ private:
     DeviceDescriptor device_;
     ITraceHook* trace_hook_ {};
     PinMap* pin_map_ {};
+    class PinMux* pin_mux_ {};
     std::vector<u16> flash_;
     std::vector<u8> data_;
     bool flash_rww_busy_ {false};

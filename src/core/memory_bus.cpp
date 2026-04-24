@@ -186,34 +186,13 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         }
     }
 
-    if (device_.mapped_eeprom.size > 0 &&
-        address >= device_.mapped_eeprom.data_start &&
-        address < device_.mapped_eeprom.data_start + device_.mapped_eeprom.size) {
-        const u32 offset = address - device_.mapped_eeprom.data_start;
-        const u32 page_size = (device_.flash_page_size > 0) ? device_.flash_page_size / 2 : 32; // Heuristic or add eeprom_page_size
-        const u32 page_offset = offset % (page_size > 0 ? page_size : 64);
-        if (page_offset < eeprom_page_buffer_.size()) {
-            eeprom_page_buffer_[page_offset] = value;
-            return;
-        }
+    if (device_.ccp_address != 0U && address == device_.ccp_address) {
+        // Handle CCP (Configuration Change Protection)
+        // Usually handled by the CPU control, but can be intercepted here if needed.
     }
 
-    if (device_.mapped_user_signatures.size > 0 &&
-        address >= device_.mapped_user_signatures.data_start &&
-        address < device_.mapped_user_signatures.data_start + device_.mapped_user_signatures.size) {
-        const u32 offset = address - device_.mapped_user_signatures.data_start;
-        const u32 word_addr = offset >> 1;
-        const u32 page_offset = word_addr % device_.flash_page_size;
-        if (page_offset < flash_page_buffer_.size()) {
-            u16 word = flash_page_buffer_[page_offset];
-            if (offset & 1) word = (word & 0x00FFU) | (static_cast<u16>(value) << 8U);
-            else word = (word & 0xFF00U) | static_cast<u16>(value);
-            flash_page_buffer_[page_offset] = word;
-            return;
-        }
-    }
-
-    if (IoPeripheral* peripheral = find_peripheral(address); peripheral != nullptr) {
+    IoPeripheral* peripheral = find_peripheral(address);
+    if (peripheral != nullptr) {
         peripheral->write(address, value);
         return;
     }
@@ -245,6 +224,7 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
         } else {
             io_stall_cycles_ -= static_cast<u32>(elapsed_cycles);
         }
+
     }
 
     if (lpm_special_mode_timeout_ > 0U) {
@@ -423,6 +403,11 @@ u16 MemoryBus::read_program_word(const u32 word_address, const u32 pc_word) cons
     if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
         return 0xFFFFU;
     }
+    
+    // NRWW Stall: If SPM is busy and we are reading from NRWW, stall the CPU.
+    if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
+        request_cpu_stall(spm_busy_cycles_left_);
+    }
 
     return word_address < flash_.size() ? flash_[word_address] : 0U;
 }
@@ -468,6 +453,11 @@ u8 MemoryBus::read_program_byte(const u32 byte_address, const u32 pc_word) const
     const u32 word_address = byte_address >> 1U;
     if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
         return 0xFFU;
+    }
+
+    // NRWW Stall
+    if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
+        request_cpu_stall(spm_busy_cycles_left_);
     }
     
     if (word_address >= flash_.size()) {
