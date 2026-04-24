@@ -48,6 +48,7 @@ target_sources(vioavr_core
         uart8x.cpp
         machine.cpp
         watchdog_timer.cpp
+        lcd_controller.cpp
         wdt8x.cpp
         crc8x.cpp
         usb.cpp

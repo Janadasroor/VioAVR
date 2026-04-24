@@ -151,6 +151,7 @@ set(TEST_SOURCES
     power_clock_fidelity_test.cpp
     power_sleep_firmware_test.cpp
     gpio_fidelity_test.cpp
+    lcd_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

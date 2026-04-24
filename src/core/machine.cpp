@@ -41,6 +41,7 @@
 #include "vioavr/core/zcd.hpp"
 #include "vioavr/core/lin.hpp"
 #include "vioavr/core/opamp.hpp"
+#include "vioavr/core/lcd_controller.hpp"
 
 namespace vioavr::core {
 
@@ -397,7 +398,14 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(crc));
     }
 
-    // 9. External Interrupts
+    // 9. LCD Controller
+    for (u8 i = 0; i < device_.lcd_count; ++i) {
+        auto lcd = std::make_unique<LcdController>("LCD", device_.lcds[i]);
+        bus_->attach_peripheral(*lcd);
+        owned_peripherals_.push_back(std::move(lcd));
+    }
+
+    // 10. External Interrupts
     if (device_.ext_interrupt_count > 0) {
         auto ext_int = std::make_unique<ExtInterrupt>("EXINT", device_.ext_interrupts[0], *pin_mux_, 0);
         bus_->attach_peripheral(*ext_int);
