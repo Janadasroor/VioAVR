@@ -726,6 +726,18 @@ struct PscDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct LcdDescriptor {
+    u16 lcdcra_address {0U};
+    u16 lcdcrb_address {0U};
+    u16 lcdfrr_address {0U};
+    u16 lcdccr_address {0U};
+    u16 lcddr_base_address {0U};
+    u8 lcddr_count {20U};
+    u8 vector_index {0U};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
 struct VrefDescriptor {
     u16 ctrla_address {0x0U};
     u16 ctrlb_address {0x0U};
@@ -1049,6 +1061,9 @@ struct DeviceDescriptor {
     
     u8 usb_count {0U};
     std::array<UsbDescriptor, 1> usbs {};
+
+    u8 lcd_count {0U};
+    std::array<LcdDescriptor, 1> lcds {};
 
     u8 psc_count {0U};
     std::array<PscDescriptor, 3> pscs {};

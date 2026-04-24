@@ -276,10 +276,9 @@ bool MemoryBus::consume_pin_change(PinStateChange& change) noexcept
 
 void MemoryBus::propagate_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept
 {
-    (void)pin_address; (void)bit_index; (void)level;
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
-            // Updated peripheral method if needed
+            peripheral->on_external_pin_change(pin_address, bit_index, level);
         }
     }
 }
