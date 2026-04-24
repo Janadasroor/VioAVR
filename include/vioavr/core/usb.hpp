@@ -51,6 +51,14 @@ public:
 private:
     void update_ueint() noexcept;
 
+    struct Bank {
+        std::vector<u8> fifo;
+        size_t read_idx {0};
+        size_t write_idx {0};
+        u16 byte_count {0};
+        bool busy {false}; // Owned by SIE
+    };
+
     struct Endpoint {
         u8 control {};
         u8 config0 {};
@@ -59,12 +67,13 @@ private:
         u8 status1 {};
         u8 interrupt_flags {};
         u8 interrupt_enable {};
-        std::vector<u8> fifo;
-        size_t read_idx {0};
-        size_t write_idx {0};
-        u16 byte_count {0};
-        bool data_toggle {false}; // DATA0/DATA1 toggle
-        bool bank_busy {false};   // Bank is owned by SIE for transmission
+        
+        std::array<Bank, 2> banks;
+        u8 cpu_bank {0}; // Current bank for CPU (CURRBK)
+        u8 sie_bank {0}; // Current bank for SIE
+        u8 bank_count {1};
+        
+        bool data_toggle {false};
     };
 
     std::string name_;
