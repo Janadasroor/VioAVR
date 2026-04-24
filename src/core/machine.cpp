@@ -50,6 +50,7 @@ Machine::Machine(const DeviceDescriptor& device)
       cpu_(std::make_unique<AvrCpu>(*bus_)),
       pin_mux_(std::make_unique<PinMux>(8))
 {
+    bus_->set_pin_mux(pin_mux_.get());
     cpu_->set_trace_hook(&trace_mux_);
     initialize_peripherals();
     wire_peripherals();

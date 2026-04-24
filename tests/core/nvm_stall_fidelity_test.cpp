@@ -51,49 +51,59 @@ TEST_CASE("NVM Stalling Fidelity: EEPROM and Flash Wait States")
         u64 start_cycles = cpu.cycles();
         cpu.step(); // Execute instruction (2 cycles)
         
-        // We need 2 more steps to clear the stall.
-        for(int i=0; i<2; ++i) cpu.step();
-        
-        // Total should be 2 + 2 = 4 cycles.
-        CHECK(cpu.cycles() - start_cycles == 4);
+        // Total should be 2 + 54400 = 54402 cycles.
+        for(int i=0; i<54400; ++i) cpu.step();
+        CHECK(cpu.cycles() - start_cycles == 54402);
     }
 }
 
 TEST_CASE("NVM Stalling Fidelity: Legacy SPM and EEPE")
 {
-    // Use ATmega328P for legacy testing
     const auto* desc = DeviceCatalog::find("ATmega328P");
     REQUIRE(desc != nullptr);
     MemoryBus bus(*desc);
     AvrCpu cpu(bus);
     
+    // Attach EEPROM
     auto eeprom = std::make_unique<Eeprom>("EEPROM", desc->eeproms[0]);
     bus.attach_peripheral(*eeprom);
-    
+
     cpu.reset();
 
     SUBCASE("EEPROM Write Initiation Stall") {
-        cpu.write_register(16, 0x04); // EEMPE
-        std::vector<u16> code_eempe = { 0xBF0F, 0x0000 }; 
-        bus.load_flash(code_eempe);
-        cpu.set_program_counter(0);
-        cpu.step();
-        
-        cpu.write_register(16, 0x06); // EEMPE | EEPE
-        std::vector<u16> code_eepe = { 0xBF0F, 0x0000, 0x0000, 0x0000 };
-        bus.load_flash(code_eepe);
+        // ATmega328P EEPROM write requires EEMPE set before EEPE within 4 cycles.
+        // LDI R16, 0x04 = 0xE004  (EEMPE bit)
+        // OUT EECR, R16 = 0xBB0F  (I/O addr 0x1F -> data addr 0x3F, sets EEMPE)
+        // LDI R16, 0x06 = 0xE006  (EEMPE | EEPE)
+        // OUT EECR, R16 = 0xBB0F  (triggers write: 1 cycle + 2-cycle stall)
+        std::vector<u16> code = { 0xE004, 0xBB0F, 0xE006, 0xBB0F, 0x0000, 0x0000 };
+        bus.load_flash(code);
         cpu.set_program_counter(0);
         
+        // 1st step: LDI R16, 0x04 (1 cycle)
         u64 start_cycles = cpu.cycles();
-        cpu.step(); // Execute instruction (1 cycle). This triggers the 2-cycle stall.
-        
-        // Instruction cycle count
+        cpu.step();
         CHECK(cpu.cycles() - start_cycles == 1);
         
-        // Now 2 stall steps
+        // 2nd step: OUT sets EEMPE only (1 cycle, no write triggered)
+        start_cycles = cpu.cycles();
         cpu.step();
-        cpu.step();
+        CHECK(cpu.cycles() - start_cycles == 1);
         
+        // 3rd step: LDI R16, 0x06 (1 cycle)
+        start_cycles = cpu.cycles();
+        cpu.step();
+        CHECK(cpu.cycles() - start_cycles == 1);
+        
+        // 4th step: OUT sets EEPE with EEMPE active -> triggers 2-cycle stall
+        // step() 1: OUT instruction (1 cycle) + sets stall of 2
+        // step() 2: stall cycle 1 (1 cycle)
+        // step() 3: stall cycle 2 (1 cycle)
+        // Total = 3 cycles over 3 step() calls
+        start_cycles = cpu.cycles();
+        cpu.step(); // OUT executes + stall registered
+        cpu.step(); // stall cycle 1
+        cpu.step(); // stall cycle 2
         CHECK(cpu.cycles() - start_cycles == 3);
     }
 }

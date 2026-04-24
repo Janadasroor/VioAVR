@@ -41,11 +41,11 @@ TEST_CASE("External Interrupt Fidelity Test") {
 
     // Initial state: PB5 should be LOW
     CHECK((portb.read(0x25U) & (1 << 5)) == 0);
-    exint.on_external_pin_change(2, PinLevel::high); 
+    exint.on_external_pin_change(0x2BU, 2, PinLevel::high);
     cpu.run(10);
 
     // 4. Trigger Falling Edge on PD2
-    exint.on_external_pin_change(2, PinLevel::low);
+    exint.on_external_pin_change(0x2BU, 2, PinLevel::low);
 
     // 5. Run simulation
     cpu.run(200);
@@ -54,9 +54,9 @@ TEST_CASE("External Interrupt Fidelity Test") {
     CHECK((portb.read(0x25U) & (1 << 5)) != 0);
 
     // 7. Trigger another Falling Edge
-    exint.on_external_pin_change(2, PinLevel::high);
+    exint.on_external_pin_change(0x2BU, 2, PinLevel::high);
     cpu.run(100);
-    exint.on_external_pin_change(2, PinLevel::low);
+    exint.on_external_pin_change(0x2BU, 2, PinLevel::low);
     cpu.run(200);
 
     // 8. Verify PB5 is LOW again

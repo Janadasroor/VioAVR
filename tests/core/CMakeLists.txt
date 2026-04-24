@@ -150,6 +150,7 @@ set(TEST_SOURCES
     timer2_async_fidelity_test.cpp
     power_clock_fidelity_test.cpp
     power_sleep_firmware_test.cpp
+    gpio_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

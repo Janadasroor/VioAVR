@@ -1,10 +1,13 @@
 #include "vioavr/core/cpu_control.hpp"
 #include "vioavr/core/avr_cpu.hpp"
+#include "vioavr/core/pin_mux.hpp"
 
 namespace vioavr::core {
 
 CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
-    : cpu_(cpu)
+    : cpu_(cpu), 
+      base_frequency_hz_(desc.cpu_frequency_hz),
+      internal_rc_active_(desc.internal_rc_active)
 {
     ranges_.push_back(AddressRange{desc.spl_address, desc.sreg_address});
     if (desc.smcr_address != 0U) {
@@ -64,12 +67,36 @@ void CpuControl::reset() noexcept
 
 void CpuControl::set_reset_cause(ResetCause cause) noexcept
 {
+    mcusr_ &= 0xF0U; // Clear PORF, EXTRF, BORF, WDRF
     switch (cause) {
-    case ResetCause::power_on:    mcusr_ |= MCUSR_PORF;  break;
-    case ResetCause::external:    mcusr_ |= MCUSR_EXTRF; break;
-    case ResetCause::brown_out:   mcusr_ |= MCUSR_BORF;  break;
-    case ResetCause::watchdog:    mcusr_ |= MCUSR_WDRF;  break;
+        case ResetCause::power_on: mcusr_ |= MCUSR_PORF; break;
+        case ResetCause::external: mcusr_ |= MCUSR_EXTRF; break;
+        case ResetCause::brown_out: mcusr_ |= MCUSR_BORF; break;
+        case ResetCause::watchdog: mcusr_ |= MCUSR_WDRF; break;
     }
+}
+ 
+u64 CpuControl::effective_frequency() const noexcept
+{
+    u64 freq = base_frequency_hz_;
+    
+    // 1. Apply OSCCAL scaling if internal RC is active
+    if (internal_rc_active_) {
+        // Simple linear approximation: 
+        // 0x00 -> 50% frequency
+        // 0x80 -> 100% frequency
+        // 0xFF -> ~150% frequency
+        float scale = 0.5f + (static_cast<float>(osccal_) / 128.0f) * 0.5f;
+        freq = static_cast<u64>(static_cast<float>(freq) * scale);
+    }
+    
+    // 2. Apply CLKPR prescaler
+    // Divider is 2^(CLKPS)
+    u8 prescaler = clkpr_ & 0x0FU;
+    if (prescaler > 8) prescaler = 8; // Max divider is 256
+    freq >>= prescaler;
+    
+    return freq;
 }
 
 void CpuControl::tick(const u64 elapsed_cycles) noexcept
@@ -106,6 +133,11 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         mcusr_ &= ~value; // Flags are cleared by writing 1 (Accuracy)
     } else if (address == d.mcucr_address) {
         mcucr_ = value;
+        if (d.mcucr_pud_mask != 0) {
+            if (auto* mux = cpu_.bus().pin_mux()) {
+                mux->update_pullup_suppressed((value & d.mcucr_pud_mask) != 0);
+            }
+        }
     } else if (address == d.smcr_address) {
         smcr_ = value;
         sleep_enabled_ = (value & d.smcr_se_mask) != 0U;

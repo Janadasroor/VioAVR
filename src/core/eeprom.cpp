@@ -122,7 +122,8 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
         eear_ = static_cast<u16>((static_cast<u16>(value) << 8U) | (eear_ & 0x00FFU));
     } else if (desc_.mapped_data.size > 0 && address >= desc_.mapped_data.data_start && address < desc_.mapped_data.data_start + desc_.mapped_data.size) {
         // Direct mapped write (AVR8X style)
-        if (bus_) bus_->request_cpu_stall(2U);
+        // According to datasheet, mapped EEPROM writes stall the CPU until complete.
+        if (bus_) bus_->request_cpu_stall(kEepromAtomicCycles);
         const u16 offset = address - desc_.mapped_data.data_start;
         if (offset < storage_.size()) {
             storage_[offset] = value;
@@ -173,6 +174,7 @@ void Eeprom::update_eecr(const u8 value) noexcept
     if ((value & kEepe) != 0U) {
         if ((eecr_ & kEempe) != 0U && write_cycles_left_ == 0U) {
             start_write();
+            // 2-cycle stall per ATmega datasheet (timed via separate step() calls).
             if (bus_) bus_->request_cpu_stall(2U);
         }
     }

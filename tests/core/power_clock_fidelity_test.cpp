@@ -20,7 +20,10 @@ TEST_CASE("Power & Clock Management Fidelity") {
     desc.smcr_address = 0x53;
     desc.mcusr_address = 0x54;
     desc.clkpr_address = 0x61;
+    desc.osccal_address = 0x66;
     desc.prr_address = 0x64;
+    desc.cpu_frequency_hz = 16000000;
+    desc.internal_rc_active = false;
     desc.smcr_se_mask = 0x01;
     desc.smcr_sm_mask = 0x0E;
 
@@ -41,6 +44,7 @@ TEST_CASE("Power & Clock Management Fidelity") {
     SUBCASE("CLKPR Protection Mechanism") {
         // 1. Initial state
         CHECK(cpu.cpu_control().clock_prescaler() == 1);
+        CHECK(cpu.cycles_per_second() == 16000000U);
 
         // 2. Attempt to write CLKPS without CLKPCE
         bus.write_data(0x61, 0x03); // Prescaler 8
@@ -52,6 +56,31 @@ TEST_CASE("Power & Clock Management Fidelity") {
         // 4. Write CLKPS within 4 cycles
         bus.write_data(0x61, 0x03); // Prescaler 8
         CHECK(cpu.cpu_control().clock_prescaler() == 8);
+        CHECK(cpu.cycles_per_second() == 2000000U);
+    }
+ 
+    SUBCASE("OSCCAL Frequency Adjustment") {
+        // 1. Initially NOT active
+        bus.write_data(0x66, 0x00);
+        CHECK(cpu.cycles_per_second() == 16000000U); // No change if crystal
+        
+        // 2. Re-initialize with internal RC active
+        desc.internal_rc_active = true;
+        MemoryBus rc_bus(desc);
+        AvrCpu rc_cpu(rc_bus);
+        rc_cpu.reset();
+        
+        // Default OSCCAL is 0x80 -> 100%
+        CHECK(rc_cpu.cycles_per_second() == 16000000U);
+        
+        // 0x00 -> 50%
+        rc_bus.write_data(0x66, 0x00);
+        CHECK(rc_cpu.cycles_per_second() == 8000000U);
+        
+        // 0xFF -> ~150%
+        rc_bus.write_data(0x66, 0xFF);
+        // 0.5 + (255/128) * 0.5 = 1.49609375. 16M * 1.49609375 = 23937500
+        CHECK(rc_cpu.cycles_per_second() == 23937500U);
     }
 
     SUBCASE("PRR Integration - Timer16") {
