@@ -12,6 +12,8 @@ class Twi final : public IoPeripheral {
 public:
     explicit Twi(std::string_view name, const TwiDescriptor& descriptor) noexcept;
 
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
@@ -35,6 +37,7 @@ private:
 
     std::string name_;
     TwiDescriptor desc_;
+    MemoryBus* bus_ {};
     std::array<AddressRange, 1> ranges_;
 
     enum class Mode {
@@ -61,6 +64,7 @@ private:
     std::vector<u8> rx_buffer_ {};
     std::size_t rx_idx_ {0};
     std::vector<u8> tx_buffer_ {};
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
 };
 
 }  // namespace vioavr::core

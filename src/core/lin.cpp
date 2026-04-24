@@ -1,4 +1,5 @@
 #include "vioavr/core/lin.hpp"
+#include "vioavr/core/memory_bus.hpp"
 
 namespace vioavr::core {
 
@@ -27,7 +28,9 @@ void LinUART::reset() noexcept {
     checksum_ = 0;
 }
 
-void LinUART::tick(u64) noexcept {}
+void LinUART::tick(u64) noexcept {
+    if (power_reduction_enabled()) return;
+}
 
 u8 LinUART::read(u16 address) noexcept {
     u16 offset = address - desc_.ctrla_address;
@@ -183,6 +186,14 @@ u8 LinUART::get_frame_length() const noexcept {
         }
         default: return 0;
     }
+}
+
+void LinUART::evaluate_interrupts() noexcept {
+}
+
+bool LinUART::power_reduction_enabled() const noexcept {
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) return false;
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
 }
 
 } // namespace vioavr::core

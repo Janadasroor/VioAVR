@@ -693,6 +693,8 @@ struct LinDescriptor {
     u8 linsir_lidok_mask {0x04U};
     u8 linsir_ltxok_mask {0x02U};
     u8 linsir_lrxok_mask {0x01U};
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
 };
 
 struct PscDescriptor {
@@ -930,6 +932,8 @@ struct DeviceDescriptor {
     u16 smcr_address {};
     u16 mcusr_address {};
     u16 mcucr_address {};
+    u16 clkpr_address {};
+    u16 osccal_address {};
     u16 ccp_address {0U};
     u16 pllcsr_address {};
     u16 xmcra_address {};

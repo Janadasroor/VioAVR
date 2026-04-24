@@ -14,6 +14,8 @@ class Uart final : public IoPeripheral {
 public:
     explicit Uart(std::string_view name, const UartDescriptor& descriptor, PinMux& pin_mux) noexcept;
 
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] const UartDescriptor& descriptor() const noexcept { return desc_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -34,6 +36,7 @@ private:
     std::string name_;
     UartDescriptor desc_;
     PinMux* pin_mux_;
+    MemoryBus* bus_ {};
     std::array<AddressRange, 4> ranges_;
 
     u8 udr_rx_ {};
@@ -60,6 +63,7 @@ private:
     std::deque<u8> tx_output_queue_;
 
     void update_pin_ownership() noexcept;
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
 };
 
 }  // namespace vioavr::core

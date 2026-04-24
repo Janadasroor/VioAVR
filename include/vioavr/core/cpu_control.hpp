@@ -80,6 +80,7 @@ public:
     void exit_sleep() noexcept { sleeping_ = false; }
     [[nodiscard]] bool is_sleeping() const noexcept { return sleeping_; }
 
+    [[nodiscard]] u8 clock_prescaler() const noexcept;
     [[nodiscard]] u8 mcusr() const noexcept { return mcusr_; }
     [[nodiscard]] u8 mcucr() const noexcept { return mcucr_; }
     void set_reset_cause(ResetCause cause) noexcept;
@@ -94,8 +95,11 @@ private:
     u8 prr0_ {};
     u8 prr1_ {};
     u8 pllcsr_ {0U};
+    u8 clkpr_ {0U};
+    u8 osccal_ {0x80U}; // Default calibration
     u8 ccp_ {0U};
     u64 ccp_expiry_ {0};
+    u64 clkpr_expiry_ {0};
     SleepMode sleep_mode_ {SleepMode::idle};
     bool sleep_enabled_ {false};
     bool sleeping_ {false};

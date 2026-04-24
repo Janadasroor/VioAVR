@@ -12,6 +12,8 @@ class LinUART final : public IoPeripheral {
 public:
     explicit LinUART(const LinDescriptor& desc) noexcept;
 
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+
     [[nodiscard]] std::string_view name() const noexcept override { return "LINUART"; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
@@ -31,6 +33,7 @@ public:
 
 private:
     LinDescriptor desc_;
+    MemoryBus* bus_ {};
     std::array<AddressRange, 1> ranges_{};
     
     u8 lincr_{0};
@@ -58,6 +61,8 @@ private:
     void update_state() noexcept;
     void calculate_checksum(u8 data) noexcept;
     u8 get_frame_length() const noexcept;
+    void evaluate_interrupts() noexcept;
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
 };
 
 } // namespace vioavr::core
