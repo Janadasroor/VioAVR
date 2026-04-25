@@ -16,7 +16,7 @@ const COMPONENTS = {
   
   // Custom overrides or non-AVR components
   lcd: {
-    label: 'LCD Glass',
+    label: 'LCD 16-Pin (16x2)',
     category: 'Display',
     color: 'var(--accent)',
     properties: [
@@ -154,6 +154,139 @@ const COMPONENTS = {
     pins: [
       { id: '+', side: 'left',  type: 'power' },
       { id: '-', side: 'right', type: 'power' },
+    ],
+  },
+  lcd_glass: {
+    label: 'LCD Glass (4-Digit)',
+    category: 'Display',
+    color: '#889988',
+    properties: [
+      { id: 'com_count', label: 'Commons', type: 'number', default: 4 }
+    ],
+    pins: [
+      ...Array.from({length: 32}, (_, i) => ({ id: `SEG${i}`, side: i < 16 ? 'left' : 'right', type: 'io' })),
+      ...Array.from({length: 4}, (_, i) => ({ id: `COM${i}`, side: 'left', type: 'power' })),
+    ],
+  },
+  glcd_128x64: {
+    label: 'Graphical LCD (128x64)',
+    category: 'Display',
+    color: '#3a58cc',
+    properties: [
+      { id: 'controller', label: 'Controller', type: 'text', default: 'KS0108' }
+    ],
+    pins: [
+      { id: 'VCC',  side: 'left',  type: 'power' },
+      { id: 'GND',  side: 'left',  type: 'power' },
+      { id: 'RS',   side: 'left',  type: 'ctrl'  },
+      { id: 'RW',   side: 'left',  type: 'ctrl'  },
+      { id: 'E',    side: 'left',  type: 'ctrl'  },
+      { id: 'CS1',  side: 'left',  type: 'ctrl'  },
+      { id: 'CS2',  side: 'left',  type: 'ctrl'  },
+      { id: 'RST',  side: 'left',  type: 'ctrl'  },
+      ...['D0','D1','D2','D3','D4','D5','D6','D7'].map(id => ({ id, side: 'right', type: 'io' })),
+      { id: 'VEE',  side: 'right', type: 'analog'},
+      { id: 'A',    side: 'right', type: 'power' },
+      { id: 'K',    side: 'right', type: 'power' },
+    ],
+  },
+  keypad_4x4: {
+    label: '4x4 Keypad',
+    category: 'Input',
+    color: '#333333',
+    properties: [],
+    pins: [
+      ...['R1','R2','R3','R4'].map(id => ({ id, side: 'left', type: 'io' })),
+      ...['C1','C2','C3','C4'].map(id => ({ id, side: 'right', type: 'io' })),
+    ],
+  },
+  motor_dc: {
+    label: 'DC Motor',
+    category: 'Actuator',
+    color: '#555555',
+    properties: [
+      { id: 'v_nom', label: 'Nominal Voltage (V)', type: 'number', default: 5.0 }
+    ],
+    pins: [
+      { id: '+', side: 'left',  type: 'power' },
+      { id: '-', side: 'right', type: 'power' },
+    ],
+  },
+  motor_stepper: {
+    label: 'Stepper Motor',
+    category: 'Actuator',
+    color: '#444444',
+    properties: [
+      { id: 'steps', label: 'Steps/Rev', type: 'number', default: 200 }
+    ],
+    pins: [
+      { id: 'A+', side: 'left',  type: 'io' },
+      { id: 'A-', side: 'left',  type: 'io' },
+      { id: 'B+', side: 'right', type: 'io' },
+      { id: 'B-', side: 'right', type: 'io' },
+    ],
+  },
+  eeprom_i2c: {
+    label: 'I2C EEPROM (24C64)',
+    category: 'Memory',
+    color: '#5c2d91',
+    properties: [
+      { id: 'address', label: 'I2C Address', type: 'text', default: '0x50' }
+    ],
+    pins: [
+      { id: 'VCC', side: 'left',  type: 'power' },
+      { id: 'GND', side: 'left',  type: 'power' },
+      { id: 'SCL', side: 'right', type: 'io'    },
+      { id: 'SDA', side: 'right', type: 'io'    },
+      { id: 'A0',  side: 'left',  type: 'ctrl'  },
+      { id: 'A1',  side: 'left',  type: 'ctrl'  },
+      { id: 'A2',  side: 'left',  type: 'ctrl'  },
+      { id: 'WP',  side: 'right', type: 'ctrl'  },
+    ],
+  },
+  flash_spi: {
+    label: 'SPI Flash (25LC256)',
+    category: 'Memory',
+    color: '#0078d4',
+    properties: [],
+    pins: [
+      { id: 'VCC',  side: 'left',  type: 'power' },
+      { id: 'GND',  side: 'left',  type: 'power' },
+      { id: 'CS',   side: 'left',  type: 'ctrl'  },
+      { id: 'SCK',  side: 'right', type: 'io'    },
+      { id: 'SI',   side: 'right', type: 'io'    },
+      { id: 'SO',   side: 'right', type: 'io'    },
+      { id: 'WP',   side: 'left',  type: 'ctrl'  },
+      { id: 'HOLD', side: 'right', type: 'ctrl'  },
+    ],
+  },
+  can_transceiver: {
+    label: 'CAN Transceiver (MCP2551)',
+    category: 'Communication',
+    color: '#d13438',
+    properties: [],
+    pins: [
+      { id: 'VCC',  side: 'left',  type: 'power' },
+      { id: 'GND',  side: 'left',  type: 'power' },
+      { id: 'TXD',  side: 'left',  type: 'io'    },
+      { id: 'RXD',  side: 'left',  type: 'io'    },
+      { id: 'CANH', side: 'right', type: 'io'    },
+      { id: 'CANL', side: 'right', type: 'io'    },
+      { id: 'VREF', side: 'right', type: 'analog' },
+      { id: 'RS',   side: 'right', type: 'ctrl'  },
+    ],
+  },
+  logic_analyzer: {
+    label: 'Logic Analyzer (8-Channel)',
+    category: 'Instrument',
+    color: '#00b140',
+    properties: [
+      { id: 'sample_rate', label: 'Sample Rate (MHz)', type: 'number', default: 24 }
+    ],
+    pins: [
+      ...Array.from({length: 8}, (_, i) => ({ id: `CH${i}`, side: 'left', type: 'io' })),
+      { id: 'GND', side: 'right', type: 'power' },
+      { id: 'CLK', side: 'right', type: 'ctrl' },
     ],
   },
 };

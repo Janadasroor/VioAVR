@@ -153,6 +153,7 @@ set(TEST_SOURCES
     gpio_fidelity_test.cpp
     lcd_fidelity_test.cpp
     lcd_3290_test.cpp
+    lcd_exhaustive_test.cpp
     usb_connectivity_test.cpp
 )
 

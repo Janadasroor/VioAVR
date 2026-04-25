@@ -37,7 +37,14 @@ void Usb::reset() noexcept {
     uerst_ = 0;
     ueint_ = 0;
     cycle_accumulator_ = 0;
-    frame_cycles_ = 16000; // Default to 16MHz -> 1ms = 16k cycles
+    
+    // SOF Timing: Trigger every 1ms relative to I/O clock
+    if (bus_) {
+        frame_cycles_ = bus_->device().cpu_frequency_hz / 1000;
+    } else {
+        frame_cycles_ = 16000; // Fallback
+    }
+
     for (auto& ep : endpoints_) {
         ep.control = 0;
         ep.config0 = 0;

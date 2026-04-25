@@ -108,6 +108,37 @@ export class SimController {
     this._updateRegisters();
     this._updateGprGrid();
     this._updatePinGrid();
+    this._updateLcdDisplays(data.lcd);
+  }
+
+  _updateLcdDisplays(lcd) {
+    if (!lcd || !lcd.enabled) {
+      document.querySelectorAll('.lcd-seg').forEach(s => s.classList.remove('active'));
+      return;
+    }
+
+    const nodes = document.querySelectorAll('.node-type-lcd_glass');
+    nodes.forEach(node => {
+      // 1/4 Duty Decoding Logic
+      for (let d = 0; d < 4; d++) {
+        const seg_start = d * 2;
+        const segments = ['A','B','C','D','E','F','G','DP'];
+        
+        segments.forEach((s, i) => {
+          const com = i % 4;
+          const seg_off = Math.floor(i / 4);
+          const seg_idx = seg_start + seg_off;
+          
+          const dr_idx = com;
+          const isActive = (lcd.data[dr_idx] & (1 << seg_idx)) !== 0;
+          
+          const path = node.querySelector(`.digit-${d} .seg-${s}`);
+          if (path) {
+            path.classList.toggle('active', isActive);
+          }
+        });
+      }
+    });
   }
 
   _setupGrids() {
