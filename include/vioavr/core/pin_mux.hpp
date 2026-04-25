@@ -22,7 +22,8 @@ enum class PinOwner : u8 {
     external_clock = 7,
     reset = 8,
     jtag = 9,
-    ccl = 10
+    ccl = 10,
+    lcd = 11
 };
 
 /**
@@ -100,7 +101,7 @@ private:
     struct PinEntry {
         PinState state {};
         u32 active_claims {0}; // Bitmask of PinOwner
-        u32 drive_levels {0xFFFFFFFFU}; // Bitmask of drive levels per owner
+        u32 drive_levels {0}; // Bitmask of drive levels per owner
         u32 output_mask {0}; // Bitmask of who wants to be an output
         u32 pullup_mask {0}; // Bitmask of who wants pullup
     };

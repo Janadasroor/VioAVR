@@ -40,6 +40,14 @@ struct TelemetryData {
     uint8_t flags;      // Bit 0: Breakpoint
 };
 
+struct LcdBridgeState {
+    uint8_t enabled;
+    uint8_t duty;
+    uint8_t segments;
+    uint8_t padding;
+    uint8_t display_data[20];
+};
+
 /**
  * @brief Layout of the Shared Memory Bridge.
  * This structure must be pod-compatible and layout-stable.
@@ -78,12 +86,15 @@ struct VioBridgeShm {
     // Dedicated Analog Outputs (DAC)
     std::array<float, 32> analog_outputs;
 
+    // Peripheral Specific Data
+    LcdBridgeState lcd;
+
     // CPU Insight
     AvrCpuState cpu_state;
     TelemetryData telemetry;
     
     // Reserved for future expansion
-    uint8_t reserved[1024 - sizeof(TelemetryData)]; 
+    uint8_t reserved[1024]; 
 };
 
 } // namespace vioavr::core

@@ -62,7 +62,7 @@ todo/
 !/atmega/package.content
 !/atmega/Microchip.ATmega_DFP.pdsc
 tests/programs/*.csv
-
+tmp/
 # avr-libc
 avr-libc/
 TODO.md

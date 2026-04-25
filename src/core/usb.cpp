@@ -10,6 +10,7 @@ Usb::Usb(std::string_view name, const UsbDescriptor& desc) noexcept
     if (desc.uhwcon_address) ranges_[ri++] = {desc.uhwcon_address, desc.usbint_address};
     if (desc.udcon_address) ranges_[ri++] = {desc.udcon_address, desc.udmfn_address};
     if (desc.ueintx_address) ranges_[ri++] = {desc.ueintx_address, desc.ueint_address};
+    num_ranges_ = ri;
     
     // Initialize FIFOs for endpoints
     for (auto& ep : endpoints_) {
@@ -20,7 +21,7 @@ Usb::Usb(std::string_view name, const UsbDescriptor& desc) noexcept
 }
 
 std::span<const AddressRange> Usb::mapped_ranges() const noexcept {
-    return {ranges_.data(), ranges_.size()};
+    return {ranges_.data(), num_ranges_};
 }
 
 void Usb::reset() noexcept {
@@ -68,6 +69,7 @@ void Usb::tick(u64 elapsed_cycles) noexcept {
     }
 
     cycle_accumulator_ += elapsed_cycles;
+    if (frame_cycles_ == 0) return;
     while (cycle_accumulator_ >= frame_cycles_) {
         cycle_accumulator_ -= frame_cycles_;
         

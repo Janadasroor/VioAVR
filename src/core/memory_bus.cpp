@@ -21,7 +21,7 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
         user_row_.resize(device_.mapped_user_signatures.size, 0xFFU);
     }
     if (device_.nvm_ctrl_count > 0) {
-        eeprom_page_buffer_.resize(32, 0xFFU); // 4809 EEPROM page is 32 bytes
+        eeprom_page_buffer_.resize(device_.eeprom_bytes > 0 ? device_.eeprom_bytes : 32, 0xFFU);
     }
     
     reset();
@@ -182,6 +182,26 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
                 word = (word & 0xFF00U) | static_cast<u16>(value);
             }
             flash_page_buffer_[page_offset] = word;
+            return;
+        }
+    }
+
+    if (device_.mapped_eeprom.size > 0 &&
+        address >= device_.mapped_eeprom.data_start &&
+        address < device_.mapped_eeprom.data_start + device_.mapped_eeprom.size) {
+        const u32 offset = address - device_.mapped_eeprom.data_start;
+        if (offset < eeprom_page_buffer_.size()) {
+            eeprom_page_buffer_[offset] = value;
+            return;
+        }
+    }
+
+    if (device_.mapped_user_signatures.size > 0 &&
+        address >= device_.mapped_user_signatures.data_start &&
+        address < device_.mapped_user_signatures.data_start + device_.mapped_user_signatures.size) {
+        const u32 offset = address - device_.mapped_user_signatures.data_start;
+        if (offset < user_row_.size()) {
+            user_row_[offset] = value;
             return;
         }
     }
@@ -582,7 +602,7 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
     spm_busy_cycles_left_ = cycles;
 
     if (nvm_ctrl_) {
-        bool flash_busy = (command >= 1 && command <= 5);
+        bool flash_busy = (command >= 1 && command <= 5) || command == 0x10;
         bool ee_busy = (command >= 6 && command <= 8);
         nvm_ctrl_->set_busy(flash_busy, ee_busy);
     }
@@ -650,13 +670,16 @@ void MemoryBus::perform_deferred_nvm_operation() noexcept {
             case 0x08: // EEERWP (EEPROM Erase-Write)
                 if (device_.mapped_eeprom.size > 0) {
                     const u32 ee_offset = spm_address_ - device_.mapped_eeprom.data_start;
-                    // Find EEPROM peripheral and commit
                     for (auto* p : peripherals_) {
                         if (p && p->name() == "EEPROM") {
-                            // We need to implement commit_page or similar in EEPROM
+                            static_cast<Eeprom*>(p)->commit_page(ee_offset, eeprom_page_buffer_);
                         }
                     }
                 }
+                break;
+            case 0x10: // URWP (User Row Write)
+                // User row is already updated via mapped access, 
+                // but we might want to trigger a persistent save or callback here.
                 break;
             case 0x09: // EEPBC
                 std::ranges::fill(eeprom_page_buffer_, 0xFFU);
