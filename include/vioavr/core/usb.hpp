@@ -80,9 +80,10 @@ private:
     UsbDescriptor desc_;
     MemoryBus* bus_ {};
     std::array<AddressRange, 5> ranges_;
+    size_t num_ranges_ {0};
 
     u64 cycle_accumulator_ {0};
-    u32 frame_cycles_ {0}; // 1ms worth of cycles for SOF
+    u32 frame_cycles_ {16000}; // 1ms worth of cycles for SOF
     u16 frame_number_ {0};
 
     u8 uhwcon_ {};

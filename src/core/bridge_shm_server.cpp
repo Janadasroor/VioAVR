@@ -1,5 +1,6 @@
 #include "vioavr/core/bridge_shm_server.hpp"
 #include "vioavr/core/gdb_stub.hpp"
+#include "vioavr/core/lcd_controller.hpp"
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -170,6 +171,15 @@ void BridgeShmServer::handle_step() {
         }
     }
     
+    // Update VCD if active
+    if (vcd_writer_) {
+        vcd_writer_->next_timestamp(avr_.cpu().cycles() * (1000000000.0 / avr_.frequency()));
+        for (uint32_t i = 0; i < 32; ++i) { // Log first 32 pins for now
+            vcd_writer_->update_signal("p" + std::to_string(i), shm_->digital_outputs[i]);
+        }
+        vcd_writer_->update_signal("pc", avr_.cpu().program_counter());
+    }
+
     // Update CPU State for UI
     update_state_to_shm();
 }
@@ -182,6 +192,20 @@ void BridgeShmServer::handle_command(uint32_t cmd) {
         std::string hex_path(shm_->command_arg);
         if (!hex_path.empty()) {
             avr_.load_hex(hex_path);
+        }
+    }
+    if (cmd & (1 << 16)) { // TOGGLE_VCD
+        if (!vcd_writer_) {
+            vcd_writer_ = std::make_unique<VcdWriter>("trace.vcd");
+            for (int i = 0; i < 32; i++) {
+                vcd_writer_->add_signal("pin_" + std::to_string(i), 1, "p" + std::to_string(i));
+            }
+            vcd_writer_->add_signal("pc", 16, "pc");
+            vcd_writer_->write_header();
+            std::cout << "VCD Tracing enabled -> trace.vcd" << std::endl;
+        } else {
+            vcd_writer_.reset();
+            std::cout << "VCD Tracing disabled" << std::endl;
         }
     }
     update_state_to_shm();
@@ -205,6 +229,20 @@ void BridgeShmServer::update_state_to_shm() {
     shm_->telemetry.total_time_ns = 0; // Needs clock conversion
     shm_->telemetry.core_state = static_cast<uint8_t>(cp.state());
     shm_->telemetry.current_instruction_word = avr_.bus().read_program_word(cp.program_counter());
+
+    // LCD Sync
+    if (auto* lcd = avr_.lcd()) {
+        shm_->lcd.enabled = lcd->is_enabled();
+        shm_->lcd.duty = lcd->duty_cycle();
+        shm_->lcd.segments = lcd->active_segments();
+        
+        const auto& data = lcd->display_data();
+        for (size_t i = 0; i < data.size() && i < 20; ++i) {
+            shm_->lcd.display_data[i] = data[i];
+        }
+    } else {
+        shm_->lcd.enabled = 0;
+    }
 }
 
 } // namespace vioavr::core

@@ -2,9 +2,11 @@
 
 #include "vioavr/core/bridge_shm.hpp"
 #include "vioavr/core/viospice.hpp"
+#include "vioavr/core/vcd_writer.hpp"
 #include <string>
 #include <thread>
 #include <atomic>
+#include <memory>
 
 namespace vioavr::core {
 
@@ -27,6 +29,7 @@ private:
     
     VioSpice avr_;
     std::unique_ptr<GdbStub> gdb_stub_;
+    std::unique_ptr<VcdWriter> vcd_writer_;
     std::atomic<bool> running_ {false};
 
     void handle_step();

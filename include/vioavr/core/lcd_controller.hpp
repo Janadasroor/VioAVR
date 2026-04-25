@@ -6,6 +6,7 @@
 #include <string>
 
 namespace vioavr::core {
+class PinMux;
 
 /**
  * @brief Liquid Crystal Display (LCD) Controller
@@ -15,7 +16,7 @@ namespace vioavr::core {
  */
 class LcdController final : public IoPeripheral {
 public:
-    LcdController(std::string_view name, const LcdDescriptor& desc) noexcept;
+    LcdController(std::string_view name, const LcdDescriptor& desc, PinMux& pin_mux) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -27,11 +28,23 @@ public:
     void write(u16 address, u8 value) noexcept override;
 
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
-    [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    
+    // Bridge Access
+    [[nodiscard]] const std::vector<u8>& display_data() const noexcept { return lcddr_; }
+    [[nodiscard]] u8 duty_cycle() const noexcept; // Returns 1, 2, 3, or 4
+    [[nodiscard]] u8 active_segments() const noexcept;
+    [[nodiscard]] bool is_enabled() const noexcept { return (lcdcra_ & kLcden) != 0; }
+    
+    void set_frequency(double hz) noexcept { cpu_frequency_ = hz; recalculate_timing(); }
 
 private:
+    void update_pin_ownership() noexcept;
+    void recalculate_timing() noexcept;
+
     std::string name_;
     LcdDescriptor desc_;
+    PinMux& pin_mux_;
     std::vector<AddressRange> ranges_;
 
     u8 lcdcra_ {0U};
@@ -42,6 +55,8 @@ private:
 
     bool interrupt_pending_ {false};
     u64 cycle_accumulator_ {0U};
+    u64 cycles_per_frame_ {256000U};
+    double cpu_frequency_ {16000000.0};
     
     // LCD Control bits (ATmega169 values)
     static constexpr u8 kLcden  = 0x80U;

@@ -16,9 +16,11 @@
 #include "vioavr/core/can.hpp"
 #include "vioavr/core/timer10.hpp"
 #include "vioavr/core/xmem.hpp"
+#include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/dac.hpp"
 #include "vioavr/core/adc8x.hpp"
 #include "vioavr/core/ac8x.hpp"
+#include "vioavr/core/usb.hpp"
 #include <map>
 
 namespace vioavr::core {
@@ -39,7 +41,8 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         GpioPort* ptr = port.get();
         ports_.push_back(ptr);
         port_map_[std::string(desc.name)] = ptr;
-        bus_.attach_peripheral(*port.release());
+        bus_.attach_peripheral(*port);
+        owned_peripherals_.push_back(std::move(port));
     }
 
     // 2. Timers
@@ -70,10 +73,19 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         bus_.attach_peripheral(*adc.release());
     }
 
+    for (u8 i = 0; i < device.ac8x_count; ++i) {
+        auto ac = std::make_unique<Ac8x>("AC" + std::to_string(i), device.acs8x[i]);
+        ac->set_memory_bus(&bus_);
+        ac->set_analog_signal_bank(&analog_signal_bank_);
+        bus_.attach_peripheral(*ac);
+        owned_peripherals_.push_back(std::move(ac));
+    }
+
     for (u8 i = 0; i < device.dac_count; ++i) {
         auto dac = std::make_unique<Dac>("DAC" + std::to_string(i), device.dacs[i]);
         dacs_.push_back(dac.get());
-        bus_.attach_peripheral(*dac.release());
+        bus_.attach_peripheral(*dac);
+        owned_peripherals_.push_back(std::move(dac));
     }
 
     // 4. Communication (UART)
@@ -90,7 +102,23 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     for (u8 i = 0; i < device.eeprom_count; ++i) {
         auto eeprom = std::make_unique<Eeprom>("EEPROM" + std::to_string(i), device.eeproms[i]);
-        bus_.attach_peripheral(*eeprom.release());
+        bus_.attach_peripheral(*eeprom);
+        owned_peripherals_.push_back(std::move(eeprom));
+    }
+
+    // 10. USB
+    for (u8 i = 0; i < device.usb_count; ++i) {
+        auto usb = std::make_unique<Usb>("USB", device.usbs[i]);
+        bus_.attach_peripheral(*usb);
+        owned_peripherals_.push_back(std::move(usb));
+    }
+
+    // 11. LCD
+    for (u8 i = 0; i < device.lcd_count; ++i) {
+        auto lcd = std::make_unique<LcdController>("LCD", device.lcds[i], pin_mux_);
+        lcd_ = lcd.get();
+        bus_.attach_peripheral(*lcd);
+        owned_peripherals_.push_back(std::move(lcd));
     }
 
     set_quantum(1000);

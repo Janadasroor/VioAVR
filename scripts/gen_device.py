@@ -9,6 +9,32 @@ def hx(v):
         v = int(v, 0)
     return f"{hex(v).upper().replace('X', 'x')}U"
 
+LCD_64PIN_MAPPING = {
+    'COM0': ('A', 0), 'COM1': ('A', 1), 'COM2': ('A', 2), 'COM3': ('A', 3),
+    'SEG0': ('A', 4), 'SEG1': ('A', 5), 'SEG2': ('A', 6), 'SEG3': ('A', 7),
+    'SEG4': ('G', 2), 'SEG5': ('C', 7), 'SEG6': ('C', 6), 'SEG7': ('C', 5),
+    'SEG8': ('C', 4), 'SEG9': ('C', 3), 'SEG10': ('C', 2), 'SEG11': ('C', 1),
+    'SEG12': ('C', 0), 'SEG13': ('G', 1), 'SEG14': ('G', 0), 'SEG15': ('D', 7),
+    'SEG16': ('D', 6), 'SEG17': ('D', 5), 'SEG18': ('D', 4), 'SEG19': ('D', 3),
+    'SEG20': ('D', 2), 'SEG21': ('D', 1), 'SEG22': ('D', 0), 'SEG23': ('G', 4),
+    'SEG24': ('G', 3)
+}
+
+LCD_100PIN_MAPPING = {
+    'COM0': ('A', 0), 'COM1': ('A', 1), 'COM2': ('A', 2), 'COM3': ('A', 3),
+    'SEG0': ('A', 4), 'SEG1': ('A', 5), 'SEG2': ('A', 6), 'SEG3': ('A', 7),
+    'SEG4': ('G', 2), 'SEG5': ('C', 7), 'SEG6': ('C', 6),
+    'SEG7': ('H', 3), 'SEG8': ('H', 2), 'SEG9': ('H', 1), 'SEG10': ('H', 0),
+    'SEG11': ('C', 5), 'SEG12': ('C', 4), 'SEG13': ('C', 3), 'SEG14': ('C', 2),
+    'SEG15': ('C', 1), 'SEG16': ('C', 0), 'SEG17': ('G', 1), 'SEG18': ('G', 0),
+    'SEG19': ('D', 7), 'SEG20': ('D', 6), 'SEG21': ('D', 5), 'SEG22': ('D', 4),
+    'SEG23': ('D', 3), 'SEG24': ('D', 2), 'SEG25': ('D', 1), 'SEG26': ('D', 0),
+    'SEG27': ('J', 6), 'SEG28': ('J', 5), 'SEG29': ('J', 4), 'SEG30': ('J', 3),
+    'SEG31': ('J', 2), 'SEG32': ('G', 4), 'SEG33': ('G', 3), 'SEG34': ('J', 1),
+    'SEG35': ('J', 0), 'SEG36': ('H', 7), 'SEG37': ('H', 6), 'SEG38': ('H', 5),
+    'SEG39': ('H', 4)
+}
+
 def get_reg(periph, name_regex):
     if not periph: return None
     # Prioritize exact match
@@ -148,7 +174,7 @@ def generate_header(data, header_path):
         'WDT': [], 'WDT8X': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
         'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'DMA': [], 'CRC': [], 'CRCSCAN': [],
-        'PORTMUX': []
+        'PORTMUX': [], 'LCD': []
     }
     event_generators = {}
     
@@ -205,6 +231,8 @@ def generate_header(data, header_path):
             groups['DAC'].append((p_name, p_data))
         elif 'DMA' in mod:
             groups['DMA'].append((p_name, p_data))
+        elif 'LCD' in mod:
+            groups['LCD'].append((p_name, p_data))
 
     for k in groups: groups[k].sort()
 
@@ -798,6 +826,51 @@ def generate_header(data, header_path):
             .vector_index = {get_int('WDT')}U
         }}"""
 
+    def gen_lcd(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        b = lambda n, b_re: get_bit(r(n), b_re)
+        
+        mcu_name = data['name'].upper()
+        manual_map = None
+        if any(x in mcu_name for x in ["3290", "6490"]):
+            manual_map = LCD_100PIN_MAPPING
+        elif any(x in mcu_name for x in ["169", "329", "649"]):
+            manual_map = LCD_64PIN_MAPPING
+            
+        seg_pins = []
+        for i in range(40):
+            sig_name = f'SEG{i}'
+            if manual_map and sig_name in manual_map:
+                p_char, p_bit = manual_map[sig_name]
+                p_addr = port_map.get(p_char, {}).get('PORT', 0)
+                a, b_bit = hx(p_addr), p_bit
+            else:
+                a, b_bit = get_pad_info(port_map, p_data, sig_name, 'PORT')
+            seg_pins.append(f"{{ {a}, {b_bit}U }}")
+            
+        com_pins = []
+        for i in range(4):
+            sig_name = f'COM{i}'
+            if manual_map and sig_name in manual_map:
+                p_char, p_bit = manual_map[sig_name]
+                p_addr = port_map.get(p_char, {}).get('PORT', 0)
+                a, b_bit = hx(p_addr), p_bit
+            else:
+                a, b_bit = get_pad_info(port_map, p_data, sig_name, 'PORT')
+            com_pins.append(f"{{ {a}, {b_bit}U }}")
+            
+        lcddr_regs = [r for n, r in p_data['registers'].items() if n.startswith('LCDDR')]
+        lcddr_base = min((r['offset'] for r in lcddr_regs), default=0)
+            
+        return f"""{{
+            .lcdcra_address = {hx(r('LCDCRA')['offset'])}, .lcdcrb_address = {hx(r('LCDCRB')['offset'])}, .lcdfrr_address = {hx(r('LCDFRR')['offset'])}, .lcdccr_address = {hx(r('LCDCCR')['offset'])},
+            .lcddr_base_address = {hx(lcddr_base)}, .lcddr_count = 20U,
+            .vector_index = {next((i['index'] for i in data.get('interrupts', []) if 'LCD' in (i.get('name') or '').upper()), 0)}U,
+            .pr_address = {get_pr_info(data, 'PRLCD')[0]}, .pr_bit = {get_pr_info(data, 'PRLCD')[1]},
+            .segment_pins = {{{{ {", ".join(seg_pins)} }}}},
+            .common_pins = {{{{ {", ".join(com_pins)} }}}}
+        }}"""
+
     def gen_pcint(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         idx = "".join(filter(str.isdigit, p_name)) or "0"
@@ -1271,6 +1344,7 @@ def generate_header(data, header_path):
     pscs_str = ",\n        ".join(gen_psc(n, d) for n, d in groups['PSC'])
     dacs_str = ",\n        ".join(gen_dac(n, d) for n, d in groups['DAC'])
     dmas_str = ",\n        ".join(gen_dma(n, d) for n, d in groups['DMA'])
+    lcds_str = ",\n        ".join(gen_lcd(n, d) for n, d in groups['LCD'])
     crc8x_descriptors = [gen_crc8x(n, d) for n, d in groups['CRC'] + groups['CRCSCAN']]
     crc8x_str = ",\n        ".join(crc8x_descriptors)
     wdt8x_descriptors = [gen_wdt8x(n, d) for n, d in groups['WDT8X']]
@@ -1465,6 +1539,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
     
     .usb_count = {len(groups['USB_DEVICE'])}U,
     .usbs = {{{{ {usbs_str} }}}},
+
+    .lcd_count = {len(groups['LCD'])}U,
+    .lcds = {{{{ {lcds_str} }}}},
 
     .psc_count = {len(groups['PSC'])}U,
     .pscs = {{{{ {pscs_str} }}}},

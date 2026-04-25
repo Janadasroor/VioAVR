@@ -19,6 +19,7 @@ namespace vioavr::core {
 
 class Dac;
 class GpioPort;
+class LcdController;
 
 /**
  * @brief High-level bridge for ngspice/XSPICE integration.
@@ -52,6 +53,8 @@ public:
     [[nodiscard]] AvrCpu& cpu() noexcept { return cpu_; }
     [[nodiscard]] MemoryBus& bus() noexcept { return bus_; }
     [[nodiscard]] AnalogSignalBank& analog_signal_bank() noexcept { return analog_signal_bank_; }
+    [[nodiscard]] double frequency() const noexcept { return frequency_; }
+    [[nodiscard]] LcdController* lcd() const noexcept { return lcd_; }
 
 private:
     PinMux pin_mux_;
@@ -62,12 +65,14 @@ private:
     std::vector<Dac*> dacs_;
     std::vector<GpioPort*> ports_;
     std::unordered_map<std::string, GpioPort*> port_map_;
+    LcdController* lcd_ {nullptr};
     
     PinChangeInterruptSharedState pcint_shared_state_ {};
     std::unique_ptr<PinMap> pin_map_;
     TraceMultiplexer trace_mux_;
     u64 quantum_ {1000};
     double frequency_ {16000000.0};
+    std::vector<std::unique_ptr<IoPeripheral>> owned_peripherals_;
 };
 
 } // namespace vioavr::core

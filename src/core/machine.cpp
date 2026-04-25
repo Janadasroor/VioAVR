@@ -42,6 +42,7 @@
 #include "vioavr/core/lin.hpp"
 #include "vioavr/core/opamp.hpp"
 #include "vioavr/core/lcd_controller.hpp"
+#include "vioavr/core/usb.hpp"
 
 namespace vioavr::core {
 
@@ -49,7 +50,7 @@ Machine::Machine(const DeviceDescriptor& device)
     : device_(device),
       bus_(std::make_unique<MemoryBus>(device)),
       cpu_(std::make_unique<AvrCpu>(*bus_)),
-      pin_mux_(std::make_unique<PinMux>(8))
+      pin_mux_(std::make_unique<PinMux>(device.port_count))
 {
     bus_->set_pin_mux(pin_mux_.get());
     cpu_->set_trace_hook(&trace_mux_);
@@ -400,7 +401,7 @@ void Machine::initialize_peripherals()
 
     // 9. LCD Controller
     for (u8 i = 0; i < device_.lcd_count; ++i) {
-        auto lcd = std::make_unique<LcdController>("LCD", device_.lcds[i]);
+        auto lcd = std::make_unique<LcdController>("LCD", device_.lcds[i], *pin_mux_);
         bus_->attach_peripheral(*lcd);
         owned_peripherals_.push_back(std::move(lcd));
     }
@@ -481,6 +482,13 @@ void Machine::initialize_peripherals()
         c->set_pin_mux(pin_mux_.get());
         bus_->attach_peripheral(*c);
         owned_peripherals_.push_back(std::move(c));
+    }
+
+    // 18. USB
+    for (u8 i = 0; i < device_.usb_count; ++i) {
+        auto usb = std::make_unique<Usb>("USB", device_.usbs[i]);
+        bus_->attach_peripheral(*usb);
+        owned_peripherals_.push_back(std::move(usb));
     }
 }
 

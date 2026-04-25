@@ -291,6 +291,16 @@ inline constexpr DeviceDescriptor atmega3290a {
     .usb_count = 0U,
     .usbs = {{  }},
 
+    .lcd_count = 1U,
+    .lcds = {{ {
+            .lcdcra_address = 0xE4U, .lcdcrb_address = 0xE5U, .lcdfrr_address = 0xE6U, .lcdccr_address = 0xE7U,
+            .lcddr_base_address = 0xECU, .lcddr_count = 20U,
+            .vector_index = 22U,
+            .pr_address = 100, .pr_bit = 4,
+            .segment_pins = {{ { 0x22U, 4U }, { 0x22U, 5U }, { 0x22U, 6U }, { 0x22U, 7U }, { 0x34U, 2U }, { 0x28U, 7U }, { 0x28U, 6U }, { 0xDAU, 3U }, { 0xDAU, 2U }, { 0xDAU, 1U }, { 0xDAU, 0U }, { 0x28U, 5U }, { 0x28U, 4U }, { 0x28U, 3U }, { 0x28U, 2U }, { 0x28U, 1U }, { 0x28U, 0U }, { 0x34U, 1U }, { 0x34U, 0U }, { 0x2BU, 7U }, { 0x2BU, 6U }, { 0x2BU, 5U }, { 0x2BU, 4U }, { 0x2BU, 3U }, { 0x2BU, 2U }, { 0x2BU, 1U }, { 0x2BU, 0U }, { 0xDDU, 6U }, { 0xDDU, 5U }, { 0xDDU, 4U }, { 0xDDU, 3U }, { 0xDDU, 2U }, { 0x34U, 4U }, { 0x34U, 3U }, { 0xDDU, 1U }, { 0xDDU, 0U }, { 0xDAU, 7U }, { 0xDAU, 6U }, { 0xDAU, 5U }, { 0xDAU, 4U } }},
+            .common_pins = {{ { 0x22U, 0U }, { 0x22U, 1U }, { 0x22U, 2U }, { 0x22U, 3U } }}
+        } }},
+
     .psc_count = 0U,
     .pscs = {{  }},
 

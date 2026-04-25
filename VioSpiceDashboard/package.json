@@ -1,0 +1,19 @@
+{
+  "name": "viospicedashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"node gateway/index.cjs\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "gateway": "node gateway/index.cjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "vite": "^8.0.10"
+  },
+  "dependencies": {
+    "ws": "^8.20.0"
+  }
+}

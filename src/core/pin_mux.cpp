@@ -127,7 +127,7 @@ void PinMux::reset() noexcept {
     for (u8 p = 0; p < ports_.size(); ++p) {
         for (u8 b = 0; b < ports_[p].size(); ++b) {
             PinEntry& entry = ports_[p][b];
-            entry.drive_levels = 0xFFFFFFFFU;
+            entry.drive_levels = 0;
             entry.output_mask = 0;
             entry.pullup_mask = 0;
             reevaluate_ownership(p, b);

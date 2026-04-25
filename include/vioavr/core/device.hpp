@@ -726,6 +726,11 @@ struct PscDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct LcdPin {
+    u16 port_address {0U};
+    u8 bit_index {0xFFU};
+};
+
 struct LcdDescriptor {
     u16 lcdcra_address {0U};
     u16 lcdcrb_address {0U};
@@ -736,6 +741,9 @@ struct LcdDescriptor {
     u8 vector_index {0U};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    
+    std::array<LcdPin, 40> segment_pins {};
+    std::array<LcdPin, 4> common_pins {};
 };
 
 struct VrefDescriptor {

@@ -62,6 +62,7 @@ target_sources(vioavr_core
         zcd.cpp
         lin.cpp
         opamp.cpp
+        vcd_writer.cpp
 )
 
 target_include_directories(vioavr_core
