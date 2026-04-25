@@ -7,6 +7,8 @@
 #include "vioavr/core/timer10.hpp"
 #include "vioavr/core/cpu_int.hpp"
 #include "vioavr/core/clkctrl.hpp"
+#include "vioavr/core/slpctrl.hpp"
+#include "vioavr/core/rstctrl.hpp"
 
 #include <array>
 #include <cstddef>
@@ -36,6 +38,10 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
                 wdt8x_ = wdt8x;
             } else if (auto* clk = dynamic_cast<ClkCtrl*>(peripheral)) {
                 clk_ctrl_ = clk;
+            } else if (auto* slp = dynamic_cast<SlpCtrl*>(peripheral)) {
+                slp_ctrl_ = slp;
+            } else if (auto* rst = dynamic_cast<RstCtrl*>(peripheral)) {
+                rst_ctrl_ = rst;
             }
         }
     }
@@ -87,6 +93,17 @@ void AvrCpu::reset(ResetCause cause) noexcept
         bus_->write_data(bus_->device().mcusr_address, mcusr);
     }
     
+    if (rst_ctrl_ != nullptr) {
+        u8 flags = 0;
+        switch(cause) {
+            case ResetCause::power_on: flags |= 0x01; break; // PORF
+            case ResetCause::external: flags |= 0x04; break; // EXTRF
+            case ResetCause::brown_out: flags |= 0x02; break; // BORF
+            case ResetCause::watchdog: flags |= 0x08; break; // WDRF
+        }
+        rst_ctrl_->set_reset_cause(flags);
+    }
+
     if (bus_ != nullptr) {
         bus_->reset();
     }
@@ -512,7 +529,17 @@ u8 AvrCpu::active_clock_domains() const noexcept
     }
 
     if (state_ == CpuState::sleeping) {
-        const SleepMode mode = control_regs_->current_sleep_mode();
+        SleepMode mode;
+        if (slp_ctrl_) {
+            switch (slp_ctrl_->sleep_mode()) {
+                case 0: mode = SleepMode::idle; break;
+                case 1: mode = SleepMode::standby; break;
+                case 2: mode = SleepMode::power_down; break;
+                default: mode = SleepMode::power_down; break;
+            }
+        } else {
+            mode = control_regs_->current_sleep_mode();
+        }
         u8 domains = static_cast<u8>(ClockDomain::watchdog); // Watchdog always active
 
         switch (mode) {
@@ -1865,10 +1892,29 @@ void AvrCpu::execute_sleep(const DecodedInstruction& instruction)
     ++program_counter_;
     advance_cycles(1U);
 
-    // Check if sleep is enabled via SMCR.SE bit
-    if (cpu_control().sleep_enabled()) {
-        cpu_control().enter_sleep();
-        const SleepMode mode = cpu_control().current_sleep_mode();
+    // Check if sleep is enabled
+    bool enabled = slp_ctrl_ ? slp_ctrl_->sleep_enabled() : cpu_control().sleep_enabled();
+    if (enabled) {
+        if (slp_ctrl_) {
+            state_ = CpuState::sleeping;
+            // Map AVR8X sleep modes to legacy enum for the switch below
+            SleepMode mode;
+            switch (slp_ctrl_->sleep_mode()) {
+                case 0: mode = SleepMode::idle; break;
+                case 1: mode = SleepMode::standby; break;
+                case 2: mode = SleepMode::power_down; break;
+                default: mode = SleepMode::power_down; break;
+            }
+            
+            switch (mode) {
+                case SleepMode::idle: Logger::debug("Entering Idle mode (AVR8X)"); break;
+                case SleepMode::standby: Logger::debug("Entering Standby mode (AVR8X)"); break;
+                case SleepMode::power_down: Logger::debug("Entering Power-down mode (AVR8X)"); break;
+                default: break;
+            }
+        } else {
+            cpu_control().enter_sleep();
+            const SleepMode mode = cpu_control().current_sleep_mode();
 
         switch (mode) {
         case SleepMode::idle:

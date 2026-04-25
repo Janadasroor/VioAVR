@@ -77,7 +77,16 @@ int main(int argc, char** argv) {
         for (int i = 0; i < 32; i++) {
             std::cout << shm->analog_outputs[i] << (i < 31 ? "," : "");
         }
-        std::cout << "]"
+        std::cout << "],"
+                  << "\"lcd\": {"
+                  << "\"enabled\": " << (int)shm->lcd.enabled << ","
+                  << "\"duty\": " << (int)shm->lcd.duty << ","
+                  << "\"segments\": " << (int)shm->lcd.segments << ","
+                  << "\"data\": [";
+        for (int i = 0; i < 20; i++) {
+            std::cout << (int)shm->lcd.display_data[i] << (i < 19 ? "," : "");
+        }
+        std::cout << "]}"
                   << "}" << std::endl;
     }
 

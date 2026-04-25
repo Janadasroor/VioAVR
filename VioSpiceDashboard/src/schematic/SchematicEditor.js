@@ -72,11 +72,15 @@ export class SchematicEditor {
     this.history = new HistoryManager();
     this.history.onChange = () => this._autoSave();
 
-    const mcu = getComponent('atmega328p') || getComponent('mcu');
-    const lcd = getComponent('lcd');
+    const mcu = getComponent('atmega6490p') || getComponent('mcu');
+    const glass = getComponent('lcd_glass');
+    const charLcd = getComponent('lcd');
+    const glcd = getComponent('glcd_128x64');
 
     this._placeComponent(mcu, 80, 80);
-    this._placeComponent(lcd, 460, 200);
+    this._placeComponent(glass, 460, 50);
+    this._placeComponent(charLcd, 460, 220);
+    this._placeComponent(glcd, 460, 430);
 
     this.viewport.zoomFit(this.canvas.querySelectorAll('.schematic-node'));
     this.shell.showToast('Demo schematic loaded', 'success');
