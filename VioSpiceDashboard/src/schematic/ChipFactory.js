@@ -607,18 +607,14 @@ function renderLogicAnalyzer(g) {
     label.textContent = `CH${i}`;
     g.appendChild(label);
 
-    // Waveform Trace (Decorative Square Wave)
+    // Waveform Trace (Real-time dynamic path)
     const trace = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    let d = `M 45 ${y}`;
-    for (let x = 0; x < 5; x++) {
-      const xPos = 45 + x * 30;
-      d += ` L ${xPos + 15} ${y} L ${xPos + 15} ${y - 8} L ${xPos + 30} ${y - 8} L ${xPos + 30} ${y}`;
-    }
-    trace.setAttribute('d', d);
+    trace.setAttribute('d', `M 45 ${y} L 220 ${y}`); // Flat line initially
     trace.setAttribute('fill', 'none');
     trace.setAttribute('stroke', '#00b140');
     trace.setAttribute('stroke-width', '1');
-    trace.setAttribute('opacity', '0.6');
+    trace.setAttribute('opacity', '0.8');
+    trace.setAttribute('class', `logic-trace logic-trace-${i}`);
     g.appendChild(trace);
   }
 

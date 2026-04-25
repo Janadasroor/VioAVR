@@ -139,6 +139,7 @@ set(TEST_SOURCES
     evsys_fidelity_test.cpp
     avr8x_ccl_evsys_fidelity_test.cpp
     avr8x_uart_evsys_fidelity_test.cpp
+    avr8x_cpu_system_test.cpp
     uart_stress_test_runner.cpp
     integration_stress_runner.cpp
     dma_fidelity_test.cpp

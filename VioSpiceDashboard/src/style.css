@@ -1698,3 +1698,22 @@ body {
   fill: var(--primary);
   transform: scale(0.95);
 }
+
+.motor-shaft {
+  transform-origin: center;
+  transition: transform 0.5s linear;
+}
+
+@keyframes spin-dc {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.motor-dc-running .motor-shaft {
+  animation: spin-dc 0.5s linear infinite;
+}
+
+.motor-stepper-step .motor-shaft {
+  /* Stepper increments 1.8 degrees per step usually */
+  transition: transform 0.1s ease-out;
+}
