@@ -20,6 +20,9 @@ export class SimController {
       gprs: new Array(32).fill(0),
       digital_outputs: new Array(128).fill(0)
     };
+
+    // Logic Analyzer Buffer (last 100 samples for 8 channels)
+    this.logicHistory = Array.from({ length: 8 }, () => new Array(100).fill(0));
   }
 
   init() {
@@ -109,6 +112,69 @@ export class SimController {
     this._updateGprGrid();
     this._updatePinGrid();
     this._updateLcdDisplays(data.lcd);
+    this._updateLogicAnalyzer();
+    this._updateActuators();
+  }
+
+  _updateActuators() {
+    // 1. DC Motor (Cooling Fan) - Sniff Pin 16
+    const dcNode = document.querySelector('.node-type-motor_dc');
+    if (dcNode) {
+        const isRunning = this.telemetry.digital_outputs[16] === 1;
+        dcNode.classList.toggle('motor-dc-running', isRunning);
+    }
+
+    // 2. Stepper Motor (Gauge) - Sniff Pins 18-21 (4 phases)
+    const stepperNode = document.querySelector('.node-type-motor_stepper');
+    if (stepperNode) {
+        const p1 = this.telemetry.digital_outputs[18];
+        const p2 = this.telemetry.digital_outputs[19];
+        const p3 = this.telemetry.digital_outputs[20];
+        const p4 = this.telemetry.digital_outputs[21];
+        
+        // Simple heuristic for stepper position based on active phase
+        let angle = 0;
+        if (p1) angle = 0;
+        else if (p2) angle = 90;
+        else if (p3) angle = 180;
+        else if (p4) angle = 270;
+        
+        const shaft = stepperNode.querySelector('.motor-shaft');
+        if (shaft) {
+            shaft.style.transform = `rotate(${angle}deg)`;
+        }
+    }
+  }
+
+  _updateLogicAnalyzer() {
+    const analyzerNode = document.querySelector('.node-type-logic_analyzer');
+    if (!analyzerNode) return;
+
+    // Sniff first 8 pins (usually PORTA)
+    for (let i = 0; i < 8; i++) {
+      const isHigh = this.telemetry.digital_outputs[i] === 1;
+      this.logicHistory[i].push(isHigh ? 1 : 0);
+      if (this.logicHistory[i].length > 100) this.logicHistory[i].shift();
+
+      const trace = analyzerNode.querySelector(`.logic-trace-${i}`);
+      if (trace) {
+        const yBase = 35 + i * 15;
+        const width = 175;
+        const step = width / 100;
+        
+        let d = `M 45 ${yBase}`;
+        this.logicHistory[i].forEach((val, idx) => {
+          const x = 45 + idx * step;
+          const y = val === 1 ? yBase - 8 : yBase;
+          // Use square wave jumps
+          if (idx > 0 && val !== this.logicHistory[i][idx-1]) {
+            d += ` L ${x} ${val === 1 ? yBase : yBase - 8}`;
+          }
+          d += ` L ${x} ${y}`;
+        });
+        trace.setAttribute('d', d);
+      }
+    }
   }
 
   _updateLcdDisplays(lcd) {

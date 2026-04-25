@@ -73,14 +73,27 @@ export class SchematicEditor {
     this.history.onChange = () => this._autoSave();
 
     const mcu = getComponent('atmega6490p') || getComponent('mcu');
-    const glass = getComponent('lcd_glass');
-    const charLcd = getComponent('lcd');
-    const glcd = getComponent('glcd_128x64');
+    const speedometer = getComponent('lcd_glass');
+    const tripComputer = getComponent('glcd_128x64');
+    const coolingFan = getComponent('motor_dc');
+    const gaugeStepper = getComponent('motor_stepper');
+    const infotainment = getComponent('keypad_4x4');
+    const analyzer = getComponent('logic_analyzer');
 
-    this._placeComponent(mcu, 80, 80);
-    this._placeComponent(glass, 460, 50);
-    this._placeComponent(charLcd, 460, 220);
-    this._placeComponent(glcd, 460, 430);
+    // Central Intelligence
+    this._placeComponent(mcu, 400, 300);
+
+    // Instrument Cluster
+    this._placeComponent(speedometer, 50, 50);
+    this._placeComponent(tripComputer, 350, 50);
+    this._placeComponent(gaugeStepper, 700, 50);
+
+    // Controls & Actuators
+    this._placeComponent(infotainment, 50, 350);
+    this._placeComponent(coolingFan, 750, 350);
+
+    // Debugging Tools
+    this._placeComponent(analyzer, 400, 600);
 
     this.viewport.zoomFit(this.canvas.querySelectorAll('.schematic-node'));
     this.shell.showToast('Demo schematic loaded', 'success');
