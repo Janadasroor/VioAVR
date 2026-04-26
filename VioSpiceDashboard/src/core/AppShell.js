@@ -58,11 +58,17 @@ export class AppShell {
         });
         sim.on('analysisTriggered', () => {
             this.switchView('view-logic');
+            document.body.classList.add('fault-active');
             this.logicPage.freeze();
-            this.showToast('Logic Analysis: Triggered by Hardware Fault', 'error');
+            this.analogPage.freeze();
+            this.showToast('Hardware Event: Fault Analysis Triggered', 'error');
         });
         sim.on('stateChanged', ({ running }) => {
-            if (running) this.logicPage.unfreeze();
+            if (running) {
+                document.body.classList.remove('fault-active');
+                this.logicPage.unfreeze();
+                this.analogPage.unfreeze();
+            }
             this.controls.updateState(running);
         });
     }

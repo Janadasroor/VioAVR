@@ -326,6 +326,7 @@ void Psc::handle_fault(bool level) noexcept {
     if (triggered && !fault_active_) {
         pifr_ |= desc_.capt_flag_mask; 
         fault_active_ = true;
+        if (bus_) bus_->request_analysis_freeze();
         
         u8 prfm = (pfrc0a_ & 0x0F);
         if (prfm == 1 || prfm == 2 || prfm == 5 || prfm == 6) {
