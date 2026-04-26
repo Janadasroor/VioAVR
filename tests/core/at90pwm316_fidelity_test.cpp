@@ -4,6 +4,7 @@
 #include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/dac.hpp"
+#include "vioavr/core/amplifier.hpp"
 #include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/devices/at90pwm316.hpp"
 
@@ -607,4 +608,106 @@ TEST_CASE("AT90PWM316 - Analog Comparator Fault Triggering") {
     bus.tick_peripherals(1);
     state = pin_mux.get_state_by_address(0x29, 1);
     CHECK(state.drive_level == false);
+}
+
+TEST_CASE("AT90PWM316 - DAC Fidelity and Left Adjust") {
+    auto machine = Machine::create_for_device("AT90PWM316");
+    auto& bus = machine->bus();
+    
+    u16 dacon = 0xAA;
+    u16 dacl = 0xAB;
+    u16 dach = 0xAC;
+    
+    auto dacs = machine->peripherals_of_type<Dac>();
+    REQUIRE(!dacs.empty());
+    
+    // 1. Basic 10-bit right-adjust (DALA=0)
+    bus.write_data(dacon, 0x01); // DAEN=1, DALA=0
+    bus.write_data(dacl, 0xFF);
+    bus.write_data(dach, 0x03); // 1023 total
+    
+    CHECK(dacs[0]->voltage() == doctest::Approx(1.0));
+    
+    // 2. Left Adjust (DALA=1)
+    bus.write_data(dacon, 0x05); // DAEN=1, DALA=1
+    // 1023 in left-adjust: 
+    // DACH = 0xFF (top 8 bits)
+    // DACL = 0xC0 (bottom 2 bits in top of byte)
+    bus.write_data(dach, 0xFF);
+    bus.write_data(dacl, 0xC0);
+    
+    CHECK(dacs[0]->voltage() == doctest::Approx(1.0));
+    
+    // 3. Middle value (Left Adjust)
+    bus.write_data(dach, 0x80); // 512
+    bus.write_data(dacl, 0x00);
+    CHECK(dacs[0]->voltage() == doctest::Approx(0.5).epsilon(0.01));
+
+    // 4. Auto Trigger
+    // Reset to 0
+    bus.write_data(dacon, 0x05); // DALA=1
+    bus.write_data(dach, 0x00); bus.write_data(dacl, 0x00);
+    CHECK(dacs[0]->voltage() == 0.0);
+
+    // Setup trigger on AC0 (DATS=0)
+    bus.write_data(dacon, 0x85); // DAATE=1, DALA=1, DAEN=1
+    bus.write_data(dach, 0xFF); bus.write_data(dacl, 0xC0); // 1023 in buffer
+    
+    CHECK(dacs[0]->voltage() == 0.0); // Should not update until triggered
+    
+    dacs[0]->notify_auto_trigger(AdcAutoTriggerSource::analog_comparator);
+    CHECK(dacs[0]->voltage() == doctest::Approx(1.0));
+}
+
+TEST_CASE("AT90PWM316 - OpAmp Gain and Fidelity") {
+    auto machine = Machine::create_for_device("AT90PWM316");
+    REQUIRE(machine != nullptr);
+    auto& bus = machine->bus();
+    auto& pin_mux = machine->pin_mux();
+    auto amps = machine->peripherals_of_type<vioavr::core::At90Amplifier>();
+    REQUIRE(amps.size() == 2);
+
+    const u16 amp0csr = 0x76;
+
+    // 1. Initial State
+    CHECK(amps[0]->voltage_out() == 0.0);
+    CHECK(!amps[0]->is_enabled());
+
+    // 2. Setup inputs
+    // PB3 = 0.1V, PB4 = 0.05V
+    pin_mux.update_analog_pin_by_address(0x23, 3, PinOwner::external, 0.1);
+    pin_mux.update_analog_pin_by_address(0x23, 4, PinOwner::external, 0.05);
+
+    // 3. Enable Amp0 with Gain x10 (AMP0G = 01)
+    bus.write_data(amp0csr, 0x90); // AMP0EN=1, AMP0G=01
+    
+    machine->run(1);
+    
+    // (0.1 - 0.05) * 10 = 0.5V
+    CHECK(amps[0]->voltage_out() == doctest::Approx(0.5));
+    CHECK(amps[0]->is_enabled());
+
+    // 4. Change Gain to x5 (AMP0G = 00)
+    bus.write_data(amp0csr, 0x80); // AMP0EN=1, AMP0G=00
+    machine->run(1);
+    // (0.1 - 0.05) * 5 = 0.25V
+    CHECK(amps[0]->voltage_out() == doctest::Approx(0.25));
+
+    // 5. Change Gain to x20 (AMP0G = 10)
+    bus.write_data(amp0csr, 0xA0); // AMP0EN=1, AMP0G=10
+    machine->run(1);
+    // (0.1 - 0.05) * 20 = 1.0V
+    CHECK(amps[0]->voltage_out() == doctest::Approx(1.0));
+
+    // 6. Test Clipping
+    pin_mux.update_analog_pin_by_address(0x23, 3, PinOwner::external, 0.2); // Pos = 0.2V
+    machine->run(1);
+    // (0.2 - 0.05) * 20 = 3.0V -> Clip to 1.0V
+    CHECK(amps[0]->voltage_out() == doctest::Approx(1.0));
+
+    // 7. Disable
+    bus.write_data(amp0csr, 0x00);
+    machine->run(1);
+    CHECK(amps[0]->voltage_out() == 0.0);
+    CHECK(!amps[0]->is_enabled());
 }

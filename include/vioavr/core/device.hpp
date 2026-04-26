@@ -260,12 +260,26 @@ struct DacDescriptor {
     u8 daate_mask {0x80U};
     u8 dats_mask {0x70U};
     u8 dacoe_mask {0x02U};
+    u8 dala_mask {0x04U};
 
     u16 dac_pin_address {0U};
     u8 dac_pin_bit {0xFFU};
 
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+};
+
+struct AmplifierDescriptor {
+    u16 ampcsr_address {};
+    
+    u8 ampen_mask {0x80U};
+    u8 ampg_mask {0x30U};
+    u8 ampis_mask {0x40U};
+
+    u16 pos_pin_address {0U};
+    u8 pos_pin_bit {0xFFU};
+    u16 neg_pin_address {0U};
+    u8 neg_pin_bit {0xFFU};
 };
 
 struct UartDescriptor {
@@ -1130,6 +1144,9 @@ struct DeviceDescriptor {
 
     u8 dac_count {};
     std::array<DacDescriptor, 1> dacs {};
+
+    u8 amplifier_count {};
+    std::array<AmplifierDescriptor, 3> amplifiers {};
 
     u8 dma_count {0U};
     std::array<DmaDescriptor, 1> dmas {};

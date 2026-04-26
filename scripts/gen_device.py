@@ -172,7 +172,7 @@ def generate_header(data, header_path):
     groups = {
         'USART': [], 'USART8X': [], 'EUSART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'WDT8X': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
-        'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
+        'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [], 'AMP': [],
         'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'DMA': [], 'CRC': [], 'CRCSCAN': [],
         'PORTMUX': [], 'LCD': []
     }
@@ -229,12 +229,25 @@ def generate_header(data, header_path):
             groups['PSC'].append((p_name, p_data))
         elif 'EUSART' in mod:
             groups['EUSART'].append((p_name, p_data))
+
         elif 'DAC' in mod:
             groups['DAC'].append((p_name, p_data))
         elif 'DMA' in mod:
             groups['DMA'].append((p_name, p_data))
         elif 'LCD' in mod:
             groups['LCD'].append((p_name, p_data))
+
+    # Extract virtual amplifiers from ADC module (AT90PWM pattern)
+    if 'ADC' in groups:
+        for p_name, p_data in groups['ADC']:
+            for reg_name, reg_def in p_data.get('registers', {}).items():
+                if 'AMP' in reg_name and 'CSR' in reg_name:
+                    amp_name = reg_name.replace('CSR', '')
+                    groups['AMP'].append((amp_name, {
+                        'module': 'AMP',
+                        'registers': { 'AMPCSR': reg_def },
+                        'signals': []
+                    }))
 
     for k in groups: groups[k].sort()
 
@@ -671,9 +684,33 @@ def generate_header(data, header_path):
         
         return f"""{{
             .dacon_address = {hx(dacon['offset'])}, .dacl_address = {hx(dacl['offset'])}, .dach_address = {hx(dach_offset)},
-            .daen_mask = {hx(get_bit(dacon, 'DAEN'))}, .daate_mask = {hx(get_bit(dacon, 'DAATE'))}, .dats_mask = {hx(get_bit(dacon, 'DATS'))}, .dacoe_mask = {hx(get_bit(dacon, 'DAOE'))},
+            .daen_mask = {hx(get_bit(dacon, 'DAEN'))}, .daate_mask = {hx(get_bit(dacon, 'DAATE'))}, .dats_mask = {hx(get_bit(dacon, 'DATS'))}, .dacoe_mask = {hx(get_bit(dacon, 'DAOE'))}, .dala_mask = {hx(get_bit(dacon, 'DALA'))},
             .dac_pin_address = {dac_addr}, .dac_pin_bit = {dac_bit}U,
             .pr_address = {get_pr_info(data, 'PRDAC')[0]}, .pr_bit = {get_pr_info(data, 'PRDAC')[1]}
+        }}"""
+
+    def gen_amplifier(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0}
+        b = lambda n, b_re: get_bit(r(n), b_re)
+        
+        # Pin mapping (Handled manually if missing from ATDF)
+        pos_addr, pos_bit = "0x0U", 0xFF
+        neg_addr, neg_bit = "0x0U", 0xFF
+        
+        if "AMP0" in p_name:
+            pos_addr, pos_bit = "0x23U", 3 # PB3
+            neg_addr, neg_bit = "0x23U", 4 # PB4
+        elif "AMP1" in p_name:
+            pos_addr, pos_bit = "0x23U", 6 # PB6
+            neg_addr, neg_bit = "0x23U", 7 # PB7
+        
+        return f"""{{
+            .ampcsr_address = {hx(r('AMPCSR|AMP.CSR')['offset'])},
+            .ampen_mask = {hx(b('AMPCSR|AMP.CSR', 'EN'))},
+            .ampg_mask = {hx(b('AMPCSR|AMP.CSR', 'G'))},
+            .ampis_mask = {hx(b('AMPCSR|AMP.CSR', 'IS'))},
+            .pos_pin_address = {pos_addr}, .pos_pin_bit = {pos_bit}U,
+            .neg_pin_address = {neg_addr}, .neg_pin_bit = {neg_bit}U
         }}"""
 
     def gen_ac(p_name, p_data):
@@ -1607,6 +1644,9 @@ inline constexpr DeviceDescriptor {safe_name} {{
 
     .dac_count = {len(groups['DAC'])}U,
     .dacs = {{{{ {dacs_str} }}}},
+
+    .amplifier_count = {len(groups['AMP'])}U,
+    .amplifiers = {{{{ {", ".join(gen_amplifier(n, d) for n, d in groups['AMP'])} }}}},
     
     .dma_count = {len(groups['DMA'])}U,
     .dmas = {{{{ {dmas_str} }}}},

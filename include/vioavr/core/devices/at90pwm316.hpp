@@ -326,9 +326,26 @@ inline constexpr DeviceDescriptor at90pwm316 {
     .dac_count = 1U,
     .dacs = {{ {
             .dacon_address = 0xAAU, .dacl_address = 0xABU, .dach_address = 0xACU,
-            .daen_mask = 0x1U, .daate_mask = 0x80U, .dats_mask = 0x70U, .dacoe_mask = 0x2U,
+            .daen_mask = 0x1U, .daate_mask = 0x80U, .dats_mask = 0x70U, .dacoe_mask = 0x2U, .dala_mask = 0x4U,
             .dac_pin_address = 0x25U, .dac_pin_bit = 7U,
             .pr_address = 0, .pr_bit = 255
+        } }},
+
+    .amplifier_count = 2U,
+    .amplifiers = {{ {
+            .ampcsr_address = 0x76U,
+            .ampen_mask = 0x80U,
+            .ampg_mask = 0x30U,
+            .ampis_mask = 0x40U,
+            .pos_pin_address = 0x23U, .pos_pin_bit = 3U,
+            .neg_pin_address = 0x23U, .neg_pin_bit = 4U
+        }, {
+            .ampcsr_address = 0x77U,
+            .ampen_mask = 0x80U,
+            .ampg_mask = 0x30U,
+            .ampis_mask = 0x40U,
+            .pos_pin_address = 0x23U, .pos_pin_bit = 6U,
+            .neg_pin_address = 0x23U, .neg_pin_bit = 7U
         } }},
     
     .dma_count = 0U,
