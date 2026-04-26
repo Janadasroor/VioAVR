@@ -69,9 +69,14 @@ private:
         bool level {false};
         u8 filter_samples {0};
         bool filtered_level {false};
+        u16 blanking_counter {0};
+        u16 blanking_duration {0}; // Set via descriptor or register
     };
     FaultChannel fault_a_{};
     FaultChannel fault_b_{};
+    
+    bool last_output_a_ {false};
+    bool last_output_b_ {false};
 
     // Output States
     bool output_a_ {false};

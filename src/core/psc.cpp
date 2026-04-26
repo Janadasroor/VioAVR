@@ -19,6 +19,9 @@ Psc::Psc(std::string_view name, const PscDescriptor& desc, PinMux* pin_mux)
         desc.pfrc0a_address, desc.pfrc0b_address
     };
     
+    fault_a_.blanking_duration = desc_.blanking_duration;
+    fault_b_.blanking_duration = desc_.blanking_duration;
+
     std::sort(addrs.begin(), addrs.end());
     for (u16 addr : addrs) {
         if (addr == 0) continue;
@@ -52,10 +55,16 @@ void Psc::reset() noexcept {
     fault_active_ = false;
     last_fault_level_ = false;
     fault_pending_restart_ = false;
+    fault_a_.blanking_counter = 0;
+    fault_b_.blanking_counter = 0;
+    last_output_a_ = false;
+    last_output_b_ = false;
     output_a_ = false;
     output_b_ = false;
     output_c_ = false;
     output_d_ = false;
+    
+    update_outputs();
 }
 
 u8 Psc::read(u16 address) noexcept {
@@ -173,6 +182,12 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
         bool trigger_level_a = (pfrc0a_ & 0x20); // PELEV
         bool raw_triggered_a = (fault_a_.level == trigger_level_a);
         
+        // Blanking Logic A
+        if (fault_a_.blanking_counter > 0) {
+            fault_a_.blanking_counter--;
+            raw_triggered_a = false; 
+        }
+
         if (pfrc0a_ & 0x10) { // PFLTE (Filter Enable)
             if (raw_triggered_a != fault_a_.filtered_level) {
                 fault_a_.filter_samples++;
@@ -190,6 +205,12 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
         bool trigger_level_b = (pfrc0b_ & 0x20); // PELEV
         bool raw_triggered_b = (fault_b_.level == trigger_level_b);
         
+        // Blanking Logic B
+        if (fault_b_.blanking_counter > 0) {
+            fault_b_.blanking_counter--;
+            raw_triggered_b = false;
+        }
+
         if (pfrc0b_ & 0x10) { // PFLTE (Filter Enable)
             if (raw_triggered_b != fault_b_.filtered_level) {
                 fault_b_.filter_samples++;
@@ -265,8 +286,8 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                 }
             }
         }
+        update_outputs();
     }
-    update_outputs();
 }
 
 void Psc::notify_adc() noexcept {
@@ -348,6 +369,16 @@ void Psc::update_outputs() noexcept {
                 bool en_d = (psoc_ & 0x08);
                 output_c_ = en_c && (pulse_a ^ pop);
                 output_d_ = en_d && (pulse_b ^ pop);
+            }
+
+            // Trigger Blanking on switching events
+            if (output_a_ != last_output_a_) {
+                fault_a_.blanking_counter = fault_a_.blanking_duration;
+                last_output_a_ = output_a_;
+            }
+            if (output_b_ != last_output_b_) {
+                fault_b_.blanking_counter = fault_b_.blanking_duration;
+                last_output_b_ = output_b_;
             }
         }
     }
