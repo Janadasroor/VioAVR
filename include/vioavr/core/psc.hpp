@@ -26,7 +26,7 @@ public:
     [[nodiscard]] bool read_output_b() const noexcept { return output_b_; }
 
     void connect_adc_trigger(class Adc& adc) noexcept { adc_trigger_ = &adc; }
-    void notify_fault(bool level) noexcept;
+    void notify_fault(bool level, u8 channel = 0) noexcept;
 
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& req) const noexcept override;
     bool consume_interrupt_request(InterruptRequest& req) noexcept override;
@@ -65,9 +65,19 @@ private:
     bool fault_pending_restart_ {false};
     u64 cycle_accumulator_ {0};
     
+    struct FaultChannel {
+        bool level {false};
+        u8 filter_samples {0};
+        bool filtered_level {false};
+    };
+    FaultChannel fault_a_{};
+    FaultChannel fault_b_{};
+
     // Output States
     bool output_a_ {false};
     bool output_b_ {false};
+    bool output_c_ {false};
+    bool output_d_ {false};
 
     void notify_adc() noexcept;
     void handle_fault(bool level) noexcept;

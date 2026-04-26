@@ -588,38 +588,65 @@ def generate_header(data, header_path):
             .pr_address = {get_pr_info(data, 'PRUSB')[0]}, .pr_bit = {get_pr_info(data, 'PRUSB')[1]}
         }}"""
 
+    def get_vector(periph_name, suffix):
+        for i in data.get('interrupts', []):
+            if f'{periph_name}_{suffix}' in (i.get('name') or '').upper():
+                return i['index']
+        return 0
+
     def gen_psc(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         
         idx = "".join(filter(str.isdigit, p_name)) or "0"
         
         # Determine output pins
-        outa_addr, outa_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}0', 'PORT')
-        outb_addr, outb_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}1', 'PORT')
-        outc_addr, outc_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}2', 'PORT')
-        outd_addr, outd_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}3', 'PORT')
+        outa_addr, outa_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}0', 'PIN')
+        outb_addr, outb_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}1', 'PIN')
+        outc_addr, outc_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}2', 'PIN')
+        outd_addr, outd_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}3', 'PIN')
+
+        # Fallback for AT90PWM series where signals are missing from ATDF
+        if outa_addr == "0x0U" and "PWM" in data['name'].upper():
+            if idx == "0":
+                outa_addr, outa_bit = "0x29U", 1 # PD1
+                outb_addr, outb_bit = "0x29U", 2 # PD2
+            elif idx == "1":
+                outa_addr, outa_bit = "0x29U", 3 # PD3
+                outb_addr, outb_bit = "0x29U", 4 # PD4
+            elif idx == "2":
+                outa_addr, outa_bit = "0x29U", 5 # PD5
+                outb_addr, outb_bit = "0x29U", 6 # PD6
+                outc_addr, outc_bit = "0x23U", 6 # PB6
+                outd_addr, outd_bit = "0x23U", 7 # PB7
 
         return f"""{{
             .pctl_address = {hx(r('PCTL.*')['offset'])}, .psoc_address = {hx(r('PSOC.*')['offset'])}, .pconf_address = {hx(r('PCNF.*')['offset'])}, .pim_address = {hx(r('PIM.*')['offset'])}, .pifr_address = {hx(r('PIFR.*')['offset'])}, .picr_address = {hx(r('PICR.*')['offset'])},
             .ocrsa_address = {hx(r('OCR.*SA')['offset'])}, .ocrra_address = {hx(r('OCR.*RA')['offset'])}, .ocrsb_address = {hx(r('OCR.*SB')['offset'])}, .ocrrb_address = {hx(r('OCR.*RB')['offset'])},
             .pfrc0a_address = {hx(r('PFRC.*A')['offset'])}, .pfrc0b_address = {hx(r('PFRC.*B')['offset'])},
             .psc_index = {idx}U,
-            .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
-            .ec_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
-            .capt_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_CAPT' in (i.get('name') or '').upper()), 11)}U,
+            .gen_vector_index = {hx(get_vector(p_name, 'GEN'))},
+            .ec_vector_index = {hx(get_vector(p_name, 'EC'))},
+            .capt_vector_index = {hx(get_vector(p_name, 'CAPT'))},
             .outa_pin_address = {outa_addr}, .outa_pin_bit = {outa_bit}U,
             .outb_pin_address = {outb_addr}, .outb_pin_bit = {outb_bit}U,
             .outc_pin_address = {outc_addr}, .outc_pin_bit = {outc_bit}U,
             .outd_pin_address = {outd_addr}, .outd_pin_bit = {outd_bit}U,
-            .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'PCLKSEL'))}, .ppre_mask = {hx(get_bit(r('PCTL.*'), 'PPRE'))},
-            .ec_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEOP'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEV'))},
-            .pr_address = {get_pr_info(data, f'PRPSC{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRPSC{idx}')[1]}
+            .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'CLKSEL'))}, .ppre_mask = {hx(get_bit(r('PCTL.*'), 'PPRE'))},
+            .ec_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEOP'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), 'PRN0|PCAPT'))},
+            .pccyc_mask = {hx(get_bit(r('PCTL.*'), 'PCCYC'))}, .paoca_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*A'))}, .paocb_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*B'))},
+            .pr_address = {get_pr_info(data, 'PRPSC')[0]}, .pr_bit = {get_pr_info(data, 'PRPSC')[1]}
         }}"""
 
     def gen_eusart(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
         txd_addr, txd_bit = get_pad_info(port_map, p_data, 'TXD', 'PORT')
         rxd_addr, rxd_bit = get_pad_info(port_map, p_data, 'RXD', 'PIN')
+
+        # Fallback for AT90PWM series where signals are missing from ATDF
+        if txd_addr == "0x0U" and "PWM" in data['name'].upper():
+            txd_addr, txd_bit = "0x2BU", 1 # PD1
+            rxd_addr, rxd_bit = "0x29U", 2 # PD2
+
         return f"""{{
             .eudr_address = {hx(r('EUDR')['offset'])}, .eucsra_address = {hx(r('EUCSRA')['offset'])}, .eucsrb_address = {hx(r('EUCSRB')['offset'])}, .eucsrc_address = {hx(r('EUCSRC')['offset'])}, .mubrrl_address = {hx(r('MUBRRL')['offset'])}, .mubrrh_address = {hx(r('MUBRRH')['offset'])},
             .emch_mask = {hx(get_bit(r('EUCSRB'), 'EMCH'))}, .eus_en_mask = {hx(get_bit(r('EUCSRB'), 'EUSART'))}, .bodr_mask = {hx(get_bit(r('EUCSRB'), 'BODR'))}, .f1617_mask = {hx(get_bit(r('EUCSRC'), 'F1617'))}, .utxs_mask = {hx(get_bit(r('EUCSRA'), 'UTxS'))}, .urxs_mask = {hx(get_bit(r('EUCSRA'), 'URxS'))},
@@ -628,14 +655,22 @@ def generate_header(data, header_path):
         }}"""
 
     def gen_dac(p_name, p_data):
-        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0, 'size': 1}
+        r = lambda n: get_reg(p_data, n)
+        dacon = r('DACON') or {'offset': 0}
+        dacl = r('DACL') or r('DAC') or {'offset': 0, 'size': 1}
+        dach = r('DACH') or r('DAC') or {'offset': 0, 'size': 1}
+        
+        dach_offset = dach['offset'] + (1 if dach == dacl and dach.get('size', 1) > 1 else 0)
+        
         dac_addr, dac_bit = get_pad_info(port_map, p_data, 'DACOUT', 'PORT')
-        dacl = r('DACL') or r('DAC')
-        dach = r('DACH') or r('DAC')
-        dach_offset = dach['offset'] + (1 if dach == dacl and dach['size'] > 1 else 0)
+        
+        # Fallback for AT90PWM series where signals are missing from ATDF
+        if dac_addr == "0x0U" and "PWM" in data['name'].upper():
+            dac_addr, dac_bit = "0x25U", 7 # PB7
+        
         return f"""{{
-            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(dacl['offset'])}, .dach_address = {hx(dach_offset)},
-            .daen_mask = {hx(get_bit(r('DACON'), 'DAEN'))}, .daate_mask = {hx(get_bit(r('DACON'), 'DAATE'))}, .dats_mask = {hx(get_bit(r('DACON'), 'DATS'))}, .dacoe_mask = {hx(get_bit(r('DACON'), 'DAOE'))},
+            .dacon_address = {hx(dacon['offset'])}, .dacl_address = {hx(dacl['offset'])}, .dach_address = {hx(dach_offset)},
+            .daen_mask = {hx(get_bit(dacon, 'DAEN'))}, .daate_mask = {hx(get_bit(dacon, 'DAATE'))}, .dats_mask = {hx(get_bit(dacon, 'DATS'))}, .dacoe_mask = {hx(get_bit(dacon, 'DAOE'))},
             .dac_pin_address = {dac_addr}, .dac_pin_bit = {dac_bit}U,
             .pr_address = {get_pr_info(data, 'PRDAC')[0]}, .pr_bit = {get_pr_info(data, 'PRDAC')[1]}
         }}"""

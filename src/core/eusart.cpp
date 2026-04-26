@@ -9,8 +9,9 @@ Eusart::Eusart(std::string_view name, const EusartDescriptor& desc) noexcept
     : name_(name), desc_(desc)
 {
     std::vector<u16> addrs = {
-        desc.eudr_address, desc.eucsra_address, desc.eucsrb_address,
-        desc.eucsrc_address, desc.mubrrl_address, desc.mubrrh_address
+        desc.eudr_address, desc.eudr_address + 1,
+        desc.eucsra_address, desc.eucsrb_address, desc.eucsrc_address,
+        desc.mubrrl_address, desc.mubrrh_address
     };
     std::sort(addrs.begin(), addrs.end());
     
@@ -91,74 +92,134 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
         }
     };
 
+    auto get_char_size = [&](bool tx) -> u8 {
+        u8 val = tx ? ((eucsra_ & desc_.utxs_mask) >> 4) : (eucsra_ & 0x0F);
+        bool f1617 = (eucsrc_ & desc_.f1617_mask);
+        switch (val) {
+            case 0x00: return 5;
+            case 0x01: return 6;
+            case 0x02: return 7;
+            case 0x03: return 8;
+            case 0x07: return 9;
+            case 0x08: return 13;
+            case 0x09: return 14;
+            case 0x0A: return 15;
+            case 0x0B: return 16;
+            case 0x0F: return f1617 ? 17 : 8; // 17 if F1617 set
+            default: return 8;
+        }
+    };
+
+    // --- TX Logic ---
     if (!tx_active_ && !tx_queue_.empty()) {
         tx_active_ = true;
         u32 data = tx_queue_.front();
         tx_queue_.pop_front();
         
-        u8 utxs = (eucsra_ & desc_.utxs_mask) >> 4;
-        u8 char_size = 8;
-        switch (utxs) {
-            case 0x00: char_size = 5; break;
-            case 0x01: char_size = 6; break;
-            case 0x02: char_size = 7; break;
-            case 0x03: char_size = 8; break;
-            case 0x07: char_size = 9; break;
-            case 0x08: char_size = 13; break;
-            case 0x09: char_size = 14; break;
-            case 0x0A: char_size = 15; break;
-            case 0x0B: char_size = 16; break;
-            case 0x0F: char_size = 17; break;
-            default: char_size = 8; break;
-        }
-
+        u8 data_bits = get_char_size(true);
+        // Build frame: Start(1) + Data + Stop(s)
+        // For Manchester, we simulate this by setting up the shift reg
+        // and a bit counter that includes start/stop.
         tx_shift_reg_ = data;
-        tx_bit_count_ = char_size;
+        if (manchester) {
+            // Manchester usually just sends the data bits if no explicit start/stop bit is defined,
+            // but the AT90PWM316 says "Start Bit is a logic 1".
+            // We'll prepend it.
+            tx_shift_reg_ = (data << 1) | 0x01; 
+            tx_bit_count_ = data_bits + 1; // +1 for Start
+        } else {
+            tx_bit_count_ = data_bits;
+        }
+        
         tx_half_bit_ = false;
         cycles_to_next_bit_ = manchester ? cycles_per_half : cycles_per_bit;
         update_pin();
     }
 
     if (tx_active_) {
-        update_pin(); // Ensure pin is correct at start of interval
+        update_pin();
 
-        if (elapsed_cycles >= cycles_to_next_bit_) {
-            u64 remaining = elapsed_cycles - cycles_to_next_bit_;
+        u64 tx_elapsed = elapsed_cycles;
+        while (tx_active_ && tx_elapsed >= cycles_to_next_bit_) {
+            tx_elapsed -= cycles_to_next_bit_;
             
             if (manchester && !tx_half_bit_) {
                 tx_half_bit_ = true;
                 cycles_to_next_bit_ = cycles_per_half;
             } else {
                 tx_half_bit_ = false;
-                if (!(eucsrb_ & 0x01)) tx_shift_reg_ >>= 1;
+                if (!(eucsrb_ & 0x01)) tx_shift_reg_ >>= 1; // LSB first
+                else tx_shift_reg_ <<= 1; // MSB first
+                
                 tx_bit_count_--;
                 
                 if (tx_bit_count_ == 0) {
                     tx_active_ = false;
-                    eucsra_ |= 0x80;
+                    eucsra_ |= 0x80; // TX Complete
                     cycles_to_next_bit_ = 0;
                 } else {
                     cycles_to_next_bit_ = manchester ? cycles_per_half : cycles_per_bit;
                 }
             }
+            update_pin();
+        }
+        if (tx_active_) cycles_to_next_bit_ -= tx_elapsed;
+    }
 
-            update_pin(); // Update pin immediately after state change
-
-            if (remaining > 0 && tx_active_) {
-                tick(remaining);
+    // --- RX Logic ---
+    if (eucsrb_ & desc_.eus_en_mask) {
+        bool current_rx = bus_->pin_mux()->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
+        
+        if (!rx_active_) {
+            // Wait for Start bit edge (Manchester '1' is LOW/HIGH, so falling edge at start)
+            if (current_rx == false && rx_last_pin_level_ == true) {
+                rx_active_ = true;
+                rx_bit_count_ = get_char_size(false); // Data bits to follow start bit
+                rx_shift_reg_ = 0;
+                // Skip the rest of the start bit (1 bit period) and sample first data bit at 3/4
+                rx_cycles_to_sample_ = cycles_per_bit + (cycles_per_bit * 3) / 4;
             }
         } else {
-            cycles_to_next_bit_ -= elapsed_cycles;
+            u64 rx_elapsed = elapsed_cycles;
+            while (rx_active_ && rx_elapsed >= rx_cycles_to_sample_) {
+                rx_elapsed -= rx_cycles_to_sample_;
+                
+                // Sample bit
+                bool sampled_val = current_rx;
+                u8 total_bits = get_char_size(false);
+                
+                if (!(eucsrb_ & 0x01)) { // LSB First
+                    if (sampled_val) rx_shift_reg_ |= (1U << (total_bits - rx_bit_count_));
+                } else { // MSB First
+                    rx_shift_reg_ = (rx_shift_reg_ << 1) | (sampled_val ? 1 : 0);
+                }
+                
+                rx_bit_count_--;
+                if (rx_bit_count_ == 0) {
+                    rx_active_ = false;
+                    rx_queue_.push_back(rx_shift_reg_);
+                    rx_cycles_to_sample_ = 0;
+                } else {
+                    rx_cycles_to_sample_ = cycles_per_bit;
+                }
+            }
+            if (rx_active_) rx_cycles_to_sample_ -= rx_elapsed;
         }
+        rx_last_pin_level_ = current_rx;
     }
 }
 
 u8 Eusart::read(u16 address) noexcept {
-    if (address == desc_.eudr_address) {
+    if (address == desc_.eudr_address) { // Low byte
         if (rx_queue_.empty()) return 0;
-        u8 val = rx_queue_.front();
+        u32 val = rx_queue_.front();
         rx_queue_.pop_front();
-        return val;
+        
+        rx_temp_ = (val >> 8);
+        return static_cast<u8>(val & 0xFF);
+    }
+    if (address == desc_.eudr_address + 1) { // High byte
+        return static_cast<u8>(rx_temp_);
     }
     if (address == desc_.eucsra_address) return eucsra_;
     if (address == desc_.eucsrb_address) return eucsrb_;
@@ -169,12 +230,23 @@ u8 Eusart::read(u16 address) noexcept {
 }
 
 void Eusart::write(u16 address, u8 value) noexcept {
-    if (address == desc_.eudr_address) {
-        tx_queue_.push_back(value);
+    if (address == desc_.eudr_address + 1) { // High byte first
+        tx_temp_ = value;
+    } else if (address == desc_.eudr_address) { // Low byte triggers
+        u32 full = (static_cast<u32>(tx_temp_) << 8) | value;
+        tx_queue_.push_back(full);
+        tx_temp_ = 0; // Reset for next use
     } else if (address == desc_.eucsra_address) {
         eucsra_ = value;
     } else if (address == desc_.eucsrb_address) {
         eucsrb_ = value;
+        if ((eucsrb_ & desc_.eus_en_mask) && bus_ && bus_->pin_mux()) {
+            bus_->pin_mux()->claim_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+            bus_->pin_mux()->claim_pin_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit, PinOwner::uart);
+        } else if (bus_ && bus_->pin_mux()) {
+            bus_->pin_mux()->release_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+            bus_->pin_mux()->release_pin_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit, PinOwner::uart);
+        }
     } else if (address == desc_.eucsrc_address) {
         eucsrc_ = value;
     } else if (address == desc_.mubrrl_address) {

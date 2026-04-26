@@ -49,6 +49,15 @@ private:
     std::deque<u32> tx_queue_; // Extended frames
     std::deque<u32> rx_queue_;
 
+    // RX State
+    bool rx_active_ {false};
+    u8 rx_bit_count_ {0};
+    u32 rx_shift_reg_ {0};
+    u64 rx_cycles_to_sample_ {0};
+    bool rx_last_pin_level_ {true};
+    u8 rx_temp_ {0};
+    u8 tx_temp_ {0};
+
     bool power_reduction_enabled() const noexcept;
 };
 
