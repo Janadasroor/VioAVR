@@ -26,6 +26,7 @@ enum class PinOwner : u8 {
     lcd = 11,
     dac = 12,
     psc = 13,
+    amplifier = 14,
     external = 31
 };
 

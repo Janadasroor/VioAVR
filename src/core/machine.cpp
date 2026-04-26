@@ -2,6 +2,7 @@
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/amplifier.hpp"
 #include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/timer8.hpp"
@@ -369,6 +370,13 @@ void Machine::initialize_peripherals()
         auto dac = std::make_unique<Dac>("DAC", device_.dacs[i]);
         bus_->attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
+    }
+
+    // Amplifiers
+    for (u8 i = 0; i < device_.amplifier_count; ++i) {
+        auto amp = std::make_unique<At90Amplifier>("AMP" + std::to_string(i), device_.amplifiers[i], *pin_mux_);
+        bus_->attach_peripheral(*amp);
+        owned_peripherals_.push_back(std::move(amp));
     }
 
     // 6. TWI

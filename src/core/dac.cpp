@@ -49,8 +49,16 @@ void Dac::tick(u64 elapsed_cycles) noexcept {
 
 u8 Dac::read(u16 address) noexcept {
     if (address == desc_.dacon_address) return dacon_;
-    if (address == desc_.dacl_address) return data_ & 0xFF;
-    if (address == desc_.dach_address) return (data_ >> 8) & 0x03;
+    
+    const bool left_adjust = (dacon_ & desc_.dala_mask);
+    if (address == desc_.dacl_address) {
+        if (left_adjust) return static_cast<u8>((data_ & 0x03) << 6);
+        return static_cast<u8>(data_ & 0xFF);
+    }
+    if (address == desc_.dach_address) {
+        if (left_adjust) return static_cast<u8>((data_ >> 2) & 0xFF);
+        return static_cast<u8>((data_ >> 8) & 0x03);
+    }
     return 0;
 }
 
@@ -58,16 +66,29 @@ void Dac::write(u16 address, u8 value) noexcept {
     if (address == desc_.dacon_address) {
         dacon_ = value;
         update_voltage();
-    } else if (address == desc_.dacl_address) {
-        buffer_value_ = (buffer_value_ & 0xFF00) | value;
-        if (!(dacon_ & desc_.daate_mask)) {
-            data_ = buffer_value_;
-            update_voltage();
+        return;
+    }
+
+    const bool left_adjust = (dacon_ & desc_.dala_mask);
+    if (address == desc_.dacl_address) {
+        if (left_adjust) {
+            // Bits 0-1 are in bits 6-7 of DACL
+            buffer_value_ = (buffer_value_ & 0x03FC) | ((value >> 6) & 0x03);
+        } else {
+            buffer_value_ = (buffer_value_ & 0xFF00) | value;
         }
     } else if (address == desc_.dach_address) {
-        buffer_value_ = (buffer_value_ & 0x00FF) | (static_cast<u16>(value & 0x03) << 8);
+        if (left_adjust) {
+            // Bits 2-9 are in DACH
+            buffer_value_ = (buffer_value_ & 0x0003) | (static_cast<u16>(value) << 2);
+        } else {
+            // Bits 8-9 are in bits 0-1 of DACH
+            buffer_value_ = (buffer_value_ & 0x00FF) | (static_cast<u16>(value & 0x03) << 8);
+        }
+
+        // Writing DACH triggers the update (Standard AVR 10-bit pattern)
         if (!(dacon_ & desc_.daate_mask)) {
-            data_ = buffer_value_;
+            data_ = buffer_value_ & 0x03FF;
             update_voltage();
         }
     }

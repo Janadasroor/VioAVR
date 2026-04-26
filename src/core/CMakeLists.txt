@@ -62,6 +62,7 @@ target_sources(vioavr_core
         dma.cpp
         zcd.cpp
         lin.cpp
+        amplifier.cpp
         opamp.cpp
         vcd_writer.cpp
 )
