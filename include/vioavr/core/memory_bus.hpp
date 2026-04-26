@@ -96,6 +96,8 @@ public:
     [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
     void set_nvm_ctrl(class NvmCtrl* nvm_ctrl) noexcept;
     [[nodiscard]] class NvmCtrl* nvm_ctrl() const noexcept { return nvm_ctrl_; }
+    void set_eeprom(class Eeprom* eeprom) noexcept { eeprom_ = eeprom; }
+    [[nodiscard]] class Eeprom* eeprom() const noexcept { return eeprom_; }
     void set_cpu_int(class CpuInt* cpu_int) noexcept { cpu_int_ = cpu_int; }
     [[nodiscard]] class CpuInt* cpu_int() const noexcept { return cpu_int_; }
 
@@ -130,6 +132,7 @@ private:
     bool flash_rww_busy_ {false};
     Xmem* xmem_ {nullptr};
     class NvmCtrl* nvm_ctrl_ {nullptr};
+    class Eeprom* eeprom_ {nullptr};
     class CpuInt* cpu_int_ {nullptr};
     class Zcd* zcd_ {nullptr};
     std::vector<IoPeripheral*> peripherals_ {};

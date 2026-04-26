@@ -1,5 +1,6 @@
 #include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/logger.hpp"
 #include <algorithm>
 #include <fstream>
 
@@ -126,6 +127,7 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
         if (bus_) bus_->request_cpu_stall(kEepromAtomicCycles);
         const u16 offset = address - desc_.mapped_data.data_start;
         if (offset < storage_.size()) {
+            Logger::debug("Eeprom '" + std::string(name_) + "': Direct write at offset " + std::to_string(offset) + " = 0x" + std::to_string(value));
             storage_[offset] = value;
         }
     }
@@ -223,7 +225,9 @@ void Eeprom::complete_write() noexcept
 void Eeprom::commit_page(u32 address, std::span<const u8> data) noexcept
 {
     const u16 start = static_cast<u16>(address % size_);
+    Logger::debug("Eeprom '" + std::string(name_) + "': Commit page at address 0x" + std::to_string(address) + " (offset " + std::to_string(start) + "), data size " + std::to_string(data.size()));
     for (size_t i = 0; i < data.size() && (start + i) < storage_.size(); ++i) {
+        if (i < 8) Logger::debug("  data[" + std::to_string(i) + "] = 0x" + std::to_string(data[i]));
         storage_[start + i] = data[i];
     }
 }

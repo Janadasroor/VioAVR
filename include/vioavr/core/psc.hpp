@@ -62,6 +62,7 @@ private:
     bool fault_active_ {false};
     bool last_fault_level_ {false};
     bool fault_pending_restart_ {false};
+    u64 cycle_accumulator_ {0};
     
     // Output States
     bool output_a_ {false};

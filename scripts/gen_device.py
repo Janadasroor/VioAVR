@@ -170,7 +170,7 @@ def generate_header(data, header_path):
 
     # 2. Group Peripherals
     groups = {
-        'USART': [], 'USART8X': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
+        'USART': [], 'USART8X': [], 'EUSART': [], 'TC8': [], 'TC8_ASYNC': [], 'TC16': [], 'ADC': [], 'AC': [],
         'WDT': [], 'WDT8X': [], 'EEPROM': [], 'SPI': [], 'SPI8X': [], 'TWI': [], 'TWI8X': [], 'EXINT': [], 'PCINT': [],
         'CAN': [], 'EXTERNAL_MEMORY': [], 'TC10': [], 'USB_DEVICE': [], 'PSC': [], 'DAC': [],
         'NVMCTRL': [], 'CPUINT': [], 'TCA': [], 'TCB': [], 'RTC': [], 'EVSYS': [], 'CCL': [], 'DMA': [], 'CRC': [], 'CRCSCAN': [],
@@ -227,6 +227,8 @@ def generate_header(data, header_path):
             groups['TC10'].append((p_name, p_data))
         elif 'PSC' in mod:
             groups['PSC'].append((p_name, p_data))
+        elif 'EUSART' in mod:
+            groups['EUSART'].append((p_name, p_data))
         elif 'DAC' in mod:
             groups['DAC'].append((p_name, p_data))
         elif 'DMA' in mod:
@@ -597,27 +599,29 @@ def generate_header(data, header_path):
             .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
             .ec_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
             .capt_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_CAPT' in (i.get('name') or '').upper()), 11)}U,
-            .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'PCLKSEL'))},
-            .ec_flag_mask = {hx(get_bit(r('PIFR.*'), '^PEOP.*') or get_bit(r('PIFR.*'), 'PEV.*'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), '^PCAP.*') or get_bit(r('PIFR.*'), 'PEV.*A'))},
+            .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'PCLKSEL'))}, .ppre_mask = {hx(get_bit(r('PCTL.*'), 'PPRE'))},
+            .ec_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEOP'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEV'))},
             .pr_address = {get_pr_info(data, f'PRPSC{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRPSC{idx}')[1]}
+        }}"""
+
+    def gen_eusart(p_name, p_data):
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        txd_addr, txd_bit = get_pad_info(port_map, p_data, 'TXD', 'PORT')
+        rxd_addr, rxd_bit = get_pad_info(port_map, p_data, 'RXD', 'PIN')
+        return f"""{{
+            .eudr_address = {hx(r('EUDR')['offset'])}, .eucsra_address = {hx(r('EUCSRA')['offset'])}, .eucsrb_address = {hx(r('EUCSRB')['offset'])}, .eucsrc_address = {hx(r('EUCSRC')['offset'])}, .mubrrl_address = {hx(r('MUBRRL')['offset'])}, .mubrrh_address = {hx(r('MUBRRH')['offset'])},
+            .emch_mask = {hx(get_bit(r('EUCSRB'), 'EMCH'))}, .f1617_mask = {hx(get_bit(r('EUCSRC'), 'F1617'))}, .utxs_mask = {hx(get_bit(r('EUCSRA'), 'UTxS'))}, .urxs_mask = {hx(get_bit(r('EUCSRA'), 'URxS'))},
+            .txd_pin_address = {txd_addr}, .txd_pin_bit = {txd_bit}U, .rxd_pin_address = {rxd_addr}, .rxd_pin_bit = {rxd_bit}U,
+            .pr_address = {get_pr_info(data, 'PREUSART')[0]}, .pr_bit = {get_pr_info(data, 'PREUSART')[1]}
         }}"""
 
     def gen_dac(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
-        b = lambda n, b_re: get_bit(r(n), b_re)
-        
-        # Check for 16-bit 'DAC' register or split 'DACL'/'DACH'
-        dac_reg = r('DAC')
-        if dac_reg['offset']:
-            dacl_addr = dac_reg['offset']
-            dach_addr = dacl_addr + 1
-        else:
-            dacl_addr = r('DACL')['offset']
-            dach_addr = r('DACH')['offset']
-
+        dac_addr, dac_bit = get_pad_info(port_map, p_data, 'DACOUT', 'PORT')
         return f"""{{
-            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(dacl_addr)}, .dach_address = {hx(dach_addr)},
-            .daen_mask = {hx(b('DACON', 'DAEN'))}, .daate_mask = {hx(b('DACON', 'DAATE'))}, .dats_mask = {hx(b('DACON', 'DATS'))}, .dacoe_mask = {hx(b('DACON', 'DAOE'))},
+            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(r('DACL')['offset'])}, .dach_address = {hx(r('DACH')['offset'])},
+            .daen_mask = {hx(get_bit(r('DACON'), 'DAEN'))}, .daate_mask = {hx(get_bit(r('DACON'), 'DAATE'))}, .dats_mask = {hx(get_bit(r('DACON'), 'DATS'))}, .dacoe_mask = {hx(get_bit(r('DACON'), 'DACOE'))},
+            .dac_pin_address = {dac_addr}, .dac_pin_bit = {dac_bit}U,
             .pr_address = {get_pr_info(data, 'PRDAC')[0]}, .pr_bit = {get_pr_info(data, 'PRDAC')[1]}
         }}"""
 
@@ -1544,7 +1548,10 @@ inline constexpr DeviceDescriptor {safe_name} {{
     .lcds = {{{{ {lcds_str} }}}},
 
     .psc_count = {len(groups['PSC'])}U,
-    .pscs = {{{{ {pscs_str} }}}},
+    .pscs = {{{{ {", ".join(gen_psc(n, d) for n, d in groups['PSC'])} }}}},
+
+    .eusart_count = {len(groups['EUSART'])}U,
+    .eusarts = {{{{ {", ".join(gen_eusart(n, d) for n, d in groups['EUSART'])} }}}},
 
     .dac_count = {len(groups['DAC'])}U,
     .dacs = {{{{ {dacs_str} }}}},

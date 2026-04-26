@@ -163,6 +163,10 @@ public:
     void set_flag(SregFlag flag_bit, bool value) noexcept;
     void push_pc(u32 address) noexcept;
     [[nodiscard]] u32 interrupt_vector_word_address(u8 vector_index) const noexcept;
+    void set_clk_ctrl(ClkCtrl* clk) noexcept { clk_ctrl_ = clk; }
+    void set_slp_ctrl(SlpCtrl* slp) noexcept { slp_ctrl_ = slp; }
+    void set_rst_ctrl(RstCtrl* rst) noexcept { rst_ctrl_ = rst; }
+    [[nodiscard]] u8 active_clock_domains() const noexcept;
 
     [[nodiscard]] constexpr u64 cycles() const noexcept
     {
@@ -192,7 +196,6 @@ private:
     void synchronize_if_needed();
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();
-    [[nodiscard]] u8 active_clock_domains() const noexcept;
 
 
     [[nodiscard]] constexpr bool flag(SregFlag flag_bit) const noexcept

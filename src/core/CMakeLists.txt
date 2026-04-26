@@ -52,6 +52,7 @@ target_sources(vioavr_core
         wdt8x.cpp
         crc8x.cpp
         usb.cpp
+        eusart.cpp
         pll.cpp
         xmem.cpp
         psc.cpp

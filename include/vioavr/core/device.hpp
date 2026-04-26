@@ -224,6 +224,45 @@ struct Uart8xDescriptor {
     u8 index {};
 };
 
+struct EusartDescriptor {
+    u16 eudr_address {};
+    u16 eucsra_address {};
+    u16 eucsrb_address {};
+    u16 eucsrc_address {};
+    u16 mubrrl_address {};
+    u16 mubrrh_address {};
+    
+    u8 emch_mask {0x02U}; // EUCSRB
+    u8 f1617_mask {0x04U}; // EUCSRC
+    u8 utxs_mask {0xF0U}; // EUCSRA
+    u8 urxs_mask {0x0FU}; // EUCSRA
+
+    u16 txd_pin_address {0U};
+    u8 txd_pin_bit {0xFFU};
+    u16 rxd_pin_address {0U};
+    u8 rxd_pin_bit {0xFFU};
+
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
+struct DacDescriptor {
+    u16 dacon_address {};
+    u16 dacl_address {};
+    u16 dach_address {};
+    
+    u8 daen_mask {0x01U};
+    u8 daate_mask {0x80U};
+    u8 dats_mask {0x70U};
+    u8 dacoe_mask {0x02U};
+
+    u16 dac_pin_address {0U};
+    u8 dac_pin_bit {0xFFU};
+
+    u16 pr_address {0U};
+    u8 pr_bit {0xFFU};
+};
+
 struct UartDescriptor {
     u16 udr_address {};
     u16 ucsra_address {};
@@ -719,6 +758,7 @@ struct PscDescriptor {
     u8 prun_mask {0x01U};
     u8 mode_mask {0x18U};
     u8 clksel_mask {0x02U};
+    u8 ppre_mask {0xC0U};
     u8 ec_flag_mask {0x01U};
     u8 capt_flag_mask {0x08U};
     
@@ -785,17 +825,6 @@ struct BodDescriptor {
     u8 vlm_vector_index {0U};
 };
 
-struct DacDescriptor {
-    u16 dacon_address {};
-    u16 dacl_address {};
-    u16 dach_address {};
-    u8 daen_mask {};
-    u8 daate_mask {};
-    u8 dats_mask {};
-    u8 dacoe_mask {};
-    u16 pr_address {0U};
-    u8 pr_bit {0xFFU};
-};
 
 struct Timer16Descriptor {
     u16 tcnt_address {};
@@ -1073,10 +1102,13 @@ struct DeviceDescriptor {
     u8 lcd_count {0U};
     std::array<LcdDescriptor, 1> lcds {};
 
-    u8 psc_count {0U};
+    u8 psc_count {};
     std::array<PscDescriptor, 3> pscs {};
 
-    u8 dac_count {0U};
+    u8 eusart_count {};
+    std::array<EusartDescriptor, 1> eusarts {};
+
+    u8 dac_count {};
     std::array<DacDescriptor, 1> dacs {};
 
     u8 dma_count {0U};
