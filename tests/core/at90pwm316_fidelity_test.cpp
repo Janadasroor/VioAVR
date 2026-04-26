@@ -319,3 +319,62 @@ TEST_CASE("AT90PWM316 - PSC PAOC Fault Bypass") {
     state = bus.pin_mux()->get_state_by_address(0x2B, 1);
     CHECK(state.drive_level == true);
 }
+
+TEST_CASE("AT90PWM316 - PSC Blanking Window") {
+    auto* device_ptr = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device_ptr != nullptr);
+    auto psc_desc = device_ptr->pscs[0];
+    psc_desc.blanking_duration = 10; // 10 cycles of blanking
+
+    DeviceDescriptor custom_device = *device_ptr;
+    custom_device.pscs[0] = psc_desc;
+
+    auto machine = std::make_unique<Machine>(custom_device);
+    REQUIRE(machine != nullptr);
+
+    auto& bus = machine->bus();
+    bus.pin_mux()->register_port(0x23, 0); // Port B
+    bus.pin_mux()->register_port(0x29, 2); // Port D
+
+    u16 pctl0 = 0xDB;
+    u16 ocrsa0 = 0xD2;
+    u16 ocrra0 = 0xD4;
+    u16 psoc0 = 0xD0;
+
+    // Configure PWM: SA=0, RA=50
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 0);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 50);
+    bus.write_data(psoc0, 0x01); // Enable OutA
+    
+    // Set Mode: Fault on Level (Mode 6)
+    bus.write_data(0xDC, 0x06); // PFRC0A = 6
+    
+    // 1. Enable PSC and tick to start
+    bus.write_data(pctl0, 0x03); // PRUN=1, CLKSEL=1
+    bus.tick_peripherals(1);
+    
+    // Output should be HIGH
+    auto state = bus.pin_mux()->get_state_by_address(0x2B, 1);
+    CHECK(state.drive_level == true);
+
+    // 2. Inject fault during blanking (Switching event just happened at start)
+    for (auto* p : bus.peripherals()) {
+        if (auto* psc = dynamic_cast<Psc*>(p)) {
+            if (psc->name() == "PSC0" || psc->name() == "PSC") {
+                psc->notify_fault(false, 0); // Trigger fault
+            }
+        }
+    }
+    
+    // Tick 5 cycles (Inside blanking window)
+    bus.tick_peripherals(5);
+    state = bus.pin_mux()->get_state_by_address(0x2B, 1);
+    // Should STILL be HIGH because of blanking
+    CHECK(state.drive_level == true);
+
+    // 3. Wait for blanking to expire
+    bus.tick_peripherals(6); // Total 11 cycles since switching
+    state = bus.pin_mux()->get_state_by_address(0x2B, 1);
+    // Should now be LOW because fault is accepted
+    CHECK(state.drive_level == false);
+}
