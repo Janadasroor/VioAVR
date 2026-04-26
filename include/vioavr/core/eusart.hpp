@@ -55,6 +55,9 @@ private:
     u32 rx_shift_reg_ {0};
     u64 rx_cycles_to_sample_ {0};
     bool rx_last_pin_level_ {true};
+    bool rx_half_bit_ {false};
+    bool rx_waiting_for_start_ {false};
+    bool rx_temp_sampled_ {false};
     u8 rx_temp_ {0};
     u8 tx_temp_ {0};
 

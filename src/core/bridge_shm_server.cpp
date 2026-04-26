@@ -231,7 +231,7 @@ void BridgeShmServer::update_state_to_shm() {
     shm_->telemetry.current_instruction_word = avr_.bus().read_program_word(cp.program_counter());
     
     // Update Flags
-    shm_->telemetry.flags = (cp.state() == AvrCpu::State::halted) ? TELEMETRY_FLAG_BREAKPOINT : 0;
+    shm_->telemetry.flags = (cp.state() == CpuState::halted) ? TELEMETRY_FLAG_BREAKPOINT : 0;
     if (avr_.bus().analysis_freeze_requested()) {
         shm_->telemetry.flags |= TELEMETRY_FLAG_ANALYSIS_FREEZE;
         avr_.bus().clear_analysis_freeze_request();

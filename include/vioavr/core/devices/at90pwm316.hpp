@@ -273,7 +273,7 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .outd_pin_address = 0x0U, .outd_pin_bit = 0U,
             .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U, .ppre_mask = 0xC0U,
             .ec_flag_mask = 0x1U, .capt_flag_mask = 0x6U,
-            .pccyc_mask = 0x2U, .paoca_mask = 0x8U, .paocb_mask = 0x10U,
+            .pccyc_mask = 0x2U, .paoca_mask = 0x8U, .paocb_mask = 0x10U, .pbfm_mask = 0x20U,
             .pr_address = 0, .pr_bit = 255
         }, {
             .pctl_address = 0xEBU, .psoc_address = 0xE0U, .pconf_address = 0xEAU, .pim_address = 0xA3U, .pifr_address = 0xA2U, .picr_address = 0xEEU,
@@ -289,7 +289,7 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .outd_pin_address = 0x0U, .outd_pin_bit = 0U,
             .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U, .ppre_mask = 0xC0U,
             .ec_flag_mask = 0x1U, .capt_flag_mask = 0x0U,
-            .pccyc_mask = 0x2U, .paoca_mask = 0x8U, .paocb_mask = 0x10U,
+            .pccyc_mask = 0x2U, .paoca_mask = 0x8U, .paocb_mask = 0x10U, .pbfm_mask = 0x20U,
             .pr_address = 0, .pr_bit = 255
         }, {
             .pctl_address = 0xFBU, .psoc_address = 0xF0U, .pconf_address = 0xFAU, .pim_address = 0xA5U, .pifr_address = 0xA4U, .picr_address = 0xFEU,
@@ -305,7 +305,7 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .outd_pin_address = 0x23U, .outd_pin_bit = 7U,
             .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U, .ppre_mask = 0xC0U,
             .ec_flag_mask = 0x1U, .capt_flag_mask = 0x0U,
-            .pccyc_mask = 0x2U, .paoca_mask = 0x8U, .paocb_mask = 0x10U,
+            .pccyc_mask = 0x2U, .paoca_mask = 0x8U, .paocb_mask = 0x10U, .pbfm_mask = 0x20U,
             .pr_address = 0, .pr_bit = 255
         } }},
 
