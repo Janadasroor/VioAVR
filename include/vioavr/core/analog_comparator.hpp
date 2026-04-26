@@ -27,6 +27,7 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] const AnalogComparatorDescriptor& descriptor() const noexcept { return desc_; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;

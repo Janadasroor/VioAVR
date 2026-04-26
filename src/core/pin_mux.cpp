@@ -102,10 +102,9 @@ void PinMux::update_analog_pin_by_address(u16 pin_address, u8 bit_index, PinOwne
     if (port_idx >= ports_.size() || bit_index >= 8) return;
 
     PinEntry& entry = ports_[port_idx][bit_index];
-    if (entry.state.owner == requester) {
-        entry.state.voltage = voltage;
-        if (callback_) callback_(port_idx, bit_index, entry.state);
-    }
+    entry.state.voltage = voltage;
+    if (port_idx == 2 && bit_index == 1) { printf("DEBUG PIN PD1: voltage update to %f\n", voltage); fflush(stdout); }
+    if (callback_) callback_(port_idx, bit_index, entry.state);
 }
 
 void PinMux::update_pullup_suppressed(bool suppressed) noexcept
@@ -171,6 +170,7 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
     }
 
     entry.state.owner = highest_owner;
+    if (port_idx == 2 && bit_idx == 1) { printf("DEBUG PIN PD1: owner=%d level=%d claims=%08x drive_levels=%08x\n", (int)highest_owner, entry.state.drive_level, entry.active_claims, entry.drive_levels); fflush(stdout); }
     
     // Check if any owner wants Wired-AND
     bool is_wired_and = (entry.wired_and_mask & entry.active_claims) != 0;

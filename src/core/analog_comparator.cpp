@@ -80,6 +80,7 @@ void AnalogComparator::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.accon_address) {
         accon_ = value;
         update_pin_ownership();
+        evaluate_output();
     } else if (address == desc_.didr_address) {
         didr_ = value;
         update_pin_ownership();
@@ -149,24 +150,27 @@ void AnalogComparator::refresh_bound_inputs() noexcept {
         if (signal_bank_) {
             positive_input_ = signal_bank_->voltage(positive_channel_);
             negative_input_ = signal_bank_->voltage(negative_channel_);
+        } else if (pin_mux_) {
+            positive_input_ = pin_mux_->get_state_by_address(desc_.aip_pin_address, desc_.aip_pin_bit).voltage;
+            negative_input_ = pin_mux_->get_state_by_address(desc_.aim_pin_address, desc_.aim_pin_bit).voltage;
         }
         return;
     }
 
     // AT90PWM Complex Muxing logic
-    const u8 mux = accon_ & 0x07U;
+    const u8 mux = (accon_ & desc_.acm_mask) >> (__builtin_ctz(desc_.acm_mask));
     const double bandgap = 0.22; // 1.1V / 5.0V
     
     // Resolve Positive Input
     switch(mux) {
         case 3: positive_input_ = bandgap; break;
         case 4: if (dac_) positive_input_ = dac_->voltage(); break;
-        case 6: // ADC Mux output (Positive)
-            // Note: Adc class needs a getter for current mux voltage
-            // For now, positive_input_ remains unchanged or uses a pin
-            break;
-        default: // 0, 1, 2, 5
-            if (signal_bank_) positive_input_ = signal_bank_->voltage(positive_channel_);
+        default: // 0, 1, 2, 5, 6, 7 (Note: Case 6/ADC Mux handled by external binding)
+            if (signal_bank_) {
+                positive_input_ = signal_bank_->voltage(positive_channel_);
+            } else if (pin_mux_) {
+                positive_input_ = pin_mux_->get_state_by_address(desc_.aip_pin_address, desc_.aip_pin_bit).voltage;
+            }
             break;
     }
 
@@ -175,10 +179,12 @@ void AnalogComparator::refresh_bound_inputs() noexcept {
         case 0: if (signal_bank_) negative_input_ = signal_bank_->voltage(negative_channel_); break;
         case 1: negative_input_ = bandgap; break;
         case 2: if (dac_) negative_input_ = dac_->voltage(); break;
-        case 5: // ADC Mux output (Negative)
-            break;
-        default: // 3, 4, 6
-            if (signal_bank_) negative_input_ = signal_bank_->voltage(negative_channel_);
+        default: // 3, 4, 5, 6, 7
+            if (signal_bank_) {
+                negative_input_ = signal_bank_->voltage(negative_channel_);
+            } else if (pin_mux_) {
+                negative_input_ = pin_mux_->get_state_by_address(desc_.aim_pin_address, desc_.aim_pin_bit).voltage;
+            }
             break;
     }
 }
@@ -191,11 +197,20 @@ void AnalogComparator::evaluate_output() noexcept {
 
     const bool was_high = output_high_;
     const double diff = positive_input_ - negative_input_;
+    
+    // Dynamic Hysteresis based on ACHYST
+    double h = hysteresis_;
+    if (desc_.achyst_mask) {
+        u8 h_bits = (accon_ & desc_.achyst_mask) >> (__builtin_ctz(desc_.achyst_mask));
+        if (h_bits == 1) h = 0.004; // ~20mV @ 5V
+        else if (h_bits == 2) h = 0.01; // ~50mV @ 5V
+        else h = 0.0;
+    }
 
     if (output_high_) {
-        if (diff < -hysteresis_) output_high_ = false;
+        if (diff < -h) output_high_ = false;
     } else {
-        if (diff > hysteresis_) output_high_ = true;
+        if (diff > h) output_high_ = true;
     }
 
     if (was_high != output_high_) {
@@ -235,8 +250,19 @@ u8 AnalogComparator::interrupt_mode() const noexcept {
 }
 
 bool AnalogComparator::is_disabled() const noexcept {
-    if (acsr_ & desc_.acd_mask) return true;
-    if (desc_.accon_address && (accon_ & desc_.acd_mask)) return true;
+    // ACD is active-high for "Disable" (1 = disabled)
+    if (desc_.acd_mask) {
+        if (acsr_ & desc_.acd_mask) return true;
+        if (desc_.accon_address && (accon_ & desc_.acd_mask)) return true;
+    }
+    // ACEN is active-high for "Enable" (1 = enabled)
+    if (desc_.acen_mask) {
+        if (desc_.accon_address) {
+            if (!(accon_ & desc_.acen_mask)) return true;
+        } else {
+            if (!(acsr_ & desc_.acen_mask)) return true;
+        }
+    }
     return false;
 }
 

@@ -133,13 +133,16 @@ struct AnalogComparatorDescriptor {
     u8 aim_pin_bit {};
     
     // Status/Control masks (can be in ACSR or ACCON)
-    u8 acd_mask {0x80U};  // Disable bit
+    u8 acd_mask {0x80U};  // Disable bit (1=disabled)
+    u8 acen_mask {0x00U}; // Enable bit (1=enabled)
     u8 acbg_mask {0x40U}; // Bandgap select
     u8 aco_mask {0x20U};  // Output bit
     u8 acif_mask {0x10U}; // Flag bit
     u8 acie_mask {0x08U}; // Enable interrupt bit
     u8 acic_mask {0x04U}; // Input capture bit
     u8 acis_mask {0x03U}; // Mode select bits
+    u8 acm_mask {0x00U};  // Multiplexer select bits
+    u8 achyst_mask {0x00U}; // Hysteresis select bits
 };
 
 struct Timer8Descriptor {

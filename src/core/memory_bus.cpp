@@ -89,6 +89,7 @@ void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
         snprintf(buf, sizeof(buf), "[0x%04X, 0x%04X]", range.begin, range.end);
         Logger::debug("Mapping peripheral '" + std::string(peripheral.name()) + "' to range " + buf);
         for (u32 addr = range.begin; addr <= range.end && addr < dispatch_table_.size(); ++addr) {
+            printf("DEBUG MAPPING: 0x%04x -> %s\n", addr, peripheral.name().data()); fflush(stdout);
             dispatch_table_[addr] = &peripheral;
         }
     }
