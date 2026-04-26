@@ -157,7 +157,14 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
     // High-Resolution clocking (PLL 64MHz vs I/O 16MHz)
     u64 effective_cycles = elapsed_cycles;
     if (pconf_ & desc_.clksel_mask) {
-        effective_cycles *= 4;
+        bool pll_locked = true;
+        if (bus_ && desc_.pllcsr_address != 0) {
+            u8 pllcsr = bus_->read_data(desc_.pllcsr_address);
+            pll_locked = (pllcsr & 0x01); // PLOCK
+        }
+        if (pll_locked) {
+            effective_cycles *= 4;
+        }
     }
 
     u8 ppre = (pctl_ & desc_.ppre_mask) >> 6;
