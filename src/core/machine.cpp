@@ -351,7 +351,7 @@ void Machine::initialize_peripherals()
 
     // 6. PSC
     for (u8 i = 0; i < device_.psc_count; ++i) {
-        auto psc = std::make_unique<Psc>("PSC", device_.pscs[i]);
+        auto psc = std::make_unique<Psc>("PSC", device_.pscs[i], pin_mux_.get());
         bus_->attach_peripheral(*psc);
         owned_peripherals_.push_back(std::move(psc));
     }
@@ -409,6 +409,7 @@ void Machine::initialize_peripherals()
 
     // 9. LCD Controller
     for (u8 i = 0; i < device_.lcd_count; ++i) {
+        Logger::debug("Machine init LCD " + std::to_string(i) + " SEG0 port: 0x" + Logger::hex(device_.lcds[i].segment_pins[0].port_address));
         auto lcd = std::make_unique<LcdController>("LCD", device_.lcds[i], *pin_mux_);
         bus_->attach_peripheral(*lcd);
         owned_peripherals_.push_back(std::move(lcd));

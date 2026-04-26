@@ -36,7 +36,6 @@ export class SchematicEditor {
   }
 
   init() {
-    this._buildLibraryPanel();
     this._setupToolbar();
     this._setupCanvasEvents();
     this._setupKeyboard();
@@ -60,205 +59,7 @@ export class SchematicEditor {
     const data = localStorage.getItem('viospice_schematic_state');
     if (data) {
       this.deserialize(data);
-    } else {
-      this.loadDemo();
     }
-  }
-
-  // ─── Load Preset ──────────────────────────────────────────────────────────
-
-  loadDemo(demoType = 'automotive') {
-    this.canvas.innerHTML = '';
-    this.history = new HistoryManager();
-    this.history.onChange = () => this._autoSave();
-
-    if (demoType === 'automotive') {
-        this._loadAutomotiveDemo();
-    } else if (demoType === 'power') {
-        this._loadPowerDemo();
-    }
-
-    // AUTO-WIRE THE DEMO
-    this.autoWireDemo();
-
-    this.viewport.zoomFit(this.canvas.querySelectorAll('.schematic-node'));
-    this.shell.showToast(`${demoType.toUpperCase()} Cluster Auto-Wired!`, 'success');
-  }
-
-  _loadAutomotiveDemo() {
-    const mcu = getComponent('atmega6490p') || getComponent('mcu');
-    const speedometer = getComponent('lcd_glass');
-    const tripComputer = getComponent('glcd_128x64');
-    const coolingFan = getComponent('motor_dc');
-    const gaugeStepper = getComponent('motor_stepper');
-    const infotainment = getComponent('keypad_4x4');
-    const analyzer = getComponent('logic_analyzer');
-
-    this._placeComponent(mcu, 400, 300);
-    this._placeComponent(speedometer, 50, 50);
-    this._placeComponent(tripComputer, 350, 50);
-    this._placeComponent(gaugeStepper, 700, 50);
-    this._placeComponent(infotainment, 50, 350);
-    this._placeComponent(coolingFan, 750, 350);
-    this._placeComponent(analyzer, 400, 600);
-  }
-
-  _loadPowerDemo() {
-    const mcu = getComponent('at90pwm316') || getComponent('mcu');
-    const dacMon = getComponent('dac_monitor');
-    const terminal = getComponent('eusart_terminal');
-    const analyzer = getComponent('logic_analyzer');
-
-    this._placeComponent(mcu, 400, 300);
-    this._placeComponent(dacMon, 750, 100);
-    this._placeComponent(terminal, 750, 400);
-    this._placeComponent(analyzer, 100, 500);
-  }
-
-  autoWireDemo() {
-    const nodes = Array.from(this.canvas.querySelectorAll('.schematic-node'));
-    const getNodesByType = (type) => nodes.filter(n => n.dataset.type === type);
-    
-    // MCU Identification
-    const mcu = nodes.find(n => n.dataset.category === 'MCU');
-    if (!mcu) return;
-    const mcuId = mcu.dataset.id;
-    const isPWM316 = mcu.dataset.type === 'at90pwm316';
-
-    if (isPWM316) {
-        // --- Power Demo Wiring ---
-        const dacMon = getNodesByType('dac_monitor')[0];
-        if (dacMon) {
-            // AT90PWM316 DAC is on PB7 (Pin 7 in VioAVR internal indexing for PORTB is P7? No, PORTB starts at 0)
-            // In our simple Px notation: PB7 is P7
-            this._createWire(mcuId, 'PB7', dacMon.dataset.id, 'IN');
-        }
-
-        const terminal = getNodesByType('eusart_terminal')[0];
-        if (terminal) {
-            // TX=PD1, RX=PD0
-            this._createWire(mcuId, 'PD1', terminal.dataset.id, 'RX');
-            this._createWire(mcuId, 'PD0', terminal.dataset.id, 'TX');
-        }
-
-        const analyzer = getNodesByType('logic_analyzer')[0];
-        if (analyzer) {
-            // Wire PSC outputs (Usually on PORTB/D)
-            this._createWire(mcuId, 'PB0', analyzer.dataset.id, 'CH0');
-            this._createWire(mcuId, 'PB1', analyzer.dataset.id, 'CH1');
-        }
-    } else {
-        // --- Automotive Demo Wiring (Default) ---
-        // 1. Wire Logic Analyzer to PORTA (Pins 0-7)
-        const analyzer = getNodesByType('logic_analyzer')[0];
-        if (analyzer) {
-            for (let i = 0; i < 8; i++) {
-                this._createWire(mcuId, `PA${i}`, analyzer.dataset.id, `CH${i}`);
-            }
-        }
-
-        // 2. Wire DC Motor to Pin 16 (PORTC.0)
-        const dcMotor = getNodesByType('motor_dc')[0];
-        if (dcMotor) {
-            this._createWire(mcuId, 'PC0', dcMotor.dataset.id, '+');
-        }
-
-        // 3. Wire Stepper to Pins 18-21 (PORTD.2-5)
-        const stepper = getNodesByType('motor_stepper')[0];
-        if (stepper) {
-            this._createWire(mcuId, 'PD2', stepper.dataset.id, 'A+');
-            this._createWire(mcuId, 'PD3', stepper.dataset.id, 'A-');
-            this._createWire(mcuId, 'PD4', stepper.dataset.id, 'B+');
-            this._createWire(mcuId, 'PD5', stepper.dataset.id, 'B-');
-        }
-
-        // 4. Wire LCD Segments (Exhaustive)
-        const glass = getNodesByType('lcd_glass')[0];
-        if (glass) {
-            for (let i = 0; i < 8; i++) {
-                this._createWire(mcuId, `P${30+i}`, glass.dataset.id, `SEG${i}`);
-            }
-        }
-    }
-  }
-
-  _createWire(fromNodeId, fromPinId, toNodeId, toPinId) {
-    // This is a helper to programmatically create a wire in the model
-    const wire = {
-      id: `wire-${Date.now()}-${Math.random()}`,
-      from: { nodeId: fromNodeId, pinId: fromPinId },
-      to: { nodeId: toNodeId, pinId: toPinId },
-      segments: [] // Let the router handle it
-    };
-    this.shell.project.activeSchematic.wires.push(wire);
-    this.render(); // Full re-render to show new wires
-  }
-
-  // ─── Library Panel ────────────────────────────────────────────────────────
-
-  _buildLibraryPanel() {
-    const list = document.querySelector('.chip-list');
-    if (!list) return;
-    list.innerHTML = '';
-
-    const grouped = {};
-    getAllComponents().forEach(comp => {
-      if (!grouped[comp.category]) grouped[comp.category] = [];
-      grouped[comp.category].push(comp);
-    });
-
-    Object.entries(grouped).forEach(([category, comps]) => {
-      const header = document.createElement('div');
-      header.className = 'library-category';
-      header.textContent = category;
-      list.appendChild(header);
-
-      comps.forEach(comp => {
-        const item = document.createElement('div');
-        item.className = 'chip-item';
-        item.draggable = true;
-        item.dataset.type = comp.type;
-        item.innerHTML = `
-          <div class="chip-icon" style="--chip-color: ${comp.color}">
-            <span>${comp.label.substring(0, 3).toUpperCase()}</span>
-          </div>
-          <div class="chip-info">
-            <span class="chip-name">${comp.label}</span>
-            <span class="chip-pins">${comp.pins.length} pins</span>
-          </div>`;
-
-        item.addEventListener('dragstart', e => e.dataTransfer.setData('type', comp.type));
-        list.appendChild(item);
-      });
-    });
-
-    // Search logic
-    const searchInput = document.getElementById('library-search');
-    searchInput?.addEventListener('input', e => {
-      const query = e.target.value.toLowerCase();
-      const items = list.querySelectorAll('.chip-item');
-      const categories = list.querySelectorAll('.library-category');
-      
-      items.forEach(item => {
-        const name = item.querySelector('.chip-name').textContent.toLowerCase();
-        const matches = name.includes(query);
-        item.style.display = matches ? 'flex' : 'none';
-      });
-
-      // Hide category headers if they have no visible items
-      categories.forEach(cat => {
-        let hasVisible = false;
-        let next = cat.nextElementSibling;
-        while (next && !next.classList.contains('library-category')) {
-          if (next.style.display !== 'none') {
-            hasVisible = true;
-            break;
-          }
-          next = next.nextElementSibling;
-        }
-        cat.style.display = hasVisible ? 'block' : 'none';
-      });
-    });
   }
 
   // ─── Component Placement ─────────────────────────────────────────────────
@@ -276,6 +77,47 @@ export class SchematicEditor {
       },
       this.canvas, x, y, compDef.type, compDef.label, compDef.pins
     ));
+  }
+
+  swapComponent(nodeId, newType) {
+    const schematic = this.shell.project.activeSchematic;
+    const node = schematic.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    const newDef = getComponent(newType);
+    if (!newDef) return;
+
+    // Preserve old coordinates
+    const oldX = node.x;
+    const oldY = node.y;
+
+    // Track wires
+    const wiresToRemap = schematic.wires.filter(w => w.from.nodeId === nodeId || w.to.nodeId === nodeId);
+
+    // Update node
+    node.type = newType;
+    node.label = newDef.label;
+    node.category = newDef.category;
+    node.properties = (newDef.properties || []).map(p => ({ ...p, value: p.default }));
+
+    // Smart Remapping
+    const newPins = newDef.pins || [];
+    wiresToRemap.forEach(wire => {
+        const isFrom = wire.from.nodeId === nodeId;
+        const oldPinId = isFrom ? wire.from.pinId : wire.to.pinId;
+        
+        // Match by exact ID or Label
+        const match = newPins.find(p => p.id === oldPinId || p.label === oldPinId);
+        if (match) {
+            if (isFrom) wire.from.pinId = match.id;
+            else wire.to.pinId = match.id;
+        } else {
+            this.shell.showToast(`Warning: Pin ${oldPinId} unmapped in ${newDef.label}`, 'warning');
+        }
+    });
+
+    this.render();
+    this.shell.showToast(`Swapped to ${newDef.label}`, 'success');
   }
 
   _createChipWithEvents(parent, x, y, type, name, pins) {
@@ -323,6 +165,17 @@ export class SchematicEditor {
       currentY = parseInt(g.dataset.y) || currentY;
     });
     observer.observe(g, { attributes: true, attributeFilter: ['data-x', 'data-y'] });
+    
+    g.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.shell.showContextMenu(e.clientX, e.clientY, [
+        { label: 'Hot-Swap to AT90PWM316', action: () => this.swapComponent(g.dataset.id, 'at90pwm316') },
+        { label: 'Hot-Swap to ATmega6490P', action: () => this.swapComponent(g.dataset.id, 'atmega6490p') },
+        { label: 'Properties', action: () => window.__vio.dialogs?.properties?.open(g) },
+        { label: 'Delete', action: () => this._deleteComponent(g) }
+      ]);
+    });
 
     return g;
   }

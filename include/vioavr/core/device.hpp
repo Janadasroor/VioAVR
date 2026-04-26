@@ -233,6 +233,8 @@ struct EusartDescriptor {
     u16 mubrrh_address {};
     
     u8 emch_mask {0x02U}; // EUCSRB
+    u8 eus_en_mask {0x10U}; // EUCSRB
+    u8 bodr_mask {0x01U}; // EUCSRB
     u8 f1617_mask {0x04U}; // EUCSRC
     u8 utxs_mask {0xF0U}; // EUCSRA
     u8 urxs_mask {0x0FU}; // EUCSRA
@@ -754,6 +756,15 @@ struct PscDescriptor {
     u8 gen_vector_index {};
     u8 ec_vector_index {};
     u8 capt_vector_index {};
+
+    u16 outa_pin_address {};
+    u8 outa_pin_bit {};
+    u16 outb_pin_address {};
+    u8 outb_pin_bit {};
+    u16 outc_pin_address {}; // For PSC2
+    u8 outc_pin_bit {};
+    u16 outd_pin_address {}; // For PSC2
+    u8 outd_pin_bit {};
 
     u8 prun_mask {0x01U};
     u8 mode_mask {0x18U};

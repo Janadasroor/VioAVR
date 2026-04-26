@@ -99,3 +99,45 @@ TEST_CASE("AT90PWM316 - EUSART Timing") {
     // Check EOT is now set
     CHECK((bus.read_data(eucsra) & 0x80) != 0);
 }
+
+TEST_CASE("AT90PWM316 - EUSART Manchester Encoding") {
+    auto machine = std::make_unique<Machine>(devices::at90pwm316);
+    auto& bus = machine->bus();
+    
+    const u16 eucsra = 0xC8;
+    const u16 eucsrb = 0xC9;
+    const u16 eudr = 0xCE;
+    const u16 mubrrl = 0xCC;
+    
+    // Enable EUSART, Manchester mode, LSB first
+    // EUSART (bit 4) = 1, EMCH (bit 1) = 1 -> 0x12
+    bus.write_data(eucsrb, 0x12);
+    // MUBRR = 0 -> 16 cycles per bit (8 cycles per half)
+    bus.write_data(mubrrl, 0);
+    
+    // Write 0x01 (LSB is 1)
+    bus.write_data(eudr, 0x01);
+    
+    // Tick 4 cycles
+    bus.tick_peripherals(4);
+    
+    // Check TXD pin (PD1 for AT90PWM316 EUSART)
+    // For '1', first half should be LOW (0), second half HIGH (1)
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 1); // PIND1
+    CHECK(state.drive_level == false);
+    
+    // Tick another 8 cycles (total 12, now in second half of first bit)
+    bus.tick_peripherals(8);
+    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    CHECK(state.drive_level == true);
+    
+    // Write 0x00 (all bits 0)
+    bus.write_data(eudr, 0x00);
+    bus.tick_peripherals(16); // Finish first byte
+    
+    // Now start 0x00 (LSB 0)
+    // For '0', first half should be HIGH (1), second half LOW (0)
+    bus.tick_peripherals(4);
+    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    CHECK(state.drive_level == true);
+}

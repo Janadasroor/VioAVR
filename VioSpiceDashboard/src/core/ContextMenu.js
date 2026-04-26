@@ -132,6 +132,17 @@ export class ContextMenu {
         });
         items.push({ type: 'divider' });
         items.push({ 
+            label: 'Hot-Swap: AT90PWM316', 
+            icon: '⚡', 
+            action: () => vio.editor.swapComponent(chipNode.dataset.id, 'at90pwm316') 
+        });
+        items.push({ 
+            label: 'Hot-Swap: ATmega6490P', 
+            icon: '📟', 
+            action: () => vio.editor.swapComponent(chipNode.dataset.id, 'atmega6490p') 
+        });
+        items.push({ type: 'divider' });
+        items.push({ 
             label: 'Delete', 
             icon: '🗑️', 
             shortcut: 'Del',

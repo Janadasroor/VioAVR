@@ -37,6 +37,18 @@ export function createChip(parent, x, y, type, name, pins) {
     renderLogicAnalyzer(g);
     bodyWidth = 260;
     bodyHeight = 180;
+  } else if (type === 'can_debugger') {
+    renderCanDebugger(g);
+    bodyWidth = 200;
+    bodyHeight = 240;
+  } else if (type === 'eusart_terminal') {
+    renderEusartTerminal(g);
+    bodyWidth = 240;
+    bodyHeight = 180;
+  } else if (type === 'dac_monitor') {
+    renderDacMonitor(g);
+    bodyWidth = 160;
+    bodyHeight = 120;
   } else if (type === 'seven_seg') {
     renderSevenSeg(g);
     bodyWidth = 80;
@@ -102,6 +114,18 @@ export function createChip(parent, x, y, type, name, pins) {
        const isLeft = p.side === 'left';
        px = isLeft ? 0 : 260;
        py = 30 + (i % 8) * 18;
+    } else if (type === 'can_debugger') {
+       const isLeft = p.side === 'left';
+       px = isLeft ? 0 : 200;
+       py = 40 + (i % 2) * 20;
+    } else if (type === 'eusart_terminal') {
+       const isLeft = p.side === 'left';
+       px = isLeft ? 0 : 240;
+       py = 40 + (i % 2) * 20;
+    } else if (type === 'dac_monitor') {
+       const isLeft = p.side === 'left';
+       px = isLeft ? 0 : 160;
+       py = 40 + (i % 2) * 20;
     } else if (type === 'seven_seg') {
        const isLeft = p.side === 'left';
        px = isLeft ? 0 : 80;
@@ -628,4 +652,112 @@ function renderLogicAnalyzer(g) {
   logo.setAttribute('text-anchor', 'end');
   logo.textContent = 'VioLOGIC Pro';
   g.appendChild(logo);
+}
+
+function renderCanDebugger(g) {
+  const bodyWidth = 200;
+  const bodyHeight = 240;
+  const body = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  body.setAttribute('width', bodyWidth.toString());
+  body.setAttribute('height', bodyHeight.toString());
+  body.setAttribute('fill', '#1a1a1a');
+  body.setAttribute('stroke', '#d13438');
+  body.setAttribute('stroke-width', '2');
+  g.appendChild(body);
+
+  const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  title.setAttribute('x', '10');
+  title.setAttribute('y', '20');
+  title.setAttribute('fill', '#fff');
+  title.setAttribute('font-size', '12px');
+  title.textContent = 'CAN Bus Monitor';
+  g.appendChild(title);
+}
+
+function renderEusartTerminal(g) {
+  const bodyWidth = 240;
+  const bodyHeight = 180;
+  
+  const body = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  body.setAttribute('width', bodyWidth.toString());
+  body.setAttribute('height', bodyHeight.toString());
+  body.setAttribute('fill', '#0c0c0c');
+  body.setAttribute('stroke', '#0078d4');
+  body.setAttribute('stroke-width', '2');
+  g.appendChild(body);
+
+  const header = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  header.setAttribute('width', bodyWidth.toString());
+  header.setAttribute('height', '24');
+  header.setAttribute('fill', '#0078d4');
+  g.appendChild(header);
+
+  const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  title.setAttribute('x', '10');
+  title.setAttribute('y', '16');
+  title.setAttribute('fill', '#fff');
+  title.setAttribute('font-size', '11px');
+  title.textContent = 'EUSART Terminal';
+  g.appendChild(title);
+
+  // Terminal Lines
+  for (let i = 0; i < 6; i++) {
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', '10');
+    txt.setAttribute('y', (45 + i * 18).toString());
+    txt.setAttribute('fill', '#00ff00');
+    txt.setAttribute('font-size', '10px');
+    txt.setAttribute('font-family', 'monospace');
+    txt.setAttribute('class', `terminal-line terminal-line-${i}`);
+    txt.textContent = i === 0 ? '> Initializing EUSART...' : '';
+    g.appendChild(txt);
+  }
+}
+
+function renderDacMonitor(g) {
+  const bodyWidth = 160;
+  const bodyHeight = 120;
+
+  const body = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  body.setAttribute('width', bodyWidth.toString());
+  body.setAttribute('height', bodyHeight.toString());
+  body.setAttribute('fill', '#1e1e1e');
+  body.setAttribute('stroke', '#107c10');
+  body.setAttribute('stroke-width', '2');
+  g.appendChild(body);
+
+  const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  title.setAttribute('x', '10');
+  title.setAttribute('y', '18');
+  title.setAttribute('fill', '#fff');
+  title.setAttribute('font-size', '10px');
+  title.textContent = 'DAC Output (V)';
+  g.appendChild(title);
+
+  // Waveform Area
+  const waveArea = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  waveArea.setAttribute('x', '10');
+  waveArea.setAttribute('y', '30');
+  waveArea.setAttribute('width', '140');
+  waveArea.setAttribute('height', '60');
+  waveArea.setAttribute('fill', '#000');
+  g.appendChild(waveArea);
+
+  const wave = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  wave.setAttribute('points', '10,60 30,50 50,70 70,40 90,60 110,50 130,80 150,60');
+  wave.setAttribute('fill', 'none');
+  wave.setAttribute('stroke', '#00ff00');
+  wave.setAttribute('stroke-width', '1');
+  wave.setAttribute('class', 'dac-wave');
+  g.appendChild(wave);
+
+  const value = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  value.setAttribute('x', '10');
+  value.setAttribute('y', '110');
+  value.setAttribute('fill', '#00ff00');
+  value.setAttribute('font-size', '14px');
+  value.setAttribute('font-weight', 'bold');
+  value.textContent = '2.50V';
+  value.setAttribute('class', 'dac-value');
+  g.appendChild(value);
 }

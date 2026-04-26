@@ -3,16 +3,61 @@
  * Manages top-level UI concerns: navigation, view transitions,
  * toast notifications, session timer, and breadcrumbs.
  */
+import { LibraryView } from '../views/LibraryView.js';
+import { LogicView } from '../views/LogicView.js';
+import { TerminalView } from '../views/TerminalView.js';
+import { ActuatorView } from '../views/ActuatorView.js';
+import { LogicPageView } from '../views/LogicPageView.js';
+import { AnalogScopeView } from '../views/AnalogScopeView.js';
+
 export class AppShell {
   constructor() {
     this.activeViewId = 'view-dashboard';
     this.startTime = Date.now();
+    
+    // Views
+    this.registers = new RegisterView();
+    this.pins = new PinGridView();
+    this.controls = new ControlView();
+    this.logic = new LogicView();
+    this.terminal = new TerminalView();
+    this.actuators = new ActuatorView();
+    this.library = new LibraryView();
+    this.logicPage = new LogicPageView();
+    this.analogPage = new AnalogScopeView();
   }
 
-  init() {
+  init(sim) {
     this._setupNavigation();
     this._setupSidebarAutoCollapse();
     this._startTimer();
+
+    // Initialize Views
+    this.registers.init();
+    this.pins.init();
+    this.library.init();
+    this.logicPage.init();
+    this.analogPage.init();
+
+    // Wire up SimController events
+    if (sim) {
+        sim.on('telemetry', (data) => {
+            this.registers.update(data);
+            this.pins.update(data);
+            this.logic.update(data.digital_outputs);
+            this.logicPage.update(data.digital_outputs);
+            this.terminal.update(data.eusart);
+            this.actuators.update(data);
+            this.analogPage.update(data.dac);
+        });
+        sim.on('stateChanged', ({ running }) => {
+            this.controls.updateState(running);
+        });
+        sim.on('connectionChanged', ({ connected }) => {
+            this.controls.updateConnection(connected);
+        });
+    }
+
     this.showToast('Simulator Environment Ready', 'success');
   }
 
@@ -63,6 +108,12 @@ export class AppShell {
         setTimeout(() => toast.remove(), 500);
       }, 3000);
     });
+  }
+
+  showContextMenu(x, y, items) {
+    if (window.__vio.contextMenu) {
+      window.__vio.contextMenu.show(x, y, items);
+    }
   }
 
   // ─── Event Bus (simple) ────────────────────────────────────────────────────

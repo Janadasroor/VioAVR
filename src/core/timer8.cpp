@@ -158,16 +158,19 @@ void Timer8::tick_async(const u64 elapsed_ticks) noexcept
     }
 }
 
-void Timer8::on_pin_change(u16 address, u8 bit, bool level) noexcept
+bool Timer8::on_external_pin_change(u16 address, u8 bit, PinLevel level) noexcept
 {
     if (address == desc_.tosc1_pin_address && bit == desc_.tosc1_pin_bit) {
         if (async_mode_enabled()) {
-            if (last_tosc1_state_ == 0 && level) { // Rising edge
+            bool high = (level == PinLevel::high);
+            if (last_tosc1_state_ == 0 && high) { // Rising edge
                 tick_async(1);
             }
-            last_tosc1_state_ = level ? 1 : 0;
+            last_tosc1_state_ = high ? 1 : 0;
+            return true;
         }
     }
+    return false;
 }
 
 u8 Timer8::read(const u16 address) noexcept

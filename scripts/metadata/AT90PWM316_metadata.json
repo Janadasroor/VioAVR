@@ -685,7 +685,10 @@
         }
       },
       "interrupts": {},
-      "signals": []
+      "signals": [
+        {"group": "TXD", "pad": "PD1", "index": "", "function": "EUSART"},
+        {"group": "RXD", "pad": "PD0", "index": "", "function": "EUSART"}
+      ]
     },
     "AC": {
       "module": "AC",
@@ -862,24 +865,33 @@
         }
       },
       "interrupts": {},
-      "signals": []
+      "signals": [
+        {"group": "AIN", "pad": "PB2", "index": "0", "function": "AC0"},
+        {"group": "AIN", "pad": "PB3", "index": "1", "function": "AC0"},
+        {"group": "AIN", "pad": "PD2", "index": "2", "function": "AC1"},
+        {"group": "AIN", "pad": "PD3", "index": "3", "function": "AC1"},
+        {"group": "AIN", "pad": "PB4", "index": "4", "function": "AC2"},
+        {"group": "AIN", "pad": "PB5", "index": "5", "function": "AC2"}
+      ]
     },
     "DAC": {
       "module": "DAC",
       "registers": {
-        "DAC": {
-          "caption": "DAC Data Register Bytes",
+        "DACL": {
+          "caption": "DAC Data Register Low Byte",
           "offset": 171,
-          "size": 2,
+          "size": 1,
           "initval": 0,
           "mask": 255,
-          "bitfields": {
-            "DAC": {
-              "mask": 65535,
-              "caption": "DAC Data Register Bits",
-              "values": {}
-            }
-          }
+          "bitfields": {}
+        },
+        "DACH": {
+          "caption": "DAC Data Register High Byte",
+          "offset": 172,
+          "size": 1,
+          "initval": 0,
+          "mask": 255,
+          "bitfields": {}
         },
         "DACON": {
           "caption": "DAC Control Register",
@@ -950,7 +962,9 @@
         }
       },
       "interrupts": {},
-      "signals": []
+      "signals": [
+        {"group": "DACOUT", "pad": "PB7", "index": "", "function": "DAC"}
+      ]
     },
     "CPU": {
       "module": "CPU",
@@ -2982,7 +2996,10 @@
         }
       },
       "interrupts": {},
-      "signals": []
+      "signals": [
+        {"group": "PSCOUT00", "pad": "PD2", "index": "", "function": "PSC0"},
+        {"group": "PSCOUT01", "pad": "PD3", "index": "", "function": "PSC0"}
+      ]
     },
     "PSC1": {
       "module": "PSC",
@@ -3288,7 +3305,10 @@
         }
       },
       "interrupts": {},
-      "signals": []
+      "signals": [
+        {"group": "PSCOUT10", "pad": "PD4", "index": "", "function": "PSC1"},
+        {"group": "PSCOUT11", "pad": "PD5", "index": "", "function": "PSC1"}
+      ]
     },
     "PSC2": {
       "module": "PSC",
@@ -3633,7 +3653,12 @@
         }
       },
       "interrupts": {},
-      "signals": []
+      "signals": [
+        {"group": "PSCOUT20", "pad": "PD6", "index": "", "function": "PSC2"},
+        {"group": "PSCOUT21", "pad": "PD7", "index": "", "function": "PSC2"},
+        {"group": "PSCOUT22", "pad": "PB6", "index": "", "function": "PSC2"},
+        {"group": "PSCOUT23", "pad": "PB7", "index": "", "function": "PSC2"}
+      ]
     },
     "FUSE": {
       "module": "FUSE",
