@@ -70,6 +70,7 @@ TEST_CASE("LCD Controller: Pin Arbitration") {
     desc.lcds[0].lcdcrb_address = 0xE5;
     desc.lcds[0].lcdfrr_address = 0xE6;
     desc.lcds[0].lcdccr_address = 0xE7;
+    desc.port_count = 2;
     
     // Setup some segment pins
     desc.lcds[0].segment_pins[0] = {0x100, 0}; // SEG0
@@ -82,6 +83,8 @@ TEST_CASE("LCD Controller: Pin Arbitration") {
     // Register the ports so PinMux knows them
     pin_mux.register_port(0x100, 0);
     pin_mux.register_port(0x200, 1);
+    
+    machine.reset();
 
     // Initially not claimed
     CHECK(pin_mux.get_state_by_address(0x100, 0).owner == PinOwner::gpio);

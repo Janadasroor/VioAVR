@@ -38,15 +38,16 @@ private:
     u64 cycles_to_next_bit_ {0};
     bool tx_active_ {false};
     u8 tx_bit_count_ {0};
-    u16 tx_shift_reg_ {0};
+    u32 tx_shift_reg_ {0}; // Increased to 32 bits for extended frames (up to 17 bits)
+    bool tx_half_bit_ {false}; // Current half of the Manchester bit
 
     u8 eucsrb_{};
     u8 eucsrc_{};
     u8 mubrrl_{};
     u8 mubrrh_{};
 
-    std::deque<u8> tx_queue_;
-    std::deque<u8> rx_queue_;
+    std::deque<u32> tx_queue_; // Extended frames
+    std::deque<u32> rx_queue_;
 
     bool power_reduction_enabled() const noexcept;
 };

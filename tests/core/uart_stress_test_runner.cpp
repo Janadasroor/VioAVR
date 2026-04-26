@@ -138,11 +138,11 @@ TEST_CASE("Modern USART (AVR8X) - Stress Test (Interrupt-driven Echo)") {
     
     bus.load_flash(flash);
     
+    machine.reset();
+
     // Park RX pin at High
     machine.pin_mux().register_port(0x408, 0); // PORTA
     machine.pin_mux().update_pin_by_address(0x408, 1, PinOwner::gpio, false, true, true);
-    
-    machine.reset();
     
     // Explicitly clear queue in case earlier cycles populated it
     auto uart_list = machine.peripherals_of_type<Uart8x>();

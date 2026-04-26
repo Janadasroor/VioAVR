@@ -215,7 +215,7 @@ public:
         if (port_idx >= 6) return;
         if (enabled) {
             pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::twi);
-            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::twi, true, level == PinLevel::high, true); // Wired-AND (Open drain)
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::twi, true, level == PinLevel::high, true, true); // Wired-AND (Open drain)
         } else {
             pin_mux_->release_pin(port_idx, pin_idx, PinOwner::twi);
         }
@@ -227,7 +227,7 @@ public:
         if (port_idx >= 6) return;
         if (enabled) {
             pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::twi);
-            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::twi, true, level == PinLevel::high, true); // Wired-AND
+            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::twi, true, level == PinLevel::high, true, true); // Wired-AND
         } else {
             pin_mux_->release_pin(port_idx, pin_idx, PinOwner::twi);
         }

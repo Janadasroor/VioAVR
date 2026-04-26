@@ -587,10 +587,18 @@ def generate_header(data, header_path):
             .udint_sofi_mask = {hx(b('UDINT', 'SOFI'))},
             .pr_address = {get_pr_info(data, 'PRUSB')[0]}, .pr_bit = {get_pr_info(data, 'PRUSB')[1]}
         }}"""
-    
+
     def gen_psc(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        
         idx = "".join(filter(str.isdigit, p_name)) or "0"
+        
+        # Determine output pins
+        outa_addr, outa_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}0', 'PORT')
+        outb_addr, outb_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}1', 'PORT')
+        outc_addr, outc_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}2', 'PORT')
+        outd_addr, outd_bit = get_pad_info(port_map, p_data, f'PSCOUT{idx}3', 'PORT')
+
         return f"""{{
             .pctl_address = {hx(r('PCTL.*')['offset'])}, .psoc_address = {hx(r('PSOC.*')['offset'])}, .pconf_address = {hx(r('PCNF.*')['offset'])}, .pim_address = {hx(r('PIM.*')['offset'])}, .pifr_address = {hx(r('PIFR.*')['offset'])}, .picr_address = {hx(r('PICR.*')['offset'])},
             .ocrsa_address = {hx(r('OCR.*SA')['offset'])}, .ocrra_address = {hx(r('OCR.*RA')['offset'])}, .ocrsb_address = {hx(r('OCR.*SB')['offset'])}, .ocrrb_address = {hx(r('OCR.*RB')['offset'])},
@@ -599,6 +607,10 @@ def generate_header(data, header_path):
             .gen_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
             .ec_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_EC' in (i.get('name') or '').upper()), 10)}U,
             .capt_vector_index = {next((i['index'] for i in data.get('interrupts', []) if f'PSC{idx}_CAPT' in (i.get('name') or '').upper()), 11)}U,
+            .outa_pin_address = {outa_addr}, .outa_pin_bit = {outa_bit}U,
+            .outb_pin_address = {outb_addr}, .outb_pin_bit = {outb_bit}U,
+            .outc_pin_address = {outc_addr}, .outc_pin_bit = {outc_bit}U,
+            .outd_pin_address = {outd_addr}, .outd_pin_bit = {outd_bit}U,
             .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'PCLKSEL'))}, .ppre_mask = {hx(get_bit(r('PCTL.*'), 'PPRE'))},
             .ec_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEOP'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEV'))},
             .pr_address = {get_pr_info(data, f'PRPSC{idx}')[0]}, .pr_bit = {get_pr_info(data, f'PRPSC{idx}')[1]}
@@ -610,17 +622,20 @@ def generate_header(data, header_path):
         rxd_addr, rxd_bit = get_pad_info(port_map, p_data, 'RXD', 'PIN')
         return f"""{{
             .eudr_address = {hx(r('EUDR')['offset'])}, .eucsra_address = {hx(r('EUCSRA')['offset'])}, .eucsrb_address = {hx(r('EUCSRB')['offset'])}, .eucsrc_address = {hx(r('EUCSRC')['offset'])}, .mubrrl_address = {hx(r('MUBRRL')['offset'])}, .mubrrh_address = {hx(r('MUBRRH')['offset'])},
-            .emch_mask = {hx(get_bit(r('EUCSRB'), 'EMCH'))}, .f1617_mask = {hx(get_bit(r('EUCSRC'), 'F1617'))}, .utxs_mask = {hx(get_bit(r('EUCSRA'), 'UTxS'))}, .urxs_mask = {hx(get_bit(r('EUCSRA'), 'URxS'))},
+            .emch_mask = {hx(get_bit(r('EUCSRB'), 'EMCH'))}, .eus_en_mask = {hx(get_bit(r('EUCSRB'), 'EUSART'))}, .bodr_mask = {hx(get_bit(r('EUCSRB'), 'BODR'))}, .f1617_mask = {hx(get_bit(r('EUCSRC'), 'F1617'))}, .utxs_mask = {hx(get_bit(r('EUCSRA'), 'UTxS'))}, .urxs_mask = {hx(get_bit(r('EUCSRA'), 'URxS'))},
             .txd_pin_address = {txd_addr}, .txd_pin_bit = {txd_bit}U, .rxd_pin_address = {rxd_addr}, .rxd_pin_bit = {rxd_bit}U,
             .pr_address = {get_pr_info(data, 'PREUSART')[0]}, .pr_bit = {get_pr_info(data, 'PREUSART')[1]}
         }}"""
 
     def gen_dac(p_name, p_data):
-        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0, 'size': 1}
         dac_addr, dac_bit = get_pad_info(port_map, p_data, 'DACOUT', 'PORT')
+        dacl = r('DACL') or r('DAC')
+        dach = r('DACH') or r('DAC')
+        dach_offset = dach['offset'] + (1 if dach == dacl and dach['size'] > 1 else 0)
         return f"""{{
-            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(r('DACL')['offset'])}, .dach_address = {hx(r('DACH')['offset'])},
-            .daen_mask = {hx(get_bit(r('DACON'), 'DAEN'))}, .daate_mask = {hx(get_bit(r('DACON'), 'DAATE'))}, .dats_mask = {hx(get_bit(r('DACON'), 'DATS'))}, .dacoe_mask = {hx(get_bit(r('DACON'), 'DACOE'))},
+            .dacon_address = {hx(r('DACON')['offset'])}, .dacl_address = {hx(dacl['offset'])}, .dach_address = {hx(dach_offset)},
+            .daen_mask = {hx(get_bit(r('DACON'), 'DAEN'))}, .daate_mask = {hx(get_bit(r('DACON'), 'DAATE'))}, .dats_mask = {hx(get_bit(r('DACON'), 'DATS'))}, .dacoe_mask = {hx(get_bit(r('DACON'), 'DAOE'))},
             .dac_pin_address = {dac_addr}, .dac_pin_bit = {dac_bit}U,
             .pr_address = {get_pr_info(data, 'PRDAC')[0]}, .pr_bit = {get_pr_info(data, 'PRDAC')[1]}
         }}"""

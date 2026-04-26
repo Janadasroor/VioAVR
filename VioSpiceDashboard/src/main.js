@@ -49,9 +49,9 @@ document.getElementById('btn-reset')?.addEventListener('click', () => {
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-shell.init();
+shell.init(sim);
 sim.init();
 editor.init();
 
 // ── Expose globally for debugging ────────────────────────────────────────────
-window.__vio = { shell, sim, editor };
+Object.assign(window.__vio, { shell, sim, editor, contextMenu, client });

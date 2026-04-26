@@ -24,7 +24,8 @@ enum class PinOwner : u8 {
     jtag = 9,
     ccl = 10,
     lcd = 11,
-    dac = 12
+    dac = 12,
+    psc = 13
 };
 
 /**
@@ -42,6 +43,7 @@ struct PinState {
     bool is_output {false};
     bool drive_level {false};
     bool pullup_enabled {false};
+    bool is_wired_and {false};
     double voltage {0.0}; // Normalized 0.0 to 1.0 (or absolute if needed)
 };
 
@@ -73,7 +75,7 @@ public:
      * @brief Updates the drive level/direction/pullup of a pin.
      * Only the current owner (or GPIO) can change the state.
      */
-    void update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_output, bool level, bool pullup = false) noexcept;
+    void update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_output, bool level, bool pullup = false, bool wired_and = false) noexcept;
 
     void update_pullup_suppressed(bool suppressed) noexcept;
 
@@ -103,6 +105,7 @@ private:
         u32 drive_levels {0}; // Bitmask of drive levels per owner
         u32 output_mask {0}; // Bitmask of who wants to be an output
         u32 pullup_mask {0}; // Bitmask of who wants pullup
+        u32 wired_and_mask {0}; // Bitmask of who wants wired-and
     };
 
     std::vector<std::vector<PinEntry>> ports_;

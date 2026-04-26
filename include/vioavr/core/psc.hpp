@@ -10,7 +10,7 @@ namespace vioavr::core {
 
 class Psc final : public IoPeripheral {
 public:
-    Psc(std::string_view name, const PscDescriptor& desc);
+    Psc(std::string_view name, const PscDescriptor& desc, class PinMux* pin_mux = nullptr);
     ~Psc() override = default;
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
@@ -57,6 +57,7 @@ private:
     u8 temp_ {0};
 
     class Adc* adc_trigger_ {nullptr};
+    class PinMux* pin_mux_ {nullptr};
 
     bool down_counting_ {false};
     bool fault_active_ {false};

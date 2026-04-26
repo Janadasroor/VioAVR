@@ -97,7 +97,7 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                     slave_phase_ = TwiSlavePhase::addr;
                     slave_bits_left_ = 8;
                     slave_shift_register_ = 0;
-                    sstatus_ |= (SSTATUS_APIF | SSTATUS_AP);
+                    sstatus_ |= SSTATUS_AP;
                     sstatus_ &= ~(SSTATUS_DIF | SSTATUS_CLKHOLD | SSTATUS_RXACK | SSTATUS_DIR | SSTATUS_COLL | SSTATUS_BUSERR);
                     Logger::debug("TWI8X Slave START");
                 }

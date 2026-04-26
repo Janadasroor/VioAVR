@@ -1,0 +1,208 @@
+[doctest] doctest version is "2.5.0"
+[doctest] run with "--help" for options
+[DEBUG] Attaching peripheral to memory bus: CPU Control
+[DEBUG] MemoryBus: peripherals size is now 1
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x005D, 0x005F]
+[DEBUG] Attaching peripheral to memory bus: Register File
+[DEBUG] MemoryBus: peripherals size is now 2
+[DEBUG] Mapping peripheral 'Register File' to range [0x0000, 0x001F]
+[INFO] Resetting AVR CPU
+[DEBUG] Machine init LCD 0 SEG0 port: 0x0
+[DEBUG] LCD Controller initialized. SEG0 port: 0x0
+[DEBUG] Attaching peripheral to memory bus: LCD
+[DEBUG] MemoryBus: peripherals size is now 3
+[DEBUG] Mapping peripheral 'LCD' to range [0x00E4, 0x00E7]
+[DEBUG] Mapping peripheral 'LCD' to range [0x00EC, 0x00FF]
+[DEBUG] LCD update_pin_ownership: enabled=1
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x0
+===============================================================================
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:9:
+TEST CASE:  LCD Controller: Basic Register I/O
+  Control Register Access
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:24: SUCCESS: CHECK( bus.read_data(0xE4) == 0x80 ) is correct!
+  values: CHECK( 128 == 128 )
+
+[DEBUG] LCD update_pin_ownership: enabled=1
+[DEBUG] LCD active segments: 40
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x0
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:27: SUCCESS: CHECK( bus.read_data(0xE5) == 0x3F ) is correct!
+  values: CHECK( 63 == 63 )
+
+[DEBUG] Attaching peripheral to memory bus: CPU Control
+[DEBUG] MemoryBus: peripherals size is now 1
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x005D, 0x005F]
+[DEBUG] Attaching peripheral to memory bus: Register File
+[DEBUG] MemoryBus: peripherals size is now 2
+[DEBUG] Mapping peripheral 'Register File' to range [0x0000, 0x001F]
+[INFO] Resetting AVR CPU
+[DEBUG] Machine init LCD 0 SEG0 port: 0x0
+[DEBUG] LCD Controller initialized. SEG0 port: 0x0
+[DEBUG] Attaching peripheral to memory bus: LCD
+[DEBUG] MemoryBus: peripherals size is now 3
+[DEBUG] Mapping peripheral 'LCD' to range [0x00E4, 0x00E7]
+[DEBUG] Mapping peripheral 'LCD' to range [0x00EC, 0x00FF]
+===============================================================================
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:9:
+TEST CASE:  LCD Controller: Basic Register I/O
+  LCDDR Access
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:32: SUCCESS: CHECK( bus.read_data(0xEC) == 0xAA ) is correct!
+  values: CHECK( 170 == 170 )
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:35: SUCCESS: CHECK( bus.read_data(0xFF) == 0x55 ) is correct!
+  values: CHECK( 85 == 85 )
+
+[DEBUG] Attaching peripheral to memory bus: CPU Control
+[DEBUG] MemoryBus: peripherals size is now 1
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x005D, 0x005F]
+[DEBUG] Attaching peripheral to memory bus: Register File
+[DEBUG] MemoryBus: peripherals size is now 2
+[DEBUG] Mapping peripheral 'Register File' to range [0x0000, 0x001F]
+[INFO] Resetting AVR CPU
+[DEBUG] Machine init LCD 0 SEG0 port: 0x0
+[DEBUG] LCD Controller initialized. SEG0 port: 0x0
+[DEBUG] Attaching peripheral to memory bus: LCD
+[DEBUG] MemoryBus: peripherals size is now 3
+[DEBUG] Mapping peripheral 'LCD' to range [0x00E4, 0x00E7]
+[DEBUG] LCD update_pin_ownership: enabled=1
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x0
+===============================================================================
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:39:
+TEST CASE:  LCD Controller: Interrupt Handling
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:57: SUCCESS: CHECK( (bus.read_data(0xE4) & 0x10) != 0 ) is correct!
+  values: CHECK( 16 != 0 )
+
+[DEBUG] LCD update_pin_ownership: enabled=0
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x0
+===============================================================================
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:39:
+TEST CASE:  LCD Controller: Interrupt Handling
+  Clearing Interrupt Flag
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:62: SUCCESS: CHECK( (bus.read_data(0xE4) & 0x10) == 0 ) is correct!
+  values: CHECK( 0 == 0 )
+
+[DEBUG] Attaching peripheral to memory bus: CPU Control
+[DEBUG] MemoryBus: peripherals size is now 1
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x005D, 0x005F]
+[DEBUG] Attaching peripheral to memory bus: Register File
+[DEBUG] MemoryBus: peripherals size is now 2
+[DEBUG] Mapping peripheral 'Register File' to range [0x0000, 0x001F]
+[INFO] Resetting AVR CPU
+[DEBUG] Attaching peripheral to memory bus: 
+[DEBUG] MemoryBus: peripherals size is now 3
+[DEBUG] Attaching peripheral to memory bus: 
+[DEBUG] MemoryBus: peripherals size is now 4
+[DEBUG] Machine init LCD 0 SEG0 port: 0x100
+[DEBUG] LCD Controller initialized. SEG0 port: 0x100
+[DEBUG] Attaching peripheral to memory bus: LCD
+[DEBUG] MemoryBus: peripherals size is now 5
+[DEBUG] Mapping peripheral 'LCD' to range [0x00E4, 0x00E7]
+[INFO] Resetting AVR CPU
+[DEBUG] LCD update_pin_ownership: enabled=0
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x100
+[DEBUG] LCD update_pin_ownership: enabled=0
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x100
+===============================================================================
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:66:
+TEST CASE:  LCD Controller: Pin Arbitration
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:90: SUCCESS: CHECK( pin_mux.get_state_by_address(0x100, 0).owner == PinOwner::gpio ) is correct!
+  values: CHECK( 0 == 0 )
+
+[DEBUG] LCD update_pin_ownership: enabled=1
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x100
+[DEBUG] LCD claiming segment 0 at 0x100
+[DEBUG] PinMux claim: addr=0x100, bit=0
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:96: SUCCESS: CHECK( pin_mux.get_state_by_address(0x100, 0).owner == PinOwner::lcd ) is correct!
+  values: CHECK( 11 == 11 )
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:97: SUCCESS: CHECK( pin_mux.get_state_by_address(0x200, 7).owner == PinOwner::gpio ) is correct!
+  values: CHECK( 0 == 0 )
+
+[DEBUG] LCD update_pin_ownership: enabled=1
+[DEBUG] LCD active segments: 25
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x100
+[DEBUG] LCD claiming segment 0 at 0x100
+[DEBUG] PinMux claim: addr=0x100, bit=0
+[DEBUG] LCD claiming segment 24 at 0x200
+[DEBUG] PinMux claim: addr=0x200, bit=7
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:101: SUCCESS: CHECK( pin_mux.get_state_by_address(0x200, 7).owner == PinOwner::lcd ) is correct!
+  values: CHECK( 11 == 11 )
+
+[DEBUG] LCD update_pin_ownership: enabled=0
+[DEBUG] LCD active segments: 25
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x100
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:105: SUCCESS: CHECK( pin_mux.get_state_by_address(0x100, 0).owner == PinOwner::gpio ) is correct!
+  values: CHECK( 0 == 0 )
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:106: SUCCESS: CHECK( pin_mux.get_state_by_address(0x200, 7).owner == PinOwner::gpio ) is correct!
+  values: CHECK( 0 == 0 )
+
+[DEBUG] Attaching peripheral to memory bus: CPU Control
+[DEBUG] MemoryBus: peripherals size is now 1
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x005D, 0x005F]
+[DEBUG] Attaching peripheral to memory bus: Register File
+[DEBUG] MemoryBus: peripherals size is now 2
+[DEBUG] Mapping peripheral 'Register File' to range [0x0000, 0x001F]
+[INFO] Resetting AVR CPU
+[DEBUG] Machine init LCD 0 SEG0 port: 0x0
+[DEBUG] LCD Controller initialized. SEG0 port: 0x0
+[DEBUG] Attaching peripheral to memory bus: LCD
+[DEBUG] MemoryBus: peripherals size is now 3
+[DEBUG] Mapping peripheral 'LCD' to range [0x00E4, 0x00E7]
+[DEBUG] LCD update_pin_ownership: enabled=1
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x0
+===============================================================================
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:109:
+TEST CASE:  LCD Controller: Hardware-Accurate Timing
+  Default timing (P=16, K=1, D=1)
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:128: SUCCESS: CHECK( (bus.read_data(0xE4) & 0x10) == 0 ) is correct!
+  values: CHECK( 0 == 0 )
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:131: SUCCESS: CHECK( (bus.read_data(0xE4) & 0x10) != 0 ) is correct!
+  values: CHECK( 16 != 0 )
+
+[DEBUG] Attaching peripheral to memory bus: CPU Control
+[DEBUG] MemoryBus: peripherals size is now 1
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x005D, 0x005F]
+[DEBUG] Attaching peripheral to memory bus: Register File
+[DEBUG] MemoryBus: peripherals size is now 2
+[DEBUG] Mapping peripheral 'Register File' to range [0x0000, 0x001F]
+[INFO] Resetting AVR CPU
+[DEBUG] Machine init LCD 0 SEG0 port: 0x0
+[DEBUG] LCD Controller initialized. SEG0 port: 0x0
+[DEBUG] Attaching peripheral to memory bus: LCD
+[DEBUG] MemoryBus: peripherals size is now 3
+[DEBUG] Mapping peripheral 'LCD' to range [0x00E4, 0x00E7]
+[DEBUG] LCD update_pin_ownership: enabled=0
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x0
+[DEBUG] LCD update_pin_ownership: enabled=1
+[DEBUG] LCD active segments: 13
+[DEBUG] SEG0 port_address in update_pin_ownership: 0x0
+===============================================================================
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:109:
+TEST CASE:  LCD Controller: Hardware-Accurate Timing
+  Custom timing (P=64, K=4, D=3)
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:143: SUCCESS: CHECK( (bus.read_data(0xE4) & 0x10) == 0 ) is correct!
+  values: CHECK( 0 == 0 )
+
+/home/jnd/cpp_projects/VioAVR/tests/core/lcd_fidelity_test.cpp:146: SUCCESS: CHECK( (bus.read_data(0xE4) & 0x10) != 0 ) is correct!
+  values: CHECK( 16 != 0 )
+
+===============================================================================
+[doctest] test cases:  4 |  4 passed | 0 failed | 0 skipped
+[doctest] assertions: 16 | 16 passed | 0 failed |
+[doctest] Status: SUCCESS!

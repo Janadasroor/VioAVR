@@ -1,12 +1,13 @@
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/logger.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
 
-Psc::Psc(std::string_view name, const PscDescriptor& desc)
-    : name_(name), desc_(desc)
+Psc::Psc(std::string_view name, const PscDescriptor& desc, PinMux* pin_mux)
+    : name_(name), desc_(desc), pin_mux_(pin_mux)
 {
     std::vector<u16> addrs = {
         desc.pctl_address, desc.psoc_address, desc.pconf_address,
@@ -125,19 +126,25 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
         return;
     }
 
-    u8 ppre = (pctl_ & desc_.ppre_mask) >> 6; // Usually bits 7:6
+    // High-Resolution clocking (PLL 64MHz vs I/O 16MHz)
+    u64 effective_cycles = elapsed_cycles;
+    if (pconf_ & desc_.clksel_mask) {
+        effective_cycles *= 4;
+    }
+
+    u8 ppre = (pctl_ & desc_.ppre_mask) >> 6;
     u32 divisor = 1;
     if (ppre == 1) divisor = 4;
     else if (ppre == 2) divisor = 32;
     else if (ppre == 3) divisor = 256;
 
-    cycle_accumulator_ += elapsed_cycles;
+    cycle_accumulator_ += effective_cycles;
     if (cycle_accumulator_ < divisor) return;
 
     u64 ticks = cycle_accumulator_ / divisor;
     cycle_accumulator_ %= divisor;
 
-    u8 mode_val = (pconf_ & desc_.mode_mask) >> 3; // Bits 4:3
+    u8 mode_val = (pconf_ & desc_.mode_mask) >> 3; 
     // PMODE: 0=One-Ramp, 1=Two-Ramp, 2=Four-Ramp, 3=Centered
     bool is_two_ramp = (mode_val == 1);
     bool is_four_ramp = (mode_val == 2);
@@ -146,7 +153,6 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
     for (u64 i = 0; i < ticks; ++i) {
         if (fault_active_) {
             u8 prfm = (pfrc0a_ & 0x0F);
-            // PRFM 7 is Halt. If halted, we don't tick the counter.
             if (prfm == 0x07) break; 
         }
 
@@ -162,12 +168,14 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
             }
         } else {
             counter_++;
-            const u16 top = ocrrb_;
+            u16 top = ocrrb_;
+            if (is_four_ramp) {
+                // In four-ramp, the cycle is OCRSA -> OCRRA -> OCRSB -> OCRRB
+                // This is a simplified approximation: we use OCRRB as total period
+            }
+            
             if (counter_ >= top && top > 0) {
-                if (is_two_ramp || is_centered) {
-                    down_counting_ = true;
-                } else if (is_four_ramp) {
-                    // Four-ramp is more complex, but we'll treat it as two-ramp for now
+                if (is_two_ramp || is_centered || is_four_ramp) {
                     down_counting_ = true;
                 } else {
                     counter_ = 0;
@@ -179,8 +187,8 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                 }
             }
         }
-        update_outputs();
     }
+    update_outputs();
 }
 
 void Psc::notify_adc() noexcept {
@@ -197,12 +205,9 @@ void Psc::notify_fault(bool level) noexcept {
 }
 
 void Psc::handle_fault(bool level) noexcept {
-    // PELEV0A is bit 5
     bool pelev = (pfrc0a_ & 0x20);
     bool triggered = false;
     
-    // If PELEV is 0, fault is active when level is HIGH (Pos > Neg in AC)
-    // If PELEV is 1, fault is active when level is LOW
     if (!pelev && level) triggered = true;
     else if (pelev && !level) triggered = true;
 
@@ -210,17 +215,14 @@ void Psc::handle_fault(bool level) noexcept {
         pifr_ |= desc_.capt_flag_mask; 
         fault_active_ = true;
         
-        // PRFM logic (bits 3:0)
         u8 prfm = (pfrc0a_ & 0x0F);
         if (prfm == 1 || prfm == 2 || prfm == 5 || prfm == 6) {
-             // Retrigger or Stop & Reset modes
              counter_ = 0;
              down_counting_ = false;
         }
     } else if (!triggered && fault_active_) {
-        // Clear fault if in purely level-sensitive mode 
         u8 prfm = (pfrc0a_ & 0x0F);
-        if (prfm == 0x03) { // Stop signal, Execute Opposite while Fault active
+        if (prfm == 0x03) {
              fault_active_ = false;
         }
     }
@@ -230,25 +232,43 @@ void Psc::handle_fault(bool level) noexcept {
 }
 
 void Psc::update_outputs() noexcept {
+    if (!pin_mux_) return;
+
     if (!(pctl_ & desc_.prun_mask)) {
         output_a_ = output_b_ = false;
-        return;
+    } else {
+        bool pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
+        bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
+
+        if (fault_active_) {
+            output_a_ = (psoc_ & 0x02) != 0;
+            output_b_ = (psoc_ & 0x08) != 0;
+        } else {
+            bool pop = (pconf_ & 0x04) != 0;
+            bool en_a = (psoc_ & 0x01);
+            output_a_ = en_a && (pulse_a ^ pop);
+
+            bool en_b = (psoc_ & 0x04);
+            output_b_ = en_b && (pulse_b ^ pop);
+        }
     }
 
-    bool pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
-    bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
-
-    if (fault_active_) {
-        // Output state depends on PSOC bits 1 (POV0A) and 3 (POV0B)
-        output_a_ = (psoc_ & 0x02) != 0;
-        output_b_ = (psoc_ & 0x08) != 0;
-    } else {
-        bool pop = (pconf_ & 0x04); // Global Polarity bit
-        bool en_a = (psoc_ & 0x01);
-        output_a_ = en_a && (pulse_a ^ pop);
-
-        bool en_b = (psoc_ & 0x04);
-        output_b_ = en_b && (pulse_b ^ pop);
+    // Update physical pins
+    if (desc_.outa_pin_address) {
+        pin_mux_->claim_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
+        pin_mux_->update_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc, true, output_a_);
+    }
+    if (desc_.outb_pin_address) {
+        pin_mux_->claim_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
+        pin_mux_->update_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc, true, output_b_);
+    }
+    if (desc_.outc_pin_address) {
+        pin_mux_->claim_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
+        pin_mux_->update_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc, true, output_a_); 
+    }
+    if (desc_.outd_pin_address) {
+        pin_mux_->claim_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc);
+        pin_mux_->update_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc, true, output_b_);
     }
 }
 

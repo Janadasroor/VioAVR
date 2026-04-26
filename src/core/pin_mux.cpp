@@ -1,5 +1,4 @@
 #include "vioavr/core/pin_mux.hpp"
-#include "vioavr/core/logger.hpp"
 #include <stdexcept>
 #include <cstdio>
 
@@ -65,7 +64,7 @@ void PinMux::release_pin_by_address(u16 pin_address, u8 bit_index, PinOwner owne
     }
 }
 
-void PinMux::update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_output, bool level, bool pullup) noexcept
+void PinMux::update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_output, bool level, bool pullup, bool wired_and) noexcept
 {
     if (port_idx >= ports_.size() || bit_idx >= 8) return;
 
@@ -80,6 +79,9 @@ void PinMux::update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_out
     
     if (pullup) entry.pullup_mask |= owner_bit;
     else entry.pullup_mask &= ~owner_bit;
+
+    if (wired_and) entry.wired_and_mask |= owner_bit;
+    else entry.wired_and_mask &= ~owner_bit;
 
     reevaluate_ownership(port_idx, bit_idx);
 }
@@ -144,6 +146,7 @@ void PinMux::reset() noexcept {
             entry.drive_levels = 0;
             entry.output_mask = 0;
             entry.pullup_mask = 0;
+            entry.wired_and_mask = 0;
             reevaluate_ownership(p, b);
         }
     }
@@ -169,15 +172,31 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
 
     entry.state.owner = highest_owner;
     
-    // Drive level follows the highest priority owner
-    u32 owner_bit = (1U << static_cast<u32>(highest_owner));
-    entry.state.drive_level = (entry.drive_levels & owner_bit) != 0;
+    // Check if any owner wants Wired-AND
+    bool is_wired_and = (entry.wired_and_mask & entry.active_claims) != 0;
+    entry.state.is_wired_and = is_wired_and;
+
+    if (is_wired_and) {
+        // In Wired-AND mode, the level is LOW if ANY output drives LOW.
+        // I.e., it is HIGH only if ALL active outputs drive HIGH.
+        u32 active_outputs = entry.active_claims & entry.output_mask;
+        if (active_outputs == 0) {
+            entry.state.drive_level = true; // Weak HIGH (floating or pullup)
+        } else {
+            entry.state.drive_level = (entry.drive_levels & active_outputs) == active_outputs;
+        }
+    } else {
+        // Drive level follows the highest priority owner
+        u32 owner_bit = (1U << static_cast<u32>(highest_owner));
+        entry.state.drive_level = (entry.drive_levels & owner_bit) != 0;
+    }
 
     // Composite output state
-    entry.state.is_output = (entry.output_mask & owner_bit) != 0;
+    u32 highest_owner_bit = (1U << static_cast<u32>(highest_owner));
+    entry.state.is_output = (entry.output_mask & highest_owner_bit) != 0;
 
     // Composite pullup state
-    entry.state.pullup_enabled = ((entry.pullup_mask & owner_bit) != 0) && !pullup_suppressed_;
+    entry.state.pullup_enabled = ((entry.pullup_mask & highest_owner_bit) != 0) && !pullup_suppressed_;
  
     if (callback_) callback_(port_idx, bit_idx, entry.state);
 }
