@@ -15,6 +15,7 @@ public:
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
@@ -58,6 +59,7 @@ private:
 
     class Adc* adc_trigger_ {nullptr};
     class PinMux* pin_mux_ {nullptr};
+    class MemoryBus* bus_ {nullptr};
 
     bool down_counting_ {false};
     bool fault_active_ {false};

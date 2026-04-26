@@ -1,6 +1,7 @@
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/logger.hpp"
 #include <algorithm>
 
@@ -343,6 +344,19 @@ void Psc::update_outputs() noexcept {
     } else {
         bool pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
         bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
+
+        if (pctl_ & desc_.pbfm_mask) {
+            u16 top = ocrrb_;
+            u16 center = top / 2;
+            
+            u16 width_a = (ocrra_ > ocrsa_) ? (ocrra_ - ocrsa_) : 0;
+            pulse_a = (counter_ >= (center - width_a/2) && counter_ < (center + (width_a + 1)/2));
+            
+            u16 width_b = (ocrrb_ > ocrsb_) ? (ocrrb_ - ocrsb_) : 0;
+            // Note: For Part B, width is usually relative to TOP? 
+            // Actually, for PBFM, Part B is also centered.
+            pulse_b = (counter_ >= (center - width_b/2) && counter_ < (center + (width_b + 1)/2));
+        }
 
         bool pop = (pconf_ & 0x04) != 0;
         bool paoc_a = (pctl_ & desc_.paoca_mask);
