@@ -289,6 +289,42 @@ const COMPONENTS = {
       { id: 'CLK', side: 'right', type: 'ctrl' },
     ],
   },
+  can_debugger: {
+    label: 'CAN Bus Debugger',
+    category: 'Instrument',
+    color: '#d13438',
+    properties: [
+      { id: 'baud', label: 'Baud Rate (kbps)', type: 'number', default: 500 }
+    ],
+    pins: [
+      { id: 'CANH', side: 'left', type: 'io' },
+      { id: 'CANL', side: 'left', type: 'io' },
+    ],
+  },
+  eusart_terminal: {
+    label: 'EUSART Terminal',
+    category: 'Instrument',
+    color: '#0078d4',
+    properties: [
+      { id: 'baud', label: 'Baud Rate (bps)', type: 'number', default: 9600 }
+    ],
+    pins: [
+      { id: 'RX', side: 'left', type: 'io' },
+      { id: 'TX', side: 'right', type: 'io' },
+    ],
+  },
+  dac_monitor: {
+    label: 'DAC Monitor',
+    category: 'Instrument',
+    color: '#107c10',
+    properties: [
+      { id: 'range', label: 'Voltage Range', type: 'text', default: '0-5V' }
+    ],
+    pins: [
+      { id: 'IN', side: 'left', type: 'analog' },
+      { id: 'REF', side: 'left', type: 'power' },
+    ],
+  },
 };
 
 // ─── Pin type color map ────────────────────────────────────────────────────
