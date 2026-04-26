@@ -101,7 +101,26 @@ u64 CpuControl::effective_frequency() const noexcept
 
 void CpuControl::tick(const u64 elapsed_cycles) noexcept
 {
-    (void)elapsed_cycles;
+    const auto& d = cpu_.bus().device();
+    if (d.pllcsr_address != 0) {
+        if (pllcsr_ & 0x02) { // PLLE
+            if (!(pllcsr_ & 0x01)) { // !PLOCK
+                if (pll_lock_counter_ > 0) {
+                    if (elapsed_cycles >= pll_lock_counter_) {
+                        pll_lock_counter_ = 0;
+                        pllcsr_ |= 0x01; // Set PLOCK
+                    } else {
+                        pll_lock_counter_ -= elapsed_cycles;
+                    }
+                } else {
+                    pll_lock_counter_ = 100; // ~100 cycles to lock
+                }
+            }
+        } else {
+            pllcsr_ &= ~0x01; // Clear PLOCK
+            pll_lock_counter_ = 0;
+        }
+    }
 }
 
 u8 CpuControl::read(const u16 address) noexcept

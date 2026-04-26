@@ -482,3 +482,56 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Fidelity") {
     // We'll use a helper to inject pin changes, but here we'll just check TX for now
     // as TX/RX logic is shared in terms of timing and bit definitions.
 }
+
+TEST_CASE("AT90PWM316 - PSC High-Resolution 64MHz Fidelity") {
+    auto machine = Machine::create_for_device("AT90PWM316");
+    auto& bus = machine->bus();
+    bus.pin_mux()->register_port(0x29, 2);
+
+    u16 pctl0 = 0xDB;
+    u16 pcnf0 = 0xDA;
+    u16 ocrsa0 = 0xD2;
+    u16 ocrra0 = 0xD4;
+    u16 ocrrb0 = 0xD8;
+    u16 psoc0 = 0xD0;
+    u16 pllcsr = 0x49;
+
+    // 1. Configure PSC: TOP=100, Pulse=40..60. CLKSEL=1 (High Res)
+    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 40);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 60);
+    bus.write_data(psoc0, 0x01); // Enable OutA
+    
+    // Enable High Res (Bit 1 of PCNF0 = CLKSEL)
+    bus.write_data(pcnf0, 0x02);
+    // Start PSC
+    bus.write_data(pctl0, 0x03); // PRUN=1, PPRE=0
+    
+    // 2. PLL is OFF. PSC should run at 1x frequency?
+    // In our implementation, if CLKSEL=1 but !PLOCK, it runs at 1x.
+    bus.tick_peripherals(39);
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    CHECK(state.drive_level == false); // Not yet at 40
+    
+    // 3. Enable PLL
+    bus.write_data(pllcsr, 0x02); // PLLE=1
+    bus.tick_peripherals(150); // Wait for lock (100 cycles) + some margin
+    
+    // Now PLOCK should be 1. PSC runs at 4x speed.
+    // We are at cycle ~190 total.
+    // If it was at cycle 40 in 1x speed, it's now moving 4x faster.
+    
+    // Let's reset PSC and test from clean lock
+    bus.write_data(pctl0, 0x02); // Stop
+    bus.write_data(pctl0, 0x03); // Start
+    
+    // In High Res mode (4x), 10 I/O cycles = 40 PSC cycles.
+    // So 10 I/O cycles should reach the start of the pulse (40).
+    bus.tick_peripherals(9);
+    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    CHECK(state.drive_level == false); // Cycle 9*4 = 36
+    
+    bus.tick_peripherals(1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    CHECK(state.drive_level == true); // Cycle 10*4 = 40
+}

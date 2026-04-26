@@ -634,6 +634,7 @@ def generate_header(data, header_path):
             .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'CLKSEL'))}, .ppre_mask = {hx(get_bit(r('PCTL.*'), 'PPRE'))},
             .ec_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEOP'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), 'PRN0|PCAPT'))},
             .pccyc_mask = {hx(get_bit(r('PCTL.*'), 'PCCYC'))}, .paoca_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*A'))}, .paocb_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*B'))}, .pbfm_mask = {hx(get_bit(r('PCTL.*'), 'PBFM'))},
+            .pllcsr_address = {gen_pllcsr()},
             .pr_address = {get_pr_info(data, 'PRPSC')[0]}, .pr_bit = {get_pr_info(data, 'PRPSC')[1]}
         }}"""
 

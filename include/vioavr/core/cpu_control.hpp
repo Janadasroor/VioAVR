@@ -102,6 +102,7 @@ private:
     u8 ccp_ {0U};
     u64 ccp_expiry_ {0};
     u64 clkpr_expiry_ {0};
+    u64 pll_lock_counter_ {0};
     SleepMode sleep_mode_ {SleepMode::idle};
     bool sleep_enabled_ {false};
     bool sleeping_ {false};

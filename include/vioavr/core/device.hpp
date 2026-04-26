@@ -776,6 +776,7 @@ struct PscDescriptor {
     u8 paoca_mask {0x08U};
     u8 paocb_mask {0x10U};
     u8 pbfm_mask {0x20U};
+    u16 pllcsr_address {0U};
     u16 blanking_duration {0U}; // Default blanking duration in cycles
     
     u16 pr_address {0U};
