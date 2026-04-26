@@ -62,6 +62,11 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
 void AvrCpu::reset(ResetCause cause) noexcept
 {
     Logger::info("Resetting AVR CPU");
+
+    if (bus_ != nullptr) {
+        bus_->reset();
+    }
+
     gpr_.fill(0U);
     program_counter_ = bus_ != nullptr ? bus_->reset_word_address() : 0U;
 
@@ -93,20 +98,17 @@ void AvrCpu::reset(ResetCause cause) noexcept
         bus_->write_data(bus_->device().mcusr_address, mcusr);
     }
     
-    if (rst_ctrl_ != nullptr) {
-        u8 flags = 0;
-        switch(cause) {
-            case ResetCause::power_on: flags |= 0x01; break; // PORF
-            case ResetCause::external: flags |= 0x04; break; // EXTRF
-            case ResetCause::brown_out: flags |= 0x02; break; // BORF
-            case ResetCause::watchdog: flags |= 0x08; break; // WDRF
+    if (rst_ctrl_) {
+        u8 cause_mask = 0x01U; // Default POR
+        switch (cause) {
+            case ResetCause::power_on:  cause_mask = 0x01U; break;
+            case ResetCause::external:  cause_mask = 0x04U; break;
+            case ResetCause::brown_out: cause_mask = 0x02U; break;
+            case ResetCause::watchdog:  cause_mask = 0x08U; break;
         }
-        rst_ctrl_->set_reset_cause(flags);
+        rst_ctrl_->set_reset_cause(cause_mask);
     }
 
-    if (bus_ != nullptr) {
-        bus_->reset();
-    }
     interrupt_delay_ = 0U;
     if (sync_engine_ != nullptr) {
         sync_engine_->on_reset();
@@ -198,6 +200,11 @@ void AvrCpu::step()
         return;
     }
 
+    if (bus_->should_stall_cpu(program_counter_)) {
+        advance_cycles(1U);
+        return;
+    }
+
     // Halt if PC is beyond the loaded program boundary
     if (program_counter_ >= bus_->loaded_program_words()) {
         state_ = CpuState::halted;
@@ -226,11 +233,6 @@ void AvrCpu::step()
             }
             return;
         }
-        return;
-    }
-
-    if (bus_->should_stall_cpu(program_counter_)) {
-        advance_cycles(1U);
         return;
     }
 
@@ -1897,60 +1899,47 @@ void AvrCpu::execute_sleep(const DecodedInstruction& instruction)
     if (enabled) {
         if (slp_ctrl_) {
             state_ = CpuState::sleeping;
-            // Map AVR8X sleep modes to legacy enum for the switch below
-            SleepMode mode;
-            switch (slp_ctrl_->sleep_mode()) {
-                case 0: mode = SleepMode::idle; break;
-                case 1: mode = SleepMode::standby; break;
-                case 2: mode = SleepMode::power_down; break;
-                default: mode = SleepMode::power_down; break;
-            }
-            
-            switch (mode) {
-                case SleepMode::idle: Logger::debug("Entering Idle mode (AVR8X)"); break;
-                case SleepMode::standby: Logger::debug("Entering Standby mode (AVR8X)"); break;
-                case SleepMode::power_down: Logger::debug("Entering Power-down mode (AVR8X)"); break;
+            const u8 avr8x_mode = slp_ctrl_->sleep_mode();
+            switch (avr8x_mode) {
+                case 0: Logger::debug("Entering Idle mode (AVR8X)"); break;
+                case 1: Logger::debug("Entering Standby mode (AVR8X)"); break;
+                case 2: Logger::debug("Entering Power-down mode (AVR8X)"); break;
                 default: break;
             }
         } else {
             cpu_control().enter_sleep();
             const SleepMode mode = cpu_control().current_sleep_mode();
 
-        switch (mode) {
-        case SleepMode::idle:
-            // CPU clock stopped, all peripherals run, all interrupts can wake
-            Logger::debug("Entering Idle mode");
-            state_ = CpuState::sleeping;
-            break;
-        case SleepMode::adc_noise_reduction:
-            // Same as Idle but only ADC/Timer2/TWI/WDT interrupts can wake
-            Logger::debug("Entering ADC Noise Reduction mode");
-            state_ = CpuState::sleeping;
-            break;
-        case SleepMode::power_down:
-            // External oscillator stopped, only INTx/PCINT/TWI/Timer2/ADC/WDT can wake
-            Logger::debug("Entering Power Down mode");
-            state_ = CpuState::sleeping;
-            break;
-        case SleepMode::power_save:
-            // Same as Power Down but Timer2 runs async (requires TOSC1/TOSC2)
-            Logger::debug("Entering Power Save mode");
-            state_ = CpuState::sleeping;
-            break;
-        case SleepMode::standby:
-            // Same as Power Down but oscillator keeps running (1-cycle wake)
-            Logger::debug("Entering Standby mode");
-            state_ = CpuState::sleeping;
-            break;
-        case SleepMode::extended_standby:
-            // Same as Power Save but oscillator keeps running (1-cycle wake)
-            Logger::debug("Entering Extended Standby mode");
-            state_ = CpuState::sleeping;
-            break;
-        default:
-            // Reserved modes - treat as Idle
-            state_ = CpuState::sleeping;
-            break;
+            switch (mode) {
+            case SleepMode::idle:
+                state_ = CpuState::sleeping;
+                break;
+            case SleepMode::adc_noise_reduction:
+                Logger::debug("Entering ADC Noise Reduction mode");
+                state_ = CpuState::sleeping;
+                break;
+            case SleepMode::power_down:
+                Logger::debug("Entering Power-down mode");
+                state_ = CpuState::sleeping;
+                break;
+            case SleepMode::power_save:
+                Logger::debug("Entering Power-save mode");
+                state_ = CpuState::sleeping;
+                break;
+            case SleepMode::standby:
+                Logger::debug("Entering Standby mode");
+                state_ = CpuState::sleeping;
+                break;
+            case SleepMode::extended_standby:
+                // Same as Power Save but oscillator keeps running (1-cycle wake)
+                Logger::debug("Entering Extended Standby mode");
+                state_ = CpuState::sleeping;
+                break;
+            default:
+                // Reserved modes - treat as Idle
+                state_ = CpuState::sleeping;
+                break;
+            }
         }
     } else {
         // Sleep not enabled - instruction executes but no sleep occurs

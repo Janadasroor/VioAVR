@@ -23,7 +23,8 @@ enum class PinOwner : u8 {
     reset = 8,
     jtag = 9,
     ccl = 10,
-    lcd = 11
+    lcd = 11,
+    dac = 12
 };
 
 /**
@@ -81,12 +82,10 @@ public:
      */
     void register_port(u16 pin_address, u8 port_idx) noexcept;
 
-    /**
-     * @brief Claims a pin for a specific peripheral using its I/O address.
-     */
     bool claim_pin_by_address(u16 pin_address, u8 bit_index, PinOwner owner) noexcept;
     void release_pin_by_address(u16 pin_address, u8 bit_index, PinOwner owner) noexcept;
     void update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, bool is_output, bool level, bool pullup = false) noexcept;
+    void update_analog_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, double voltage) noexcept;
     void reset() noexcept;
 
     [[nodiscard]] PinState get_state(u8 port_idx, u8 bit_idx) const noexcept;

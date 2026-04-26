@@ -46,6 +46,7 @@ public:
     }
     void set_done() noexcept { intflags_ |= 0x01U; }
 
+    void set_address(u32 address) noexcept { addr_ = static_cast<u16>(address); }
     [[nodiscard]] u16 address() const noexcept { return addr_; }
     [[nodiscard]] u16 data() const noexcept { return data_; }
 

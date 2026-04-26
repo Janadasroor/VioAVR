@@ -255,6 +255,9 @@ inline constexpr DeviceDescriptor at90pwm316 {
     .usb_count = 0U,
     .usbs = {{  }},
 
+    .lcd_count = 0U,
+    .lcds = {{  }},
+
     .psc_count = 3U,
     .pscs = {{ {
             .pctl_address = 0xDBU, .psoc_address = 0xD0U, .pconf_address = 0xDAU, .pim_address = 0xA1U, .pifr_address = 0xA0U, .picr_address = 0xDEU,
@@ -264,11 +267,10 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .gen_vector_index = 6U,
             .ec_vector_index = 6U,
             .capt_vector_index = 5U,
-            .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U,
-            .ec_flag_mask = 0x1U, .capt_flag_mask = 0x8U,
+            .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U, .ppre_mask = 0xC0U,
+            .ec_flag_mask = 0x1U, .capt_flag_mask = 0x10U,
             .pr_address = 100, .pr_bit = 5
-        },
-        {
+        }, {
             .pctl_address = 0xEBU, .psoc_address = 0xE0U, .pconf_address = 0xEAU, .pim_address = 0xA3U, .pifr_address = 0xA2U, .picr_address = 0xEEU,
             .ocrsa_address = 0xE2U, .ocrra_address = 0xE4U, .ocrsb_address = 0xE6U, .ocrrb_address = 0xE8U,
             .pfrc0a_address = 0xECU, .pfrc0b_address = 0xEDU,
@@ -276,11 +278,10 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .gen_vector_index = 4U,
             .ec_vector_index = 4U,
             .capt_vector_index = 3U,
-            .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U,
-            .ec_flag_mask = 0x1U, .capt_flag_mask = 0x8U,
+            .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U, .ppre_mask = 0xC0U,
+            .ec_flag_mask = 0x1U, .capt_flag_mask = 0x10U,
             .pr_address = 100, .pr_bit = 6
-        },
-        {
+        }, {
             .pctl_address = 0xFBU, .psoc_address = 0xF0U, .pconf_address = 0xFAU, .pim_address = 0xA5U, .pifr_address = 0xA4U, .picr_address = 0xFEU,
             .ocrsa_address = 0xF2U, .ocrra_address = 0xF4U, .ocrsb_address = 0xF6U, .ocrrb_address = 0xF8U,
             .pfrc0a_address = 0xFCU, .pfrc0b_address = 0xFDU,
@@ -288,15 +289,24 @@ inline constexpr DeviceDescriptor at90pwm316 {
             .gen_vector_index = 2U,
             .ec_vector_index = 2U,
             .capt_vector_index = 1U,
-            .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U,
-            .ec_flag_mask = 0x1U, .capt_flag_mask = 0x8U,
+            .prun_mask = 0x1U, .mode_mask = 0x18U, .clksel_mask = 0x2U, .ppre_mask = 0xC0U,
+            .ec_flag_mask = 0x1U, .capt_flag_mask = 0x10U,
             .pr_address = 100, .pr_bit = 7
+        } }},
+
+    .eusart_count = 1U,
+    .eusarts = {{ {
+            .eudr_address = 0xCEU, .eucsra_address = 0xC8U, .eucsrb_address = 0xC9U, .eucsrc_address = 0xCAU, .mubrrl_address = 0xCCU, .mubrrh_address = 0xCDU,
+            .emch_mask = 0x2U, .f1617_mask = 0x4U, .utxs_mask = 0xF0U, .urxs_mask = 0xFU,
+            .txd_pin_address = 0x29U, .txd_pin_bit = 1U, .rxd_pin_address = 0x29U, .rxd_pin_bit = 0U,
+            .pr_address = 0, .pr_bit = 255
         } }},
 
     .dac_count = 1U,
     .dacs = {{ {
             .dacon_address = 0xAAU, .dacl_address = 0xABU, .dach_address = 0xACU,
             .daen_mask = 0x1U, .daate_mask = 0x80U, .dats_mask = 0x70U, .dacoe_mask = 0x2U,
+            .dac_pin_address = 0x23U, .dac_pin_bit = 7U,
             .pr_address = 0, .pr_bit = 255
         } }},
     

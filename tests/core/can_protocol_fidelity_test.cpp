@@ -96,6 +96,9 @@ TEST_CASE("CAN Protocol Fidelity - Interrupt Logic & Status Clearing")
     can.write(desc.canpage_address, 0x00);
     can.write(desc.cancdmob_address, (0x01 << 6)); // TX
     
+    // Transmission takes 1000 cycles
+    can.tick(1000);
+    
     // Check interrupt
     InterruptRequest req;
     CHECK(can.pending_interrupt_request(req) == true);

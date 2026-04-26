@@ -1,5 +1,6 @@
 #include "vioavr/core/dac.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -33,7 +34,17 @@ void Dac::reset() noexcept {
 
 void Dac::tick(u64 elapsed_cycles) noexcept {
     (void)elapsed_cycles;
-    // DAC is purely combinatorial for now or updates on register write
+    if (power_reduction_enabled()) return;
+
+    bool enabled = (dacon_ & desc_.daen_mask);
+    if (enabled && (dacon_ & desc_.dacoe_mask)) {
+        if (desc_.dac_pin_address) {
+            bus_->pin_mux()->claim_pin_by_address(desc_.dac_pin_address, desc_.dac_pin_bit, PinOwner::dac);
+            bus_->pin_mux()->update_analog_pin_by_address(desc_.dac_pin_address, desc_.dac_pin_bit, PinOwner::dac, voltage_);
+        }
+    } else if (desc_.dac_pin_address) {
+        bus_->pin_mux()->release_pin_by_address(desc_.dac_pin_address, desc_.dac_pin_bit, PinOwner::dac);
+    }
 }
 
 u8 Dac::read(u16 address) noexcept {

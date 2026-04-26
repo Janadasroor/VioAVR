@@ -43,6 +43,7 @@
 #include "vioavr/core/opamp.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
+#include "vioavr/core/eusart.hpp"
 
 namespace vioavr::core {
 
@@ -353,6 +354,13 @@ void Machine::initialize_peripherals()
         auto psc = std::make_unique<Psc>("PSC", device_.pscs[i]);
         bus_->attach_peripheral(*psc);
         owned_peripherals_.push_back(std::move(psc));
+    }
+
+    // 6.5 EUSART
+    for (u8 i = 0; i < device_.eusart_count; ++i) {
+        auto eusart = std::make_unique<Eusart>("EUSART", device_.eusarts[i]);
+        bus_->attach_peripheral(*eusart);
+        owned_peripherals_.push_back(std::move(eusart));
     }
 
     // 7. DAC

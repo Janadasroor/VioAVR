@@ -95,8 +95,65 @@ export class SchematicEditor {
     // Debugging Tools
     this._placeComponent(analyzer, 400, 600);
 
+    // AUTO-WIRE THE DEMO
+    this.autoWireDemo();
+
     this.viewport.zoomFit(this.canvas.querySelectorAll('.schematic-node'));
-    this.shell.showToast('Demo schematic loaded', 'success');
+    this.shell.showToast('Automotive Cluster Auto-Wired!', 'success');
+  }
+
+  autoWireDemo() {
+    const nodes = Array.from(this.canvas.querySelectorAll('.schematic-node'));
+    const getNodesByType = (type) => nodes.filter(n => n.dataset.type === type);
+    
+    const mcu = nodes.find(n => n.dataset.type === 'atmega6490p' || n.dataset.type === 'mcu');
+    if (!mcu) return;
+
+    const mcuId = mcu.dataset.id;
+
+    // 1. Wire Logic Analyzer to PORTA (Pins 0-7)
+    const analyzer = getNodesByType('logic_analyzer')[0];
+    if (analyzer) {
+        for (let i = 0; i < 8; i++) {
+            this._createWire(mcuId, `P${i}`, analyzer.dataset.id, `CH${i}`);
+        }
+    }
+
+    // 2. Wire DC Motor to Pin 16 (PORTC.0)
+    const dcMotor = getNodesByType('motor_dc')[0];
+    if (dcMotor) {
+        this._createWire(mcuId, 'P16', dcMotor.dataset.id, '+');
+    }
+
+    // 3. Wire Stepper to Pins 18-21 (PORTD.2-5)
+    const stepper = getNodesByType('motor_stepper')[0];
+    if (stepper) {
+        this._createWire(mcuId, 'P18', stepper.dataset.id, 'A+');
+        this._createWire(mcuId, 'P19', stepper.dataset.id, 'A-');
+        this._createWire(mcuId, 'P20', stepper.dataset.id, 'B+');
+        this._createWire(mcuId, 'P21', stepper.dataset.id, 'B-');
+    }
+
+    // 4. Wire LCD Segments (Exhaustive)
+    const glass = getNodesByType('lcd_glass')[0];
+    if (glass) {
+        // Wire first 8 segments as a demo
+        for (let i = 0; i < 8; i++) {
+            this._createWire(mcuId, `P${30+i}`, glass.dataset.id, `SEG${i}`);
+        }
+    }
+  }
+
+  _createWire(fromNodeId, fromPinId, toNodeId, toPinId) {
+    // This is a helper to programmatically create a wire in the model
+    const wire = {
+      id: `wire-${Date.now()}-${Math.random()}`,
+      from: { nodeId: fromNodeId, pinId: fromPinId },
+      to: { nodeId: toNodeId, pinId: toPinId },
+      segments: [] // Let the router handle it
+    };
+    this.shell.project.activeSchematic.wires.push(wire);
+    this.render(); // Full re-render to show new wires
   }
 
   // ─── Library Panel ────────────────────────────────────────────────────────

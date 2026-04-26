@@ -35,7 +35,8 @@ TEST_CASE("USB Interrupt and Handshake Fidelity")
     
     // Set a flag manually (simulate SIE)
     usb.force_endpoint_interrupt(0, 0xFF);
-    CHECK(usb.read(atmega32u4.usbs[0].ueintx_address) == 0xFF);
+    // Mask out RWAL (bit 5 / 0x20) as it is dynamically calculated by read()
+    CHECK((usb.read(atmega32u4.usbs[0].ueintx_address) & ~0x20) == 0xDF);
 
     // Clear RXOUTI (bit 2) by writing 0 to it
     bus.write_data(atmega32u4.usbs[0].ueintx_address, 0xFB); // 1111 1011

@@ -92,6 +92,20 @@ void PinMux::update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner reque
     }
 }
 
+void PinMux::update_analog_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, double voltage) noexcept
+{
+    auto it = addr_to_port_.find(pin_address);
+    if (it == addr_to_port_.end()) return;
+    u8 port_idx = it->second;
+    if (port_idx >= ports_.size() || bit_index >= 8) return;
+
+    PinEntry& entry = ports_[port_idx][bit_index];
+    if (entry.state.owner == requester) {
+        entry.state.voltage = voltage;
+        if (callback_) callback_(port_idx, bit_index, entry.state);
+    }
+}
+
 void PinMux::update_pullup_suppressed(bool suppressed) noexcept
 {
     if (pullup_suppressed_ == suppressed) return;

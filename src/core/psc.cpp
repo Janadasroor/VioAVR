@@ -120,18 +120,30 @@ void Psc::write(u16 address, u8 value) noexcept {
 }
 
 void Psc::tick(u64 elapsed_cycles) noexcept {
-    if (!(pctl_ & desc_.prun_mask)) return;
+    if (!(pctl_ & desc_.prun_mask)) {
+        cycle_accumulator_ = 0;
+        return;
+    }
 
-    u8 mode_val = (pconf_ & desc_.mode_mask);
-    // Modes vary: One Ramp, Two Ramp, etc.
-    // 0 is usually One-Ramp.
-    bool is_two_ramp = false;
-    // Map bits to mode.
-    // In AT90PWM1: PMODE=1 is Two-Ramp, PMODE=3 is Centered?
-    // Actually, I'll use a simplified check based on any non-zero PMODE for now.
-    if (mode_val != 0) is_two_ramp = true;
+    u8 ppre = (pctl_ & desc_.ppre_mask) >> 6; // Usually bits 7:6
+    u32 divisor = 1;
+    if (ppre == 1) divisor = 4;
+    else if (ppre == 2) divisor = 32;
+    else if (ppre == 3) divisor = 256;
 
-    for (u64 i = 0; i < elapsed_cycles; ++i) {
+    cycle_accumulator_ += elapsed_cycles;
+    if (cycle_accumulator_ < divisor) return;
+
+    u64 ticks = cycle_accumulator_ / divisor;
+    cycle_accumulator_ %= divisor;
+
+    u8 mode_val = (pconf_ & desc_.mode_mask) >> 3; // Bits 4:3
+    // PMODE: 0=One-Ramp, 1=Two-Ramp, 2=Four-Ramp, 3=Centered
+    bool is_two_ramp = (mode_val == 1);
+    bool is_four_ramp = (mode_val == 2);
+    bool is_centered = (mode_val == 3);
+
+    for (u64 i = 0; i < ticks; ++i) {
         if (fault_active_) {
             u8 prfm = (pfrc0a_ & 0x0F);
             // PRFM 7 is Halt. If halted, we don't tick the counter.
@@ -145,9 +157,6 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                 pifr_ |= desc_.ec_flag_mask;
                 notify_adc();
                 
-                // Clear cycle-by-cycle fault at end of period?
-                // PRFM 4: Deactivate outputs without changing timing. 
-                // This usually clears at next RELOAD.
                 u8 prfm = (pfrc0a_ & 0x0F);
                 if (prfm == 0x04) fault_active_ = false;
             }
@@ -155,7 +164,10 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
             counter_++;
             const u16 top = ocrrb_;
             if (counter_ >= top && top > 0) {
-                if (is_two_ramp) {
+                if (is_two_ramp || is_centered) {
+                    down_counting_ = true;
+                } else if (is_four_ramp) {
+                    // Four-ramp is more complex, but we'll treat it as two-ramp for now
                     down_counting_ = true;
                 } else {
                     counter_ = 0;
