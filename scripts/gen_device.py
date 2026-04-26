@@ -724,8 +724,9 @@ def generate_header(data, header_path):
                     .acsr_address = {hx(r('ACSR')['offset'])}, .accon_address = {hx(r(reg_name)['offset'])}, .didr_address = {hx(r('DIDR1')['offset'])},
                     .vector_index = {next((idx['index'] for idx in data['interrupts'] if (f'AC{i}' in (idx.get('name') or '').upper()) or (f'ANALOG_COMP_{i}' in (idx.get('name') or '').upper()) or ('ANALOG_COMP' in (idx.get('name') or '').upper())), 0)}U,
                     .aip_pin_address = {aip_a}, .aip_pin_bit = {aip_b}U, .aim_pin_address = {aim_a}, .aim_pin_bit = {aim_b}U,
-                    .acd_mask = {hx(b(reg_name, f'AC{i}EN'))}, .acbg_mask = 0x0, .aco_mask = {hx(b('ACSR', f'AC{i}O'))},
-                    .acif_mask = {hx(b('ACSR', f'AC{i}IF'))}, .acie_mask = {hx(b(reg_name, f'AC{i}IE'))}, .acic_mask = 0x0, .acis_mask = {hx(b(reg_name, f'AC{i}IS'))}
+                    .acd_mask = {hx(b(reg_name, f'AC{i}D') or b('ACSR', 'ACD'))}, .acen_mask = {hx(b(reg_name, f'AC{i}EN'))}, .acbg_mask = 0x0, .aco_mask = {hx(b('ACSR', f'AC{i}O'))},
+                    .acif_mask = {hx(b('ACSR', f'AC{i}IF'))}, .acie_mask = {hx(b(reg_name, f'AC{i}IE'))}, .acic_mask = 0x0, .acis_mask = {hx(b(reg_name, f'AC{i}IS'))},
+                    .acm_mask = {hx(b(reg_name, f'AC{i}M'))}, .achyst_mask = {hx(b(reg_name, f'AC{i}HYST'))}
                 }}""")
             # HACK: Return multiple descriptors as one string to be splatted by the caller
             return " , ".join(results)

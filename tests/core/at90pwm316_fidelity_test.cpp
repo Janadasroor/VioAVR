@@ -4,6 +4,7 @@
 #include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/dac.hpp"
+#include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/devices/at90pwm316.hpp"
 
 using namespace vioavr::core;
@@ -534,4 +535,76 @@ TEST_CASE("AT90PWM316 - PSC High-Resolution 64MHz Fidelity") {
     bus.tick_peripherals(1);
     state = bus.pin_mux()->get_state_by_address(0x29, 1);
     CHECK(state.drive_level == true); // Cycle 10*4 = 40
+}
+
+TEST_CASE("AT90PWM316 - Analog Comparator Fault Triggering") {
+    auto machine = Machine::create_for_device("AT90PWM316");
+    REQUIRE(machine != nullptr);
+    auto& bus = machine->bus();
+    auto& pin_mux = *bus.pin_mux();
+
+    // Get PSC0 and AC0 from the machine's peripherals
+    auto pscs = machine->peripherals_of_type<Psc>();
+    AnalogComparator* ac0_ptr = nullptr;
+    for (auto* ac : machine->peripherals_of_type<AnalogComparator>()) {
+        if (ac->name() == "AC0") {
+            ac0_ptr = ac;
+            break;
+        }
+    }
+    
+    REQUIRE(!pscs.empty());
+    REQUIRE(ac0_ptr != nullptr);
+    
+    Psc& psc = *pscs[0];
+    AnalogComparator& ac0 = *ac0_ptr;
+    ac0.connect_psc_fault(psc);
+
+    // 1. Setup PSC0
+    bus.write_data(0xDA, 0x00); // PCONF0: Normal mode
+    bus.write_data(0xDC, 0x47); // PFRC0A: PAFE=1, PRFM=7 (Fault on Level, No Auto Restart)
+    bus.write_data(0xD0, 0x01); // PSOC0: POUT0A=1
+    bus.write_data(0xD2, 10);   // OCR0SA = 10
+    bus.write_data(0xD4, 100);  // OCR0RA = 100 (Long pulse)
+    bus.write_data(0xDB, 0x01); // PCTL0: PRUN=1
+
+    // Run enough cycles to get the PSC started and past OCR0SA (10)
+    // Internal PSC clock is usually 4x or 8x CPU. 
+    // Manual ticks on bus are 1:1 with peripheral ticks.
+    bus.tick_peripherals(20); 
+    
+    // Check outputs (PSC should be driving high)
+    // PSCOUT0A is PD1 (0x29, 1)
+    // 2. Enable AC0
+    bus.write_data(0xAD, 0x80); // AC0CON: AC0EN=1
+
+    // 3. Trigger AC0 Fault
+    // AC0 positive input is PB2 (0x23, 2), negative is PB3 (0x23, 3)
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.8);
+    pin_mux.update_analog_pin_by_address(0x23, 3, PinOwner::external, 0.2);
+    
+    // Tick to propagate analog levels and evaluate AC
+    bus.tick_peripherals(1); 
+    
+    // AC0 output should be high
+    u8 acsr = ac0.read(0x50);
+    CHECK((acsr & 0x01) != 0); 
+
+    // Check outputs (PSC should be faulted LOW)
+    PinState state = pin_mux.get_state_by_address(0x29, 1);
+    printf("DEBUG: PSC Counter: %d, Pin D1 Drive: %d, ACSR0: %02x\n", 
+           bus.read_data(0xDF), (int)state.drive_level, acsr);
+    
+    CHECK(state.drive_level == false); 
+
+    // 5. Clear Fault (Positive < Negative)
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.1);
+    bus.tick_peripherals(1); 
+    
+    CHECK((bus.read_data(0x50) & 0x01) == 0);
+
+    // PSC remains faulted in this mode until counter reaches end or reset
+    bus.tick_peripherals(1);
+    state = pin_mux.get_state_by_address(0x29, 1);
+    CHECK(state.drive_level == false);
 }

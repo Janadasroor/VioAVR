@@ -142,7 +142,7 @@ void Psc::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.ocrrb_address + 1) {
         temp_ = value;
     } else if (address == desc_.ocrrb_address) {
-        ocrrb_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
+        ocrrb_ = (static_cast<u16>(temp_) << 8) | value;
     }
     update_outputs();
 }

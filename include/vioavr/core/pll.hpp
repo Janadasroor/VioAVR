@@ -23,7 +23,7 @@ private:
     std::array<AddressRange, 1> ranges_{};
     u8 pllcsr_{0};
     u64 lock_delay_remaining_{0};
-    static constexpr u64 LOCK_DELAY_CYCLES = 1000; // Simplified
+    static constexpr u64 LOCK_DELAY_CYCLES = 100; // Aligned with fidelity tests
 };
 
 } // namespace vioavr::core

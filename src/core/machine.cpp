@@ -44,6 +44,7 @@
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
 #include "vioavr/core/eusart.hpp"
+#include "vioavr/core/pll.hpp"
 
 namespace vioavr::core {
 
@@ -400,6 +401,17 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(wdt));
     }
 
+    // 8.5 PLL Controller
+    u16 pll_addr = 0;
+    if (device_.psc_count > 0) pll_addr = device_.pscs[0].pllcsr_address;
+    else if (device_.usb_count > 0) pll_addr = device_.usbs[0].pllcsr_address;
+    
+    if (pll_addr != 0) {
+        auto pll = std::make_unique<PllController>(pll_addr);
+        bus_->attach_peripheral(*pll);
+        owned_peripherals_.push_back(std::move(pll));
+    }
+
     // Modern CRC (AVR8X)
     for (u8 i = 0; i < device_.crc8x_count; ++i) {
         auto crc = std::make_unique<Crc8x>(device_.crcs8x[i], bus_->flash_words());
@@ -439,7 +451,7 @@ void Machine::initialize_peripherals()
 
     // 11. Analog Comparator
     for (u8 i = 0; i < device_.ac_count; ++i) {
-        auto ac = std::make_unique<AnalogComparator>("AC", device_.acs[i], *pin_mux_, i);
+        auto ac = std::make_unique<AnalogComparator>("AC" + std::to_string(i), device_.acs[i], *pin_mux_, i);
         bus_->attach_peripheral(*ac);
         owned_peripherals_.push_back(std::move(ac));
     }
