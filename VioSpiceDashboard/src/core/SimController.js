@@ -114,7 +114,15 @@ export class SimController {
     this.telemetry.sreg = data.cpu.sreg;
     this.telemetry.cycles = data.cpu.cycles;
     this.telemetry.gprs = data.cpu.gprs;
+    this.telemetry.flags = data.cpu.flags || 0;
     this.telemetry.digital_outputs = data.digital_outputs;
+
+    // Handle Analysis Freeze (Bit 1)
+    if (this.telemetry.flags & 0x02) {
+      this.pause();
+      this.shell.showToast('Hardware Event: Analysis Freeze Triggered', 'error');
+      this.emit('analysisTriggered', { type: 'fault' });
+    }
 
     // Notify subscribers
     this.emit('telemetry', {

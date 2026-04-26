@@ -247,6 +247,7 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
         if (fault_occured && !fault_active_) {
             fault_active_ = true;
             pifr_ |= desc_.capt_flag_mask; // Fault interrupt
+            if (bus_) bus_->request_analysis_freeze();
         } else if (!fault_occured && fault_active_) {
             if (prfm_a == 0x06) { // Auto-restart mode
                 fault_active_ = false;

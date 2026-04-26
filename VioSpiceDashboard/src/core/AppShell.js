@@ -56,6 +56,15 @@ export class AppShell {
         sim.on('connectionChanged', ({ connected }) => {
             this.controls.updateConnection(connected);
         });
+        sim.on('analysisTriggered', () => {
+            this.switchView('view-logic');
+            this.logicPage.freeze();
+            this.showToast('Logic Analysis: Triggered by Hardware Fault', 'error');
+        });
+        sim.on('stateChanged', ({ running }) => {
+            if (running) this.logicPage.unfreeze();
+            this.controls.updateState(running);
+        });
     }
 
     this.showToast('Simulator Environment Ready', 'success');

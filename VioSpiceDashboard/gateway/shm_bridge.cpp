@@ -66,7 +66,8 @@ int main(int argc, char** argv) {
         }
         std::cout << "],"
                   << "\"cycles\": " << shm->telemetry.total_cycles << ","
-                  << "\"core_state\": " << (int)shm->telemetry.core_state
+                  << "\"core_state\": " << (int)shm->telemetry.core_state << ","
+                  << "\"flags\": " << (int)shm->telemetry.flags
                   << "},"
                   << "\"digital_outputs\": [";
         for (int i = 0; i < 128; i++) {
