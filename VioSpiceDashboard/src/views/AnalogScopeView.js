@@ -8,6 +8,8 @@ export class AnalogScopeView {
         this.history = new Array(300).fill(0.5);
         this.canvas = null;
         this.ctx = null;
+        this.isFrozen = false;
+        this.triggerPoint = -1;
     }
 
     init() {
@@ -47,8 +49,20 @@ export class AnalogScopeView {
         this.canvas.height = rect.height;
     }
 
+    freeze() {
+        if (this.isFrozen) return;
+        this.isFrozen = true;
+        this.triggerPoint = this.history.length - 1;
+        this._render();
+    }
+
+    unfreeze() {
+        this.isFrozen = false;
+        this.triggerPoint = -1;
+    }
+
     update(dac) {
-        if (!this.ctx) return;
+        if (this.isFrozen || !this.ctx) return;
         const val = dac ? dac.voltage : 0.5;
         this.history.push(val);
         if (this.history.length > 300) this.history.shift();
@@ -56,6 +70,7 @@ export class AnalogScopeView {
     }
 
     _render() {
+        if (!this.ctx) return;
         const { width, height } = this.canvas;
         const ctx = this.ctx;
         ctx.clearRect(0, 0, width, height);
@@ -71,10 +86,10 @@ export class AnalogScopeView {
         }
 
         // Trace
-        ctx.strokeStyle = '#00ff41';
+        ctx.strokeStyle = this.isFrozen ? '#ff3e3e' : '#00ff41';
         ctx.lineWidth = 3;
         ctx.shadowBlur = 10;
-        ctx.shadowColor = '#00ff41';
+        ctx.shadowColor = this.isFrozen ? '#ff3e3e' : '#00ff41';
         
         ctx.beginPath();
         const step = width / 300;
@@ -86,5 +101,23 @@ export class AnalogScopeView {
         });
         ctx.stroke();
         ctx.shadowBlur = 0;
+
+        // Trigger Marker
+        if (this.isFrozen) {
+            ctx.fillStyle = 'rgba(255, 62, 62, 0.2)';
+            ctx.fillRect(0, 0, width, height);
+            
+            ctx.fillStyle = '#ff3e3e';
+            ctx.font = 'bold 24px "Outfit", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('FAULT TRIGGER', width / 2, height / 2);
+            
+            // Vertical line at trigger
+            const tx = this.triggerPoint * step;
+            ctx.strokeStyle = '#fff';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath(); ctx.moveTo(tx, 0); ctx.lineTo(tx, height); ctx.stroke();
+            ctx.setLineDash([]);
+        }
     }
 }

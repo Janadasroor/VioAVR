@@ -1879,3 +1879,19 @@ body {
   pointer-events: none;
   z-index: 5;
 }
+
+/* Fault Trigger Aesthetics */
+body.fault-active {
+    animation: fault-pulse 2s infinite;
+}
+
+@keyframes fault-pulse {
+    0% { background-color: #0f172a; }
+    50% { background-color: #2a0f0f; }
+    100% { background-color: #0f172a; }
+}
+
+.scope-screen.fault-active {
+    border-color: #ff3e3e;
+    box-shadow: 0 0 20px rgba(255, 62, 62, 0.4);
+}
