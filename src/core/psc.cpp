@@ -54,6 +54,8 @@ void Psc::reset() noexcept {
     fault_pending_restart_ = false;
     output_a_ = false;
     output_b_ = false;
+    output_c_ = false;
+    output_d_ = false;
 }
 
 u8 Psc::read(u16 address) noexcept {
@@ -65,14 +67,29 @@ u8 Psc::read(u16 address) noexcept {
     if (address == desc_.pfrc0a_address) return pfrc0a_;
     if (address == desc_.pfrc0b_address) return pfrc0b_;
     
-    if (address == desc_.ocrsa_address) return ocrsa_ & 0xFF;
-    if (address == desc_.ocrsa_address + 1) return (ocrsa_ >> 8) & 0x0F;
-    if (address == desc_.ocrra_address) return ocrra_ & 0xFF;
-    if (address == desc_.ocrra_address + 1) return (ocrra_ >> 8) & 0x0F;
-    if (address == desc_.ocrsb_address) return ocrsb_ & 0xFF;
-    if (address == desc_.ocrsb_address + 1) return (ocrsb_ >> 8) & 0x0F;
-    if (address == desc_.ocrrb_address) return ocrrb_ & 0xFF;
-    if (address == desc_.ocrrb_address + 1) return (ocrrb_ >> 8) & 0x0F;
+    if (address == desc_.ocrsa_address) {
+        temp_ = (ocrsa_ >> 8) & 0x0F;
+        return ocrsa_ & 0xFF;
+    }
+    if (address == desc_.ocrsa_address + 1) return temp_;
+    
+    if (address == desc_.ocrra_address) {
+        temp_ = (ocrra_ >> 8) & 0x0F;
+        return ocrra_ & 0xFF;
+    }
+    if (address == desc_.ocrra_address + 1) return temp_;
+    
+    if (address == desc_.ocrsb_address) {
+        temp_ = (ocrsb_ >> 8) & 0x0F;
+        return ocrsb_ & 0xFF;
+    }
+    if (address == desc_.ocrsb_address + 1) return temp_;
+    
+    if (address == desc_.ocrrb_address) {
+        temp_ = (ocrrb_ >> 8) & 0x0F;
+        return ocrrb_ & 0xFF;
+    }
+    if (address == desc_.ocrrb_address + 1) return temp_;
     
     return 0;
 }
@@ -100,22 +117,22 @@ void Psc::write(u16 address, u8 value) noexcept {
         pfrc0a_ = value;
     } else if (address == desc_.pfrc0b_address) {
         pfrc0b_ = value;
-    } else if (address == desc_.ocrsa_address) {
-        temp_ = value;
     } else if (address == desc_.ocrsa_address + 1) {
-        ocrsa_ = (static_cast<u16>(value & 0x0F) << 8) | temp_;
-    } else if (address == desc_.ocrra_address) {
         temp_ = value;
+    } else if (address == desc_.ocrsa_address) {
+        ocrsa_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
     } else if (address == desc_.ocrra_address + 1) {
-        ocrra_ = (static_cast<u16>(value & 0x0F) << 8) | temp_;
-    } else if (address == desc_.ocrsb_address) {
         temp_ = value;
+    } else if (address == desc_.ocrra_address) {
+        ocrra_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
     } else if (address == desc_.ocrsb_address + 1) {
-        ocrsb_ = (static_cast<u16>(value & 0x0F) << 8) | temp_;
-    } else if (address == desc_.ocrrb_address) {
         temp_ = value;
+    } else if (address == desc_.ocrsb_address) {
+        ocrsb_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
     } else if (address == desc_.ocrrb_address + 1) {
-        ocrrb_ = (static_cast<u16>(value & 0x0F) << 8) | temp_;
+        temp_ = value;
+    } else if (address == desc_.ocrrb_address) {
+        ocrrb_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
     }
     update_outputs();
 }
@@ -123,6 +140,7 @@ void Psc::write(u16 address, u8 value) noexcept {
 void Psc::tick(u64 elapsed_cycles) noexcept {
     if (!(pctl_ & desc_.prun_mask)) {
         cycle_accumulator_ = 0;
+        update_outputs();
         return;
     }
 
@@ -151,28 +169,87 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
     bool is_centered = (mode_val == 3);
 
     for (u64 i = 0; i < ticks; ++i) {
+        // 1. Process Fault/Filter Logic for Channel A
+        bool trigger_level_a = (pfrc0a_ & 0x20); // PELEV
+        bool raw_triggered_a = (fault_a_.level == trigger_level_a);
+        
+        if (pfrc0a_ & 0x10) { // PFLTE (Filter Enable)
+            if (raw_triggered_a != fault_a_.filtered_level) {
+                fault_a_.filter_samples++;
+                if (fault_a_.filter_samples >= 4) {
+                    fault_a_.filtered_level = raw_triggered_a;
+                }
+            } else {
+                fault_a_.filter_samples = 0;
+            }
+        } else {
+            fault_a_.filtered_level = raw_triggered_a;
+        }
+
+        // 2. Process Fault/Filter Logic for Channel B
+        bool trigger_level_b = (pfrc0b_ & 0x20); // PELEV
+        bool raw_triggered_b = (fault_b_.level == trigger_level_b);
+        
+        if (pfrc0b_ & 0x10) { // PFLTE (Filter Enable)
+            if (raw_triggered_b != fault_b_.filtered_level) {
+                fault_b_.filter_samples++;
+                if (fault_b_.filter_samples >= 4) {
+                    fault_b_.filtered_level = raw_triggered_b;
+                }
+            } else {
+                fault_b_.filter_samples = 0;
+            }
+        } else {
+            fault_b_.filtered_level = raw_triggered_b;
+        }
+
+        // 3. Handle PRFM (Retrigger and Fault Mode)
+        u8 prfm_a = (pfrc0a_ & 0x0F);
+        bool fault_occured = false;
+        
+        if (fault_a_.filtered_level) {
+            switch (prfm_a) {
+                case 0x01: // Retrigger on Edge
+                    if (!last_fault_level_) { counter_ = 0; down_counting_ = false; }
+                    break;
+                case 0x02: // Retrigger on Level
+                    counter_ = 0; down_counting_ = false;
+                    break;
+                case 0x06: // Fault on Level (Auto Restart)
+                case 0x07: // Fault on Level (No Auto Restart)
+                    fault_occured = true;
+                    break;
+                default: break;
+            }
+        }
+
+        if (fault_occured && !fault_active_) {
+            fault_active_ = true;
+            pifr_ |= desc_.capt_flag_mask; // Fault interrupt
+        } else if (!fault_occured && fault_active_) {
+            if (prfm_a == 0x06) { // Auto-restart mode
+                fault_active_ = false;
+            }
+        }
+        
+        last_fault_level_ = fault_a_.filtered_level;
+
+        // 4. Counter Logic
         if (fault_active_) {
             u8 prfm = (pfrc0a_ & 0x0F);
-            if (prfm == 0x07) break; 
+            if (prfm == 0x07) continue; // In mode 7, counter stops
         }
 
         if (down_counting_) {
-            counter_--;
-            if (counter_ == 0) {
+            if (counter_ > 0) counter_--;
+            else {
                 down_counting_ = false;
                 pifr_ |= desc_.ec_flag_mask;
                 notify_adc();
-                
-                u8 prfm = (pfrc0a_ & 0x0F);
-                if (prfm == 0x04) fault_active_ = false;
             }
         } else {
             counter_++;
             u16 top = ocrrb_;
-            if (is_four_ramp) {
-                // In four-ramp, the cycle is OCRSA -> OCRRA -> OCRSB -> OCRRB
-                // This is a simplified approximation: we use OCRRB as total period
-            }
             
             if (counter_ >= top && top > 0) {
                 if (is_two_ramp || is_centered || is_four_ramp) {
@@ -182,8 +259,9 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                     pifr_ |= desc_.ec_flag_mask;
                     notify_adc();
                     
-                    u8 prfm = (pfrc0a_ & 0x0F);
-                    if (prfm == 0x04) fault_active_ = false;
+                    if (pctl_ & desc_.pccyc_mask) {
+                        pctl_ &= ~desc_.prun_mask;
+                    }
                 }
             }
         }
@@ -200,8 +278,12 @@ void Psc::notify_adc() noexcept {
     }
 }
 
-void Psc::notify_fault(bool level) noexcept {
-    handle_fault(level);
+void Psc::notify_fault(bool level, u8 channel) noexcept {
+    if (channel == 0) {
+        fault_a_.level = level;
+    } else if (channel == 1) {
+        fault_b_.level = level;
+    }
 }
 
 void Psc::handle_fault(bool level) noexcept {
@@ -240,35 +322,68 @@ void Psc::update_outputs() noexcept {
         bool pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
         bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
 
+        bool pop = (pconf_ & 0x04) != 0;
+        bool paoc_a = (pctl_ & desc_.paoca_mask);
+        bool paoc_b = (pctl_ & desc_.paocb_mask);
+        
+
         if (fault_active_) {
-            output_a_ = (psoc_ & 0x02) != 0;
-            output_b_ = (psoc_ & 0x08) != 0;
+            output_a_ = paoc_a ? (pulse_a ^ pop) : ((psoc_ & 0x02) != 0);
+            output_b_ = paoc_b ? (pulse_b ^ pop) : ((psoc_ & 0x08) != 0);
+            
+            if (desc_.psc_index == 2) {
+                // For PSC2, we'll assume PAOC A/B also affect C/D or similar
+                // (Depends on specific hardware, but usually PAOC is per channel pair)
+                output_c_ = paoc_a ? (pulse_a ^ pop) : ((psoc_ & 0x02) != 0);
+                output_d_ = paoc_b ? (pulse_b ^ pop) : ((psoc_ & 0x08) != 0);
+            }
         } else {
-            bool pop = (pconf_ & 0x04) != 0;
             bool en_a = (psoc_ & 0x01);
             output_a_ = en_a && (pulse_a ^ pop);
-
             bool en_b = (psoc_ & 0x04);
             output_b_ = en_b && (pulse_b ^ pop);
+
+            if (desc_.psc_index == 2) {
+                bool en_c = (psoc_ & 0x02);
+                bool en_d = (psoc_ & 0x08);
+                output_c_ = en_c && (pulse_a ^ pop);
+                output_d_ = en_d && (pulse_b ^ pop);
+            }
         }
     }
 
-    // Update physical pins
+    // Update physical pins only if enabled in PSOC
     if (desc_.outa_pin_address) {
-        pin_mux_->claim_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
-        pin_mux_->update_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc, true, output_a_);
+        if (psoc_ & 0x01) {
+            pin_mux_->claim_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
+            pin_mux_->update_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc, true, output_a_);
+        } else {
+            pin_mux_->release_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
+        }
     }
     if (desc_.outb_pin_address) {
-        pin_mux_->claim_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
-        pin_mux_->update_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc, true, output_b_);
+        if (psoc_ & 0x04) {
+            pin_mux_->claim_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
+            pin_mux_->update_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc, true, output_b_);
+        } else {
+            pin_mux_->release_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
+        }
     }
     if (desc_.outc_pin_address) {
-        pin_mux_->claim_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
-        pin_mux_->update_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc, true, output_a_); 
+        if (psoc_ & 0x02) {
+            pin_mux_->claim_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
+            pin_mux_->update_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc, true, output_c_); 
+        } else {
+            pin_mux_->release_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
+        }
     }
     if (desc_.outd_pin_address) {
-        pin_mux_->claim_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc);
-        pin_mux_->update_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc, true, output_b_);
+        if (psoc_ & 0x08) {
+            pin_mux_->claim_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc);
+            pin_mux_->update_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc, true, output_d_);
+        } else {
+            pin_mux_->release_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc);
+        }
     }
 }
 

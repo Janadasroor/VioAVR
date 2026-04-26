@@ -561,10 +561,14 @@ void Machine::wire_peripherals()
             if (auto* ac = dynamic_cast<AnalogComparator*>(p.get())) {
                 adc->connect_comparator_auto_trigger(*ac);
                 
-                // Also wire AC to PSC for fault protection
+                // Wire AC to PSC based on index for AT90PWM series
+                u8 psc_idx = ac->name().back() - '0';
                 for (auto& p2 : owned_peripherals_) {
                     if (auto* psc = dynamic_cast<Psc*>(p2.get())) {
-                        ac->connect_psc_fault(*psc);
+                        std::string psc_target = "PSC" + std::to_string(psc_idx);
+                        if (psc->name() == psc_target || psc->name() == "PSC") {
+                            ac->connect_psc_fault(*psc);
+                        }
                     }
                 }
             }
