@@ -67,11 +67,25 @@ export class SchematicEditor {
 
   // ─── Load Preset ──────────────────────────────────────────────────────────
 
-  loadDemo() {
+  loadDemo(demoType = 'automotive') {
     this.canvas.innerHTML = '';
     this.history = new HistoryManager();
     this.history.onChange = () => this._autoSave();
 
+    if (demoType === 'automotive') {
+        this._loadAutomotiveDemo();
+    } else if (demoType === 'power') {
+        this._loadPowerDemo();
+    }
+
+    // AUTO-WIRE THE DEMO
+    this.autoWireDemo();
+
+    this.viewport.zoomFit(this.canvas.querySelectorAll('.schematic-node'));
+    this.shell.showToast(`${demoType.toUpperCase()} Cluster Auto-Wired!`, 'success');
+  }
+
+  _loadAutomotiveDemo() {
     const mcu = getComponent('atmega6490p') || getComponent('mcu');
     const speedometer = getComponent('lcd_glass');
     const tripComputer = getComponent('glcd_128x64');
@@ -80,66 +94,90 @@ export class SchematicEditor {
     const infotainment = getComponent('keypad_4x4');
     const analyzer = getComponent('logic_analyzer');
 
-    // Central Intelligence
     this._placeComponent(mcu, 400, 300);
-
-    // Instrument Cluster
     this._placeComponent(speedometer, 50, 50);
     this._placeComponent(tripComputer, 350, 50);
     this._placeComponent(gaugeStepper, 700, 50);
-
-    // Controls & Actuators
     this._placeComponent(infotainment, 50, 350);
     this._placeComponent(coolingFan, 750, 350);
-
-    // Debugging Tools
     this._placeComponent(analyzer, 400, 600);
+  }
 
-    // AUTO-WIRE THE DEMO
-    this.autoWireDemo();
+  _loadPowerDemo() {
+    const mcu = getComponent('at90pwm316') || getComponent('mcu');
+    const dacMon = getComponent('dac_monitor');
+    const terminal = getComponent('eusart_terminal');
+    const analyzer = getComponent('logic_analyzer');
 
-    this.viewport.zoomFit(this.canvas.querySelectorAll('.schematic-node'));
-    this.shell.showToast('Automotive Cluster Auto-Wired!', 'success');
+    this._placeComponent(mcu, 400, 300);
+    this._placeComponent(dacMon, 750, 100);
+    this._placeComponent(terminal, 750, 400);
+    this._placeComponent(analyzer, 100, 500);
   }
 
   autoWireDemo() {
     const nodes = Array.from(this.canvas.querySelectorAll('.schematic-node'));
     const getNodesByType = (type) => nodes.filter(n => n.dataset.type === type);
     
-    const mcu = nodes.find(n => n.dataset.type === 'atmega6490p' || n.dataset.type === 'mcu');
+    // MCU Identification
+    const mcu = nodes.find(n => n.dataset.category === 'MCU');
     if (!mcu) return;
-
     const mcuId = mcu.dataset.id;
+    const isPWM316 = mcu.dataset.type === 'at90pwm316';
 
-    // 1. Wire Logic Analyzer to PORTA (Pins 0-7)
-    const analyzer = getNodesByType('logic_analyzer')[0];
-    if (analyzer) {
-        for (let i = 0; i < 8; i++) {
-            this._createWire(mcuId, `P${i}`, analyzer.dataset.id, `CH${i}`);
+    if (isPWM316) {
+        // --- Power Demo Wiring ---
+        const dacMon = getNodesByType('dac_monitor')[0];
+        if (dacMon) {
+            // AT90PWM316 DAC is on PB7 (Pin 7 in VioAVR internal indexing for PORTB is P7? No, PORTB starts at 0)
+            // In our simple Px notation: PB7 is P7
+            this._createWire(mcuId, 'PB7', dacMon.dataset.id, 'IN');
         }
-    }
 
-    // 2. Wire DC Motor to Pin 16 (PORTC.0)
-    const dcMotor = getNodesByType('motor_dc')[0];
-    if (dcMotor) {
-        this._createWire(mcuId, 'P16', dcMotor.dataset.id, '+');
-    }
+        const terminal = getNodesByType('eusart_terminal')[0];
+        if (terminal) {
+            // TX=PD1, RX=PD0
+            this._createWire(mcuId, 'PD1', terminal.dataset.id, 'RX');
+            this._createWire(mcuId, 'PD0', terminal.dataset.id, 'TX');
+        }
 
-    // 3. Wire Stepper to Pins 18-21 (PORTD.2-5)
-    const stepper = getNodesByType('motor_stepper')[0];
-    if (stepper) {
-        this._createWire(mcuId, 'P18', stepper.dataset.id, 'A+');
-        this._createWire(mcuId, 'P19', stepper.dataset.id, 'A-');
-        this._createWire(mcuId, 'P20', stepper.dataset.id, 'B+');
-        this._createWire(mcuId, 'P21', stepper.dataset.id, 'B-');
-    }
+        const analyzer = getNodesByType('logic_analyzer')[0];
+        if (analyzer) {
+            // Wire PSC outputs (Usually on PORTB/D)
+            this._createWire(mcuId, 'PB0', analyzer.dataset.id, 'CH0');
+            this._createWire(mcuId, 'PB1', analyzer.dataset.id, 'CH1');
+        }
+    } else {
+        // --- Automotive Demo Wiring (Default) ---
+        // 1. Wire Logic Analyzer to PORTA (Pins 0-7)
+        const analyzer = getNodesByType('logic_analyzer')[0];
+        if (analyzer) {
+            for (let i = 0; i < 8; i++) {
+                this._createWire(mcuId, `PA${i}`, analyzer.dataset.id, `CH${i}`);
+            }
+        }
 
-    // 4. Wire LCD Segments (Exhaustive)
-    const glass = getNodesByType('lcd_glass')[0];
-    if (glass) {
-        // Wire first 8 segments as a demo
-        for (let i = 0; i < 8; i++) {
-            this._createWire(mcuId, `P${30+i}`, glass.dataset.id, `SEG${i}`);
+        // 2. Wire DC Motor to Pin 16 (PORTC.0)
+        const dcMotor = getNodesByType('motor_dc')[0];
+        if (dcMotor) {
+            this._createWire(mcuId, 'PC0', dcMotor.dataset.id, '+');
+        }
+
+        // 3. Wire Stepper to Pins 18-21 (PORTD.2-5)
+        const stepper = getNodesByType('motor_stepper')[0];
+        if (stepper) {
+            this._createWire(mcuId, 'PD2', stepper.dataset.id, 'A+');
+            this._createWire(mcuId, 'PD3', stepper.dataset.id, 'A-');
+            this._createWire(mcuId, 'PD4', stepper.dataset.id, 'B+');
+            this._createWire(mcuId, 'PD5', stepper.dataset.id, 'B-');
+        }
+
+        // 4. Wire LCD Segments (Exhaustive)
+        const glass = getNodesByType('lcd_glass')[0];
+        if (glass) {
+            for (let i = 0; i < 8; i++) {
+                this._createWire(mcuId, `P${30+i}`, glass.dataset.id, `SEG${i}`);
+            }
         }
     }
   }
