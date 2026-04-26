@@ -1845,3 +1845,37 @@ body {
   color: #00ff41;
   text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
 }
+
+/* Logic Analyzer Frozen State */
+.view.active.logic-frozen::after {
+  content: 'ANALYSIS FREEZE';
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 1px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  backdrop-filter: blur(8px);
+  animation: pulse-glow 2s infinite;
+  z-index: 100;
+}
+
+.logic-frozen #logic-page-canvas {
+  filter: grayscale(0.5) contrast(1.2);
+  opacity: 0.8;
+}
+
+.logic-frozen .logic-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 0%, rgba(239, 68, 68, 0.05) 100%);
+  pointer-events: none;
+  z-index: 5;
+}

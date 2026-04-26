@@ -8,6 +8,17 @@ export class LogicPageView {
         this.history = Array.from({ length: 8 }, () => new Array(200).fill(0));
         this.canvas = null;
         this.ctx = null;
+        this.isFrozen = false;
+    }
+
+    freeze() {
+        this.isFrozen = true;
+        this.container?.classList.add('logic-frozen');
+    }
+
+    unfreeze() {
+        this.isFrozen = false;
+        this.container?.classList.remove('logic-frozen');
     }
 
     init() {
@@ -45,7 +56,7 @@ export class LogicPageView {
     }
 
     update(pins) {
-        if (!pins || !this.ctx) return;
+        if (!pins || !this.ctx || this.isFrozen) return;
 
         // Update history
         for (let i = 0; i < 8; i++) {

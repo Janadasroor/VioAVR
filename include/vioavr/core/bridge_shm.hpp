@@ -37,8 +37,11 @@ struct TelemetryData {
     uint32_t sleep_cycles;
     uint16_t current_instruction_word;
     uint8_t core_state; // 0=Running, 1=Halted, 2=Sleeping
-    uint8_t flags;      // Bit 0: Breakpoint
+    uint8_t flags;      // Bit 0: Breakpoint, Bit 1: Analysis Trigger (Freeze)
 };
+
+static constexpr uint8_t TELEMETRY_FLAG_BREAKPOINT = 0x01;
+static constexpr uint8_t TELEMETRY_FLAG_ANALYSIS_FREEZE = 0x02;
 
 struct LcdBridgeState {
     uint8_t enabled;

@@ -116,6 +116,9 @@ public:
     [[nodiscard]] u8 lockbit() const noexcept { return lockbit_; }
     
     void execute_nvm_command(u8 command, u32 address, u16 data) noexcept;
+    void request_analysis_freeze() noexcept { analysis_freeze_requested_ = true; }
+    [[nodiscard]] bool analysis_freeze_requested() const noexcept { return analysis_freeze_requested_; }
+    void clear_analysis_freeze_request() noexcept { analysis_freeze_requested_ = false; }
 
     [[nodiscard]] u8 get_wait_states(u16 address) const noexcept;
 
@@ -156,5 +159,6 @@ private:
     u8 last_spmcsr_val_ {0U};
     u8 flash_wait_states_ {0U};
     u64 cpu_cycles_ {0U};
+    bool analysis_freeze_requested_ {false};
 };
 }  // namespace vioavr::core
