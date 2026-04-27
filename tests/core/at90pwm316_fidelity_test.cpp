@@ -588,7 +588,8 @@ TEST_CASE("AT90PWM316 - Analog Comparator Fault Triggering") {
     pin_mux.update_analog_pin_by_address(0x23, 3, PinOwner::external, 0.2);
     
     // Tick to propagate analog levels and evaluate AC
-    bus.tick_peripherals(1); 
+    // Propagation delay is 2 cycles by default.
+    bus.tick_peripherals(2); 
     
     // AC0 output should be high
     u8 acsr = ac0.read(0x50);
@@ -773,4 +774,51 @@ TEST_CASE("AT90PWM316 - PSC Four-Ramp Mode Fidelity") {
     pifr = bus.read_data(pifr0);
     CHECK(((pifr >> 1) & 0x03) == 0); // Back to Ramp 0
     CHECK((pifr & 0x01) != 0); // PEOP set
+}
+
+TEST_CASE("Analog Comparator Propagation and Hysteresis Fidelity") {
+    auto machine = Machine::create_for_device("AT90PWM316");
+    auto& bus = machine->bus();
+    auto& pin_mux = *bus.pin_mux();
+    
+    auto acs = machine->peripherals_of_type<AnalogComparator>();
+    REQUIRE(!acs.empty());
+    AnalogComparator& ac0 = *acs[0];
+    
+    // Setup AC0
+    bus.write_data(0xAD, 0x80); // AC0EN=1, ACM=0 (AIP vs AIM)
+    
+    // PB2 (Pos) = 0.5V, PB3 (Neg) = 0.5V
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.5);
+    pin_mux.update_analog_pin_by_address(0x23, 3, PinOwner::external, 0.5);
+    bus.tick_peripherals(5);
+    
+    // 1. Test Rising Threshold (0.5V + 20mV = 0.504V)
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.502); // 10mV diff (Below 20mV)
+    bus.tick_peripherals(5);
+    CHECK((ac0.read(0x50) & 0x01) == 0);
+    
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.51); // 50mV diff (Above 20mV)
+    // Should NOT be high yet (needs 2 cycles)
+    bus.tick_peripherals(1);
+    CHECK((ac0.read(0x50) & 0x01) == 0);
+    
+    bus.tick_peripherals(1);
+    CHECK((ac0.read(0x50) & 0x01) != 0); // Now High
+    
+    // 2. Test Glitch Rejection (Pulse shorter than 2 cycles)
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.45); // Drop below
+    bus.tick_peripherals(1); // 1 cycle passed
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.55); // Back up before delay expired
+    bus.tick_peripherals(5);
+    CHECK((ac0.read(0x50) & 0x01) != 0); // Should stay High (glitch rejected)
+    
+    // 3. Test Falling Threshold (0.5V - 20mV = 0.496V)
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.498); // 10mV diff (Within hysteresis)
+    bus.tick_peripherals(5);
+    CHECK((ac0.read(0x50) & 0x01) != 0);
+    
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.48); // Below
+    bus.tick_peripherals(2);
+    CHECK((ac0.read(0x50) & 0x01) == 0); // Now Low
 }

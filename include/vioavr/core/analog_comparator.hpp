@@ -20,7 +20,7 @@ public:
                      const AnalogComparatorDescriptor& descriptor,
                      PinMux& pin_mux,
                      u8 source_id,
-                     double hysteresis = 0.02) noexcept;
+                     double hysteresis = 0.004) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -72,6 +72,9 @@ private:
     u8 accon_ {0x00U};
     u8 didr_ {0x00U};
     bool output_high_ {false};
+    bool raw_output_ {false};
+    u32 propagation_delay_ {2}; // Default 2 cycles (approx 125ns @ 16MHz)
+    u32 delay_counter_ {0};
     bool pending_ {false};
 };
 
