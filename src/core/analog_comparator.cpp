@@ -29,6 +29,8 @@ AnalogComparator::AnalogComparator(std::string_view name,
     if (desc_.didr_address && desc_.didr_address != desc_.acsr_address && desc_.didr_address != desc_.accon_address) {
         mapped_ranges_.push_back({desc_.didr_address, desc_.didr_address});
     }
+    printf("AC [%p] created: %s (ACSR=0x%02X, ACCON=0x%02X)\n", (void*)this, name_.data(), desc_.acsr_address, desc_.accon_address);
+    fflush(stdout);
 }
 
 std::string_view AnalogComparator::name() const noexcept { return name_; }
@@ -42,14 +44,44 @@ void AnalogComparator::reset() noexcept {
     accon_ = 0x00U;
     didr_ = 0x00U;
     output_high_ = false;
+    raw_output_ = false;
+    delay_counter_ = 0;
     pending_ = false;
     update_pin_ownership();
 }
 
-void AnalogComparator::tick(u64) noexcept {
+void AnalogComparator::tick(u64 elapsed_cycles) noexcept {
     if (is_disabled()) return;
     refresh_bound_inputs();
     evaluate_output();
+
+    if (raw_output_ != output_high_) {
+        const u64 ticks = std::min<u64>(elapsed_cycles, delay_counter_);
+        if (delay_counter_ > 0) {
+            delay_counter_ -= static_cast<u32>(ticks);
+        }
+        
+        if (delay_counter_ == 0) {
+            output_high_ = raw_output_;
+            
+            // Notify interested peripherals
+            for (auto* psc : psc_fault_listeners_) {
+                psc->notify_fault(output_high_);
+            }
+
+            const u8 mode = interrupt_mode();
+            bool trigger = false;
+            switch (mode) {
+                case 0: trigger = true; break; // Toggle
+                case 2: trigger = !output_high_; break; // Falling
+                case 3: trigger = output_high_; break; // Rising
+                default: break;
+            }
+            if (trigger) raise_interrupt_flag();
+        }
+    } else {
+        delay_counter_ = 0;
+    }
 }
 
 u8 AnalogComparator::read(u16 address) noexcept {
@@ -176,10 +208,9 @@ void AnalogComparator::refresh_bound_inputs() noexcept {
 
     // Resolve Negative Input
     switch(mux) {
-        case 0: if (signal_bank_) negative_input_ = signal_bank_->voltage(negative_channel_); break;
         case 1: negative_input_ = bandgap; break;
         case 2: if (dac_) negative_input_ = dac_->voltage(); break;
-        default: // 3, 4, 5, 6, 7
+        default: // 0, 3, 4, 5, 6, 7
             if (signal_bank_) {
                 negative_input_ = signal_bank_->voltage(negative_channel_);
             } else if (pin_mux_) {
@@ -191,11 +222,9 @@ void AnalogComparator::refresh_bound_inputs() noexcept {
 
 void AnalogComparator::evaluate_output() noexcept {
     if (is_disabled()) {
-        output_high_ = false;
         return;
     }
 
-    const bool was_high = output_high_;
     const double diff = positive_input_ - negative_input_;
     
     // Dynamic Hysteresis based on ACHYST
@@ -207,26 +236,22 @@ void AnalogComparator::evaluate_output() noexcept {
         else h = 0.0;
     }
 
-    if (output_high_) {
-        if (diff < -h) output_high_ = false;
+    bool next_raw = raw_output_;
+    if (raw_output_) {
+        if (diff < -h) next_raw = false;
     } else {
-        if (diff > h) output_high_ = true;
+        if (diff > h) next_raw = true;
     }
 
-    if (was_high != output_high_) {
-        for (auto* psc : psc_fault_listeners_) {
-            psc->notify_fault(output_high_);
+    if (next_raw != raw_output_) {
+        raw_output_ = next_raw;
+        // Start or reset the delay counter when raw comparator toggles
+        if (raw_output_ != output_high_) {
+            delay_counter_ = propagation_delay_;
+        } else {
+            // Glitch was rejected
+            delay_counter_ = 0;
         }
-
-        const u8 mode = interrupt_mode();
-        bool trigger = false;
-        switch (mode) {
-            case 0: trigger = true; break; // Toggle
-            case 2: trigger = !output_high_; break; // Falling
-            case 3: trigger = output_high_; break; // Rising
-            default: break;
-        }
-        if (trigger) raise_interrupt_flag();
     }
 }
 

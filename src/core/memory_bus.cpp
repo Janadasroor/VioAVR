@@ -89,7 +89,6 @@ void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
         snprintf(buf, sizeof(buf), "[0x%04X, 0x%04X]", range.begin, range.end);
         Logger::debug("Mapping peripheral '" + std::string(peripheral.name()) + "' to range " + buf);
         for (u32 addr = range.begin; addr <= range.end && addr < dispatch_table_.size(); ++addr) {
-            printf("DEBUG MAPPING: 0x%04x -> %s\n", addr, peripheral.name().data()); fflush(stdout);
             dispatch_table_[addr] = &peripheral;
         }
     }
@@ -276,8 +275,10 @@ void MemoryBus::write_data(const u16 address, const u8 value) noexcept
     }
 }
 
-void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
-{
+void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept {
+    if (elapsed_cycles == 0) return;
+
+    cpu_cycles_ += elapsed_cycles;
     if (io_stall_cycles_ > 0U) {
         if (elapsed_cycles >= io_stall_cycles_) {
             io_stall_cycles_ = 0U;
@@ -298,12 +299,10 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
         }
     }
 
-    for (IoPeripheral* peripheral : peripherals_) {
-        if (peripheral != nullptr) {
-            const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
-            if ((domain_mask & active_domains) != 0 || domain_mask == 0) {
-                peripheral->tick(elapsed_cycles);
-            }
+    for (auto* peripheral : peripherals_) {
+        const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
+        if ((domain_mask & active_domains) != 0 || domain_mask == 0) {
+            peripheral->tick(elapsed_cycles);
         }
     }
 
