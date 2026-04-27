@@ -55,7 +55,7 @@ private:
     u8 pfrc0b_ {0};
 
     // Temp for 16-bit access
-    u8 temp_ {0};
+    u8 temp_high_ {0};
 
     class Adc* adc_trigger_ {nullptr};
     class PinMux* pin_mux_ {nullptr};
@@ -66,6 +66,7 @@ private:
     bool last_fault_level_ {false};
     bool fault_pending_restart_ {false};
     u64 cycle_accumulator_ {0};
+    u8 ramp_number_ {0}; // For Two-Ramp / Four-Ramp modes
     
     struct FaultChannel {
         bool level {false};
@@ -77,8 +78,8 @@ private:
     FaultChannel fault_a_{};
     FaultChannel fault_b_{};
     
-    bool last_output_a_ {false};
-    bool last_output_b_ {false};
+    bool last_pulse_a_ {false};
+    bool last_pulse_b_ {false};
 
     // Output States
     bool output_a_ {false};
