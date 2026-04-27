@@ -636,6 +636,7 @@ def generate_header(data, header_path):
             .pctl_address = {hx(r('PCTL.*')['offset'])}, .psoc_address = {hx(r('PSOC.*')['offset'])}, .pconf_address = {hx(r('PCNF.*')['offset'])}, .pim_address = {hx(r('PIM.*')['offset'])}, .pifr_address = {hx(r('PIFR.*')['offset'])}, .picr_address = {hx(r('PICR.*')['offset'])},
             .ocrsa_address = {hx(r('OCR.*SA')['offset'])}, .ocrra_address = {hx(r('OCR.*RA')['offset'])}, .ocrsb_address = {hx(r('OCR.*SB')['offset'])}, .ocrrb_address = {hx(r('OCR.*RB')['offset'])},
             .pfrc0a_address = {hx(r('PFRC.*A')['offset'])}, .pfrc0b_address = {hx(r('PFRC.*B')['offset'])},
+            .pom_address = {hx(r('POM.*')['offset'])},
             .psc_index = {idx}U,
             .gen_vector_index = {hx(get_vector(p_name, 'GEN'))},
             .ec_vector_index = {hx(get_vector(p_name, 'EC'))},
@@ -645,8 +646,11 @@ def generate_header(data, header_path):
             .outc_pin_address = {outc_addr}, .outc_pin_bit = {outc_bit}U,
             .outd_pin_address = {outd_addr}, .outd_pin_bit = {outd_bit}U,
             .prun_mask = {hx(get_bit(r('PCTL.*'), 'PRUN'))}, .mode_mask = {hx(get_bit(r('PCNF.*'), 'PMODE'))}, .clksel_mask = {hx(get_bit(r('PCNF.*'), 'CLKSEL'))}, .ppre_mask = {hx(get_bit(r('PCTL.*'), 'PPRE'))},
-            .ec_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEOP'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), 'PRN0|PCAPT'))},
-            .pccyc_mask = {hx(get_bit(r('PCTL.*'), 'PCCYC'))}, .paoca_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*A'))}, .paocb_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*B'))}, .pbfm_mask = {hx(get_bit(r('PCTL.*'), 'PBFM'))},
+            .ec_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEOP'))}, .capt_flag_mask = {hx(get_bit(r('PIFR.*'), 'PEV.*A|PCAPT'))},
+            .pccyc_mask = {hx(get_bit(r('PCTL.*'), 'PCCYC'))}, 
+            .poena_mask = {hx(get_bit(r('PSOC.*'), 'POEN.*A'))}, .poenb_mask = {hx(get_bit(r('PSOC.*'), 'POEN.*B'))},
+            .poenc_mask = {hx(get_bit(r('PSOC.*'), 'POEN.*C'))}, .poend_mask = {hx(get_bit(r('PSOC.*'), 'POEN.*D'))},
+            .paoca_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*A'))}, .paocb_mask = {hx(get_bit(r('PCTL.*'), 'PAOC.*B'))}, .pbfm_mask = {hx(get_bit(r('PCTL.*'), 'PBFM'))},
             .pllcsr_address = {gen_pllcsr()},
             .pr_address = {get_pr_info(data, 'PRPSC')[0]}, .pr_bit = {get_pr_info(data, 'PRPSC')[1]}
         }}"""

@@ -1,0 +1,378 @@
+[doctest] doctest version is "2.5.0"
+[doctest] run with "--help" for options
+[DEBUG] DeviceCatalog::find: found AT90PWM316 TCA count: 0
+[DEBUG] Attaching peripheral to memory bus: CPU Control
+[DEBUG] MemoryBus: peripherals size is now 1
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x005D, 0x005F]
+DEBUG MAPPING: 0x005d -> CPU Control
+DEBUG MAPPING: 0x005e -> CPU Control
+DEBUG MAPPING: 0x005f -> CPU Control
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x0053, 0x0053]
+DEBUG MAPPING: 0x0053 -> CPU Control
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x0055, 0x0055]
+DEBUG MAPPING: 0x0055 -> CPU Control
+[DEBUG] Mapping peripheral 'CPU Control' to range [0x0064, 0x0064]
+DEBUG MAPPING: 0x0064 -> CPU Control
+[DEBUG] Attaching peripheral to memory bus: Register File
+[DEBUG] MemoryBus: peripherals size is now 2
+[DEBUG] Mapping peripheral 'Register File' to range [0x0000, 0x001F]
+DEBUG MAPPING: 0x0000 -> Register File
+DEBUG MAPPING: 0x0001 -> Register File
+DEBUG MAPPING: 0x0002 -> Register File
+DEBUG MAPPING: 0x0003 -> Register File
+DEBUG MAPPING: 0x0004 -> Register File
+DEBUG MAPPING: 0x0005 -> Register File
+DEBUG MAPPING: 0x0006 -> Register File
+DEBUG MAPPING: 0x0007 -> Register File
+DEBUG MAPPING: 0x0008 -> Register File
+DEBUG MAPPING: 0x0009 -> Register File
+DEBUG MAPPING: 0x000a -> Register File
+DEBUG MAPPING: 0x000b -> Register File
+DEBUG MAPPING: 0x000c -> Register File
+DEBUG MAPPING: 0x000d -> Register File
+DEBUG MAPPING: 0x000e -> Register File
+DEBUG MAPPING: 0x000f -> Register File
+DEBUG MAPPING: 0x0010 -> Register File
+DEBUG MAPPING: 0x0011 -> Register File
+DEBUG MAPPING: 0x0012 -> Register File
+DEBUG MAPPING: 0x0013 -> Register File
+DEBUG MAPPING: 0x0014 -> Register File
+DEBUG MAPPING: 0x0015 -> Register File
+DEBUG MAPPING: 0x0016 -> Register File
+DEBUG MAPPING: 0x0017 -> Register File
+DEBUG MAPPING: 0x0018 -> Register File
+DEBUG MAPPING: 0x0019 -> Register File
+DEBUG MAPPING: 0x001a -> Register File
+DEBUG MAPPING: 0x001b -> Register File
+DEBUG MAPPING: 0x001c -> Register File
+DEBUG MAPPING: 0x001d -> Register File
+DEBUG MAPPING: 0x001e -> Register File
+DEBUG MAPPING: 0x001f -> Register File
+[INFO] Resetting AVR CPU
+[DEBUG] Attaching peripheral to memory bus: PORTB
+[DEBUG] MemoryBus: peripherals size is now 3
+[DEBUG] Mapping peripheral 'PORTB' to range [0x0023, 0x0025]
+DEBUG MAPPING: 0x0023 -> PORTB
+DEBUG MAPPING: 0x0024 -> PORTB
+DEBUG MAPPING: 0x0025 -> PORTB
+[DEBUG] Attaching peripheral to memory bus: PORTC
+[DEBUG] MemoryBus: peripherals size is now 4
+[DEBUG] Mapping peripheral 'PORTC' to range [0x0026, 0x0028]
+DEBUG MAPPING: 0x0026 -> PORTC
+DEBUG MAPPING: 0x0027 -> PORTC
+DEBUG MAPPING: 0x0028 -> PORTC
+[DEBUG] Attaching peripheral to memory bus: PORTD
+[DEBUG] MemoryBus: peripherals size is now 5
+[DEBUG] Mapping peripheral 'PORTD' to range [0x0029, 0x002B]
+DEBUG MAPPING: 0x0029 -> PORTD
+DEBUG MAPPING: 0x002a -> PORTD
+DEBUG MAPPING: 0x002b -> PORTD
+[DEBUG] Attaching peripheral to memory bus: PORTE
+[DEBUG] MemoryBus: peripherals size is now 6
+[DEBUG] Mapping peripheral 'PORTE' to range [0x002C, 0x002E]
+DEBUG MAPPING: 0x002c -> PORTE
+DEBUG MAPPING: 0x002d -> PORTE
+DEBUG MAPPING: 0x002e -> PORTE
+[DEBUG] Attaching peripheral to memory bus: TIMER0
+[DEBUG] MemoryBus: peripherals size is now 7
+[DEBUG] Mapping peripheral 'TIMER0' to range [0x0035, 0x0035]
+DEBUG MAPPING: 0x0035 -> TIMER0
+[DEBUG] Mapping peripheral 'TIMER0' to range [0x0044, 0x0048]
+DEBUG MAPPING: 0x0044 -> TIMER0
+DEBUG MAPPING: 0x0045 -> TIMER0
+DEBUG MAPPING: 0x0046 -> TIMER0
+DEBUG MAPPING: 0x0047 -> TIMER0
+DEBUG MAPPING: 0x0048 -> TIMER0
+[DEBUG] Mapping peripheral 'TIMER0' to range [0x006E, 0x006E]
+DEBUG MAPPING: 0x006e -> TIMER0
+[DEBUG] Attaching peripheral to memory bus: TIMER1
+[DEBUG] MemoryBus: peripherals size is now 8
+[DEBUG] Mapping peripheral 'TIMER1' to range [0x0036, 0x0036]
+DEBUG MAPPING: 0x0036 -> TIMER1
+[DEBUG] Mapping peripheral 'TIMER1' to range [0x006F, 0x006F]
+DEBUG MAPPING: 0x006f -> TIMER1
+[DEBUG] Mapping peripheral 'TIMER1' to range [0x0080, 0x0082]
+DEBUG MAPPING: 0x0080 -> TIMER1
+DEBUG MAPPING: 0x0081 -> TIMER1
+DEBUG MAPPING: 0x0082 -> TIMER1
+[DEBUG] Mapping peripheral 'TIMER1' to range [0x0084, 0x008B]
+DEBUG MAPPING: 0x0084 -> TIMER1
+DEBUG MAPPING: 0x0085 -> TIMER1
+DEBUG MAPPING: 0x0086 -> TIMER1
+DEBUG MAPPING: 0x0087 -> TIMER1
+DEBUG MAPPING: 0x0088 -> TIMER1
+DEBUG MAPPING: 0x0089 -> TIMER1
+DEBUG MAPPING: 0x008a -> TIMER1
+DEBUG MAPPING: 0x008b -> TIMER1
+[DEBUG] Attaching peripheral to memory bus: UART0
+[DEBUG] MemoryBus: peripherals size is now 9
+[DEBUG] Mapping peripheral 'UART0' to range [0x0001, 0x0001]
+DEBUG MAPPING: 0x0001 -> UART0
+[DEBUG] Mapping peripheral 'UART0' to range [0x00C0, 0x00C2]
+DEBUG MAPPING: 0x00c0 -> UART0
+DEBUG MAPPING: 0x00c1 -> UART0
+DEBUG MAPPING: 0x00c2 -> UART0
+[DEBUG] Mapping peripheral 'UART0' to range [0x00C6, 0x00C6]
+DEBUG MAPPING: 0x00c6 -> UART0
+[DEBUG] Attaching peripheral to memory bus: ADC
+[DEBUG] MemoryBus: peripherals size is now 10
+[DEBUG] Mapping peripheral 'ADC' to range [0x0078, 0x007C]
+DEBUG MAPPING: 0x0078 -> ADC
+DEBUG MAPPING: 0x0079 -> ADC
+DEBUG MAPPING: 0x007a -> ADC
+DEBUG MAPPING: 0x007b -> ADC
+DEBUG MAPPING: 0x007c -> ADC
+[DEBUG] Mapping peripheral 'ADC' to range [0x007E, 0x007E]
+DEBUG MAPPING: 0x007e -> ADC
+[DEBUG] Attaching peripheral to memory bus: SPI
+[DEBUG] MemoryBus: peripherals size is now 11
+[DEBUG] Mapping peripheral 'SPI' to range [0x004C, 0x004E]
+DEBUG MAPPING: 0x004c -> SPI
+DEBUG MAPPING: 0x004d -> SPI
+DEBUG MAPPING: 0x004e -> SPI
+[DEBUG] Attaching peripheral to memory bus: PSC
+[DEBUG] MemoryBus: peripherals size is now 12
+[DEBUG] Mapping peripheral 'PSC' to range [0x00A0, 0x00A1]
+DEBUG MAPPING: 0x00a0 -> PSC
+DEBUG MAPPING: 0x00a1 -> PSC
+[DEBUG] Mapping peripheral 'PSC' to range [0x00D0, 0x00D0]
+DEBUG MAPPING: 0x00d0 -> PSC
+[DEBUG] Mapping peripheral 'PSC' to range [0x00D2, 0x00DE]
+DEBUG MAPPING: 0x00d2 -> PSC
+DEBUG MAPPING: 0x00d3 -> PSC
+DEBUG MAPPING: 0x00d4 -> PSC
+DEBUG MAPPING: 0x00d5 -> PSC
+DEBUG MAPPING: 0x00d6 -> PSC
+DEBUG MAPPING: 0x00d7 -> PSC
+DEBUG MAPPING: 0x00d8 -> PSC
+DEBUG MAPPING: 0x00d9 -> PSC
+DEBUG MAPPING: 0x00da -> PSC
+DEBUG MAPPING: 0x00db -> PSC
+DEBUG MAPPING: 0x00dc -> PSC
+DEBUG MAPPING: 0x00dd -> PSC
+DEBUG MAPPING: 0x00de -> PSC
+[DEBUG] Attaching peripheral to memory bus: PSC
+[DEBUG] MemoryBus: peripherals size is now 13
+[DEBUG] Mapping peripheral 'PSC' to range [0x00A2, 0x00A3]
+DEBUG MAPPING: 0x00a2 -> PSC
+DEBUG MAPPING: 0x00a3 -> PSC
+[DEBUG] Mapping peripheral 'PSC' to range [0x00E0, 0x00E0]
+DEBUG MAPPING: 0x00e0 -> PSC
+[DEBUG] Mapping peripheral 'PSC' to range [0x00E2, 0x00EE]
+DEBUG MAPPING: 0x00e2 -> PSC
+DEBUG MAPPING: 0x00e3 -> PSC
+DEBUG MAPPING: 0x00e4 -> PSC
+DEBUG MAPPING: 0x00e5 -> PSC
+DEBUG MAPPING: 0x00e6 -> PSC
+DEBUG MAPPING: 0x00e7 -> PSC
+DEBUG MAPPING: 0x00e8 -> PSC
+DEBUG MAPPING: 0x00e9 -> PSC
+DEBUG MAPPING: 0x00ea -> PSC
+DEBUG MAPPING: 0x00eb -> PSC
+DEBUG MAPPING: 0x00ec -> PSC
+DEBUG MAPPING: 0x00ed -> PSC
+DEBUG MAPPING: 0x00ee -> PSC
+[DEBUG] Attaching peripheral to memory bus: PSC
+[DEBUG] MemoryBus: peripherals size is now 14
+[DEBUG] Mapping peripheral 'PSC' to range [0x00A4, 0x00A5]
+DEBUG MAPPING: 0x00a4 -> PSC
+DEBUG MAPPING: 0x00a5 -> PSC
+[DEBUG] Mapping peripheral 'PSC' to range [0x00F0, 0x00F0]
+DEBUG MAPPING: 0x00f0 -> PSC
+[DEBUG] Mapping peripheral 'PSC' to range [0x00F2, 0x00FE]
+DEBUG MAPPING: 0x00f2 -> PSC
+DEBUG MAPPING: 0x00f3 -> PSC
+DEBUG MAPPING: 0x00f4 -> PSC
+DEBUG MAPPING: 0x00f5 -> PSC
+DEBUG MAPPING: 0x00f6 -> PSC
+DEBUG MAPPING: 0x00f7 -> PSC
+DEBUG MAPPING: 0x00f8 -> PSC
+DEBUG MAPPING: 0x00f9 -> PSC
+DEBUG MAPPING: 0x00fa -> PSC
+DEBUG MAPPING: 0x00fb -> PSC
+DEBUG MAPPING: 0x00fc -> PSC
+DEBUG MAPPING: 0x00fd -> PSC
+DEBUG MAPPING: 0x00fe -> PSC
+[DEBUG] Attaching peripheral to memory bus: EUSART
+[DEBUG] MemoryBus: peripherals size is now 15
+[DEBUG] Mapping peripheral 'EUSART' to range [0x00C8, 0x00CA]
+DEBUG MAPPING: 0x00c8 -> EUSART
+DEBUG MAPPING: 0x00c9 -> EUSART
+DEBUG MAPPING: 0x00ca -> EUSART
+[DEBUG] Mapping peripheral 'EUSART' to range [0x00CC, 0x00CF]
+DEBUG MAPPING: 0x00cc -> EUSART
+DEBUG MAPPING: 0x00cd -> EUSART
+DEBUG MAPPING: 0x00ce -> EUSART
+DEBUG MAPPING: 0x00cf -> EUSART
+[DEBUG] Attaching peripheral to memory bus: DAC
+[DEBUG] MemoryBus: peripherals size is now 16
+[DEBUG] Mapping peripheral 'DAC' to range [0x00AA, 0x00AC]
+DEBUG MAPPING: 0x00aa -> DAC
+DEBUG MAPPING: 0x00ab -> DAC
+DEBUG MAPPING: 0x00ac -> DAC
+[DEBUG] Attaching peripheral to memory bus: AMP0
+[DEBUG] MemoryBus: peripherals size is now 17
+[DEBUG] Mapping peripheral 'AMP0' to range [0x0076, 0x0076]
+DEBUG MAPPING: 0x0076 -> AMP0
+[DEBUG] Attaching peripheral to memory bus: AMP1
+[DEBUG] MemoryBus: peripherals size is now 18
+[DEBUG] Mapping peripheral 'AMP1' to range [0x0077, 0x0077]
+DEBUG MAPPING: 0x0077 -> AMP1
+[DEBUG] Attaching peripheral to memory bus: EEPROM
+[DEBUG] MemoryBus: peripherals size is now 19
+[DEBUG] Mapping peripheral 'EEPROM' to range [0x003F, 0x0042]
+DEBUG MAPPING: 0x003f -> EEPROM
+DEBUG MAPPING: 0x0040 -> EEPROM
+DEBUG MAPPING: 0x0041 -> EEPROM
+DEBUG MAPPING: 0x0042 -> EEPROM
+[DEBUG] Attaching peripheral to memory bus: WDT
+[DEBUG] MemoryBus: peripherals size is now 20
+[DEBUG] Mapping peripheral 'WDT' to range [0x0060, 0x0060]
+DEBUG MAPPING: 0x0060 -> WDT
+[DEBUG] Attaching peripheral to memory bus: PLL
+[DEBUG] MemoryBus: peripherals size is now 21
+[DEBUG] Mapping peripheral 'PLL' to range [0x0049, 0x0049]
+DEBUG MAPPING: 0x0049 -> PLL
+[DEBUG] Attaching peripheral to memory bus: EXINT
+[DEBUG] MemoryBus: peripherals size is now 22
+[DEBUG] Mapping peripheral 'EXINT' to range [0x003C, 0x003D]
+DEBUG MAPPING: 0x003c -> EXINT
+DEBUG MAPPING: 0x003d -> EXINT
+[DEBUG] Mapping peripheral 'EXINT' to range [0x0069, 0x0069]
+DEBUG MAPPING: 0x0069 -> EXINT
+[DEBUG] Attaching peripheral to memory bus: AC0
+[DEBUG] MemoryBus: peripherals size is now 23
+[DEBUG] Mapping peripheral 'AC0' to range [0x0050, 0x0050]
+DEBUG MAPPING: 0x0050 -> AC0
+[DEBUG] Mapping peripheral 'AC0' to range [0x00AD, 0x00AD]
+DEBUG MAPPING: 0x00ad -> AC0
+[DEBUG] Attaching peripheral to memory bus: AC1
+[DEBUG] MemoryBus: peripherals size is now 24
+[DEBUG] Mapping peripheral 'AC1' to range [0x0050, 0x0050]
+DEBUG MAPPING: 0x0050 -> AC1
+[DEBUG] Mapping peripheral 'AC1' to range [0x00AE, 0x00AE]
+DEBUG MAPPING: 0x00ae -> AC1
+[DEBUG] Attaching peripheral to memory bus: AC2
+[DEBUG] MemoryBus: peripherals size is now 25
+[DEBUG] Mapping peripheral 'AC2' to range [0x0050, 0x0050]
+DEBUG MAPPING: 0x0050 -> AC2
+[DEBUG] Mapping peripheral 'AC2' to range [0x00AF, 0x00AF]
+DEBUG MAPPING: 0x00af -> AC2
+PSC0: write 0xDA = 0x10
+PSC0: write 0xD2 = 0x0A
+PSC0: write 0xD3 = 0x00
+PSC0: write OCRSA=10
+PSC0: write 0xD4 = 0x14
+PSC0: write 0xD5 = 0x00
+PSC0: write OCRRA=20
+PSC0: write 0xD6 = 0x1E
+PSC0: write 0xD7 = 0x00
+PSC0: write OCRSB=30
+PSC0: write 0xD8 = 0x28
+PSC0: write 0xD9 = 0x00
+PSC0: write OCRRB=40
+PSC0: write 0xDB = 0x01
+PSC0: tick 0, ramp 0, counter 0, top 0, is4 1
+PSC0: tick 1, ramp 0, counter 1, top 0, is4 1
+PSC0: tick 2, ramp 0, counter 2, top 0, is4 1
+PSC0: tick 3, ramp 0, counter 3, top 0, is4 1
+PSC0: tick 4, ramp 0, counter 4, top 0, is4 1
+PSC0: tick 0, ramp 0, counter 5, top 0, is4 1
+PSC0: tick 1, ramp 0, counter 6, top 0, is4 1
+PSC0: tick 2, ramp 0, counter 7, top 0, is4 1
+PSC0: tick 3, ramp 0, counter 8, top 0, is4 1
+PSC0: tick 4, ramp 0, counter 9, top 0, is4 1
+PSC0: tick 0, ramp 1, counter 0, top 0, is4 1
+PSC0: tick 1, ramp 1, counter 1, top 0, is4 1
+PSC0: tick 2, ramp 1, counter 2, top 0, is4 1
+PSC0: tick 3, ramp 1, counter 3, top 0, is4 1
+PSC0: tick 4, ramp 1, counter 4, top 0, is4 1
+PSC0: tick 5, ramp 1, counter 5, top 0, is4 1
+PSC0: tick 6, ramp 1, counter 6, top 0, is4 1
+PSC0: tick 7, ramp 1, counter 7, top 0, is4 1
+PSC0: tick 8, ramp 1, counter 8, top 0, is4 1
+PSC0: tick 9, ramp 1, counter 9, top 0, is4 1
+PSC0: tick 10, ramp 1, counter 10, top 0, is4 1
+PSC0: tick 11, ramp 1, counter 11, top 0, is4 1
+PSC0: tick 12, ramp 1, counter 12, top 0, is4 1
+PSC0: tick 13, ramp 1, counter 13, top 0, is4 1
+PSC0: tick 14, ramp 1, counter 14, top 0, is4 1
+PSC0: tick 15, ramp 1, counter 15, top 0, is4 1
+PSC0: tick 16, ramp 1, counter 16, top 0, is4 1
+PSC0: tick 17, ramp 1, counter 17, top 0, is4 1
+PSC0: tick 18, ramp 1, counter 18, top 0, is4 1
+PSC0: tick 0, ramp 1, counter 19, top 0, is4 1
+PSC0: tick 0, ramp 2, counter 0, top 0, is4 1
+PSC0: tick 1, ramp 2, counter 1, top 0, is4 1
+PSC0: tick 2, ramp 2, counter 2, top 0, is4 1
+PSC0: tick 3, ramp 2, counter 3, top 0, is4 1
+PSC0: tick 4, ramp 2, counter 4, top 0, is4 1
+PSC0: tick 5, ramp 2, counter 5, top 0, is4 1
+PSC0: tick 6, ramp 2, counter 6, top 0, is4 1
+PSC0: tick 7, ramp 2, counter 7, top 0, is4 1
+PSC0: tick 8, ramp 2, counter 8, top 0, is4 1
+PSC0: tick 9, ramp 2, counter 9, top 0, is4 1
+PSC0: tick 10, ramp 2, counter 10, top 0, is4 1
+PSC0: tick 11, ramp 2, counter 11, top 0, is4 1
+PSC0: tick 12, ramp 2, counter 12, top 0, is4 1
+PSC0: tick 13, ramp 2, counter 13, top 0, is4 1
+PSC0: tick 14, ramp 2, counter 14, top 0, is4 1
+PSC0: tick 15, ramp 2, counter 15, top 0, is4 1
+PSC0: tick 16, ramp 2, counter 16, top 0, is4 1
+PSC0: tick 17, ramp 2, counter 17, top 0, is4 1
+PSC0: tick 18, ramp 2, counter 18, top 0, is4 1
+PSC0: tick 19, ramp 2, counter 19, top 0, is4 1
+PSC0: tick 20, ramp 2, counter 20, top 0, is4 1
+PSC0: tick 21, ramp 2, counter 21, top 0, is4 1
+PSC0: tick 22, ramp 2, counter 22, top 0, is4 1
+PSC0: tick 23, ramp 2, counter 23, top 0, is4 1
+PSC0: tick 24, ramp 2, counter 24, top 0, is4 1
+PSC0: tick 25, ramp 2, counter 25, top 0, is4 1
+PSC0: tick 26, ramp 2, counter 26, top 0, is4 1
+PSC0: tick 27, ramp 2, counter 27, top 0, is4 1
+PSC0: tick 28, ramp 2, counter 28, top 0, is4 1
+PSC0: tick 29, ramp 2, counter 29, top 0, is4 1
+PSC0: tick 0, ramp 3, counter 0, top 0, is4 1
+PSC0: tick 1, ramp 3, counter 1, top 0, is4 1
+PSC0: tick 2, ramp 3, counter 2, top 0, is4 1
+PSC0: tick 3, ramp 3, counter 3, top 0, is4 1
+PSC0: tick 4, ramp 3, counter 4, top 0, is4 1
+PSC0: tick 5, ramp 3, counter 5, top 0, is4 1
+PSC0: tick 6, ramp 3, counter 6, top 0, is4 1
+PSC0: tick 7, ramp 3, counter 7, top 0, is4 1
+PSC0: tick 8, ramp 3, counter 8, top 0, is4 1
+PSC0: tick 9, ramp 3, counter 9, top 0, is4 1
+PSC0: tick 10, ramp 3, counter 10, top 0, is4 1
+PSC0: tick 11, ramp 3, counter 11, top 0, is4 1
+PSC0: tick 12, ramp 3, counter 12, top 0, is4 1
+PSC0: tick 13, ramp 3, counter 13, top 0, is4 1
+PSC0: tick 14, ramp 3, counter 14, top 0, is4 1
+PSC0: tick 15, ramp 3, counter 15, top 0, is4 1
+PSC0: tick 16, ramp 3, counter 16, top 0, is4 1
+PSC0: tick 17, ramp 3, counter 17, top 0, is4 1
+PSC0: tick 18, ramp 3, counter 18, top 0, is4 1
+PSC0: tick 19, ramp 3, counter 19, top 0, is4 1
+PSC0: tick 20, ramp 3, counter 20, top 0, is4 1
+PSC0: tick 21, ramp 3, counter 21, top 0, is4 1
+PSC0: tick 22, ramp 3, counter 22, top 0, is4 1
+PSC0: tick 23, ramp 3, counter 23, top 0, is4 1
+PSC0: tick 24, ramp 3, counter 24, top 0, is4 1
+PSC0: tick 25, ramp 3, counter 25, top 0, is4 1
+PSC0: tick 26, ramp 3, counter 26, top 0, is4 1
+PSC0: tick 27, ramp 3, counter 27, top 0, is4 1
+PSC0: tick 28, ramp 3, counter 28, top 0, is4 1
+PSC0: tick 29, ramp 3, counter 29, top 0, is4 1
+PSC0: tick 30, ramp 3, counter 30, top 0, is4 1
+PSC0: tick 31, ramp 3, counter 31, top 0, is4 1
+PSC0: tick 32, ramp 3, counter 32, top 0, is4 1
+PSC0: tick 33, ramp 3, counter 33, top 0, is4 1
+PSC0: tick 34, ramp 3, counter 34, top 0, is4 1
+PSC0: tick 35, ramp 3, counter 35, top 0, is4 1
+PSC0: tick 36, ramp 3, counter 36, top 0, is4 1
+PSC0: tick 37, ramp 3, counter 37, top 0, is4 1
+PSC0: tick 38, ramp 3, counter 38, top 0, is4 1
+PSC0: tick 0, ramp 3, counter 39, top 0, is4 1
+===============================================================================
+[doctest] test cases: 1 | 1 passed | 0 failed | 15 skipped
+[doctest] assertions: 9 | 9 passed | 0 failed |
+[doctest] Status: SUCCESS!

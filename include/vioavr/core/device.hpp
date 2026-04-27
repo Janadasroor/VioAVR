@@ -768,6 +768,7 @@ struct PscDescriptor {
     u16 ocrrb_address {};
     u16 pfrc0a_address {};
     u16 pfrc0b_address {};
+    u16 pom_address {}; // For PSC2 Output Matrix
     
     u8 psc_index {};
     u8 gen_vector_index {};
@@ -790,10 +791,14 @@ struct PscDescriptor {
     u8 ec_flag_mask {0x01U};
     u8 capt_flag_mask {0x08U};
     u8 pccyc_mask {0x02U};
-    u8 paoca_mask {0x08U};
-    u8 paocb_mask {0x10U};
-    u8 pbfm_mask {0x20U};
-    u16 pllcsr_address {0U};
+    u8 poena_mask {0x01U};
+    u8 poenb_mask {0x02U};
+    u8 poenc_mask {0x04U};
+    u8 poend_mask {0x08U};
+    u8 paoca_mask {0x10U};
+    u8 paocb_mask {0x20U};
+    u8 pbfm_mask {0x40U};
+    u16 pllcsr_address {};
     u16 blanking_duration {0U}; // Default blanking duration in cycles
     
     u16 pr_address {0U};

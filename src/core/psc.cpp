@@ -51,15 +51,15 @@ void Psc::reset() noexcept {
     ocrrb_ = 0;
     pfrc0a_ = 0;
     pfrc0b_ = 0;
-    temp_ = 0;
+    temp_high_ = 0;
     down_counting_ = false;
     fault_active_ = false;
     last_fault_level_ = false;
     fault_pending_restart_ = false;
     fault_a_.blanking_counter = 0;
     fault_b_.blanking_counter = 0;
-    last_output_a_ = false;
-    last_output_b_ = false;
+    last_pulse_a_ = false;
+    last_pulse_b_ = false;
     output_a_ = false;
     output_b_ = false;
     output_c_ = false;
@@ -78,28 +78,28 @@ u8 Psc::read(u16 address) noexcept {
     if (address == desc_.pfrc0b_address) return pfrc0b_;
     
     if (address == desc_.ocrsa_address) {
-        temp_ = (ocrsa_ >> 8) & 0x0F;
+        temp_high_ = (ocrsa_ >> 8) & 0x0F;
         return ocrsa_ & 0xFF;
     }
-    if (address == desc_.ocrsa_address + 1) return temp_;
+    if (address == desc_.ocrsa_address + 1) return temp_high_;
     
     if (address == desc_.ocrra_address) {
-        temp_ = (ocrra_ >> 8) & 0x0F;
+        temp_high_ = (ocrra_ >> 8) & 0x0F;
         return ocrra_ & 0xFF;
     }
-    if (address == desc_.ocrra_address + 1) return temp_;
+    if (address == desc_.ocrra_address + 1) return temp_high_;
     
     if (address == desc_.ocrsb_address) {
-        temp_ = (ocrsb_ >> 8) & 0x0F;
+        temp_high_ = (ocrsb_ >> 8) & 0x0F;
         return ocrsb_ & 0xFF;
     }
-    if (address == desc_.ocrsb_address + 1) return temp_;
+    if (address == desc_.ocrsb_address + 1) return temp_high_;
     
     if (address == desc_.ocrrb_address) {
-        temp_ = (ocrrb_ >> 8) & 0x0F;
+        temp_high_ = (ocrrb_ >> 8) & 0x0F;
         return ocrrb_ & 0xFF;
     }
-    if (address == desc_.ocrrb_address + 1) return temp_;
+    if (address == desc_.ocrrb_address + 1) return temp_high_;
     
     return 0;
 }
@@ -127,22 +127,19 @@ void Psc::write(u16 address, u8 value) noexcept {
         pfrc0a_ = value;
     } else if (address == desc_.pfrc0b_address) {
         pfrc0b_ = value;
-    } else if (address == desc_.ocrsa_address + 1) {
-        temp_ = value;
-    } else if (address == desc_.ocrsa_address) {
-        ocrsa_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
-    } else if (address == desc_.ocrra_address + 1) {
-        temp_ = value;
-    } else if (address == desc_.ocrra_address) {
-        ocrra_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
-    } else if (address == desc_.ocrsb_address + 1) {
-        temp_ = value;
-    } else if (address == desc_.ocrsb_address) {
-        ocrsb_ = (static_cast<u16>(temp_ & 0x0F) << 8) | value;
-    } else if (address == desc_.ocrrb_address + 1) {
-        temp_ = value;
-    } else if (address == desc_.ocrrb_address) {
-        ocrrb_ = (static_cast<u16>(temp_) << 8) | value;
+    } else if (address >= desc_.ocrsa_address && address < desc_.ocrsa_address + 8) {
+        u8 offset = address - desc_.ocrsa_address;
+        if (offset % 2 == 1) {
+            // High byte written first, latch in temp
+            temp_high_ = value;
+        } else {
+            // Low byte written second, completing the 16-bit value
+            u16 val = (u16(temp_high_) << 8) | value;
+            if (offset == 0) ocrsa_ = val;
+            else if (offset == 2) ocrra_ = val;
+            else if (offset == 4) ocrsb_ = val;
+            else if (offset == 6) ocrrb_ = val;
+        }
     }
     update_outputs();
 }
@@ -280,9 +277,23 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
         } else {
             counter_++;
             u16 top = ocrrb_;
+            if (is_four_ramp) {
+                if (ramp_number_ == 0) top = ocrsa_;
+                else if (ramp_number_ == 1) top = ocrra_;
+                else if (ramp_number_ == 2) top = ocrsb_;
+            }
             
             if (counter_ >= top && top > 0) {
-                if (is_two_ramp || is_centered || is_four_ramp) {
+                if (is_four_ramp) {
+                    ramp_number_ = (ramp_number_ + 1) % 4;
+                    // Update PRN bits in PIFR (bits 1-2)
+                    pifr_ = (pifr_ & ~0x06) | (ramp_number_ << 1);
+                    if (ramp_number_ == 0) {
+                        counter_ = 0;
+                        pifr_ |= desc_.ec_flag_mask;
+                        notify_adc();
+                    }
+                } else if (is_two_ramp || is_centered) {
                     down_counting_ = true;
                 } else {
                     counter_ = 0;
@@ -369,39 +380,40 @@ void Psc::update_outputs() noexcept {
         bool pop = (pconf_ & 0x04) != 0;
         bool paoc_a = (pctl_ & desc_.paoca_mask);
         bool paoc_b = (pctl_ & desc_.paocb_mask);
-        
 
         if (fault_active_) {
             output_a_ = paoc_a ? (pulse_a ^ pop) : ((psoc_ & 0x02) != 0);
             output_b_ = paoc_b ? (pulse_b ^ pop) : ((psoc_ & 0x08) != 0);
             
             if (desc_.psc_index == 2) {
-                // For PSC2, we'll assume PAOC A/B also affect C/D or similar
-                // (Depends on specific hardware, but usually PAOC is per channel pair)
                 output_c_ = paoc_a ? (pulse_a ^ pop) : ((psoc_ & 0x02) != 0);
                 output_d_ = paoc_b ? (pulse_b ^ pop) : ((psoc_ & 0x08) != 0);
             }
         } else {
-            bool en_a = (psoc_ & 0x01);
+            bool en_a = (psoc_ & desc_.poena_mask);
             output_a_ = en_a && (pulse_a ^ pop);
-            bool en_b = (psoc_ & 0x04);
+            bool en_b = (psoc_ & desc_.poenb_mask);
             output_b_ = en_b && (pulse_b ^ pop);
 
             if (desc_.psc_index == 2) {
-                bool en_c = (psoc_ & 0x02);
-                bool en_d = (psoc_ & 0x08);
+                bool en_c = (psoc_ & desc_.poenc_mask);
+                bool en_d = (psoc_ & desc_.poend_mask);
                 output_c_ = en_c && (pulse_a ^ pop);
                 output_d_ = en_d && (pulse_b ^ pop);
             }
 
             // Trigger Blanking on switching events
-            if (output_a_ != last_output_a_) {
-                fault_a_.blanking_counter = fault_a_.blanking_duration;
-                last_output_a_ = output_a_;
+            if (pulse_a != last_pulse_a_) {
+                if (fault_a_.blanking_duration > 0) {
+                    fault_a_.blanking_counter = fault_a_.blanking_duration;
+                }
+                last_pulse_a_ = pulse_a;
             }
-            if (output_b_ != last_output_b_) {
-                fault_b_.blanking_counter = fault_b_.blanking_duration;
-                last_output_b_ = output_b_;
+            if (pulse_b != last_pulse_b_) {
+                if (fault_b_.blanking_duration > 0) {
+                    fault_b_.blanking_counter = fault_b_.blanking_duration;
+                }
+                last_pulse_b_ = pulse_b;
             }
         }
     }
