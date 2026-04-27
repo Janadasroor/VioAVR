@@ -30,6 +30,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 {
     pin_map_ = std::make_unique<PinMap>();
     bus_.set_pin_map(pin_map_.get());
+    bus_.set_pin_mux(&pin_mux_);
     cpu_.set_trace_hook(&trace_mux_);
 
     // 1. Instantiate and Register Ports
@@ -51,7 +52,27 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         auto timer = std::make_unique<Timer8>("TIMER8_" + std::to_string(i), desc, &pin_mux_);
         timer->set_bus(bus_);
         if (desc.assr_address != 0U) timer2_ = timer.get();
-        bus_.attach_peripheral(*timer.release());
+        
+        // Connect PWM output pins if defined in descriptor
+        if (desc.ocra_pin_address != 0) {
+            for (auto* port : ports_) {
+                if (port->pin_address() == desc.ocra_pin_address) {
+                    timer->connect_compare_output_a(*port, desc.ocra_pin_bit);
+                    break;
+                }
+            }
+        }
+        if (desc.ocrb_pin_address != 0) {
+            for (auto* port : ports_) {
+                if (port->pin_address() == desc.ocrb_pin_address) {
+                    timer->connect_compare_output_b(*port, desc.ocrb_pin_bit);
+                    break;
+                }
+            }
+        }
+
+        bus_.attach_peripheral(*timer);
+        owned_peripherals_.push_back(std::move(timer));
     }
 
     for (u8 i = 0; i < device.timer16_count; ++i) {
@@ -121,6 +142,23 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(lcd));
     }
 
+    static constexpr std::string_view kPortNames[] = {
+        "PORTA", "PORTB", "PORTC", "PORTD", "PORTE", "PORTF", "PORTG", "PORTH", "PORTI", "PORTJ", "PORTK", "PORTL"
+    };
+
+    pin_mux_.set_callback([this](u8 port_idx, u8 bit_idx, const PinState& state) {
+        PinStateChange change;
+        if (port_idx < (sizeof(kPortNames) / sizeof(kPortNames[0]))) {
+            change.port_name = kPortNames[port_idx];
+        } else {
+            change.port_name = "PORT?";
+        }
+        change.bit_index = bit_idx;
+        change.level = state.drive_level;
+        change.cycle_stamp = cpu_.cycles();
+        pending_pin_changes_.push_back(std::move(change));
+    });
+
     set_quantum(1000);
 }
 
@@ -133,6 +171,11 @@ bool VioSpice::load_hex(std::string_view path) {
     } catch (...) {
         return false;
     }
+}
+
+bool VioSpice::load_hex_image(const HexImage& image) {
+    bus_.load_image(image);
+    return true;
 }
 
 void VioSpice::set_pin_map(std::unique_ptr<PinMap> pin_map) {
@@ -190,13 +233,8 @@ void VioSpice::set_operating_voltage(double vcc) {
 }
 
 std::vector<PinStateChange> VioSpice::consume_pin_changes() {
-    std::vector<PinStateChange> changes;
-    for (auto* port : ports_) {
-        PinStateChange change;
-        while (port->consume_pin_change(change)) {
-            changes.push_back(change);
-        }
-    }
+    std::vector<PinStateChange> changes = std::move(pending_pin_changes_);
+    pending_pin_changes_.clear();
     return changes;
 }
 

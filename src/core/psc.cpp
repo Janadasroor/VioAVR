@@ -17,7 +17,8 @@ Psc::Psc(std::string_view name, const PscDescriptor& desc, PinMux* pin_mux)
         desc.ocrra_address, static_cast<u16>(desc.ocrra_address + 1),
         desc.ocrsb_address, static_cast<u16>(desc.ocrsb_address + 1),
         desc.ocrrb_address, static_cast<u16>(desc.ocrrb_address + 1),
-        desc.pfrc0a_address, desc.pfrc0b_address
+        desc.pfrc0a_address, desc.pfrc0b_address,
+        desc.pom_address
     };
     
     fault_a_.blanking_duration = desc_.blanking_duration;
@@ -45,6 +46,8 @@ void Psc::reset() noexcept {
     pconf_ = 0;
     pim_ = 0;
     pifr_ = 0;
+    picr_ = 0;
+    pom_ = 0;
     ocrsa_ = 0;
     ocrra_ = 0;
     ocrsb_ = 0;
@@ -76,30 +79,30 @@ u8 Psc::read(u16 address) noexcept {
     if (address == desc_.pifr_address) return pifr_;
     if (address == desc_.pfrc0a_address) return pfrc0a_;
     if (address == desc_.pfrc0b_address) return pfrc0b_;
+    if (address == desc_.picr_address) return picr_ & 0xFF;
+    if (address == desc_.pom_address) return pom_;
     
     if (address == desc_.ocrsa_address) {
-        temp_high_ = (ocrsa_ >> 8) & 0x0F;
+        return (ocrsa_ >> 8) & 0x0F;
+    }
+    if (address == desc_.ocrsa_address + 1) {
         return ocrsa_ & 0xFF;
     }
-    if (address == desc_.ocrsa_address + 1) return temp_high_;
     
     if (address == desc_.ocrra_address) {
-        temp_high_ = (ocrra_ >> 8) & 0x0F;
-        return ocrra_ & 0xFF;
+        return (ocrra_ >> 8) & 0x0F;
     }
-    if (address == desc_.ocrra_address + 1) return temp_high_;
+    if (address == desc_.ocrra_address + 1) return ocrra_ & 0xFF;
     
     if (address == desc_.ocrsb_address) {
-        temp_high_ = (ocrsb_ >> 8) & 0x0F;
-        return ocrsb_ & 0xFF;
+        return (ocrsb_ >> 8) & 0x0F;
     }
-    if (address == desc_.ocrsb_address + 1) return temp_high_;
+    if (address == desc_.ocrsb_address + 1) return ocrsb_ & 0xFF;
     
     if (address == desc_.ocrrb_address) {
-        temp_high_ = (ocrrb_ >> 8) & 0x0F;
-        return ocrrb_ & 0xFF;
+        return (ocrrb_ >> 8) & 0x0F;
     }
-    if (address == desc_.ocrrb_address + 1) return temp_high_;
+    if (address == desc_.ocrrb_address + 1) return ocrrb_ & 0xFF;
     
     return 0;
 }
@@ -127,18 +130,22 @@ void Psc::write(u16 address, u8 value) noexcept {
         pfrc0a_ = value;
     } else if (address == desc_.pfrc0b_address) {
         pfrc0b_ = value;
+    } else if (address == desc_.picr_address) {
+        picr_ = value;
+    } else if (address == desc_.pom_address) {
+        pom_ = value;
     } else if (address >= desc_.ocrsa_address && address < desc_.ocrsa_address + 8) {
         u8 offset = address - desc_.ocrsa_address;
-        if (offset % 2 == 1) {
-            // High byte written first, latch in temp
+        if (offset % 2 == 0) {
+            // High byte written first (Big-Endian in PSC map)
             temp_high_ = value;
         } else {
             // Low byte written second, completing the 16-bit value
             u16 val = (u16(temp_high_) << 8) | value;
-            if (offset == 0) ocrsa_ = val;
-            else if (offset == 2) ocrra_ = val;
-            else if (offset == 4) ocrsb_ = val;
-            else if (offset == 6) ocrrb_ = val;
+            if (offset == 1) ocrsa_ = val;
+            else if (offset == 3) ocrra_ = val;
+            else if (offset == 5) ocrsb_ = val;
+            else if (offset == 7) ocrrb_ = val;
         }
     }
     update_outputs();
@@ -356,25 +363,18 @@ void Psc::handle_fault(bool level) noexcept {
 }
 
 void Psc::update_outputs() noexcept {
-    if (!pin_mux_) return;
 
     if (!(pctl_ & desc_.prun_mask)) {
         output_a_ = output_b_ = false;
     } else {
-        bool pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
-        bool pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
-
+        bool pulse_a, pulse_b;
         if (pctl_ & desc_.pbfm_mask) {
-            u16 top = ocrrb_;
-            u16 center = top / 2;
-            
-            u16 width_a = (ocrra_ > ocrsa_) ? (ocrra_ - ocrsa_) : 0;
-            pulse_a = (counter_ >= (center - width_a/2) && counter_ < (center + (width_a + 1)/2));
-            
-            u16 width_b = (ocrrb_ > ocrsb_) ? (ocrrb_ - ocrsb_) : 0;
-            // Note: For Part B, width is usually relative to TOP? 
-            // Actually, for PBFM, Part B is also centered.
-            pulse_b = (counter_ >= (center - width_b/2) && counter_ < (center + (width_b + 1)/2));
+            // Burst Flank Modulation: Output A has two pulses per period
+            pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_) || (counter_ >= ocrsb_ && counter_ < ocrrb_);
+            pulse_b = pulse_a; // Usually B follows A in this mode or is used for dead-time
+        } else {
+            pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
+            pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
         }
 
         bool pop = (pconf_ & 0x04) != 0;
@@ -401,25 +401,25 @@ void Psc::update_outputs() noexcept {
                 output_c_ = en_c && (pulse_a ^ pop);
                 output_d_ = en_d && (pulse_b ^ pop);
             }
+        }
 
-            // Trigger Blanking on switching events
-            if (pulse_a != last_pulse_a_) {
-                if (fault_a_.blanking_duration > 0) {
-                    fault_a_.blanking_counter = fault_a_.blanking_duration;
-                }
-                last_pulse_a_ = pulse_a;
+        // Trigger Blanking on switching events
+        if (pulse_a != last_pulse_a_) {
+            if (fault_a_.blanking_duration > 0) {
+                fault_a_.blanking_counter = fault_a_.blanking_duration;
             }
-            if (pulse_b != last_pulse_b_) {
-                if (fault_b_.blanking_duration > 0) {
-                    fault_b_.blanking_counter = fault_b_.blanking_duration;
-                }
-                last_pulse_b_ = pulse_b;
+            last_pulse_a_ = pulse_a;
+        }
+        if (pulse_b != last_pulse_b_) {
+            if (fault_b_.blanking_duration > 0) {
+                fault_b_.blanking_counter = fault_b_.blanking_duration;
             }
+            last_pulse_b_ = pulse_b;
         }
     }
 
     // Update physical pins only if enabled in PSOC
-    if (desc_.outa_pin_address) {
+    if (pin_mux_ && desc_.outa_pin_address) {
         if (psoc_ & 0x01) {
             pin_mux_->claim_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
             pin_mux_->update_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc, true, output_a_);
@@ -427,7 +427,7 @@ void Psc::update_outputs() noexcept {
             pin_mux_->release_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
         }
     }
-    if (desc_.outb_pin_address) {
+    if (pin_mux_ && desc_.outb_pin_address) {
         if (psoc_ & 0x04) {
             pin_mux_->claim_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
             pin_mux_->update_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc, true, output_b_);
@@ -435,7 +435,7 @@ void Psc::update_outputs() noexcept {
             pin_mux_->release_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
         }
     }
-    if (desc_.outc_pin_address) {
+    if (pin_mux_ && desc_.outc_pin_address) {
         if (psoc_ & 0x02) {
             pin_mux_->claim_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
             pin_mux_->update_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc, true, output_c_); 
@@ -443,7 +443,7 @@ void Psc::update_outputs() noexcept {
             pin_mux_->release_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
         }
     }
-    if (desc_.outd_pin_address) {
+    if (pin_mux_ && desc_.outd_pin_address) {
         if (psoc_ & 0x08) {
             pin_mux_->claim_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc);
             pin_mux_->update_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc, true, output_d_);

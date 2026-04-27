@@ -36,6 +36,7 @@ public:
     void set_frequency(double hz);
     
     bool load_hex(std::string_view path);
+    bool load_hex_image(const HexImage& image);
     void reset();
 
     void step_duration(double seconds);
@@ -67,6 +68,7 @@ private:
     std::unordered_map<std::string, GpioPort*> port_map_;
     LcdController* lcd_ {nullptr};
     
+    std::vector<PinStateChange> pending_pin_changes_;
     PinChangeInterruptSharedState pcint_shared_state_ {};
     std::unique_ptr<PinMap> pin_map_;
     TraceMultiplexer trace_mux_;

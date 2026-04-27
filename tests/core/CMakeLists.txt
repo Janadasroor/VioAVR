@@ -98,6 +98,7 @@ set(TEST_SOURCES
     usb_protocol_fidelity_test.cpp
     usb_double_banking_test.cpp
     at90pwm316_fidelity_test.cpp
+    at90pwm316_adc_pwm_integration_test.cpp
     lin_protocol_fidelity_test.cpp
     can_stability_test.cpp
     pll_test.cpp
