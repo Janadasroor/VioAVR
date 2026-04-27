@@ -247,6 +247,12 @@ void AnalogComparator::evaluate_output() noexcept {
         raw_output_ = next_raw;
         // Start or reset the delay counter when raw comparator toggles
         if (raw_output_ != output_high_) {
+            // Refined propagation model: delay is inversely proportional to overdrive
+            const double overdrive = std::abs(diff);
+            if (overdrive > 0.02) propagation_delay_ = 2;      // > 100mV: ~125ns
+            else if (overdrive > 0.01) propagation_delay_ = 4; // > 50mV: ~250ns
+            else propagation_delay_ = 8;                      // Small: ~500ns
+            
             delay_counter_ = propagation_delay_;
         } else {
             // Glitch was rejected

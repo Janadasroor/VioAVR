@@ -170,7 +170,6 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
     }
 
     entry.state.owner = highest_owner;
-    if (port_idx == 2 && bit_idx == 1) { printf("DEBUG PIN PD1: owner=%d level=%d claims=%08x drive_levels=%08x\n", (int)highest_owner, entry.state.drive_level, entry.active_claims, entry.drive_levels); fflush(stdout); }
     
     // Check if any owner wants Wired-AND
     bool is_wired_and = (entry.wired_and_mask & entry.active_claims) != 0;

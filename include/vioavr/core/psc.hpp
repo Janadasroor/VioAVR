@@ -45,6 +45,7 @@ private:
     u8 pim_ {0};
     u8 pifr_ {0};
     u16 picr_ {0};
+    u8 pom_ {0};
     
     u16 ocrsa_ {0};
     u16 ocrra_ {0};

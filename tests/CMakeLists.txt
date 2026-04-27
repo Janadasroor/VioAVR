@@ -26,6 +26,11 @@ if(AVR_GCC AND AVR_OBJCOPY)
             list(APPEND EXTRA_FLAGS "-I${CMAKE_SOURCE_DIR}/atmega/include")
         endif()
 
+        # Detect AT90PWM tests
+        if(name MATCHES "at90pwm" OR name MATCHES "psc" OR name MATCHES "adc_pwm")
+            set(TEST_MCU "at90pwm316")
+        endif()
+
         add_custom_command(
             OUTPUT ${elf_file}
             COMMAND ${AVR_GCC} -mmcu=${TEST_MCU} ${EXTRA_FLAGS} -Os -DF_CPU=${AVR_F_CPU} -o ${elf_file} ${source}

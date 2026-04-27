@@ -63,7 +63,7 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
         CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (0.69 < 0.70)
 
         signals.set_voltage(0U, 0.75); // Greater than 0.70 -> ACO=1
-        bus.tick_peripherals(1U);
+        bus.tick_peripherals(10U);
         
         CHECK((bus.read_data(acsr) & 0x30U) == 0x30U);
         
