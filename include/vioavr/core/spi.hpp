@@ -18,6 +18,7 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] bool wants_tick() const noexcept override { return false; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
@@ -30,9 +31,11 @@ public:
     void trigger_slave_transfer() noexcept;
     [[nodiscard]] u8 last_transmitted_byte() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
+    void on_event(u64 cycle) noexcept;
 
 private:
     void complete_transfer() noexcept;
+    void update_interrupt_pending() noexcept;
 
     std::string name_;
     SpiDescriptor desc_;

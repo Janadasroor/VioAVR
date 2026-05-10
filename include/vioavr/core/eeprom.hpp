@@ -18,6 +18,7 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] bool wants_tick() const noexcept override { return false; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
@@ -29,11 +30,14 @@ public:
 
     void commit_page(u32 address, std::span<const u8> data) noexcept;
     void erase_all() noexcept;
+    void on_master_timeout(u64 cycle) noexcept;
+    void on_write_complete(u64 cycle) noexcept;
 
 private:
     void update_eecr(u8 value) noexcept;
     void start_write() noexcept;
     void complete_write() noexcept;
+    void update_interrupt_pending() noexcept;
 
     MemoryBus* bus_ {nullptr};
     std::string name_;

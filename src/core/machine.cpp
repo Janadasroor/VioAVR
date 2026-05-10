@@ -56,6 +56,7 @@ Machine::Machine(const DeviceDescriptor& device)
       pin_mux_(std::make_unique<PinMux>(device.port_count))
 {
     bus_->set_pin_mux(pin_mux_.get());
+    pin_mux_->set_memory_bus(bus_.get());
     cpu_->set_trace_hook(&trace_mux_);
     initialize_peripherals();
     wire_peripherals();
@@ -368,6 +369,7 @@ void Machine::initialize_peripherals()
     // 7. DAC
     for (u8 i = 0; i < device_.dac_count; ++i) {
         auto dac = std::make_unique<Dac>("DAC", device_.dacs[i]);
+        dac->set_memory_bus(bus_.get());
         bus_->attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
     }
@@ -390,6 +392,7 @@ void Machine::initialize_peripherals()
     for (u8 i = 0; i < device_.eeprom_count; ++i) {
         auto eeprom = std::make_unique<Eeprom>("EEPROM", device_.eeproms[i]);
         eeprom->set_memory_bus(bus_.get());
+        if (i == 0) bus_->set_eeprom(eeprom.get());
         bus_->attach_peripheral(*eeprom);
         owned_peripherals_.push_back(std::move(eeprom));
     }
@@ -458,8 +461,14 @@ void Machine::initialize_peripherals()
     }
 
     // 11. Analog Comparator
-    for (u8 i = 0; i < device_.ac_count; ++i) {
-        auto ac = std::make_unique<AnalogComparator>("AC" + std::to_string(i), device_.acs[i], *pin_mux_, i);
+    for (int i = 0; i < (int)device_.ac_count; ++i) {
+        auto ac = std::make_unique<AnalogComparator>("AC" + std::to_string(i), device_.acs[i], *pin_mux_, (u8)i);
+        // Wire to Timer1 (index 1) if present
+        for (auto& p : owned_peripherals_) {
+            if (auto* t16 = dynamic_cast<Timer16*>(p.get())) {
+                if (t16->name() == "TIMER1") t16->connect_analog_comparator(*ac);
+            }
+        }
         bus_->attach_peripheral(*ac);
         owned_peripherals_.push_back(std::move(ac));
     }
@@ -595,6 +604,9 @@ void Machine::wire_peripherals()
             if (auto* t8 = dynamic_cast<Timer8*>(p.get())) {
                 adc->connect_timer_compare_auto_trigger(*t8);
                 adc->connect_timer_overflow_auto_trigger(*t8);
+            }
+            if (auto* t16 = dynamic_cast<Timer16*>(p.get())) {
+                t16->connect_adc(*adc);
             }
             if (auto* psc = dynamic_cast<Psc*>(p.get())) {
                 psc->connect_adc_trigger(*adc);

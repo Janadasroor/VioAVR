@@ -207,6 +207,12 @@
                   </svg>
                   <span>Project</span>
                 </button>
+                <button class="panel-tab" data-tab="results" title="Simulation Results">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 3v18h18M18 17l-4-4-4 4-4-4"/>
+                  </svg>
+                  <span>Results</span>
+                </button>
               </div>
 
               <div class="panel-content">
@@ -222,9 +228,46 @@
                   </div>
                 </div>
                 <div class="panel-tab-content" id="tab-project">
-                  <div class="panel-placeholder">
-                    <div class="placeholder-icon">📂</div>
-                    <p>Project browser coming soon...</p>
+                  <div class="project-browser">
+                    <div class="project-section">
+                      <label class="section-label">Hardware Fidelity Tests</label>
+                      <div class="project-list" id="test-list">
+                        <!-- Populated by JS -->
+                      </div>
+                    </div>
+                    <div class="project-section">
+                      <label class="section-label">Interactive Examples</label>
+                      <div class="project-list" id="example-list">
+                        <!-- Populated by JS -->
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="panel-tab-content" id="tab-results">
+                  <div class="results-viewer">
+                    <div class="results-stats">
+                      <div class="stat-item">
+                        <label>Simulation Time</label>
+                        <span id="res-sim-time">0.000s</span>
+                      </div>
+                      <div class="stat-item">
+                        <label>CPU Cycles</label>
+                        <span id="res-cpu-cycles">0</span>
+                      </div>
+                    </div>
+                    <div class="results-table-container">
+                      <table class="results-table">
+                        <thead>
+                          <tr>
+                            <th>Signal</th>
+                            <th>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody id="res-signal-list">
+                          <!-- Populated by JS -->
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -234,12 +277,17 @@
               <div class="floating-toolbar">
                 <button class="tool-btn active" id="tool-select" title="Select (S)">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+                <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
                   </svg>
                 </button>
                 <button class="tool-btn" id="tool-wire" title="Wire (W)">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 12h18M12 3v18"/>
+                    <path d="M12 2v20M2 12h20"/>
+                  </svg>
+                </button>
+                <button class="tool-btn" id="tool-probe" title="Probe (P)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/><path d="M12 12L20 4"/>
                   </svg>
                 </button>
                 <div class="tool-divider"></div>

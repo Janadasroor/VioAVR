@@ -315,6 +315,7 @@ def generate_header(data, header_path):
             .rxcie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'RXCIE'))}, 
             .txcie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'TXCIE'))}, 
             .udrie_mask = {hx(b(f'UCSR{idx}B|UCSRB|CTRLA', 'UDRIE|DREIE'))},
+            .mpcm_mask = {hx(b(f'UCSR{idx}A|UCSRA|STATUS', 'MPCM'))},
             .pr_address = {pr_addr}, .pr_bit = {pr_bit},
             .uart_index = {idx}U,
             .txd_pin_address = {tx_a}, .txd_pin_bit = {tx_b}U,

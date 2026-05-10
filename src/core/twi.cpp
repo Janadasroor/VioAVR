@@ -188,17 +188,14 @@ void Twi::handle_master_step() noexcept
     if (twsr_ == kStatusStart || twsr_ == kStatusRepStart) {
         // SLA+W/R just sent
         const bool is_read = (twdr_ & 0x01U);
+        const bool acked = (bus_ && bus_->twi_broadcast(twdr_)) || (rx_idx_ < rx_buffer_.size());
+        
         if (is_read) {
             mode_ = Mode::master_rx;
-            // Check if slave exists in simulation
-            if (rx_idx_ < rx_buffer_.size() || sla_matched_) {
-                twsr_ = kStatusMasterRxAddrAck;
-            } else {
-                twsr_ = kStatusMasterRxAddrNack;
-            }
+            twsr_ = acked ? kStatusMasterRxAddrAck : kStatusMasterRxAddrNack;
         } else {
             mode_ = Mode::master_tx;
-            twsr_ = kStatusMasterTxAddrAck; // Assume success for now
+            twsr_ = acked ? kStatusMasterTxAddrAck : kStatusMasterTxAddrNack;
         }
     } else if (mode_ == Mode::master_tx) {
         // Data byte just sent
@@ -221,7 +218,7 @@ void Twi::handle_slave_step() noexcept
     // Twi::check_slave_address is called by the bus simulation to addressed us
 }
 
-bool Twi::check_slave_address(u8 address) const noexcept
+bool Twi::check_twi_address(u8 address) const noexcept
 {
     u8 my_addr = (twar_ >> 1U);
     u8 mask = (twamr_ >> 1U);

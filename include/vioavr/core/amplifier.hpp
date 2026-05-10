@@ -17,6 +17,7 @@ public:
     void tick(u64 elapsed_cycles) noexcept override;
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
+    void on_analog_pin_change(u16 pin_address, u8 bit_index, double voltage) noexcept override;
 
     [[nodiscard]] double voltage_out() const noexcept { return voltage_out_; }
     [[nodiscard]] bool is_enabled() const noexcept { return (ampcsr_ & desc_.ampen_mask) != 0; }
@@ -30,6 +31,8 @@ private:
     PinMux* pin_mux_;
     u8 ampcsr_{0};
     double voltage_out_{0.0};
+    double positive_input_{0.0};
+    double negative_input_{0.0};
     AddressRange range_;
 };
 

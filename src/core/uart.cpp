@@ -127,7 +127,7 @@ void Uart::write(const u16 address, const u8 value) noexcept
         tx_buffer_full_ = true;
         ucsra_ &= ~desc_.udre_mask; // Buffer full
     } else if (address == desc_.ucsra_address) {
-        ucsra_ = static_cast<u8>((ucsra_ & ~desc_.u2x_mask) | (value & desc_.u2x_mask));
+        ucsra_ = static_cast<u8>((ucsra_ & ~(desc_.u2x_mask | desc_.mpcm_mask)) | (value & (desc_.u2x_mask | desc_.mpcm_mask)));
         if (value & desc_.txc_mask) ucsra_ &= ~desc_.txc_mask;
     } else if (address == desc_.ucsrb_address) {
         ucsrb_ = value;

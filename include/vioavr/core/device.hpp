@@ -304,6 +304,7 @@ struct UartDescriptor {
     u8 rxcie_mask {0x80U};
     u8 txcie_mask {0x40U};
     u8 udrie_mask {0x20U};
+    u8 mpcm_mask {0x01U};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
     u8 uart_index {0U};

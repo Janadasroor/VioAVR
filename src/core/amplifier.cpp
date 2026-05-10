@@ -1,10 +1,12 @@
 #include "vioavr/core/amplifier.hpp"
+#include "vioavr/core/logger.hpp"
 
 namespace vioavr::core {
 
 At90Amplifier::At90Amplifier(std::string_view name, const AmplifierDescriptor& desc, PinMux& pin_mux) noexcept
     : name_(name), desc_(desc), pin_mux_(&pin_mux)
 {
+    Logger::debug("At90Amplifier created: " + std::string(name) + " addr=" + Logger::hex(desc.ampcsr_address));
     range_ = {desc_.ampcsr_address, desc_.ampcsr_address};
 }
 
@@ -15,6 +17,8 @@ std::span<const AddressRange> At90Amplifier::mapped_ranges() const noexcept {
 void At90Amplifier::reset() noexcept {
     ampcsr_ = 0;
     voltage_out_ = 0.0;
+    positive_input_ = 0.0;
+    negative_input_ = 0.0;
     update_pin_ownership();
 }
 
@@ -30,6 +34,7 @@ u8 At90Amplifier::read(u16 address) noexcept {
 }
 
 void At90Amplifier::write(u16 address, u8 value) noexcept {
+    Logger::debug("AMP write: addr=" + Logger::hex(address) + " val=" + Logger::hex(value));
     if (address == desc_.ampcsr_address) {
         const u8 old = ampcsr_;
         ampcsr_ = value;
@@ -46,8 +51,12 @@ void At90Amplifier::evaluate() noexcept {
         return;
     }
 
-    double v_pos = pin_mux_->get_state_by_address(desc_.pos_pin_address, desc_.pos_pin_bit).voltage;
-    double v_neg = pin_mux_->get_state_by_address(desc_.neg_pin_address, desc_.neg_pin_bit).voltage;
+    double v_pos = positive_input_;
+    double v_neg = negative_input_;
+    
+    // Also check PinMux in case it was updated externally through standard GPIO/ADC path
+    v_pos = std::max(v_pos, pin_mux_->get_state_by_address(desc_.pos_pin_address, desc_.pos_pin_bit).voltage);
+    v_neg = std::max(v_neg, pin_mux_->get_state_by_address(desc_.neg_pin_address, desc_.neg_pin_bit).voltage);
 
     // Gain mapping: 00: 5, 01: 10, 10: 20, 11: 40
     u8 g_bits = 0;
@@ -65,6 +74,8 @@ void At90Amplifier::evaluate() noexcept {
     // Differential amplification
     voltage_out_ = (v_pos - v_neg) * gain;
     
+    Logger::debug("AMP evaluate: v_pos=" + std::to_string(v_pos) + " v_neg=" + std::to_string(v_neg) + " gain=" + std::to_string(gain) + " out=" + std::to_string(voltage_out_));
+
     // Clamp to [0, 1] assuming normalized range relative to Vcc
     if (voltage_out_ < 0.0) voltage_out_ = 0.0;
     if (voltage_out_ > 1.0) voltage_out_ = 1.0;
@@ -77,6 +88,22 @@ void At90Amplifier::update_pin_ownership() noexcept {
     } else {
         pin_mux_->release_pin_by_address(desc_.pos_pin_address, desc_.pos_pin_bit, PinOwner::amplifier);
         pin_mux_->release_pin_by_address(desc_.neg_pin_address, desc_.neg_pin_bit, PinOwner::amplifier);
+    }
+}
+
+void At90Amplifier::on_analog_pin_change(u16 pin_address, u8 bit_index, double voltage) noexcept {
+    Logger::debug("AMP on_analog_pin_change: addr=" + Logger::hex(pin_address) + " bit=" + std::to_string(bit_index) + " volt=" + std::to_string(voltage));
+    bool changed = false;
+    if (pin_address == desc_.pos_pin_address && bit_index == desc_.pos_pin_bit) {
+        positive_input_ = voltage;
+        changed = true;
+    } else if (pin_address == desc_.neg_pin_address && bit_index == desc_.neg_pin_bit) {
+        negative_input_ = voltage;
+        changed = true;
+    }
+
+    if (changed) {
+        evaluate();
     }
 }
 

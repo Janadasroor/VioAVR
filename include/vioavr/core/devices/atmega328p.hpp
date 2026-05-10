@@ -201,6 +201,7 @@ inline constexpr DeviceDescriptor atmega328p {
             .rxcie_mask = 0x80U, 
             .txcie_mask = 0x40U, 
             .udrie_mask = 0x20U,
+            .mpcm_mask = 0x01U,
             .pr_address = 100, .pr_bit = 1,
             .uart_index = 0U,
             .txd_pin_address = 0x2BU, .txd_pin_bit = 1U,

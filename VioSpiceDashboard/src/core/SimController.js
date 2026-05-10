@@ -6,9 +6,8 @@ import { NetworkClient } from './NetworkClient.js';
  * with the hardware-backed VioSpice Gateway.
  */
 export class SimController {
-  constructor(shell) {
-    this.shell = shell;
-    this.client = new NetworkClient();
+  constructor() {
+    this.client = null;
     this.isRunning = false;
     
     // Telemetry storage
@@ -27,9 +26,9 @@ export class SimController {
     this.dacHistory = new Array(50).fill(0.5); // Default to mid-range
   }
 
+  init(client) {
+    this.client = client;
     this._setupListeners();
-    document.getElementById('btn-play')?.addEventListener('click', () => this.toggle());
-    document.getElementById('btn-reset')?.addEventListener('click', () => this.reset());
   }
 
   // ─── Public API ────────────────────────────────────────────────────────────
@@ -42,19 +41,19 @@ export class SimController {
     this.isRunning = true;
     this.client.send('run');
     this.emit('stateChanged', { running: true });
-    this.shell.showToast('Simulation Running', 'success');
+    this.emit('toast', { message: 'Simulation Running', type: 'success' });
   }
 
   pause() {
     this.isRunning = false;
     this.client.send('stop');
     this.emit('stateChanged', { running: false });
-    this.shell.showToast('Simulation Paused', 'info');
+    this.emit('toast', { message: 'Simulation Paused', type: 'info' });
   }
 
   reset() {
     this.client.send('reset');
-    this.shell.showToast('CPU Reset Triggered', 'warning');
+    this.emit('toast', { message: 'CPU Reset Triggered', type: 'warning' });
   }
 
   loadHex(path) {
@@ -63,10 +62,11 @@ export class SimController {
 
   exportTrace() {
     this.client.send('vcd');
-    this.shell.showToast('VCD Tracing Toggled', 'info');
+    this.emit('toast', { message: 'VCD Tracing Toggled', type: 'info' });
   }
 
   async listHexFiles() {
+    if (!this.client) return [];
     return new Promise((resolve) => {
         const handler = (data) => {
             if (data.type === 'hex_list') {
@@ -95,7 +95,7 @@ export class SimController {
   }
 
   _setupListeners() {
-    this.client.connect();
+    if (!this.client) return;
     this.client.on('status', ({ connected }) => {
       this.emit('connectionChanged', { connected });
     });
@@ -120,7 +120,7 @@ export class SimController {
     // Handle Analysis Freeze (Bit 1)
     if (this.telemetry.flags & 0x02) {
       this.pause();
-      this.shell.showToast('Hardware Event: Analysis Freeze Triggered', 'error');
+      this.emit('toast', { message: 'Hardware Event: Analysis Freeze Triggered', type: 'error' });
       this.emit('analysisTriggered', { type: 'fault' });
     }
 

@@ -29,8 +29,8 @@ export function getAbsPinPos(pin) {
 }
 
 export function updateWirePath(group) {
-  const start = group.startPin ? getAbsPinPos(group.startPin) : null;
-  const end = group.endPin ? getAbsPinPos(group.endPin) : null;
+  const start = group.startPin ? getAbsPinPos(group.startPin) : (group.startJunction ? group.startJunction.pos : null);
+  const end = group.endPin ? getAbsPinPos(group.endPin) : (group.endJunction ? group.endJunction.pos : null);
   let points = JSON.parse(group.dataset.points);
   
   if (start) points[0] = start;
@@ -70,11 +70,16 @@ export function updateWirePath(group) {
   }
 }
 
-export function createWaypointWire(startPin, endPin, points) {
+export function createWaypointWire(start, end, points) {
   const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   group.setAttribute('class', 'wire-group');
-  group.startPin = startPin;
-  group.endPin = endPin;
+  
+  if (start && start.nodeType) group.startPin = start;
+  else if (start) group.startJunction = start; // { wire, pos }
+
+  if (end && end.nodeType) group.endPin = end;
+  else if (end) group.endJunction = end; // { wire, pos }
+
   group.dataset.points = JSON.stringify(points);
 
   const elements = [
@@ -96,13 +101,13 @@ export function createWaypointWire(startPin, endPin, points) {
 
   const junctionStart = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   junctionStart.setAttribute('class', 'wire-junction-dot');
-  junctionStart.setAttribute('r', '3');
-  junctionStart.style.display = startPin ? 'none' : 'block';
+  junctionStart.setAttribute('r', '4');
+  junctionStart.style.display = group.startPin ? 'none' : 'block';
 
   const junctionEnd = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   junctionEnd.setAttribute('class', 'wire-junction-dot');
-  junctionEnd.setAttribute('r', '3');
-  junctionEnd.style.display = endPin ? 'none' : 'block';
+  junctionEnd.setAttribute('r', '4');
+  junctionEnd.style.display = group.endPin ? 'none' : 'block';
 
   group.appendChild(junctionStart);
   group.appendChild(junctionEnd);

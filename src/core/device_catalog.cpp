@@ -432,6 +432,7 @@ std::vector<std::string_view> DeviceCatalog::list_devices() noexcept {
         devices::atmega8u2.name,
         devices::atmegas128.name,
         devices::atmegas64m1.name,
+        devices::at90pwm316.name,
     };
 }
 

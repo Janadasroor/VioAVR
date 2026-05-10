@@ -34,11 +34,13 @@ void Dac::reset() noexcept {
 
 void Dac::tick(u64 elapsed_cycles) noexcept {
     (void)elapsed_cycles;
+    Logger::debug("Dac::tick this=" + Logger::hex((uintptr_t)this) + " dacon=0x" + Logger::hex(dacon_) + " enabled_mask=0x" + Logger::hex(desc_.daen_mask));
     if (power_reduction_enabled()) return;
 
     bool enabled = (dacon_ & desc_.daen_mask);
     if (enabled && (dacon_ & desc_.dacoe_mask)) {
         if (desc_.dac_pin_address) {
+            Logger::debug("Dac::tick claiming pin 0x" + Logger::hex(desc_.dac_pin_address) + ":" + std::to_string(desc_.dac_pin_bit));
             bus_->pin_mux()->claim_pin_by_address(desc_.dac_pin_address, desc_.dac_pin_bit, PinOwner::dac);
             bus_->pin_mux()->update_analog_pin_by_address(desc_.dac_pin_address, desc_.dac_pin_bit, PinOwner::dac, voltage_);
         }
@@ -63,6 +65,7 @@ u8 Dac::read(u16 address) noexcept {
 }
 
 void Dac::write(u16 address, u8 value) noexcept {
+    Logger::debug("Dac::write this=" + Logger::hex((uintptr_t)this) + " addr=0x" + Logger::hex(address) + " value=0x" + Logger::hex(value));
     if (address == desc_.dacon_address) {
         dacon_ = value;
         update_voltage();

@@ -18,17 +18,20 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] bool wants_tick() const noexcept override { return false; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
     void reset_watchdog() noexcept;
-
-private:
+public:
     void complete_timeout() noexcept;
+    void update_interrupt_pending() noexcept;
+    void on_event(u64 cycle) noexcept;
     [[nodiscard]] u32 get_timeout_cycles() const noexcept;
 
+private:
     std::string name_;
     WdtDescriptor desc_;
     AvrCpu& cpu_;

@@ -24,6 +24,12 @@ export class Viewport {
     this.update();
   }
 
+  pan(dx, dy) {
+    this.panX += dx;
+    this.panY += dy;
+    this.update();
+  }
+
   screenToWorld(clientX, clientY) {
     const rect = this.svg.getBoundingClientRect();
     return {

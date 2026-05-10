@@ -61,6 +61,9 @@ private:
     u8 rx_temp_ {0};
     u8 tx_temp_ {0};
 
+    u64 tx_accumulator_ {0};
+    u64 rx_accumulator_ {0};
+
     bool power_reduction_enabled() const noexcept;
 };
 

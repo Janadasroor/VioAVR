@@ -21,8 +21,8 @@ TEST_CASE("AT90PWM316 - PSC Prescaler Timing") {
     const u16 ocrrb0 = 0xD8; // OCR0RB (TOP)
     
     // Set OCR0RB to 100
-    bus.write_data(ocrrb0 + 1, 0);
-    bus.write_data(ocrrb0, 100);
+    bus.write_data(ocrrb0, 0);
+    bus.write_data(ocrrb0 + 1, 100);
     
     // Enable PSC0, One-Ramp, Prescaler /32
     // PPRE = 10 (bits 7:6), PRUN = 1 (bit 0) -> 0x81
@@ -71,7 +71,7 @@ TEST_CASE("AT90PWM316 DAC Fidelity") {
     // Tick DAC to propagate to PinMux
     bus.tick_peripherals(1);
     
-    auto state = bus.pin_mux()->get_state_by_address(0x23, 7); // PB7/DACOUT
+    auto state = bus.pin_mux()->get_state_by_address(0x23, 1); // PB1/DACOUT
     CHECK(state.owner == PinOwner::dac);
     CHECK(state.voltage == doctest::Approx(512.0 / 1023.0));
 }
@@ -124,14 +124,14 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Encoding") {
     // Tick 4 cycles
     bus.tick_peripherals(4);
     
-    // Check TXD pin (PD1 for AT90PWM316 EUSART)
+    // Check TXD pin (PD0 for AT90PWM316 EUSART)
     // For '1', first half should be LOW (0), second half HIGH (1)
-    auto state = bus.pin_mux()->get_state_by_address(0x29, 1); // PIND1
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 0); // PIND0
     CHECK(state.drive_level == false);
     
     // Tick another 8 cycles (total 12, now in second half of first bit)
     bus.tick_peripherals(8);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true);
     
     // Write 0x00 (all bits 0)
@@ -141,7 +141,7 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Encoding") {
     // Now start 0x00 (LSB 0)
     // For '0', first half should be HIGH (1), second half LOW (0)
     bus.tick_peripherals(4);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true);
 }
 
@@ -153,8 +153,8 @@ TEST_CASE("AT90PWM316 - PSC Complete Cycle (PCCYC)") {
     const u16 pctl0 = 0xDB;
     const u16 ocrrb0 = 0xD8;
     
-    bus.write_data(ocrrb0 + 1, 0);
-    bus.write_data(ocrrb0, 10); // TOP = 10
+    bus.write_data(ocrrb0, 0);      // High byte first
+    bus.write_data(ocrrb0 + 1, 10); // Low byte second (triggers update)
     
     // Enable PSC0, One-Ramp, Prescaler /1, PCCYC = 1
     // PCCYC is bit 1. PRUN is bit 0. -> 0x03
@@ -176,19 +176,20 @@ TEST_CASE("AT90PWM316 - PSC Fault Protection") {
     auto& bus = machine->bus();
     
     // Configure PSC0: One-Ramp, PRUN=1, PSOC0: POEN0A=1
-    bus.write_data(0xD0, 0x01); // PSOC0 = 1 (POEN0A=1)
+    // Configure PSC0: One-Ramp, PRUN=1, PSOC0: POEN0A=1, POEN0B=1
+    bus.write_data(0xD0, 0x05); // PSOC0 = 5 (POEN0A=1, POEN0B=1)
     bus.write_data(0xDB, 0x01); // PCTL0 = 1 (PRUN=1)
     
-    // Initially, pin PD1 should be driven by PSC
+    // Initially, pin PD0 should be driven by PSC
     // (Wait, we need to tick once to claim)
     bus.tick_peripherals(1);
-    auto state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.owner == PinOwner::psc);
     
     // Set non-zero duty cycle so we can see it go LOW on fault
-    bus.write_data(0xD8 + 1, 0); bus.write_data(0xD8, 100); // TOP=100
-    bus.write_data(0xD4 + 1, 0); bus.write_data(0xD4, 0);   // SA=0
-    bus.write_data(0xD6 + 1, 0); bus.write_data(0xD6, 50);  // RA=50
+    bus.write_data(0xD8, 0); bus.write_data(0xD9, 100); // TOP=100
+    bus.write_data(0xD2, 0); bus.write_data(0xD3, 0);   // SA=0
+    bus.write_data(0xD4, 0); bus.write_data(0xD5, 50);  // RA=50
     
     // Set PSC0 Fault Mode: Fault on Level (Mode 6), No Filter
     bus.write_data(0xDC, 0x06); // PFRC0A = 6 (PELEV=0, trigger on LOW)
@@ -206,8 +207,8 @@ TEST_CASE("AT90PWM316 - PSC Fault Protection") {
     bus.tick_peripherals(1);
     
     // Check PSC0 output. In mode 6, it should go to Reset Value.
-    // psoc0 was 1 (POEN0A=1), bit 1 (Fault level) is 0.
-    state = bus.pin_mux()->get_state_by_address(0x29, 1); // PSCOUT00 (PD1)
+    // psoc0 was 5 (POEN0A=1, POEN0B=1), bit 1 (Fault level) is 0.
+    state = bus.pin_mux()->get_state_by_address(0x29, 0); // PSCOUT00 (PD0)
     CHECK(state.drive_level == false);
 }
 
@@ -221,23 +222,23 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Decoding") {
     bus.write_data(0xC8, 0x0B); // EUCSRA: URxS=11 (16-bit)
     bus.write_data(0xCC, 0);    // MUBRR=0 (16 cycles per bit)
     
-    // Claim PD2 as external source (RXD)
-    bus.pin_mux()->claim_pin_by_address(0x29, 2, PinOwner::external);
+    // Claim PD1 as external source (RXD)
+    bus.pin_mux()->claim_pin_by_address(0x29, 1, PinOwner::external);
     
     // Initial state: HIGH (Idle)
-    bus.pin_mux()->update_pin_by_address(0x29, 2, PinOwner::external, true, true);
+    bus.pin_mux()->update_pin_by_address(0x29, 1, PinOwner::external, true, true);
     bus.tick_peripherals(1);
 
     auto send_bit = [&](bool bit) {
         if (bit) {
-            bus.pin_mux()->update_pin_by_address(0x29, 2, PinOwner::external, true, false);
+            bus.pin_mux()->update_pin_by_address(0x29, 1, PinOwner::external, true, false);
             for (int i = 0; i < 8; ++i) bus.tick_peripherals(1);
-            bus.pin_mux()->update_pin_by_address(0x29, 2, PinOwner::external, true, true);
+            bus.pin_mux()->update_pin_by_address(0x29, 1, PinOwner::external, true, true);
             for (int i = 0; i < 8; ++i) bus.tick_peripherals(1);
         } else {
-            bus.pin_mux()->update_pin_by_address(0x29, 2, PinOwner::external, true, true);
+            bus.pin_mux()->update_pin_by_address(0x29, 1, PinOwner::external, true, true);
             for (int i = 0; i < 8; ++i) bus.tick_peripherals(1);
-            bus.pin_mux()->update_pin_by_address(0x29, 2, PinOwner::external, true, false);
+            bus.pin_mux()->update_pin_by_address(0x29, 1, PinOwner::external, true, false);
             for (int i = 0; i < 8; ++i) bus.tick_peripherals(1);
         }
     };
@@ -274,9 +275,9 @@ TEST_CASE("AT90PWM316 - PSC PAOC Fault Bypass") {
     const u16 ocrrb0 = 0xD8;
     
     // Set 50% duty cycle (TOP=100, RA=50)
-    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
-    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 0);
-    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 50);
+    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
+    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 0);
+    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 50);
     
     // Enable Output A, Fault Level = LOW (PSOC bit 1 = 0)
     bus.write_data(psoc0, 0x01); 
@@ -297,7 +298,7 @@ TEST_CASE("AT90PWM316 - PSC PAOC Fault Bypass") {
     bus.tick_peripherals(1);
     
     // Check output is HIGH (normal operation)
-    auto state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true);
     
     // 2. Inject fault directly into PSC (LOW level triggers if PELEV=0)
@@ -311,7 +312,7 @@ TEST_CASE("AT90PWM316 - PSC PAOC Fault Bypass") {
     bus.tick_peripherals(1);
     
     // Check output is now LOW (Fault active, no bypass)
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == false);
     
     // 3. Enable PAOC0A = 1 (Bypass fault)
@@ -319,7 +320,7 @@ TEST_CASE("AT90PWM316 - PSC PAOC Fault Bypass") {
     bus.tick_peripherals(1);
     
     // Check output is now HIGH again (Fault bypassed)
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true);
 }
 
@@ -347,8 +348,8 @@ TEST_CASE("AT90PWM316 - PSC Blanking Window") {
 
     // Configure PWM: SA=0, RA=50
     // PSC update triggers on LOW byte write
-    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 0);
-    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 50);
+    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 0);
+    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 50);
     bus.write_data(psoc0, 0x01); // Enable OutA
     
     // Set Mode: Fault on Level (Mode 6)
@@ -359,7 +360,7 @@ TEST_CASE("AT90PWM316 - PSC Blanking Window") {
     bus.tick_peripherals(1);
     
     // Output should be HIGH
-    auto state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true);
 
     // 2. Inject fault during blanking (Switching event just happened at start)
@@ -373,13 +374,13 @@ TEST_CASE("AT90PWM316 - PSC Blanking Window") {
     
     // Tick 5 cycles (Inside blanking window)
     bus.tick_peripherals(5);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     // Should STILL be HIGH because of blanking
     CHECK(state.drive_level == true);
 
     // 3. Wait for blanking to expire
     bus.tick_peripherals(6); // Total 11 cycles since switching
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     // Should now be LOW because fault is accepted
     CHECK(state.drive_level == false);
 }
@@ -397,9 +398,9 @@ TEST_CASE("AT90PWM316 - PSC PBFM Modulation") {
     u16 psoc0 = 0xD0;
 
     // 1. Configure PWM: TOP=100, Pulse=40 to 60 (Width 20)
-    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
-    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 40);
-    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 60);
+    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
+    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 40);
+    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 60);
     bus.write_data(psoc0, 0x01); // Enable OutA
     
     // Enable PSC with PBFM (Bit 5 = 0x20)
@@ -407,37 +408,38 @@ TEST_CASE("AT90PWM316 - PSC PBFM Modulation") {
     
     // Pulse should be 40 to 60 (already centered)
     bus.tick_peripherals(39);
-    auto state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == false); // Cycle 39: Not yet at 40
     
     bus.tick_peripherals(1);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true); // Cycle 40: Start of pulse
     
     bus.tick_peripherals(19);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true); // Cycle 59: Still inside
     
     bus.tick_peripherals(1);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == false); // Cycle 60: Past pulse
 
     // 2. Change registers to NON-CENTERED values: 0 to 20 (Width 20)
     // But PBFM should KEEP it centered at 40 to 60!
     bus.write_data(pctl0, 0x02); // Stop (PBFM remains 0 for now)
-    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 0);
-    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 20);
-    bus.write_data(pctl0, 0x23); // Restart with PBFM=1
+    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 0);
+    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 20);
+    // Restart with PBFM=1
+    bus.write_data(pctl0, 0x23); 
     
     // Tick to 45
     bus.tick_peripherals(45);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     // Should be HIGH because width 20 centered at 100/2=50 is 40..60
     CHECK(state.drive_level == true); 
     
     // Tick past 60
     bus.tick_peripherals(20);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == false);
 }
 
@@ -466,16 +468,29 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Fidelity") {
     
     // Start bit (1): LOW (8 cycles) then HIGH (8 cycles)
     bus.tick_peripherals(4); // Mid of first half
-    auto state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    auto state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == false);
     
     bus.tick_peripherals(8); // Mid of second half
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true);
     
     // First data bit (1): LOW then HIGH
     bus.tick_peripherals(8); // Mid of first half
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
+    CHECK(state.drive_level == false);
+    
+    bus.tick_peripherals(8); // Mid of second half
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
+    CHECK(state.drive_level == true);
+    
+    // Second data bit (0): HIGH then LOW
+    bus.tick_peripherals(8); // Mid of first half
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
+    CHECK(state.drive_level == true);
+    
+    bus.tick_peripherals(8); // Mid of second half
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == false);
     
     // 3. Test RX Manchester
@@ -502,9 +517,9 @@ TEST_CASE("AT90PWM316 - PSC High-Resolution 64MHz Fidelity") {
     u16 pllcsr = 0x49;
 
     // 1. Configure PSC: TOP=100, Pulse=40..60. CLKSEL=1 (High Res)
-    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
-    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 40);
-    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 60);
+    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
+    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 40);
+    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 60);
     bus.write_data(psoc0, 0x01); // Enable OutA
     
     // Enable High Res (Bit 1 of PCNF0 = CLKSEL)
@@ -533,11 +548,11 @@ TEST_CASE("AT90PWM316 - PSC High-Resolution 64MHz Fidelity") {
     // In High Res mode (4x), 10 I/O cycles = 40 PSC cycles.
     // So 10 I/O cycles should reach the start of the pulse (40).
     bus.tick_peripherals(9);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == false); // Cycle 9*4 = 36
     
     bus.tick_peripherals(1);
-    state = bus.pin_mux()->get_state_by_address(0x29, 1);
+    state = bus.pin_mux()->get_state_by_address(0x29, 0);
     CHECK(state.drive_level == true); // Cycle 10*4 = 40
 }
 
@@ -568,8 +583,8 @@ TEST_CASE("AT90PWM316 - Analog Comparator Fault Triggering") {
     bus.write_data(0xDA, 0x00); // PCONF0: Normal mode
     bus.write_data(0xDC, 0x47); // PFRC0A: PAFE=1, PRFM=7 (Fault on Level, No Auto Restart)
     bus.write_data(0xD0, 0x01); // PSOC0: POUT0A=1
-    bus.write_data(0xD2 + 1, 0); bus.write_data(0xD2, 10); // OCR0SA = 10
-    bus.write_data(0xD4 + 1, 0); bus.write_data(0xD4, 100); // OCR0RA = 100 (Long pulse)
+    bus.write_data(0xD2, 0); bus.write_data(0xD2 + 1, 10); // OCR0SA = 10
+    bus.write_data(0xD4, 0); bus.write_data(0xD4 + 1, 100); // OCR0RA = 100 (Long pulse)
     bus.write_data(0xDB, 0x01); // PCTL0: PRUN=1
 
     // Run enough cycles to get the PSC started and past OCR0SA (10)
@@ -733,10 +748,10 @@ TEST_CASE("AT90PWM316 - PSC Four-Ramp Mode Fidelity") {
     bus.write_data(pcnf0, 0x10); // PMODE=2 (0b10 << 3 = 0x10)
     
     // Set Ramp segments: 10, 20, 30, 40 cycles
-    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 10);
-    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 30);
-    bus.write_data(ocrsb0 + 1, 0); bus.write_data(ocrsb0, 60);
-    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
+    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 10);
+    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 30);
+    bus.write_data(ocrsb0, 0); bus.write_data(ocrsb0 + 1, 60);
+    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
 
     // Start PSC
     bus.write_data(pctl0, 0x01); // PRUN=1
@@ -785,20 +800,21 @@ TEST_CASE("Analog Comparator Propagation and Hysteresis Fidelity") {
     REQUIRE(!acs.empty());
     AnalogComparator& ac0 = *acs[0];
     
-    // Setup AC0
-    bus.write_data(0xAD, 0x80); // AC0EN=1, ACM=0 (AIP vs AIM)
-    
     // PB2 (Pos) = 0.5V, PB3 (Neg) = 0.5V
     pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.5);
     pin_mux.update_analog_pin_by_address(0x23, 3, PinOwner::external, 0.5);
-    bus.tick_peripherals(5);
+    
+    // Setup AC0
+    bus.write_data(0x50, 0x00); // Global enable (ACD=0)
+    bus.write_data(0xAD, 0x82); // AC0EN=1, ACHYST=01 (~20mV hysteresis)
+    bus.tick_peripherals(20);
     
     // 1. Test Rising Threshold (0.5V + 20mV = 0.504V)
     pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.502); // 10mV diff (Below 20mV)
-    bus.tick_peripherals(5);
+    bus.tick_peripherals(10);
     CHECK((ac0.read(0x50) & 0x01) == 0);
     
-    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.51); // 50mV diff (Above 20mV)
+    pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.53); // 30mV diff (Above 20mV threshold)
     // Should NOT be high yet (needs 2 cycles)
     bus.tick_peripherals(1);
     CHECK((ac0.read(0x50) & 0x01) == 0);
@@ -810,12 +826,12 @@ TEST_CASE("Analog Comparator Propagation and Hysteresis Fidelity") {
     pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.45); // Drop below
     bus.tick_peripherals(1); // 1 cycle passed
     pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.55); // Back up before delay expired
-    bus.tick_peripherals(5);
+    bus.tick_peripherals(10);
     CHECK((ac0.read(0x50) & 0x01) != 0); // Should stay High (glitch rejected)
     
     // 3. Test Falling Threshold (0.5V - 20mV = 0.496V)
     pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.498); // 10mV diff (Within hysteresis)
-    bus.tick_peripherals(5);
+    bus.tick_peripherals(10);
     CHECK((ac0.read(0x50) & 0x01) != 0);
     
     pin_mux.update_analog_pin_by_address(0x23, 2, PinOwner::external, 0.48); // Below

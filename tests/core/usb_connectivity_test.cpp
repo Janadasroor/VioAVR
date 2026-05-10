@@ -29,7 +29,8 @@ TEST_CASE("USB Connectivity Test") {
     // Enable USB and simulate PLL lock
     bus.write_data(usb_desc.usbcon_address, 0x80); // USBE = 1
     if (usb_desc.pllcsr_address != 0) {
-        bus.write_data(usb_desc.pllcsr_address, 0x01); // PLOCK = 1
+        bus.write_data(usb_desc.pllcsr_address, 0x02); // PLLE = 1
+        bus.tick_peripherals(100, 0xFF); // Wait for PLOCK
     }
 
     u16 frame0 = bus.read_data(udfnum_addr) | (bus.read_data(udfnum_addr + 1) << 8);

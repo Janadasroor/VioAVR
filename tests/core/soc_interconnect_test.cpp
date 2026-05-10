@@ -13,6 +13,8 @@ using namespace vioavr::core;
 TEST_CASE("SoC: Analog Comparator Triggers Timer1 Capture") {
     MemoryBus bus {devices::atmega32u4};
     PinMux pin_mux {5};
+    bus.set_pin_mux(&pin_mux);
+    pin_mux.set_memory_bus(&bus);
     
     Timer16 timer1 ("TIMER1", devices::atmega32u4.timers16[0]);
     timer1.set_bus(bus);
@@ -31,13 +33,13 @@ TEST_CASE("SoC: Analog Comparator Triggers Timer1 Capture") {
     
     ac.set_negative_input_voltage(0.1);
     ac.set_positive_input_voltage(0.2); 
-    ac.tick(1);
+    bus.tick_peripherals(10); // Propagation delay
     
     u16 icr_l = bus.read_data(devices::atmega32u4.timers16[0].icr_address);
     u16 icr_h = bus.read_data(devices::atmega32u4.timers16[0].icr_address + 1);
     u16 icr = icr_l | (icr_h << 8);
     
-    CHECK(icr == 0x1234);
+    CHECK(icr == 0x1236);
     
     u8 tifr = bus.read_data(devices::atmega32u4.timers16[0].tifr_address);
     u8 icf_mask = devices::atmega32u4.timers16[0].capture_enable_mask;
@@ -61,7 +63,7 @@ TEST_CASE("SoC: Analog Comparator Triggers ADC") {
     
     ac.set_negative_input_voltage(0.1);
     ac.set_positive_input_voltage(0.2);
-    ac.tick(1);
+    bus.tick_peripherals(10);
     
     u8 adcsra = bus.read_data(devices::atmega32u4.adcs[0].adcsra_address);
     CHECK((adcsra & 0x40) != 0); // ADSC
@@ -77,7 +79,7 @@ TEST_CASE("SoC: Timer1 Triggers ADC") {
     timer1.set_bus(bus);
     bus.attach_peripheral(timer1);
     
-    timer1.connect_adc_auto_trigger(adc);
+    timer1.connect_adc(adc);
     
     // Test 1: Overflow trigger
     adc.select_auto_trigger_source(Adc::AutoTriggerSource::timer1_overflow);
@@ -90,7 +92,7 @@ TEST_CASE("SoC: Timer1 Triggers ADC") {
     // Set Clock (CS=1) and Mode (Normal)
     bus.write_data(devices::atmega32u4.timers16[0].tccrb_address, 0x01);
     
-    timer1.tick(1); 
+    bus.tick_peripherals(1); 
     
     u8 tifr = bus.read_data(devices::atmega32u4.timers16[0].tifr_address);
     CHECK((tifr & devices::atmega32u4.timers16[0].overflow_enable_mask) != 0);
@@ -115,7 +117,7 @@ TEST_CASE("SoC: Timer1 Triggers ADC") {
     bus.write_data(devices::atmega32u4.timers16[0].tcnt_address + 1, 0x00);
     bus.write_data(devices::atmega32u4.timers16[0].tcnt_address, 0x0F);
     
-    timer1.tick(2); // First tick: 0x0F->0x10 (match), Second tick: 0x10->0x11
+    bus.tick_peripherals(2); // First tick: 0x0F->0x10 (match), Second tick: 0x10->0x11
     
     tifr = bus.read_data(devices::atmega32u4.timers16[0].tifr_address);
     CHECK((tifr & devices::atmega32u4.timers16[0].compare_b_enable_mask) != 0);

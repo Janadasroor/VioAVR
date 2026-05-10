@@ -24,7 +24,9 @@ TEST_CASE("Pin Change Interrupt Logic Test")
     constexpr auto portb = static_cast<vioavr::core::u16>(0x25U);
     
     MemoryBus bus {atmega328p};
-    vioavr::core::PinMux pm_port_b { 10 }; GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
+    vioavr::core::PinMux pm_port_b { 10 };
+    bus.set_pin_mux(&pm_port_b);
+    GpioPort port_b { "PORTB", pinb, ddrb, portb, pm_port_b };
     PinChangeInterruptDescriptor pci0_desc { .pcicr_address = 0x68U, .pcifr_address = 0x3BU, .pcmsk_address = 0x6BU, .pcicr_enable_mask = 0x01U, .pcifr_flag_mask = 0x01U, .vector_index = 3U };
     PinChangeInterrupt pci0 {"PCINT0", pci0_desc, port_b};
     

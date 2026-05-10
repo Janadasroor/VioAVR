@@ -139,9 +139,9 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
     if (tx_active_) {
         update_pin();
 
-        u64 tx_elapsed = elapsed_cycles;
-        while (tx_active_ && tx_elapsed >= cycles_to_next_bit_) {
-            tx_elapsed -= cycles_to_next_bit_;
+        tx_accumulator_ += elapsed_cycles;
+        while (tx_active_ && tx_accumulator_ >= cycles_to_next_bit_) {
+            tx_accumulator_ -= cycles_to_next_bit_;
             
             if (manchester && !tx_half_bit_) {
                 tx_half_bit_ = true;
@@ -163,7 +163,6 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
             }
             update_pin();
         }
-        if (tx_active_) cycles_to_next_bit_ -= tx_elapsed;
     }
 
     // --- RX Logic ---
@@ -180,9 +179,9 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                 rx_shift_reg_ = 0;
             }
         } else {
-            u64 rx_elapsed = elapsed_cycles;
-            while (rx_active_ && rx_elapsed >= rx_cycles_to_sample_) {
-                rx_elapsed -= rx_cycles_to_sample_;
+            rx_accumulator_ += elapsed_cycles;
+            while (rx_active_ && rx_accumulator_ >= rx_cycles_to_sample_) {
+                rx_accumulator_ -= rx_cycles_to_sample_;
                 
                 if (rx_waiting_for_start_) {
                     if (!rx_half_bit_) { // Sample first half of START (should be LOW)
@@ -242,7 +241,6 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                     }
                 }
             }
-            if (rx_active_) rx_cycles_to_sample_ -= rx_elapsed;
         }
         rx_last_pin_level_ = current_rx;
     }

@@ -267,8 +267,13 @@ inline constexpr DeviceDescriptor at90pwm1 {
             .pr_address = 100, .pr_bit = 7
         } }},
 
-    .dac_count = 0U,
-    .dacs = {{  }},
+    .dac_count = 1U,
+    .dacs = {{ {
+            .dacon_address = 0xAAU, .dacl_address = 0xABU, .dach_address = 0xACU,
+            .daen_mask = 0x01U, .daate_mask = 0x80U, .dats_mask = 0x70U, .dacoe_mask = 0x02U, .dala_mask = 0x04U,
+            .dac_pin_address = 0x25U, .dac_pin_bit = 1U,
+            .pr_address = 0x64U, .pr_bit = 0U // Shared with ADC on some models or no PR bit
+        } }},
     
     .dma_count = 0U,
     .dmas = {{  }},

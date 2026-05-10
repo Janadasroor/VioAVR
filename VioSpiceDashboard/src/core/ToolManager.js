@@ -18,14 +18,23 @@ export class ToolManager {
     // Update canvas status overlay
     const status = document.getElementById('tool-status');
     if (status) {
-      status.textContent = name === 'wire' ? 'Wiring Mode (Click Pins)' : 'Selection Mode';
-      status.classList.toggle('active', name === 'wire');
+      if (name === 'wire') {
+        status.textContent = 'Wiring Mode (Click Pins)';
+        status.classList.add('active');
+      } else if (name === 'probe') {
+        status.textContent = 'Probe Mode (Click any Pin/Wire)';
+        status.classList.add('active');
+      } else {
+        status.textContent = 'Selection Mode';
+        status.classList.remove('active');
+      }
     }
     
     // Update cursor
-    const svg = document.getElementById('schematic-svg');
-    if (svg) {
-      svg.style.cursor = name === 'wire' ? 'crosshair' : 'default';
+    const canvas = document.getElementById('schematic-canvas');
+    if (canvas) {
+      canvas.classList.remove('tool-select', 'tool-wire', 'tool-probe', 'tool-zoom-box');
+      canvas.classList.add(`tool-${name}`);
     }
   }
 

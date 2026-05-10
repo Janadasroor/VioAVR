@@ -3,6 +3,10 @@
 #include <algorithm>
 
 namespace vioavr::core {
+    
+static void spi_callback(u64 cycle, void* param) {
+    static_cast<Spi*>(param)->on_event(cycle);
+}
 
 namespace {
 constexpr u8 kSpiInterruptFlag = 0x80U;
@@ -49,18 +53,14 @@ void Spi::reset() noexcept
 
 void Spi::tick(const u64 elapsed_cycles) noexcept
 {
-    if (power_reduction_enabled()) return;
+    (void)elapsed_cycles;
+    // Handled by scheduler
+}
 
-    if (transfer_cycles_left_ == 0U) {
-        return;
-    }
-
-    if (elapsed_cycles >= transfer_cycles_left_) {
-        transfer_cycles_left_ = 0U;
-        complete_transfer();
-    } else {
-        transfer_cycles_left_ -= static_cast<u32>(elapsed_cycles);
-    }
+void Spi::on_event(u64 cycle) noexcept {
+    (void)cycle;
+    transfer_cycles_left_ = 0U;
+    complete_transfer();
 }
 
 u8 Spi::read(const u16 address) noexcept
@@ -127,10 +127,14 @@ void Spi::write(const u16 address, const u8 value) noexcept
             }
 
             transfer_cycles_left_ = 8U * divisor;
+            if (bus_) {
+                bus_->scheduler().schedule(transfer_cycles_left_, spi_callback, this);
+            }
         } else {
             shift_register_ = value;
         }
     }
+    update_interrupt_pending();
 }
 
 bool Spi::pending_interrupt_request(InterruptRequest& request) const noexcept
@@ -145,12 +149,17 @@ bool Spi::pending_interrupt_request(InterruptRequest& request) const noexcept
 bool Spi::consume_interrupt_request(InterruptRequest& request) noexcept
 {
     if (pending_interrupt_request(request)) {
-        // AVR SPI interrupt is cleared by reading SPSR with SPIF set, then reading SPDR.
-        // Or by the hardware itself if we enter the ISR? 
-        // Actually, the flag stays set until cleared by the read sequence.
+        // Flags are cleared by reading SPSR then SPDR
+        // But some implementations clear on ISR entry too
+        update_interrupt_pending();
         return true;
     }
     return false;
+}
+
+void Spi::update_interrupt_pending() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 void Spi::inject_miso_byte(const u8 value) noexcept

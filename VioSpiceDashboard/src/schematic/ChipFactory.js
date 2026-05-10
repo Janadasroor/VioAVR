@@ -57,6 +57,14 @@ export function createChip(parent, x, y, type, name, pins) {
     renderLcdGlass(g);
     bodyWidth = 240;
     bodyHeight = 120;
+  } else if (type === 'vsrc') {
+    renderVSource(g);
+    bodyWidth = 40;
+    bodyHeight = 40;
+  } else if (type === 'gnd') {
+    renderGND(g);
+    bodyWidth = 40;
+    bodyHeight = 20;
   } else {
     // Default block rendering
     const body = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -90,6 +98,12 @@ export function createChip(parent, x, y, type, name, pins) {
     if (type === 'led') {
        px = p.id === 'A' ? 10 : 50;
        py = 60;
+    } else if (type === 'vsrc') {
+       px = 20;
+       py = p.id === '+' ? 0 : 40;
+    } else if (type === 'gnd') {
+       px = 20;
+       py = 0;
     } else if (type === 'lcd') {
        const isLeft = p.side === 'left';
        px = isLeft ? 0 : 280;
@@ -149,7 +163,6 @@ export function createChip(parent, x, y, type, name, pins) {
     hitArea.setAttribute('class', 'pin-hit-area');
     hitArea.setAttribute('r', '12');
     hitArea.setAttribute('fill', 'transparent');
-    hitArea.style.cursor = 'crosshair';
 
     const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     dot.setAttribute('class', 'node-pin');
@@ -184,7 +197,6 @@ function renderLED(g) {
   inner.setAttribute('cx', '30');
   inner.setAttribute('cy', '30');
   inner.setAttribute('r', '18');
-  inner.setAttribute('fill', 'url(#led-glow)');
 
   const flat = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   flat.setAttribute('d', 'M 10 50 L 50 50');
@@ -760,4 +772,44 @@ function renderDacMonitor(g) {
   value.textContent = '2.50V';
   value.setAttribute('class', 'dac-value');
   g.appendChild(value);
+}
+
+function renderVSource(g) {
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', '20');
+  circle.setAttribute('cy', '20');
+  circle.setAttribute('r', '18');
+  circle.setAttribute('fill', '#1a1a1a');
+  circle.setAttribute('stroke', '#00ff00');
+  circle.setAttribute('stroke-width', '2');
+  g.appendChild(circle);
+
+  const plus = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  plus.setAttribute('x', '20');
+  plus.setAttribute('y', '12');
+  plus.setAttribute('text-anchor', 'middle');
+  plus.setAttribute('fill', '#00ff00');
+  plus.setAttribute('font-size', '12px');
+  plus.setAttribute('font-weight', 'bold');
+  plus.textContent = '+';
+  g.appendChild(plus);
+
+  const minus = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  minus.setAttribute('x', '20');
+  minus.setAttribute('y', '34');
+  minus.setAttribute('text-anchor', 'middle');
+  minus.setAttribute('fill', '#00ff00');
+  minus.setAttribute('font-size', '12px');
+  minus.setAttribute('font-weight', 'bold');
+  minus.textContent = '-';
+  g.appendChild(minus);
+}
+
+function renderGND(g) {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M 5 0 L 35 0 M 10 7 L 30 7 M 15 14 L 25 14');
+  path.setAttribute('stroke', '#888');
+  path.setAttribute('stroke-width', '2');
+  path.setAttribute('fill', 'none');
+  g.appendChild(path);
 }

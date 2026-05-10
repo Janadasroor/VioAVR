@@ -46,9 +46,6 @@ if(AVR_GCC AND AVR_OBJCOPY)
         )
 
         add_custom_target(${name}_hex ALL DEPENDS ${hex_file})
-        
-        # Copy to tests/ directory for convenience (or maybe just keep in build)
-        # For now, keep it in build and maybe add a test that uses it.
     endfunction()
 
     file(GLOB C_TEST_SOURCES "*.c" "firmware/*.c")
@@ -59,3 +56,6 @@ if(AVR_GCC AND AVR_OBJCOPY)
 else()
     message(WARNING "avr-gcc or avr-objcopy not found. AVR C tests will not be built.")
 endif()
+
+# Custom Chip Test Kit
+add_subdirectory(custom_chip)

@@ -117,7 +117,7 @@ std::string GdbStub::receive_packet() {
 
     // Send ACK
     const char ack = '+';
-    write(client_fd_, &ack, 1);
+    if (write(client_fd_, &ack, 1) < 0) return "";
 
     return packet;
 }
@@ -132,7 +132,9 @@ void GdbStub::send_packet(const std::string& data) {
     ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(sum);
     packet += ss.str();
 
-    write(client_fd_, packet.c_str(), packet.length());
+    if (write(client_fd_, packet.c_str(), packet.length()) < 0) {
+        // Handle error if needed
+    }
 }
 
 void GdbStub::handle_packet(const std::string& packet) {
