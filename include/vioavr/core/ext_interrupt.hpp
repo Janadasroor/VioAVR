@@ -25,6 +25,7 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] bool wants_tick() const noexcept override { return false; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept override;
@@ -38,6 +39,7 @@ public:
 
 private:
     void refresh_bound_input() noexcept;
+    void update_interrupt_pending() noexcept;
     [[nodiscard]] u8 int0_sense_mode() const noexcept;
     void raise_int0() noexcept;
 

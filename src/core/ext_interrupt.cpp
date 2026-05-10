@@ -91,10 +91,12 @@ void ExtInterrupt::write(const u16 address, const u8 value) noexcept
 {
     if (address == desc_.eicra_address) {
         eicra_ = value;
+        update_interrupt_pending();
         return;
     }
     if (address == desc_.eimsk_address) {
         eimsk_ = value;
+        update_interrupt_pending();
         return;
     }
     if (address == desc_.eifr_address) {
@@ -102,6 +104,7 @@ void ExtInterrupt::write(const u16 address, const u8 value) noexcept
         if ((value & kInt0Mask) != 0U) {
             int0_pending_ = false;
         }
+        update_interrupt_pending();
     }
 }
 
@@ -141,14 +144,13 @@ bool ExtInterrupt::consume_interrupt_request(InterruptRequest& request) noexcept
     if (request.vector_index == desc_.vector_indices[0]) {
         int0_pending_ = false;
         eifr_ &= static_cast<u8>(~0x01U);
-        return true;
-    }
-    if (request.vector_index == desc_.vector_indices[1]) {
+    } else if (request.vector_index == desc_.vector_indices[1]) {
         int1_pending_ = false;
         eifr_ &= static_cast<u8>(~0x02U);
-        return true;
     }
-    return false;
+    
+    update_interrupt_pending();
+    return true;
 }
 
 void ExtInterrupt::bind_int0_signal(const AnalogSignalBank& signal_bank,
@@ -221,10 +223,16 @@ u8 ExtInterrupt::int0_sense_mode() const noexcept
     return static_cast<u8>(eicra_ & 0x03U);
 }
 
+void ExtInterrupt::update_interrupt_pending() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
+}
+
 void ExtInterrupt::raise_int0() noexcept
 {
     eifr_ |= kInt0Mask;
     int0_pending_ = true;
+    update_interrupt_pending();
     if (auto_trigger_adc_ != nullptr) {
         auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::external_interrupt_0);
     }

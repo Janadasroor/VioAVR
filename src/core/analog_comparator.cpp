@@ -1,69 +1,43 @@
 #include "vioavr/core/analog_comparator.hpp"
-
-#include "vioavr/core/adc.hpp"
-#include "vioavr/core/timer16.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/psc.hpp"
-#include "vioavr/core/dac.hpp"
-#include "vioavr/core/logger.hpp"
-
+#include "vioavr/core/timer16.hpp"
 #include <cmath>
+#include <algorithm>
 
 namespace vioavr::core {
 
-AnalogComparator::AnalogComparator(std::string_view name,
-                                   const AnalogComparatorDescriptor& descriptor,
-                                   PinMux& pin_mux,
-                                   u8 source_id,
-                                   double hysteresis) noexcept
-    : name_(name),
-      desc_(descriptor),
-      pin_mux_(&pin_mux),
-      source_id_(source_id),
-      hysteresis_(hysteresis)
-{
-    // Map multiple registers if they exist
-    mapped_ranges_.push_back({desc_.acsr_address, desc_.acsr_address});
-    if (desc_.accon_address && desc_.accon_address != desc_.acsr_address) {
-        mapped_ranges_.push_back({desc_.accon_address, desc_.accon_address});
+AnalogComparator::AnalogComparator(std::string_view name, const AnalogComparatorDescriptor& desc, PinMux& pin_mux, u8 source_id, double hysteresis) noexcept
+    : name_(name), desc_(desc), pin_mux_(&pin_mux), source_id_(source_id), hysteresis_(hysteresis) {
+    mapped_ranges_.push_back({desc.acsr_address, desc.acsr_address});
+    if (desc.accon_address != 0) {
+        mapped_ranges_.push_back({desc.accon_address, desc.accon_address});
     }
-    if (desc_.didr_address && desc_.didr_address != desc_.acsr_address && desc_.didr_address != desc_.accon_address) {
-        mapped_ranges_.push_back({desc_.didr_address, desc_.didr_address});
-    }
-    printf("AC [%p] created: %s (ACSR=0x%02X, ACCON=0x%02X)\n", (void*)this, name_.data(), desc_.acsr_address, desc_.accon_address);
-    fflush(stdout);
-}
-
-std::string_view AnalogComparator::name() const noexcept { return name_; }
-
-std::span<const AddressRange> AnalogComparator::mapped_ranges() const noexcept {
-    return {mapped_ranges_.data(), mapped_ranges_.size()};
+    reset();
 }
 
 void AnalogComparator::reset() noexcept {
     acsr_ = 0x00U;
     accon_ = 0x00U;
-    didr_ = 0x00U;
+    positive_input_ = 0.0;
+    negative_input_ = 0.0;
     output_high_ = false;
     raw_output_ = false;
-    delay_counter_ = 0;
     pending_ = false;
-    update_pin_ownership();
+    delay_counter_ = 0;
+    propagation_delay_ = 2;
 }
 
-void AnalogComparator::tick(u64 elapsed_cycles) noexcept {
+void AnalogComparator::on_event(u64 cycle) noexcept {
+    Logger::debug("AC on_event [" + std::string(name_) + "]: cycle=" + std::to_string(cycle) + " raw=" + (raw_output_ ? "1" : "0"));
     if (is_disabled()) return;
-    refresh_bound_inputs();
-    evaluate_output();
+    
+    if (pending_) {
+        const bool old_output = output_high_;
+        output_high_ = raw_output_;
+        pending_ = false;
 
-    if (raw_output_ != output_high_) {
-        const u64 ticks = std::min<u64>(elapsed_cycles, delay_counter_);
-        if (delay_counter_ > 0) {
-            delay_counter_ -= static_cast<u32>(ticks);
-        }
-        
-        if (delay_counter_ == 0) {
-            output_high_ = raw_output_;
-            
+        if (output_high_ != old_output) {
             // Notify interested peripherals
             for (auto* psc : psc_fault_listeners_) {
                 psc->notify_fault(output_high_);
@@ -77,146 +51,61 @@ void AnalogComparator::tick(u64 elapsed_cycles) noexcept {
                 case 3: trigger = output_high_; break; // Rising
                 default: break;
             }
-            if (trigger) raise_interrupt_flag();
+
+            if (trigger) {
+                raise_interrupt_flag();
+            }
         }
-    } else {
-        delay_counter_ = 0;
     }
 }
 
 u8 AnalogComparator::read(u16 address) noexcept {
     if (address == desc_.acsr_address) {
         u8 val = acsr_;
-        if (output_high_) val |= desc_.aco_mask;
+        if (output_high_ && !is_disabled()) val |= desc_.aco_mask;
         return val;
     }
     if (address == desc_.accon_address) return accon_;
-    if (address == desc_.didr_address) return didr_;
-    return 0x00U;
+    return 0;
 }
 
 void AnalogComparator::write(u16 address, u8 value) noexcept {
     if (address == desc_.acsr_address) {
-        const u8 old_acsr = acsr_;
-        // Clear flag if writing 1
+        const u8 writable_mask = ~(desc_.aco_mask | desc_.acif_mask);
+        acsr_ = (acsr_ & ~writable_mask) | (value & writable_mask);
+        
+        // Handle interrupt flag clearing (write 1 to clear)
         if (value & desc_.acif_mask) {
             acsr_ &= ~desc_.acif_mask;
         }
-        // Update other bits except flag and read-only output
-        const u8 mask = ~(desc_.acif_mask | desc_.aco_mask);
-        acsr_ = (acsr_ & ~mask) | (value & mask);
-
-        if ((old_acsr ^ acsr_) & desc_.acd_mask) {
-            update_pin_ownership();
-        }
-    } else if (address == desc_.accon_address) {
-        accon_ = value;
-        update_pin_ownership();
+        
         evaluate_output();
-    } else if (address == desc_.didr_address) {
-        didr_ = value;
-        update_pin_ownership();
-    }
-}
-
-bool AnalogComparator::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    if ((acsr_ & desc_.acie_mask) && (acsr_ & desc_.acif_mask)) {
-        request.vector_index = desc_.vector_index;
-        return true;
-    }
-    // Also check ACCON if it has IE bits
-    if (desc_.accon_address && (accon_ & desc_.acie_mask) && (acsr_ & desc_.acif_mask)) {
-        request.vector_index = desc_.vector_index;
-        return true;
-    }
-    return false;
-}
-
-bool AnalogComparator::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (pending_interrupt_request(request)) {
-        acsr_ &= ~desc_.acif_mask;
-        return true;
-    }
-    return false;
-}
-
-void AnalogComparator::bind_signal_bank(const AnalogSignalBank& signal_bank, u8 positive_channel, u8 negative_channel) noexcept {
-    signal_bank_ = &signal_bank;
-    positive_channel_ = positive_channel;
-    negative_channel_ = negative_channel;
-}
-
-void AnalogComparator::connect_adc_auto_trigger(Adc& adc) noexcept {
-    auto_trigger_adc_ = &adc;
-}
-
-void AnalogComparator::connect_timer_input_capture(Timer16& timer) noexcept {
-    input_capture_timer_ = &timer;
-}
-
-void AnalogComparator::connect_psc_fault(Psc& psc) noexcept {
-    psc_fault_listeners_.push_back(&psc);
-}
-
-void AnalogComparator::connect_dac(const Dac& dac) noexcept {
-    dac_ = &dac;
-}
-
-void AnalogComparator::connect_adc(const Adc& adc) noexcept {
-    source_adc_ = &adc;
-}
-
-void AnalogComparator::set_positive_input_voltage(double normalized_voltage) noexcept {
-    positive_input_ = normalized_voltage;
-    evaluate_output();
-}
-
-void AnalogComparator::set_negative_input_voltage(double normalized_voltage) noexcept {
-    negative_input_ = normalized_voltage;
-    evaluate_output();
-}
-
-void AnalogComparator::refresh_bound_inputs() noexcept {
-    // If not PWM or no ACCON, use simple pin binding
-    if (!desc_.accon_address) {
-        if (signal_bank_) {
-            positive_input_ = signal_bank_->voltage(positive_channel_);
-            negative_input_ = signal_bank_->voltage(negative_channel_);
-        } else if (pin_mux_) {
-            positive_input_ = pin_mux_->get_state_by_address(desc_.aip_pin_address, desc_.aip_pin_bit).voltage;
-            negative_input_ = pin_mux_->get_state_by_address(desc_.aim_pin_address, desc_.aim_pin_bit).voltage;
+    } else if (address == desc_.accon_address) {
+        const u8 old = accon_;
+        accon_ = value;
+        
+        // If transitioning from disabled to enabled, reset state to avoid stale high from sequential pin updates
+        if (desc_.acd_mask && !(old & desc_.acd_mask) && (accon_ & desc_.acd_mask)) {
+            raw_output_ = false;
+            output_high_ = false;
         }
-        return;
+        
+        evaluate_output();
+    }
+}
+
+void AnalogComparator::on_analog_pin_change(u16 pin_address, u8 bit_index, double voltage) noexcept {
+    bool changed = false;
+    if (pin_address == desc_.aip_pin_address && bit_index == desc_.aip_pin_bit) {
+        positive_input_ = voltage;
+        changed = true;
+    } else if (pin_address == desc_.aim_pin_address && bit_index == desc_.aim_pin_bit) {
+        negative_input_ = voltage;
+        changed = true;
     }
 
-    // AT90PWM Complex Muxing logic
-    const u8 mux = (accon_ & desc_.acm_mask) >> (__builtin_ctz(desc_.acm_mask));
-    const double bandgap = 0.22; // 1.1V / 5.0V
-    
-    // Resolve Positive Input
-    switch(mux) {
-        case 3: positive_input_ = bandgap; break;
-        case 4: if (dac_) positive_input_ = dac_->voltage(); break;
-        default: // 0, 1, 2, 5, 6, 7 (Note: Case 6/ADC Mux handled by external binding)
-            if (signal_bank_) {
-                positive_input_ = signal_bank_->voltage(positive_channel_);
-            } else if (pin_mux_) {
-                positive_input_ = pin_mux_->get_state_by_address(desc_.aip_pin_address, desc_.aip_pin_bit).voltage;
-            }
-            break;
-    }
-
-    // Resolve Negative Input
-    switch(mux) {
-        case 1: negative_input_ = bandgap; break;
-        case 2: if (dac_) negative_input_ = dac_->voltage(); break;
-        default: // 0, 3, 4, 5, 6, 7
-            if (signal_bank_) {
-                negative_input_ = signal_bank_->voltage(negative_channel_);
-            } else if (pin_mux_) {
-                negative_input_ = pin_mux_->get_state_by_address(desc_.aim_pin_address, desc_.aim_pin_bit).voltage;
-            }
-            break;
+    if (changed) {
+        evaluate_output();
     }
 }
 
@@ -236,6 +125,8 @@ void AnalogComparator::evaluate_output() noexcept {
         else h = 0.0;
     }
 
+    Logger::debug("AC evaluate [" + std::string(name_) + "]: pos=" + std::to_string(positive_input_) + " neg=" + std::to_string(negative_input_) + " diff=" + std::to_string(diff) + " h=" + std::to_string(h) + " raw=" + (raw_output_ ? "1" : "0"));
+
     bool next_raw = raw_output_;
     if (raw_output_) {
         if (diff < -h) next_raw = false;
@@ -247,66 +138,139 @@ void AnalogComparator::evaluate_output() noexcept {
         raw_output_ = next_raw;
         // Start or reset the delay counter when raw comparator toggles
         if (raw_output_ != output_high_) {
-            // Refined propagation model: delay is inversely proportional to overdrive
             const double overdrive = std::abs(diff);
-            if (overdrive > 0.02) propagation_delay_ = 2;      // > 100mV: ~125ns
-            else if (overdrive > 0.01) propagation_delay_ = 4; // > 50mV: ~250ns
-            else propagation_delay_ = 8;                      // Small: ~500ns
+            if (overdrive >= 0.1) propagation_delay_ = 1;
+            else if (overdrive > 0.02) propagation_delay_ = 2;
+            else if (overdrive > 0.01) propagation_delay_ = 4;
+            else propagation_delay_ = 8;
             
             delay_counter_ = propagation_delay_;
+            if (bus_) {
+                bus_->scheduler().cancel(ac_callback, this);
+                bus_->scheduler().schedule(delay_counter_, ac_callback, this);
+                pending_ = true;
+            }
         } else {
-            // Glitch was rejected
             delay_counter_ = 0;
+            if (bus_) bus_->scheduler().cancel(ac_callback, this);
+            pending_ = false;
         }
     }
+}
+
+bool AnalogComparator::is_disabled() const noexcept {
+    if (desc_.acd_mask && (acsr_ & desc_.acd_mask)) return true;
+    if (desc_.acen_mask && !(accon_ & desc_.acen_mask)) return true;
+    return false;
 }
 
 void AnalogComparator::raise_interrupt_flag() noexcept {
     if (acsr_ & desc_.acif_mask) return;
     acsr_ |= desc_.acif_mask;
 
-    if (auto_trigger_adc_ && (acsr_ & desc_.acic_mask)) {
-        auto_trigger_adc_->notify_auto_trigger(AdcAutoTriggerSource::analog_comparator);
-    }
-
-    if (input_capture_timer_ && (acsr_ & desc_.acic_mask)) {
-        input_capture_timer_->notify_input_capture(output_high_);
+    bool ie = (acsr_ & desc_.acie_mask) || (accon_ & desc_.acie_mask);
+    if (ie) {
+        if (bus_) bus_->notify_interrupt_state_change(this, true);
     }
 }
 
 u8 AnalogComparator::interrupt_mode() const noexcept {
-    u8 reg = desc_.accon_address ? accon_ : acsr_;
-    if (!desc_.acis_mask) return 0;
-    return (reg & desc_.acis_mask) >> (__builtin_ctz(desc_.acis_mask));
+    u8 mode_bits = (acsr_ & desc_.acis_mask) | (accon_ & desc_.acis_mask);
+    return mode_bits >> (__builtin_ctz(desc_.acis_mask));
 }
 
-bool AnalogComparator::is_disabled() const noexcept {
-    // ACD is active-high for "Disable" (1 = disabled)
-    if (desc_.acd_mask) {
-        if (acsr_ & desc_.acd_mask) return true;
-        if (desc_.accon_address && (accon_ & desc_.acd_mask)) return true;
+void AnalogComparator::ac_callback(u64 cycle, void* user_data) {
+    static_cast<AnalogComparator*>(user_data)->on_event(cycle);
+}
+
+void AnalogComparator::bind_signal_bank(const AnalogSignalBank& signal_bank, u8 positive_channel, u8 negative_channel) noexcept {
+    signal_bank_ = &signal_bank;
+    positive_channel_ = positive_channel;
+    negative_channel_ = negative_channel;
+}
+
+void AnalogComparator::connect_adc_auto_trigger(Adc& adc) noexcept {
+    auto_trigger_adc_ = &adc;
+}
+
+void AnalogComparator::connect_timer_input_capture(Timer16& timer) noexcept {
+    input_capture_timer_ = &timer;
+}
+
+void AnalogComparator::connect_psc_fault(class Psc& psc) noexcept {
+    psc_fault_listeners_.push_back(&psc);
+}
+
+void AnalogComparator::connect_dac(const class Dac& dac) noexcept {
+    dac_ = &dac;
+}
+
+void AnalogComparator::connect_adc(const class Adc& adc) noexcept {
+    source_adc_ = &adc;
+}
+
+void AnalogComparator::set_positive_input_voltage(double normalized_voltage) noexcept {
+    positive_input_ = normalized_voltage;
+    evaluate_output();
+}
+
+void AnalogComparator::set_negative_input_voltage(double normalized_voltage) noexcept {
+    negative_input_ = normalized_voltage;
+    evaluate_output();
+}
+
+std::string_view AnalogComparator::name() const noexcept {
+    return name_;
+}
+
+std::span<const AddressRange> AnalogComparator::mapped_ranges() const noexcept {
+    return mapped_ranges_;
+}
+
+void AnalogComparator::tick(u64 elapsed_cycles) noexcept {
+    if (signal_bank_) {
+        refresh_bound_inputs();
     }
-    // ACEN is active-high for "Enable" (1 = enabled)
-    if (desc_.acen_mask) {
-        if (desc_.accon_address) {
-            if (!(accon_ & desc_.acen_mask)) return true;
-        } else {
-            if (!(acsr_ & desc_.acen_mask)) return true;
+    (void)elapsed_cycles;
+}
+
+void AnalogComparator::refresh_bound_inputs() noexcept {
+    if (signal_bank_) {
+        positive_input_ = signal_bank_->voltage(positive_channel_);
+        negative_input_ = signal_bank_->voltage(negative_channel_);
+        evaluate_output();
+    }
+}
+
+void AnalogComparator::update_pin_ownership() noexcept {
+    // Implement if needed for GPIO override
+}
+
+bool AnalogComparator::pending_interrupt_request(InterruptRequest& request) const noexcept {
+    if (acsr_ & desc_.acif_mask) {
+        bool ie = (acsr_ & desc_.acie_mask) || (accon_ & desc_.acie_mask);
+        if (ie) {
+            request.vector_index = desc_.vector_index;
+            request.source_id = source_id_;
+            return true;
         }
     }
     return false;
 }
 
-void AnalogComparator::update_pin_ownership() noexcept {
-    if (!pin_mux_) return;
-    
-    if (is_disabled()) {
-        pin_mux_->release_pin_by_address(desc_.aip_pin_address, desc_.aip_pin_bit, PinOwner::comparator);
-        pin_mux_->release_pin_by_address(desc_.aim_pin_address, desc_.aim_pin_bit, PinOwner::comparator);
-    } else {
-        pin_mux_->claim_pin_by_address(desc_.aip_pin_address, desc_.aip_pin_bit, PinOwner::comparator);
-        pin_mux_->claim_pin_by_address(desc_.aim_pin_address, desc_.aim_pin_bit, PinOwner::comparator);
+bool AnalogComparator::consume_interrupt_request(InterruptRequest& request) noexcept {
+    bool ie = (acsr_ & desc_.acie_mask) || (accon_ & desc_.acie_mask);
+    if ((acsr_ & desc_.acif_mask) && ie) {
+        request.vector_index = desc_.vector_index;
+        request.source_id = source_id_;
+        // NOTE: ACIF is usually cleared by hardware on vector jump, 
+        // but some AVRs require manual clear. 
+        // For fidelity, we assume hardware clear here.
+        acsr_ &= ~desc_.acif_mask;
+        if (bus_) bus_->notify_interrupt_state_change(this, false);
+        return true;
     }
+    return false;
 }
 
 } // namespace vioavr::core

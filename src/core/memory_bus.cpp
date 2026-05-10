@@ -1,4 +1,5 @@
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/io_multiplexer.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/xmem.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
@@ -14,7 +15,7 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
 {
     flash_.resize(device_.flash_words, 0U);
     data_.resize(static_cast<std::size_t>(device_.data_end_address()) + 1U, 0U);
-    dispatch_table_.resize(data_.size(), nullptr);
+    dispatch_table_.fill(nullptr);
     flash_page_buffer_.resize(device_.flash_page_size, 0xFFFFU);
     
     if (device_.mapped_user_signatures.size > 0) {
@@ -49,7 +50,7 @@ void MemoryBus::reset() noexcept
     lockbit_ = device_.lockbit_reset;
     spm_busy_cycles_left_ = 0U;
     flash_rww_busy_ = false;
-    cpu_cycles_ = 0U;
+    scheduler_.reset();
     // Do NOT clear loaded_program_words_ here, it should survive reset
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
@@ -70,9 +71,15 @@ void MemoryBus::set_pin_map(PinMap* pin_map) noexcept
 
 void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
 {
-    Logger::debug("Attaching peripheral to memory bus: " + std::string(peripheral.name()));
+    Logger::debug("Attaching peripheral to memory bus: " + std::string(peripheral.name()) + " this=" + Logger::hex((uintptr_t)&peripheral));
     peripherals_.push_back(&peripheral);
-    Logger::debug("MemoryBus: peripherals size is now " + std::to_string(peripherals_.size()));
+    peripheral.bus_id_ = static_cast<u8>(peripherals_.size() - 1);
+
+    if (peripheral.wants_tick()) {
+        ticking_peripherals_.push_back(&peripheral);
+        printf("PERIPHERAL TICKING: %s\n", peripheral.name().data());
+    }
+    Logger::debug("MemoryBus: peripherals size is now " + std::to_string(peripherals_.size()) + " (ticking: " + std::to_string(ticking_peripherals_.size()) + ")");
     peripheral.set_memory_bus(this);
 
     // Auto-identify special peripherals
@@ -88,8 +95,22 @@ void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
         char buf[128];
         snprintf(buf, sizeof(buf), "[0x%04X, 0x%04X]", range.begin, range.end);
         Logger::debug("Mapping peripheral '" + std::string(peripheral.name()) + "' to range " + buf);
-        for (u32 addr = range.begin; addr <= range.end && addr < dispatch_table_.size(); ++addr) {
-            dispatch_table_[addr] = &peripheral;
+        for (u32 addr = range.begin; addr <= range.end; ++addr) {
+            if (dispatch_table_[addr] != nullptr && dispatch_table_[addr] != &peripheral) {
+                // Address already mapped! Create or update a multiplexer.
+                auto* existing = dispatch_table_[addr];
+                if (existing->name().starts_with("MUX_")) {
+                    static_cast<IoMultiplexer*>(existing)->add(&peripheral);
+                } else {
+                    auto mux = std::make_unique<IoMultiplexer>("MUX_" + std::to_string(addr));
+                    mux->add(existing);
+                    mux->add(&peripheral);
+                    dispatch_table_[addr] = mux.get();
+                    managed_muxes_.push_back(std::move(mux));
+                }
+            } else {
+                dispatch_table_[addr] = &peripheral;
+            }
         }
     }
 }
@@ -108,184 +129,18 @@ void MemoryBus::load_image(const HexImage& image)
     reset_word_address_ = image.entry_word;
 }
 
-u8 MemoryBus::read_data(const u16 address) noexcept
-{
-    u8 value = 0xFFU;
-    bool found = false;
 
-    // 1. Standard Peripheral Dispatch
-    if (IoPeripheral* peripheral = find_peripheral(address); peripheral != nullptr) {
-        value = peripheral->read(address);
-        found = true;
-    }
-
-    // 2. Unified Memory Map aliases
-    if (!found) {
-        if (device_.mapped_flash.size > 0 && 
-            address >= device_.mapped_flash.data_start && 
-            address < device_.mapped_flash.data_start + device_.mapped_flash.size) {
-            const u32 offset = address - device_.mapped_flash.data_start;
-            const u32 word_addr = offset >> 1;
-            if (word_addr < flash_.size()) {
-                const u16 word = flash_[word_addr];
-                value = (offset & 1) ? static_cast<u8>(word >> 8) : static_cast<u8>(word & 0xFF);
-                found = true;
-            }
-        } else if (device_.mapped_fuses.size > 0 &&
-            address >= device_.mapped_fuses.data_start &&
-            address < device_.mapped_fuses.data_start + device_.mapped_fuses.size) {
-            const u32 offset = address - device_.mapped_fuses.data_start;
-            value = (offset < fuses_.size()) ? fuses_[offset] : 0xFFU;
-            found = true;
-        } else if (device_.mapped_signatures.size > 0 &&
-            address >= device_.mapped_signatures.data_start &&
-            address < device_.mapped_signatures.data_start + device_.mapped_signatures.size) {
-            const u32 offset = address - device_.mapped_signatures.data_start;
-            value = (offset < device_.signature.size()) ? device_.signature[offset] : 0xFFU;
-            found = true;
-        } else if (device_.mapped_user_signatures.size > 0 &&
-            address >= device_.mapped_user_signatures.data_start &&
-            address < device_.mapped_user_signatures.data_start + device_.mapped_user_signatures.size) {
-            const u32 offset = address - device_.mapped_user_signatures.data_start;
-            value = (offset < user_row_.size()) ? user_row_[offset] : 0xFFU;
-            found = true;
-        }
-    }
-
-    // 3. SRAM / General Data Space
-    if (!found) {
-        if (address < data_.size()) {
-            value = data_[address];
-            // Dynamic bits for SPMCSR (Classic Mega only)
-            if (device_.spmcsr_address != 0U && address == device_.spmcsr_address) {
-                if (lpm_special_mode_timeout_ > 0U) {
-                    value = last_spmcsr_val_;
-                }
-                if (spm_busy_cycles_left_ > 0U) {
-                    value |= device_.spmen_mask != 0 ? device_.spmen_mask : 0x01U;
-                }
-                if (flash_rww_busy_) {
-                    value |= 0x40U; // RWWSB
-                }
-            }
-        } else if (xmem_ != nullptr) {
-            value = xmem_->read_external(address);
-        }
-    }
-
-    // Handle SPMCSR special mode timeout (Legacy)
-    if (lpm_special_mode_timeout_ > 0U && address == device_.spmcsr_address) {
-        // The bits are cleared by the timeout in tick()
-    }
-
-    if (trace_hook_ != nullptr) {
-        trace_hook_->on_memory_read(address, value);
-    }
-
-    return value;
-}
-
-void MemoryBus::write_data(const u16 address, const u8 value) noexcept
-{
-    if (trace_hook_ != nullptr) {
-        trace_hook_->on_memory_write(address, value);
-    }
-
-    // 1. Update Unified Memory Map aliases (Shadow Buffers for NVM commands)
-    // For AVR8X, these mapped writes update the page buffer and return,
-    // avoiding immediate side-effects in the peripherals (which are handled via NVM commands).
-    if (device_.mapped_flash.size > 0 && 
-        address >= device_.mapped_flash.data_start && 
-        address < device_.mapped_flash.data_start + device_.mapped_flash.size) {
-        const u32 offset = address - device_.mapped_flash.data_start;
-        const u32 word_addr = offset >> 1;
-        const u32 page_offset = word_addr % device_.flash_page_size;
-        
-        if (page_offset < flash_page_buffer_.size()) {
-            u16 word = flash_page_buffer_[page_offset];
-            if (offset & 1) {
-                word = (word & 0x00FFU) | (static_cast<u16>(value) << 8U);
-            } else {
-                word = (word & 0xFF00U) | static_cast<u16>(value);
-            }
-            flash_page_buffer_[page_offset] = word;
-            if (nvm_ctrl_) nvm_ctrl_->set_address(address);
-            return;
-        }
-    }
-
-    if (device_.mapped_eeprom.size > 0 &&
-        address >= device_.mapped_eeprom.data_start &&
-        address < device_.mapped_eeprom.data_start + device_.mapped_eeprom.size) {
-        const u32 offset = address - device_.mapped_eeprom.data_start;
-        if (offset < eeprom_page_buffer_.size()) {
-            char log_buf[256];
-            snprintf(log_buf, sizeof(log_buf), "MemoryBus [%p]: Update EEPROM page buffer [%p] at offset %u to 0x%02X", (void*)this, (void*)eeprom_page_buffer_.data(), offset, value);
-            Logger::debug(log_buf);
-            eeprom_page_buffer_[offset] = value;
-            
-            if (nvm_ctrl_) nvm_ctrl_->set_address(address);
-
-            // AVR8X: Mapped EEPROM writes stall the CPU
-            request_cpu_stall(64000U); // ~4ms at 16MHz
-            return;
-        }
-    }
-
-    if (device_.mapped_user_signatures.size > 0 &&
-        address >= device_.mapped_user_signatures.data_start &&
-        address < device_.mapped_user_signatures.data_start + device_.mapped_user_signatures.size) {
-        const u32 offset = address - device_.mapped_user_signatures.data_start;
-        if (offset < user_row_.size()) {
-            user_row_[offset] = value;
-            if (nvm_ctrl_) nvm_ctrl_->set_address(address);
-            return;
-        }
-    }
-
-    // Handle SPMCSR (Classic Mega) - Shadow state update
-    if (device_.spmcsr_address != 0U && address == device_.spmcsr_address) {
-        if ((value & 0x10U) != 0U) {
-            flash_rww_busy_ = false;
-        }
-        const u8 special_mask = device_.sigrd_mask | device_.blbset_mask;
-        if (special_mask != 0 && (value & special_mask) != 0U) {
-            lpm_special_mode_timeout_ = 5U;
-            last_spmcsr_val_ = value;
-        }
-    }
-
-    // 2. Standard Peripheral Dispatch
-    // This takes precedence for actually performing hardware side-effects
-    if (IoPeripheral* peripheral = find_peripheral(address); peripheral != nullptr) {
-        peripheral->write(address, value);
-        return;
-    }
-
-    // 3. CCP (Configuration Change Protection)
-    if (device_.ccp_address != 0U && address == device_.ccp_address) {
-        // Handle CCP (usually handled by the CPU control)
-    }
-
-    // 4. SRAM / External Memory
-    if (address < data_.size()) {
-        data_[address] = value;
-    } else if (xmem_ != nullptr) {
-        xmem_->write_external(address, value);
-    }
-}
 
 void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept {
+    (void)active_domains;
     if (elapsed_cycles == 0) return;
 
-    cpu_cycles_ += elapsed_cycles;
     if (io_stall_cycles_ > 0U) {
         if (elapsed_cycles >= io_stall_cycles_) {
             io_stall_cycles_ = 0U;
         } else {
             io_stall_cycles_ -= static_cast<u32>(elapsed_cycles);
         }
-
     }
 
     if (lpm_special_mode_timeout_ > 0U) {
@@ -299,11 +154,11 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
         }
     }
 
-    for (auto* peripheral : peripherals_) {
-        const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
-        if ((domain_mask & active_domains) != 0 || domain_mask == 0) {
-            peripheral->tick(elapsed_cycles);
-        }
+    const u64 target = scheduler_.current_cycle() + elapsed_cycles;
+    scheduler_.advance_to(target);
+
+    for (auto* peripheral : ticking_peripherals_) {
+        peripheral->tick(elapsed_cycles);
     }
 
     if (spm_busy_cycles_left_ > 0U) {
@@ -325,11 +180,14 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
 
 bool MemoryBus::consume_pin_change(PinStateChange& change) noexcept
 {
+    if (!has_pending_pin_changes_) return false;
+
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr && peripheral->consume_pin_change(change)) {
             return true;
         }
     }
+    has_pending_pin_changes_ = false;
     return false;
 }
 
@@ -338,6 +196,15 @@ void MemoryBus::propagate_external_pin_change(u16 pin_address, u8 bit_index, Pin
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
             peripheral->on_external_pin_change(pin_address, bit_index, level);
+        }
+    }
+}
+
+void MemoryBus::propagate_analog_pin_change(u16 pin_address, u8 bit_index, double voltage) noexcept
+{
+    for (IoPeripheral* peripheral : peripherals_) {
+        if (peripheral != nullptr) {
+            peripheral->on_analog_pin_change(pin_address, bit_index, voltage);
         }
     }
 }
@@ -409,6 +276,15 @@ bool MemoryBus::pending_interrupt_request(InterruptRequest& request, const u8 ac
     return found;
 }
 
+void MemoryBus::notify_interrupt_state_change(IoPeripheral* peripheral, bool pending) noexcept {
+    if (peripheral->bus_id_ >= 64) return; // Only first 64 peripherals supported for mask
+    if (pending) {
+        pending_interrupt_mask_ |= (1ULL << peripheral->bus_id_);
+    } else {
+        pending_interrupt_mask_ &= ~(1ULL << peripheral->bus_id_);
+    }
+}
+
 bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 active_domains) noexcept
 {
     InterruptRequest selected_request;
@@ -444,102 +320,11 @@ bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 ac
     return consumed;
 }
 
-IoPeripheral* MemoryBus::find_peripheral(const u16 address) noexcept
-{
-    return address < dispatch_table_.size() ? dispatch_table_[address] : nullptr;
-}
 
-const IoPeripheral* MemoryBus::find_peripheral(const u16 address) const noexcept
-{
-    return address < dispatch_table_.size() ? dispatch_table_[address] : nullptr;
-}
 
-u16 MemoryBus::read_program_word(const u32 word_address, const u32 pc_word) const noexcept {
-    (void)pc_word;
-    if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
-    
-    if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
-        return 0xFFFFU;
-    }
-    
-    // NRWW Stall: If SPM is busy and we are reading from NRWW, stall the CPU.
-    if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
-        request_cpu_stall(spm_busy_cycles_left_);
-    }
 
-    return word_address < flash_.size() ? flash_[word_address] : 0U;
-}
 
-u8 MemoryBus::read_program_byte(const u32 byte_address, const u32 pc_word) const noexcept {
-    if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
 
-    // Lockbit Enforcement for LPM (Classic Mega)
-    if (pc_word != 0xFFFFFFFFU && device_.boot_start_address != 0U) {
-        const u32 pc_bytes = pc_word << 1U;
-        const u8 lb = lockbit_ & 0x3FU;
-        const u32 boot_start_bytes = device_.boot_start_address << 1U;
-        const bool boot_pc = (pc_bytes >= boot_start_bytes);
-        const bool app_target = (byte_address < boot_start_bytes);
-
-        if (boot_pc && app_target) { // LPM from Boot to App
-            if ((lb & 0x04U) == 0U) {
-                return 0xFFU;
-            }
-        } else if (!boot_pc && !app_target) { // LPM from App to Boot
-            if ((lb & 0x10U) == 0U) {
-                return 0xFFU;
-            }
-        }
-    }
-
-    if (lpm_special_mode_timeout_ > 0U) {
-        if (device_.sigrd_mask != 0 && (last_spmcsr_val_ & device_.sigrd_mask) != 0U) {
-            const u32 offset = byte_address >> 1U;
-            if (offset < device_.signature.size()) {
-                return device_.signature[offset];
-            }
-        }
-        if (device_.blbset_mask != 0 && (last_spmcsr_val_ & device_.blbset_mask) != 0U) {
-            if (byte_address == 0x0000) return fuses_[0];
-            if (byte_address == 0x0001) return lockbit_;
-            if (byte_address == 0x0002) return fuses_[2];
-            if (byte_address == 0x0003) return fuses_[1];
-            return 0xFFU;
-        }
-    }
-
-    const u32 word_address = byte_address >> 1U;
-    if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
-        return 0xFFU;
-    }
-
-    // NRWW Stall
-    if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
-        request_cpu_stall(spm_busy_cycles_left_);
-    }
-    
-    if (word_address >= flash_.size()) {
-        return 0U;
-    }
-
-    const u8 value = static_cast<u8>(flash_[word_address] >> ((byte_address & 1U) ? 8U : 0U));
-    return value;
-}
-
-void MemoryBus::write_program_word(const u32 word_address, const u16 value) noexcept
-{
-    if (word_address < flash_.size()) {
-        flash_[word_address] = value;
-        if (word_address >= loaded_program_words_) {
-            loaded_program_words_ = word_address + 1U;
-        }
-    }
-}
-
-u8 MemoryBus::get_wait_states(const u16 address) const noexcept
-{
-    return (xmem_ != nullptr) ? xmem_->get_wait_states(address) : 0U;
-}
 
 bool MemoryBus::should_stall_cpu(u32 pc_word) const noexcept {
     if (io_stall_cycles_ > 0U) return true;
@@ -663,6 +448,15 @@ void MemoryBus::on_reti() noexcept {
     }
 }
 
+bool MemoryBus::twi_broadcast(u8 address) const noexcept {
+    for (const auto* peripheral : peripherals_) {
+        if (peripheral != nullptr && peripheral->check_twi_address(address)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 IoPeripheral* MemoryBus::get_peripheral_by_name(std::string_view name) noexcept {
     for (auto* p : peripherals_) {
         // Some peripherals might have instance names like USART0
@@ -749,6 +543,16 @@ void MemoryBus::perform_deferred_nvm_operation() noexcept {
     // Clear SPMCSR bits (Legacy)
     if (device_.spmcsr_address < data_.size()) {
         data_[device_.spmcsr_address] &= ~0x1FU;
+    }
+}
+
+void MemoryBus::write_program_word(const u32 word_address, const u16 value) noexcept
+{
+    if (word_address < flash_.size()) {
+        flash_[word_address] = value;
+        if (word_address + 1U > loaded_program_words_) {
+            loaded_program_words_ = word_address + 1U;
+        }
     }
 }
 

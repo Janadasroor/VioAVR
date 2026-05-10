@@ -5,6 +5,14 @@
 #include <fstream>
 
 namespace vioavr::core {
+    
+static void eeprom_master_timeout_callback(u64 cycle, void* param) {
+    static_cast<Eeprom*>(param)->on_master_timeout(cycle);
+}
+
+static void eeprom_write_complete_callback(u64 cycle, void* param) {
+    static_cast<Eeprom*>(param)->on_write_complete(cycle);
+}
 
 namespace {
 // EECR bits
@@ -59,22 +67,23 @@ void Eeprom::reset() noexcept
 
 void Eeprom::tick(const u64 elapsed_cycles) noexcept
 {
-    if (master_write_enable_timeout_ > 0U) {
-        if (elapsed_cycles >= master_write_enable_timeout_) {
-            master_write_enable_timeout_ = 0U;
-            eecr_ &= static_cast<u8>(~kEempe);
-        } else {
-            master_write_enable_timeout_ -= static_cast<u8>(elapsed_cycles);
-        }
-    }
+    (void)elapsed_cycles;
+    // Handled by scheduler
+}
 
+void Eeprom::on_master_timeout(u64 cycle) noexcept {
+    (void)cycle;
+    if (master_write_enable_timeout_ > 0U) {
+        master_write_enable_timeout_ = 0U;
+        eecr_ &= static_cast<u8>(~kEempe);
+    }
+}
+
+void Eeprom::on_write_complete(u64 cycle) noexcept {
+    (void)cycle;
     if (write_cycles_left_ > 0U) {
-        if (elapsed_cycles >= write_cycles_left_) {
-            write_cycles_left_ = 0U;
-            complete_write();
-        } else {
-            write_cycles_left_ -= static_cast<u32>(elapsed_cycles);
-        }
+        write_cycles_left_ = 0U;
+        complete_write();
     }
 }
 
@@ -107,6 +116,7 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
 {
     if (address == desc_.eecr_address) {
         update_eecr(value);
+        update_interrupt_pending();
         return;
     }
     
@@ -136,12 +146,16 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
 bool Eeprom::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
     // EERIE triggers if EEPE is zero AND EERIE is set.
-    // In our simulation, write_cycles_left_ is 0 when EEPE is 0.
     if (write_cycles_left_ == 0U && (eecr_ & kEerie) != 0U) {
         request = {desc_.vector_index, 0U};
         return true;
     }
     return false;
+}
+
+void Eeprom::update_interrupt_pending() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 bool Eeprom::consume_interrupt_request(InterruptRequest& request) noexcept
@@ -169,6 +183,7 @@ void Eeprom::update_eecr(const u8 value) noexcept
         if (write_cycles_left_ == 0U) {
             eecr_ |= kEempe;
             master_write_enable_timeout_ = kMasterWriteTimeout;
+            if (bus_) bus_->scheduler().schedule(master_write_enable_timeout_, eeprom_master_timeout_callback, this);
         }
     }
 
@@ -204,6 +219,7 @@ void Eeprom::start_write() noexcept
         case 0x02U: write_cycles_left_ = kEepromWriteOnlyCycles; break;
         default:    write_cycles_left_ = kEepromAtomicCycles; break;
     }
+    if (bus_) bus_->scheduler().schedule(write_cycles_left_, eeprom_write_complete_callback, this);
 }
 
 void Eeprom::complete_write() noexcept

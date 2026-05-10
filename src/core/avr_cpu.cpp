@@ -140,8 +140,243 @@ void AvrCpu::run(const u64 cycle_budget)
         state_ = CpuState::running;
     }
     const u64 cycle_target = cycles_ + cycle_budget;
+    
+    // Fast loop: only check interrupts/peripherals if mask is non-zero
+    const u16* flash = bus_->flash_ptr();
+    const size_t loaded_words = bus_->loaded_program_words();
+    const size_t flash_size = bus_->flash_size_words();
+    const auto table = instruction_table();
+    u8* regs = gpr_.data();
+
+    DecodedInstruction instruction;
+    u32 pending_cycles = 0;
+
+    while (state_ == CpuState::running && cycles_ + pending_cycles < cycle_target && !interrupt_pending_) {
+        // Handle CPU Stall (e.g. during EEPROM write or SPM)
+        if (bus_->should_stall_cpu(program_counter_)) {
+            if (pending_cycles > 0) {
+                advance_cycles(pending_cycles);
+                pending_cycles = 0;
+            }
+            bus_->consume_stall_cycle();
+            advance_cycles(1U);
+            if (interrupt_pending_) break;
+            continue;
+        }
+
+        if (program_counter_ >= loaded_words) {
+            if (pending_cycles > 0) {
+                advance_cycles(pending_cycles);
+                pending_cycles = 0;
+            }
+            state_ = CpuState::halted;
+            break;
+        }
+
+        const u16 opcode = flash[program_counter_];
+        const u16 descriptor_index = fast_decode_table_[opcode];
+        
+        if (descriptor_index == 0xFFFFU) {
+            state_ = CpuState::halted;
+            break;
+        }
+
+        const auto& descriptor = table[descriptor_index];
+        instruction.opcode = opcode;
+        instruction.word_address = program_counter_;
+        instruction.words[0] = opcode;
+        
+        // Optimize 32-bit instruction fetch
+        if (descriptor.mask == 0xFE0EU || descriptor.mask == 0xFE0FU) {
+             instruction.word_size = 2U;
+             if (program_counter_ + 1U < flash_size) {
+                 instruction.words[1] = flash[program_counter_ + 1U];
+             } else {
+                 instruction.words[1] = 0xFFFFU;
+             }
+        } else {
+             instruction.word_size = 1U;
+        }
+        
+        switch (descriptor_index) {
+        case 0: // NOP
+            program_counter_ = instruction.word_address + 1U;
+            pending_cycles += 1;
+            break;
+        case 1: // LDI
+            {
+                const u8 destination = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 immediate = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                regs[destination] = immediate;
+                program_counter_ = instruction.word_address + 1U;
+                pending_cycles += 1;
+            }
+            break;
+        case 8: // MOV
+            {
+                const u8 destination = decode_destination_register(opcode);
+                const u8 source = decode_source_register(opcode);
+                regs[destination] = regs[source];
+                program_counter_ = instruction.word_address + 1U;
+                pending_cycles += 1;
+            }
+            break;
+        case 80: // RJMP
+            {
+                i32 displacement = static_cast<i32>(opcode & 0x0FFFU);
+                if ((displacement & 0x0800) != 0) {
+                    displacement -= 0x1000;
+                }
+                program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+                pending_cycles += 2;
+            }
+            break;
+        case 14: // ADD
+            {
+                const u8 destination = decode_destination_register(opcode);
+                const u8 source = decode_source_register(opcode);
+                const u8 lhs = regs[destination];
+                const u8 rhs = regs[source];
+                const u8 res = static_cast<u8>(lhs + rhs);
+                regs[destination] = res;
+                
+                // Bitwise flag update
+                flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
+                flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
+                flag_s_ = flag_n_ ^ flag_v_;
+
+                program_counter_ = instruction.word_address + 1U;
+                pending_cycles += 1;
+            }
+            break;
+        case 22: // SUB
+        case 25: // CPI
+            {
+                const u8 destination = (descriptor_index == 25) ? 
+                    static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU)) :
+                    decode_destination_register(opcode);
+                const u8 rhs = (descriptor_index == 25) ?
+                    static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU)) :
+                    regs[decode_source_register(opcode)];
+                
+                const u8 lhs = regs[destination];
+                const u8 res = static_cast<u8>(lhs - rhs);
+                if (descriptor_index == 22) regs[destination] = res;
+                
+                // Bitwise flag update (SUB)
+                flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+                flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+                flag_s_ = flag_n_ ^ flag_v_;
+
+                program_counter_ = instruction.word_address + 1U;
+                pending_cycles += 1;
+            }
+            break;
+        case 27: // ANDI
+        case 38: // ORI (wait, ORI is 513-475=38)
+            {
+                const u8 destination = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 immediate = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                if (descriptor_index == 27) regs[destination] &= immediate;
+                else regs[destination] |= immediate;
+                
+                const u8 res = regs[destination];
+                flag_v_ = false;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_s_ = flag_n_;
+                
+                program_counter_ = instruction.word_address + 1U;
+                pending_cycles += 1;
+            }
+            break;
+        case 44: // IN
+        case 45: // OUT
+            {
+                if (pending_cycles > 0) {
+                    advance_cycles(pending_cycles);
+                    pending_cycles = 0;
+                }
+                const u8 reg = (descriptor_index == 44) ? 
+                    decode_destination_register(opcode) : 
+                    static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
+                const u16 addr = MemoryBus::low_io_address(io_offset);
+
+                if (descriptor_index == 44) regs[reg] = bus_->read_data(addr);
+                else bus_->write_data(addr, regs[reg]);
+                
+                program_counter_ = instruction.word_address + 1U;
+                advance_cycles(1U);
+                if (interrupt_pending_) break;
+                continue; // Re-check stall after I/O
+            }
+            break;
+        case 100: // BREQ
+        case 101: // BRNE
+            {
+                bool cond = (descriptor_index == 100) ? flag_z_ : !flag_z_;
+                if (cond) {
+                    i32 displacement = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                    if (displacement & 0x40) displacement -= 0x80;
+                    program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
+                    pending_cycles += 2;
+                } else {
+                    program_counter_ = instruction.word_address + 1U;
+                    pending_cycles += 1;
+                }
+            }
+            break;
+        default:
+            if (pending_cycles > 0) {
+                advance_cycles(pending_cycles);
+                pending_cycles = 0;
+            }
+            (this->*descriptor.handler)(instruction);
+            break;
+        }
+
+        if (pending_cycles >= 1) {
+            advance_cycles(pending_cycles);
+            pending_cycles = 0;
+            if (interrupt_pending_) break;
+        }
+    }
+
+    if (pending_cycles > 0) {
+        advance_cycles(pending_cycles);
+    }
+
+    // Fallback to standard step for complex states or pending interrupts
     while ((state_ == CpuState::running || state_ == CpuState::sleeping) && cycles_ < cycle_target) {
         step();
+    }
+}
+
+void AvrCpu::dispatch_instruction(const DecodedInstruction& instruction)
+{
+    const u16 descriptor_index = fast_decode_table_[instruction.opcode];
+    if (descriptor_index == 0xFFFFU) {
+        state_ = CpuState::halted;
+        return;
+    }
+
+    const auto& descriptor = instruction_table()[descriptor_index];
+    
+    switch (descriptor_index) {
+    case 0: execute_nop(instruction); break;
+    case 1: execute_ldi(instruction); break;
+    case 8: execute_mov(instruction); break;
+    case 80: execute_rjmp(instruction); break;
+    default:
+        (this->*descriptor.handler)(instruction);
+        break;
     }
 }
 
@@ -238,15 +473,40 @@ void AvrCpu::step()
 
     if (interrupt_delay_ > 0U) {
         --interrupt_delay_;
-    } else if (service_interrupt_if_needed()) {
+    } else if (interrupt_pending_) {
+        if (service_interrupt_if_needed()) {
+            synchronize_if_needed();
+            return;
+        }
+    }
+
+    reset_triggered_ = false;
+    const u16 opcode = static_cast<u16>(bus_->read_program_word(program_counter_));
+    const u16 descriptor_index = fast_decode_table_[opcode];
+    
+    if (descriptor_index != 0xFFFFU) {
+        const auto& descriptor = instruction_table()[descriptor_index];
+        
+        DecodedInstruction instruction;
+        instruction.opcode = opcode;
+        instruction.word_address = program_counter_;
+        instruction.words[0] = opcode;
+        
+        // Check for 32-bit instructions: JMP, CALL, LDS, STS
+        // Masks: 0xFE0EU (JMP/CALL), 0xFE0FU (LDS/STS)
+        if (descriptor.mask == 0xFE0EU || descriptor.mask == 0xFE0FU) {
+             instruction.word_size = 2U;
+             instruction.words[1] = static_cast<u16>(bus_->read_program_word(program_counter_ + 1U));
+        } else {
+             instruction.word_size = 1U;
+        }
+        
+        (this->*descriptor.handler)(instruction);
         synchronize_if_needed();
         return;
     }
 
-    reset_triggered_ = false;
-    const DecodedInstruction instruction = fetch();
-    decode_and_execute(instruction);
-    synchronize_if_needed();
+    state_ = CpuState::halted;
 }
 
 DecodedInstruction AvrCpu::fetch() const noexcept
@@ -508,21 +768,6 @@ void AvrCpu::set_z_pointer(const u16 value) noexcept
     write_register_pair(30U, value);
 }
 
-void AvrCpu::advance_cycles(const u64 delta_cycles)
-{
-    cycles_ += delta_cycles;
-    if (bus_ != nullptr) {
-        bus_->tick_peripherals(delta_cycles, active_clock_domains());
-        publish_pending_pin_changes();
-    }
-    if (spm_lock_timeout_ > 0U) {
-        spm_lock_timeout_ = (delta_cycles >= spm_lock_timeout_) ? 0U : static_cast<u8>(spm_lock_timeout_ - delta_cycles);
-    }
-    if (sync_engine_ != nullptr) {
-        sync_engine_->on_cycles_advanced(cycles_, delta_cycles);
-    }
-    refresh_interrupt_pending();
-}
 
 u8 AvrCpu::active_clock_domains() const noexcept
 {
@@ -622,6 +867,9 @@ bool AvrCpu::service_interrupt_if_needed()
 {
     refresh_interrupt_pending();
     if (!interrupt_pending_ || !flag(SregFlag::interrupt) || bus_ == nullptr) {
+        if (interrupt_pending_) {
+             Logger::debug("AvrCpu::service_interrupt_if_needed: interrupt pending but I flag is " + std::to_string(flag(SregFlag::interrupt)));
+        }
         return false;
     }
 
@@ -676,34 +924,6 @@ u32 AvrCpu::interrupt_vector_word_address(u8 vector_index) const noexcept
 
     // interrupt_vector_size is in bytes, convert to words
     return base_addr + static_cast<u32>(vector_index * (vec_size / 2U));
-}
-
-void AvrCpu::set_flag(const SregFlag flag_bit, const bool value) noexcept
-{
-    const u8 mask = static_cast<u8>(1U << static_cast<u8>(flag_bit));
-    if (value) {
-        write_sreg(static_cast<u8>(sreg_ | mask));
-    } else {
-        write_sreg(static_cast<u8>(sreg_ & static_cast<u8>(~mask)));
-    }
-}
-
-void AvrCpu::write_register(const u8 index, const u8 value) noexcept
-{
-    if (index < gpr_.size()) {
-        gpr_[index] = value;
-        if (trace_hook_ != nullptr) {
-            trace_hook_->on_register_write(index, value);
-        }
-    }
-}
-
-void AvrCpu::write_sreg(const u8 value) noexcept
-{
-    sreg_ = value;
-    if (trace_hook_ != nullptr) {
-        trace_hook_->on_sreg_write(value);
-    }
 }
 
 void AvrCpu::update_add_flags(const u8 lhs, const u8 rhs, const u8 result, const bool carry_in) noexcept
@@ -2049,35 +2269,5 @@ void AvrCpu::execute_brne(const DecodedInstruction& instruction)
     execute_brbc(instruction);
 }
 
-u8 AvrCpu::read_data_bus(const u16 address) noexcept
-{
-    if (bus_ == nullptr) return 0U;
-    
-    u8 ws = bus_->get_wait_states(address);
-    if (ws > 0) {
-        advance_cycles(static_cast<u64>(ws));
-    }
-    
-    return bus_->read_data(address);
-}
-
-void AvrCpu::write_data_bus(const u16 address, const u8 value) noexcept
-{
-    if (bus_ == nullptr) return;
-
-    u8 ws = bus_->get_wait_states(address);
-    if (ws > 0) {
-        advance_cycles(static_cast<u64>(ws));
-    }
-
-    if (address == bus_->device().spmcsr_address) {
-        // Intercept SPMCSR writes for 4-cycle lockout
-        if ((value & 0x01U) != 0U) { // SPMEN set
-            spm_lock_timeout_ = 4U;
-        }
-    }
-
-    bus_->write_data(address, value);
-}
 
 }  // namespace vioavr::core

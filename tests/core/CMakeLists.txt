@@ -66,6 +66,10 @@ set(TEST_SOURCES
     cpu_timer16_test.cpp
     cpu_timer_waveform_test.cpp
     cpu_spi_test.cpp
+    spi_fidelity_test.cpp
+    uart_fidelity_test.cpp
+    sleep_fidelity_test.cpp
+    pinmux_fidelity_test.cpp
     cpu_twi_test.cpp
     cpu_uart_test.cpp
     cpu_uart_interrupt_test.cpp
@@ -99,6 +103,8 @@ set(TEST_SOURCES
     usb_double_banking_test.cpp
     at90pwm316_fidelity_test.cpp
     at90pwm316_adc_pwm_integration_test.cpp
+    at90pwm316_pid_test.cpp
+    atmega328p_voltmeter_test.cpp
     lin_protocol_fidelity_test.cpp
     can_stability_test.cpp
     pll_test.cpp
@@ -111,6 +117,7 @@ set(TEST_SOURCES
     eeprom_fidelity_test.cpp
     spm_fidelity_test.cpp
     psc_fidelity_test.cpp
+    dac_fidelity_test.cpp
     at90pwm_cycle_by_cycle_test.cpp
     instruction_timing_fidelity_test.cpp
     avr8x_evsys_fidelity_test.cpp
@@ -158,6 +165,7 @@ set(TEST_SOURCES
     lcd_3290_test.cpp
     lcd_exhaustive_test.cpp
     usb_connectivity_test.cpp
+    cpu_bench_util.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
@@ -169,7 +177,13 @@ foreach(source IN LISTS TEST_SOURCES)
     add_executable(${target_name} ${source})
     target_link_libraries(${target_name} PRIVATE VioAVR::core)
     # Don't register utilities as tests
-    if (NOT test_name STREQUAL "cpu_trace_util")
+    if (NOT test_name STREQUAL "cpu_trace_util" AND NOT test_name STREQUAL "cpu_bench_util")
         add_test(NAME ${target_name} COMMAND ${target_name})
+    endif()
+    if (test_name STREQUAL "at90pwm316_pid_test")
+        add_dependencies(${target_name} psc_pid_hex)
+    endif()
+    if (test_name STREQUAL "atmega328p_voltmeter_test")
+        add_dependencies(${target_name} voltmeter_hex)
     endif()
 endforeach()

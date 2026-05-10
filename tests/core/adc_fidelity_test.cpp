@@ -32,8 +32,8 @@ TEST_CASE("ADC: Differential Channels and Gain") {
         // Start conversion: ADEN=1, ADSC=1
         bus.write_data(devices::atmega32u4.adcs[0].adcsra_address, 0xC0);
         
-        // Tick enough cycles
-        adc.tick(30);
+        // Tick enough cycles via bus to trigger scheduler callbacks
+        bus.tick_peripherals(30);
         
         u16 result = bus.read_data(devices::atmega32u4.adcs[0].adcl_address);
         result |= (static_cast<u16>(bus.read_data(devices::atmega32u4.adcs[0].adch_address)) << 8);

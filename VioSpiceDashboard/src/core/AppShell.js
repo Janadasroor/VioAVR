@@ -9,6 +9,9 @@ import { TerminalView } from '../views/TerminalView.js';
 import { ActuatorView } from '../views/ActuatorView.js';
 import { LogicPageView } from '../views/LogicPageView.js';
 import { AnalogScopeView } from '../views/AnalogScopeView.js';
+import { RegisterView } from '../views/RegisterView.js';
+import { PinGridView } from '../views/PinGridView.js';
+import { ControlView } from '../views/ControlView.js';
 
 export class AppShell {
   constructor() {
@@ -70,6 +73,10 @@ export class AppShell {
                 this.analogPage.unfreeze();
             }
             this.controls.updateState(running);
+        });
+
+        sim.on('toast', ({ message, type }) => {
+            this.showToast(message, type);
         });
     }
 

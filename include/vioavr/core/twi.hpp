@@ -28,7 +28,7 @@ public:
     void set_rx_buffer(const std::vector<u8>& data) noexcept;
     [[nodiscard]] const std::vector<u8>& tx_buffer() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
-    [[nodiscard]] bool check_slave_address(u8 address) const noexcept;
+    [[nodiscard]] bool check_twi_address(u8 address) const noexcept override;
 
 private:
     void complete_step() noexcept;

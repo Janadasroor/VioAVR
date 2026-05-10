@@ -1,5 +1,6 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -142,6 +143,9 @@ void GpioPort::write(const u16 address, const u8 value) noexcept
         const u8 changed = static_cast<u8>(port_ ^ new_val);
         port_ = new_val;
         pending_changes_mask_ |= (changed & ddr_);
+        if (pending_changes_mask_ != 0U && bus_ != nullptr) {
+            bus_->mark_pin_change_pending();
+        }
         update_pin_latched();
     };
 
@@ -295,11 +299,9 @@ void GpioPort::update_pin_latched() noexcept
             
             // Read back effective state
             auto state = pin_mux_->get_state(port_idx_, i);
-            bool pin_val = false;
+            bool pin_val = (external_levels_ & (1U << i)) != 0U;
             if (state.is_output) {
                 pin_val = state.drive_level;
-            } else {
-                pin_val = (external_levels_ & (1U << i)) != 0U;
             }
 
             // Input inversion and disable
@@ -326,6 +328,9 @@ void GpioPort::update_pin_latched() noexcept
 
     if (next_pin != pin_latched_) {
         pin_latched_ = next_pin;
+        if (bus_ != nullptr) {
+            bus_->mark_pin_change_pending();
+        }
     }
 }
 

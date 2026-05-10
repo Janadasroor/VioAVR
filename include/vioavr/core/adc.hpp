@@ -34,6 +34,7 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] bool wants_tick() const noexcept override { return false; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
@@ -50,6 +51,7 @@ public:
     void connect_timer_overflow_auto_trigger(Timer8& timer) noexcept;
     void set_channel_voltage(u8 channel, double normalized_voltage) noexcept;
     void notify_auto_trigger(AutoTriggerSource source) noexcept;
+    void on_event(u64 cycle) noexcept;
 
     [[nodiscard]] constexpr u8 adcsra() const noexcept { return adcsra_; }
     [[nodiscard]] constexpr u8 admux() const noexcept { return admux_; }
@@ -76,6 +78,7 @@ private:
     [[nodiscard]] double get_voltage(u8 channel) const noexcept;
     
     void update_pin_ownership() noexcept;
+    void update_interrupt_pending() noexcept;
 
     std::string name_;
     AdcDescriptor desc_;

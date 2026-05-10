@@ -12,6 +12,13 @@
 #include <span>
 #include <string_view>
 #include <memory>
+#include <string>
+
+// Include component headers for inline implementations
+#include "vioavr/core/clkctrl.hpp"
+#include "vioavr/core/slpctrl.hpp"
+#include "vioavr/core/rstctrl.hpp"
+#include "vioavr/core/sync_engine.hpp"
 
 namespace vioavr::core {
 
@@ -62,7 +69,7 @@ public:
             .gpr = gpr_,
             .program_counter = program_counter_,
             .stack_pointer = stack_pointer_,
-            .sreg = sreg_,
+            .sreg = sreg(),
             .cycles = cycles_,
             .interrupt_pending = interrupt_pending_,
             .in_interrupt_handler = interrupt_depth_ != 0U,
@@ -84,8 +91,8 @@ public:
     {
         return program_counter_;
     }
-    void write_data_bus(u16 address, u8 value) noexcept;
-    [[nodiscard]] u8 read_data_bus(u16 address) noexcept;
+    inline void write_data_bus(u16 address, u8 value) noexcept;
+    [[nodiscard]] inline u8 read_data_bus(u16 address) noexcept;
 
     void set_program_counter(u32 value) noexcept
     {
@@ -104,13 +111,24 @@ public:
 
     [[nodiscard]] constexpr u8 sreg() const noexcept
     {
-        return sreg_;
+        u8 val = 0;
+        if (flag_c_) val |= 0x01U;
+        if (flag_z_) val |= 0x02U;
+        if (flag_n_) val |= 0x04U;
+        if (flag_v_) val |= 0x08U;
+        if (flag_s_) val |= 0x10U;
+        if (flag_h_) val |= 0x20U;
+        if (flag_t_) val |= 0x40U;
+        return val;
     }
 
     void set_sreg(u8 value) noexcept
     {
-        sreg_ = value;
+        write_sreg(value);
     }
+
+    inline void write_sreg(u8 value) noexcept;
+    inline void set_flag(SregFlag flag_bit, bool value) noexcept;
 
     [[nodiscard]] constexpr u8 rampz() const noexcept
     {
@@ -152,15 +170,12 @@ public:
         return *control_regs_;
     }
 
-    void write_register(u8 index, u8 value) noexcept;
-    void write_sreg(u8 value) noexcept;
-
+    inline void write_register(u8 index, u8 value) noexcept;
     void set_wdt8x(Wdt8x* wdt) noexcept { wdt8x_ = wdt; }
 
     // Public for fidelity tests
     void execute_reti(const DecodedInstruction& instruction);
     [[nodiscard]] bool service_interrupt_if_needed();
-    void set_flag(SregFlag flag_bit, bool value) noexcept;
     void push_pc(u32 address) noexcept;
     [[nodiscard]] u32 interrupt_vector_word_address(u8 vector_index) const noexcept;
     void set_clk_ctrl(ClkCtrl* clk) noexcept { clk_ctrl_ = clk; }
@@ -191,8 +206,9 @@ private:
     [[nodiscard]] DecodedInstruction fetch() const noexcept;
     [[nodiscard]] static constexpr u8 classify_word_size(u16 opcode) noexcept;
     [[nodiscard]] static std::span<const InstructionDescriptor> instruction_table() noexcept;
+    void dispatch_instruction(const DecodedInstruction& instruction);
     void decode_and_execute(const DecodedInstruction& instruction);
-    void advance_cycles(u64 delta_cycles);
+    inline void advance_cycles(u64 delta_cycles);
     void synchronize_if_needed();
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();
@@ -200,7 +216,17 @@ private:
 
     [[nodiscard]] constexpr bool flag(SregFlag flag_bit) const noexcept
     {
-        return (sreg_ & (1U << static_cast<u8>(flag_bit))) != 0U;
+        switch (flag_bit) {
+            case SregFlag::carry: return flag_c_;
+            case SregFlag::zero: return flag_z_;
+            case SregFlag::negative: return flag_n_;
+            case SregFlag::overflow: return flag_v_;
+            case SregFlag::sign: return flag_s_;
+            case SregFlag::halfCarry: return flag_h_;
+            case SregFlag::transfer: return flag_t_;
+            case SregFlag::interrupt: return flag_i_;
+            default: return false;
+        }
     }
 
     [[nodiscard]] static constexpr u8 decode_destination_register(u16 opcode) noexcept;
@@ -347,6 +373,14 @@ private:
     u32 program_counter_ {};
     u16 stack_pointer_ {};
     u8 sreg_ {};
+    bool flag_c_ {false};
+    bool flag_z_ {false};
+    bool flag_n_ {false};
+    bool flag_v_ {false};
+    bool flag_s_ {false};
+    bool flag_h_ {false};
+    bool flag_t_ {false};
+    bool flag_i_ {false};
     u8 rampz_ {};
     u8 eind_ {};
     ClkCtrl* clk_ctrl_ {nullptr};
@@ -364,3 +398,94 @@ private:
 };
 
 }  // namespace vioavr::core
+
+namespace vioavr::core {
+
+inline void AvrCpu::write_register(const u8 index, const u8 value) noexcept
+{
+    if (index < kRegisterFileSize) {
+        gpr_[index] = value;
+    }
+}
+
+inline void AvrCpu::advance_cycles(const u64 delta_cycles)
+{
+    cycles_ += delta_cycles;
+    if (bus_ != nullptr) {
+        bus_->tick_peripherals(delta_cycles, active_clock_domains());
+        if (bus_->has_pending_pin_changes()) {
+            publish_pending_pin_changes();
+        }
+    }
+    if (spm_lock_timeout_ > 0U) {
+        spm_lock_timeout_ = (delta_cycles >= spm_lock_timeout_) ? 0U : static_cast<u8>(spm_lock_timeout_ - delta_cycles);
+    }
+    if (sync_engine_ != nullptr) {
+        sync_engine_->on_cycles_advanced(cycles_, delta_cycles);
+    }
+    refresh_interrupt_pending();
+}
+
+inline u8 AvrCpu::read_data_bus(const u16 address) noexcept
+{
+    if (bus_ == nullptr) return 0U;
+    
+    // Inline wait state check for speed
+    const u8 ws = bus_->get_wait_states(address);
+    if (ws > 0) {
+        advance_cycles(static_cast<u64>(ws));
+    }
+    
+    return bus_->read_data(address);
+}
+
+inline void AvrCpu::write_data_bus(const u16 address, const u8 value) noexcept
+{
+    if (bus_ == nullptr) return;
+
+    const u8 ws = bus_->get_wait_states(address);
+    if (ws > 0) {
+        advance_cycles(static_cast<u64>(ws));
+    }
+
+    if (address == bus_->device().spmcsr_address) {
+        if ((value & 0x01U) != 0U) {
+            spm_lock_timeout_ = 4U;
+        }
+    }
+
+    bus_->write_data(address, value);
+}
+
+inline void AvrCpu::set_flag(const SregFlag flag_bit, const bool value) noexcept
+{
+    switch (flag_bit) {
+        case SregFlag::carry: flag_c_ = value; break;
+        case SregFlag::zero: flag_z_ = value; break;
+        case SregFlag::negative: flag_n_ = value; break;
+        case SregFlag::overflow: flag_v_ = value; break;
+        case SregFlag::sign: flag_s_ = value; break;
+        case SregFlag::halfCarry: flag_h_ = value; break;
+        case SregFlag::transfer: flag_t_ = value; break;
+        case SregFlag::interrupt: flag_i_ = value; break;
+    }
+}
+
+inline void AvrCpu::write_sreg(const u8 value) noexcept
+{
+    sreg_ = value;
+    flag_c_ = (value & 0x01U) != 0U;
+    flag_z_ = (value & 0x02U) != 0U;
+    flag_n_ = (value & 0x04U) != 0U;
+    flag_v_ = (value & 0x08U) != 0U;
+    flag_s_ = (value & 0x10U) != 0U;
+    flag_h_ = (value & 0x20U) != 0U;
+    flag_t_ = (value & 0x40U) != 0U;
+    flag_i_ = (value & 0x80U) != 0U;
+
+    if (trace_hook_ != nullptr) {
+        trace_hook_->on_sreg_write(value);
+    }
+}
+
+} // namespace vioavr::core

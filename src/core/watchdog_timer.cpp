@@ -3,6 +3,10 @@
 #include <algorithm>
 
 namespace vioavr::core {
+    
+static void watchdog_callback(u64 cycle, void* param) {
+    static_cast<WatchdogTimer*>(param)->on_event(cycle);
+}
 
 namespace {
 constexpr u8 kWdif = 0x80U;
@@ -54,25 +58,13 @@ void WatchdogTimer::reset() noexcept
 
 void WatchdogTimer::tick(const u64 elapsed_cycles) noexcept
 {
-    if (timed_sequence_active_) {
-        if (elapsed_cycles >= timed_sequence_cycles_left_) {
-            timed_sequence_active_ = false;
-            timed_sequence_cycles_left_ = 0;
-            wdtcsr_ &= static_cast<u8>(~kWdce);
-        } else {
-            timed_sequence_cycles_left_ -= static_cast<u8>(elapsed_cycles);
-        }
-    }
+    (void)elapsed_cycles;
+    // Handled by scheduler
+}
 
-    if ((wdtcsr_ & (desc_.wde_mask | desc_.wdie_mask)) == 0U) {
-        return;
-    }
-
-    if (elapsed_cycles >= cycles_left_) {
-        complete_timeout();
-    } else {
-        cycles_left_ -= static_cast<u32>(elapsed_cycles);
-    }
+void WatchdogTimer::on_event(u64 cycle) noexcept {
+    (void)cycle;
+    complete_timeout();
 }
 
 u8 WatchdogTimer::read(const u16 address) noexcept
@@ -120,6 +112,7 @@ void WatchdogTimer::write(const u16 address, const u8 value) noexcept
             reset_watchdog();
         }
     }
+    update_interrupt_pending();
 }
 
 bool WatchdogTimer::pending_interrupt_request(InterruptRequest& request) const noexcept
@@ -134,14 +127,8 @@ bool WatchdogTimer::pending_interrupt_request(InterruptRequest& request) const n
 bool WatchdogTimer::consume_interrupt_request(InterruptRequest& request) noexcept
 {
     if (pending_interrupt_request(request)) {
-        // WDIF is NOT cleared by hardware according to datasheet, 
-        // it is cleared by writing 1 to it.
-        // Actually, most AVR flags ARE cleared when ISR is entered.
-        // Let's re-check ATmega328P datasheet: 
-        // "WDIF is cleared by hardware when executing the corresponding interrupt handling vector. 
-        // Alternatively, WDIF is cleared by writing a logic one to the flag."
-        // So my code was right to clear it, but maybe I cleared it and THEN checked in test?
         interrupt_pending_ = false;
+        update_interrupt_pending();
         return true;
     }
     return false;
@@ -149,21 +136,33 @@ bool WatchdogTimer::consume_interrupt_request(InterruptRequest& request) noexcep
 
 void WatchdogTimer::reset_watchdog() noexcept
 {
+    cpu_.bus().scheduler().cancel(watchdog_callback, this);
+    
+    if ((wdtcsr_ & (desc_.wde_mask | desc_.wdie_mask)) == 0U) return;
+    
     cycles_left_ = get_timeout_cycles();
+    cpu_.bus().scheduler().schedule(cycles_left_, watchdog_callback, this);
 }
 
 void WatchdogTimer::complete_timeout() noexcept
 {
-    if ((wdtcsr_ & desc_.wdie_mask) != 0U) {
+    if (wdtcsr_ & desc_.wdie_mask) {
         interrupt_pending_ = true;
-        // In Interrupt and Reset Mode, WDIE is cleared after interrupt.
-        if ((wdtcsr_ & desc_.wde_mask) != 0U) {
-            wdtcsr_ &= static_cast<u8>(~desc_.wdie_mask);
-        }
-    } else if ((wdtcsr_ & desc_.wde_mask) != 0U) {
-        cpu_.reset();
+        update_interrupt_pending();
     }
-    reset_watchdog();
+    
+    if (wdtcsr_ & desc_.wde_mask) {
+        cpu_.reset(ResetCause::watchdog);
+    }
+    
+    if (wdtcsr_ & (desc_.wde_mask | desc_.wdie_mask)) {
+        reset_watchdog();
+    }
+}
+
+void WatchdogTimer::update_interrupt_pending() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 u32 WatchdogTimer::get_timeout_cycles() const noexcept

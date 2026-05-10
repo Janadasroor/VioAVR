@@ -1,4 +1,5 @@
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <stdexcept>
 #include <cstdio>
 
@@ -28,6 +29,7 @@ bool PinMux::claim_pin(u8 port_idx, u8 bit_idx, PinOwner owner) noexcept
     const u32 claim_bit = (1U << static_cast<u8>(owner));
 
     if (!(entry.active_claims & claim_bit)) {
+        Logger::debug("PinMux::claim_pin port=" + std::to_string(port_idx) + " bit=" + std::to_string(bit_idx) + " owner=" + std::to_string((int)owner));
         entry.active_claims |= claim_bit;
         reevaluate_ownership(port_idx, bit_idx);
     }
@@ -103,8 +105,8 @@ void PinMux::update_analog_pin_by_address(u16 pin_address, u8 bit_index, PinOwne
 
     PinEntry& entry = ports_[port_idx][bit_index];
     entry.state.voltage = voltage;
-    if (port_idx == 2 && bit_index == 1) { printf("DEBUG PIN PD1: voltage update to %f\n", voltage); fflush(stdout); }
     if (callback_) callback_(port_idx, bit_index, entry.state);
+    if (bus_) bus_->propagate_analog_pin_change(pin_address, bit_index, voltage);
 }
 
 void PinMux::update_pullup_suppressed(bool suppressed) noexcept
@@ -168,6 +170,7 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
             }
         }
     }
+    Logger::debug("PinMux::reevaluate_ownership port=" + std::to_string(port_idx) + " bit=" + std::to_string(bit_idx) + " claims=0x" + Logger::hex(entry.active_claims) + " owner=" + std::to_string((int)highest_owner));
 
     entry.state.owner = highest_owner;
     

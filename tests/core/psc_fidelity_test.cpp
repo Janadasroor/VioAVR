@@ -2,6 +2,7 @@
 #include "doctest.h"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/analog_comparator.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/devices/at90pwm1.hpp"
 
@@ -90,20 +91,23 @@ TEST_CASE("PSC Fidelity - Analog Comparator Fault Protection") {
     psc.write(psc_desc.pfrc0a_address, 0x36); // PELEV=1 (Low), PFLTE=1 (Filter), PRFM=6 (Fault Level Auto)
     
     PinMux mux {3};
+    MemoryBus bus {at90pwm1};
     AnalogComparator ac {"AC0", ac_desc, mux, 0};
     ac.reset();
+    bus.attach_peripheral(ac);
     ac.connect_psc_fault(psc);
+    bus.attach_peripheral(psc);
     
     ac.set_positive_input_voltage(0.8);
     ac.set_negative_input_voltage(0.5);
-    ac.tick(10); 
+    bus.tick_peripherals(10); 
     
     ac.set_positive_input_voltage(0.3); // Diff = -0.2 -> Raw Output = 0 (FAULT if PELEV=1)
-    ac.tick(10); // AC propagates 0 to PSC
+    bus.tick_peripherals(10); // AC propagates 0 to PSC
     
-    psc.tick(10); // PSC processes the fault through its filter
+    bus.tick_peripherals(10); // PSC processes the fault through its filter
     
-    CHECK((psc.read(psc_desc.pifr_address) & psc_desc.capt_flag_mask) != 0); 
+    CHECK((bus.read_data(psc_desc.pifr_address) & psc_desc.capt_flag_mask) != 0); 
 }
 
 TEST_CASE("PSC Fidelity - Output Polarity") {
@@ -125,4 +129,53 @@ TEST_CASE("PSC Fidelity - Output Polarity") {
     psc.tick(1);
     CHECK(psc.read_output_a() == false);
     CHECK(psc.read_output_b() == false);
+}
+
+TEST_CASE("PSC Fidelity - Burst Flank Modulation (PBFM)") {
+    const auto& desc = at90pwm1.pscs[0];
+    Psc psc {"PSC0", desc};
+    psc.reset();
+    
+    // Period = 100
+    psc.write(desc.ocrrb_address, 0);
+    psc.write(desc.ocrrb_address + 1, 100);
+    
+    // First pulse: 10 to 30
+    psc.write(desc.ocrsa_address, 0);
+    psc.write(desc.ocrsa_address + 1, 10);
+    psc.write(desc.ocrra_address, 0);
+    psc.write(desc.ocrra_address + 1, 30);
+    
+    // Second pulse: 60 to 80
+    psc.write(desc.ocrsb_address, 0);
+    psc.write(desc.ocrsb_address + 1, 60);
+    
+    // Enable Output A in PSOC
+    psc.write(desc.psoc_address, 0x01);
+    
+    // Enable PBFM (bit 1 of PCTL) and PRUN
+    psc.write(desc.pctl_address, desc.prun_mask | desc.pbfm_mask);
+    
+    // Check initial state (counter=0, before first pulse)
+    CHECK(psc.read_output_a() == false);
+    
+    // Tick to 15 (inside first pulse)
+    psc.tick(15);
+    CHECK(psc.read_output_a() == true);
+    
+    // Tick to 40 (between pulses)
+    psc.tick(25);
+    CHECK(psc.read_output_a() == false);
+    
+    // Tick to 70 (inside second pulse: 60 to 100)
+    psc.tick(30);
+    CHECK(psc.read_output_a() == true);
+    
+    // Tick to 99 (still inside second pulse)
+    psc.tick(29);
+    CHECK(psc.read_output_a() == true);
+
+    // Tick to 100 -> wraps to 0 (after second pulse)
+    psc.tick(1);
+    CHECK(psc.read_output_a() == false);
 }

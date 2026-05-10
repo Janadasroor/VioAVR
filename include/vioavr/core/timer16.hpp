@@ -5,18 +5,19 @@
 #include <array>
 #include <optional>
 #include <string>
+#include <span>
+#include <vector>
 
 namespace vioavr::core {
 class GpioPort;
 class MemoryBus;
 class Adc;
 class Dac;
-
-class PinMux;
+class AnalogComparator;
 
 class Timer16 final : public IoPeripheral {
 public:
-    explicit Timer16(std::string_view name, const Timer16Descriptor& desc, PinMux* pin_mux = nullptr) noexcept;
+    explicit Timer16(std::string_view name, const Timer16Descriptor& desc, class PinMux* pin_mux = nullptr) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_bus(MemoryBus& bus) noexcept { bus_ = &bus; }
@@ -24,76 +25,50 @@ public:
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
+    [[nodiscard]] u16 counter() const noexcept { return tcnt_; }
+    [[nodiscard]] u16 input_capture() const noexcept { return icr_; }
+
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
+    [[nodiscard]] bool wants_tick() const noexcept override { return false; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
-
+    
+    void sync() noexcept;
+    void on_event(u64 cycle) noexcept;
+    bool on_external_pin_change(u16 address, u8 bit, PinLevel level) noexcept override;
     void notify_input_capture(bool high) noexcept;
-    void connect_adc_auto_trigger(Adc& adc) noexcept;
-    void connect_dac_auto_trigger(Dac& dac) noexcept;
 
-    [[nodiscard]] ClockDomain clock_domain() const noexcept override;
-
-    // Co-simulation hooks
-    void connect_input_capture(GpioPort& port, u8 bit) noexcept;
-    void connect_compare_output_a(GpioPort& port, u8 bit) noexcept;
-    void connect_compare_output_b(GpioPort& port, u8 bit) noexcept;
-    void connect_compare_output_c(GpioPort& port, u8 bit) noexcept;
-
-    [[nodiscard]] constexpr u16 counter() const noexcept { return tcnt_; }
-    [[nodiscard]] constexpr u16 input_capture() const noexcept { return icr_; }
+    void connect_input_capture(GpioPort& port, u8 bit) noexcept { pin_icp_ = {&port, bit}; }
+    void connect_compare_output_a(GpioPort& port, u8 bit) noexcept { pin_a_ = {&port, bit}; }
+    void connect_compare_output_b(GpioPort& port, u8 bit) noexcept { pin_b_ = {&port, bit}; }
+    void connect_compare_output_c(GpioPort& port, u8 bit) noexcept { pin_c_ = {&port, bit}; }
+    void connect_adc(Adc& adc) noexcept { adc_auto_triggers_.push_back(&adc); }
+    void connect_dac(Dac& dac) noexcept { dac_triggers_.push_back(&dac); }
+    void connect_analog_comparator(AnalogComparator& ac) noexcept;
 
 private:
-    enum class Mode {
-        normal,
-        pc_pwm_8bit, pc_pwm_9bit, pc_pwm_10bit,
-        ctc_ocr,
-        fast_pwm_8bit, fast_pwm_9bit, fast_pwm_10bit,
-        pfc_pwm_icr, pfc_pwm_ocr,
-        pc_pwm_icr, pc_pwm_ocr,
-        ctc_icr,
-        fast_pwm_icr, fast_pwm_ocr
-    };
-
-    enum class PinAction {
-        none = 0,
-        toggle = 1,
-        clear = 2,
-        set = 3
-    };
-
-    struct BoundPin {
-        GpioPort* port {};
-        u8 bit {};
-    };
-
-    void update_mode() noexcept;
-    [[nodiscard]] bool power_reduction_enabled() const noexcept;
     void perform_tick() noexcept;
-    void handle_compare_match_a() noexcept;
-    void handle_compare_match_b() noexcept;
-    void handle_compare_match_c() noexcept;
+    void recalculate_event() noexcept;
     void handle_matches() noexcept;
-    void handle_overflow() noexcept;
     void handle_input_capture() noexcept;
-    [[nodiscard]] u16 get_top() const noexcept;
-    
-    void apply_pin_action(std::optional<BoundPin> pin, PinAction action) noexcept;
-    [[nodiscard]] PinAction get_pin_action_a() const noexcept;
-    [[nodiscard]] PinAction get_pin_action_b() const noexcept;
-    [[nodiscard]] PinAction get_pin_action_c() const noexcept;
+    void update_pwm_pins() noexcept;
+    void update_mode() noexcept;
     void update_pin_ownership() noexcept;
-    
+
+    enum class Mode { normal, ctc_ocr, ctc_icr };
+
+    struct BoundPin { GpioPort* port; u8 bit; };
+
     PinMux* pin_mux_ {};
     std::string name_;
     Timer16Descriptor desc_;
+    std::vector<Adc*> adc_auto_triggers_;
+    std::vector<Dac*> dac_triggers_;
     std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {};
-    Adc* adc_ {};
-    Dac* dac_ {};
 
     u16 tcnt_ {};
     u16 ocra_ {};
@@ -113,15 +88,17 @@ private:
     Mode mode_ {Mode::normal};
     bool counting_up_ {true};
     
+    std::optional<BoundPin> pin_icp_;
     std::optional<BoundPin> pin_a_;
     std::optional<BoundPin> pin_b_;
     std::optional<BoundPin> pin_c_;
-    std::optional<BoundPin> pin_icp_;
+    bool icp_initialized_ {false};
     u8 last_icp_state_ {0};
     u8 last_t1_state_ {0};
     u8 noise_canceler_register_ {0};
     u8 noise_canceler_counter_ {0};
     u64 cycle_accumulator_ {0};
+    u64 last_sync_cycle_ {0};
 };
 
-}  // namespace vioavr::core
+} // namespace vioavr::core

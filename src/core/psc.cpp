@@ -137,7 +137,7 @@ void Psc::write(u16 address, u8 value) noexcept {
     } else if (address >= desc_.ocrsa_address && address < desc_.ocrsa_address + 8) {
         u8 offset = address - desc_.ocrsa_address;
         if (offset % 2 == 0) {
-            // High byte written first (Big-Endian in PSC map)
+            // High byte written first (Big-Endian in PSC map, High is at even offset)
             temp_high_ = value;
         } else {
             // Low byte written second, completing the 16-bit value
@@ -369,14 +369,19 @@ void Psc::update_outputs() noexcept {
     } else {
         bool pulse_a, pulse_b;
         if (pctl_ & desc_.pbfm_mask) {
-            // Burst Flank Modulation: Output A has two pulses per period
-            pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_) || (counter_ >= ocrsb_ && counter_ < ocrrb_);
-            pulse_b = pulse_a; // Usually B follows A in this mode or is used for dead-time
+            // Burst Flank Modulation:
+            // Pulse 1 is defined by OCRnSA and OCRnRA
+            // Pulse 2 is defined by OCRnSB and OCRnRB
+            bool in_pulse1 = (counter_ >= ocrsa_ && counter_ < ocrra_);
+            bool in_pulse2 = (counter_ >= ocrsb_ && counter_ < ocrrb_);
+            
+            pulse_a = in_pulse1 || in_pulse2;
+            pulse_b = pulse_a; 
         } else {
             pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
             pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);
         }
-
+        
         bool pop = (pconf_ & 0x04) != 0;
         bool paoc_a = (pctl_ & desc_.paoca_mask);
         bool paoc_b = (pctl_ & desc_.paocb_mask);

@@ -11,6 +11,10 @@
 #include <vector>
 
 namespace vioavr::core {
+    
+static void adc_callback(u64 cycle, void* param) {
+    static_cast<Adc*>(param)->on_event(cycle);
+}
 
 Adc::Adc(std::string_view name,
          const AdcDescriptor& descriptor,
@@ -69,17 +73,8 @@ void Adc::reset() noexcept {
 }
 
 void Adc::tick(u64 elapsed_cycles) noexcept {
-    if (power_reduction_enabled()) {
-        converting_ = false;
-        return;
-    }
-    if (!converting_ || (adcsra_ & desc_.aden_mask) == 0U) return;
-
-    if (elapsed_cycles >= cycles_remaining_) {
-        complete_conversion();
-    } else {
-        cycles_remaining_ -= static_cast<u16>(elapsed_cycles);
-    }
+    (void)elapsed_cycles;
+    // Tick is no longer used, logic moved to start_conversion and on_event
 }
 
 u8 Adc::read(u16 address) noexcept {
@@ -94,28 +89,28 @@ u8 Adc::read(u16 address) noexcept {
 
 void Adc::write(u16 address, u8 value) noexcept {
     if (address == desc_.adcsra_address) {
-        const bool was_enabled = (adcsra_ & desc_.aden_mask);
-        const bool next_enabled = (value & desc_.aden_mask);
-        
-        // ADIF is cleared by writing 1
+        u8 old_val = adcsra_;
+        adcsra_ = (adcsra_ & desc_.adif_mask) | (value & ~desc_.adif_mask);
         if (value & desc_.adif_mask) {
-            adcsra_ &= ~desc_.adif_mask;
+            adcsra_ &= ~desc_.adif_mask; // Clear by writing 1
         }
         
-        // Update components of ADCSRA except ADIF which was handled above
-        adcsra_ = (adcsra_ & desc_.adif_mask) | (value & ~desc_.adif_mask);
-        
-        if (!was_enabled && next_enabled) {
+        if ((adcsra_ & desc_.aden_mask) && !(old_val & desc_.aden_mask)) {
+            first_conversion_ = true;
             update_pin_ownership();
-        } else if (was_enabled && !next_enabled) {
+        } else if (!(adcsra_ & desc_.aden_mask) && (old_val & desc_.aden_mask)) {
             update_pin_ownership();
             converting_ = false;
             first_conversion_ = true;
         }
-
-        if (next_enabled && (value & desc_.adsc_mask)) {
-            start_conversion();
+        
+        if ((adcsra_ & desc_.adsc_mask) && !(old_val & desc_.adsc_mask)) {
+            if (adcsra_ & desc_.aden_mask) {
+                start_conversion();
+            }
         }
+        
+        update_interrupt_pending();
     } else if (address == desc_.admux_address) {
         admux_ = value;
     } else if (address == desc_.adcsrb_address) {
@@ -138,6 +133,7 @@ bool Adc::pending_interrupt_request(InterruptRequest& request) const noexcept {
 bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
         adcsra_ &= ~desc_.adif_mask; // Clear flag on entry
+        update_interrupt_pending();
         return true;
     }
     return false;
@@ -161,7 +157,18 @@ void Adc::start_conversion() noexcept {
         cycles_remaining_ = static_cast<u16>(conv_cycles * prescaler);
     }
     
+    if (bus_) {
+        bus_->scheduler().schedule(cycles_remaining_, adc_callback, this);
+    }
+    
     first_conversion_ = false;
+}
+
+void Adc::on_event(u64 cycle) noexcept {
+    (void)cycle;
+    if (converting_) {
+        complete_conversion();
+    }
 }
 
 bool Adc::power_reduction_enabled() const noexcept {
@@ -194,6 +201,11 @@ double Adc::get_voltage(u8 channel) const noexcept {
     return 0.0;
 }
 
+void Adc::update_interrupt_pending() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
+}
+
 void Adc::complete_conversion() noexcept {
     const MuxMapping mapping = resolve_mux();
     double pos_v = get_voltage(mapping.positive_channel);
@@ -223,6 +235,7 @@ void Adc::complete_conversion() noexcept {
 
     adcsra_ &= ~desc_.adsc_mask;
     adcsra_ |= desc_.adif_mask;
+    update_interrupt_pending();
     converting_ = false;
 
     // Update ports_ state if needed...

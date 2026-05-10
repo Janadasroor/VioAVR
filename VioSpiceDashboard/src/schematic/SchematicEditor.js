@@ -48,6 +48,8 @@ export class SchematicEditor {
     this.shell.on('viewChanged', ({ viewId }) => {
       if (viewId === 'view-schematic') this.viewport.update();
     });
+
+    window.__vio.sim.on('telemetry', (data) => this.update(data));
   }
 
   _autoSave() {
@@ -59,6 +61,20 @@ export class SchematicEditor {
     const data = localStorage.getItem('viospice_schematic_state');
     if (data) {
       this.deserialize(data);
+    } else {
+      const demo = JSON.stringify({
+        chips: [
+          { id: 'mcu_0', type: 'atmega328p', x: 100, y: 100, name: 'Main MCU', properties: { binary: 'tests/core/firmware/test.hex' } },
+          { id: 'led_0', type: 'led', x: 420, y: 100, name: 'Status LED' },
+          { id: 'seg_0', type: 'seven_seg', x: 420, y: 220, name: 'Digit 1' }
+        ],
+        wires: [
+          { start: { chipId: 'mcu_0', pinId: 'PB0' }, end: { chipId: 'led_0', pinId: 'A' }, points: [{x:250, y:215}, {x:420, y:215}] },
+          { start: { chipId: 'mcu_0', pinId: 'PB1' }, end: { chipId: 'seg_0', pinId: 'A' }, points: [{x:250, y:237}, {x:420, y:235}] }
+        ]
+      });
+      this.deserialize(demo);
+      this.shell.showToast('Welcome! Loading Demo Project...', 'info');
     }
   }
 
@@ -142,11 +158,11 @@ export class SchematicEditor {
         e.stopPropagation();
         if (e.button !== 0) return;
         
-        // Allow starting a wire even in 'select' mode
-        if (this.tools.getTool() !== 'wire') {
+        // Auto-switch to wire mode only from 'select' mode
+        if (this.tools.getTool() === 'select') {
           this.tools.setTool('wire');
         }
-        this._handlePinClick(pinG);
+        this._onCanvasClick(e); // Delegate to unified click handler
       });
       // Prevent click from bubbling to canvas and adding redundant waypoints
       pinG.addEventListener('click', e => e.stopPropagation());
@@ -219,6 +235,7 @@ export class SchematicEditor {
       const wire = createWaypointWire(this._wire.startPin, pin, pts);
       this.history.execute(new Cmds.AddWireCommand(wire, this.canvas));
       this._cancelWire();
+      this.update(); // Trigger visual refresh for LEDs/displays
     }
   }
 
@@ -230,6 +247,14 @@ export class SchematicEditor {
     seg.shift();
     pts.push(...seg);
     return simplifyPath(pts);
+  }
+
+  getChips() {
+    return Array.from(this.canvas.querySelectorAll('.schematic-node'));
+  }
+
+  getWires() {
+    return Array.from(this.canvas.querySelectorAll('.wire-group'));
   }
 
   serialize() {
@@ -297,6 +322,7 @@ export class SchematicEditor {
         this.canvas.appendChild(wire);
       });
 
+      this.update(); // Initial state refresh
       this.shell.showToast('Schematic loaded successfully', 'success');
     } catch (err) {
       console.error(err);
@@ -354,6 +380,11 @@ export class SchematicEditor {
   }
 
   _onMouseDown(e) {
+    if (e.button === 2) { // Right click
+      this._panning = true;
+      this.svg.classList.add('panning');
+      return;
+    }
     if (e.button !== 0) return;
     const isBackground = e.target === this.svg || e.target.tagName === 'rect';
     if (isBackground && (this.tools.current === 'select' || this.tools.current === 'zoom-box')) {
@@ -372,19 +403,135 @@ export class SchematicEditor {
 
   _onCanvasClick(e) {
     if (this._justDragged) return;
+    const pos = this.viewport.screenToWorld(e.clientX, e.clientY);
+    const snapped = { x: Math.round(pos.x / GRID) * GRID, y: Math.round(pos.y / GRID) * GRID };
+
     if (this._wire) {
-      const pos = this.viewport.screenToWorld(e.clientX, e.clientY);
-      const snapped = { x: Math.round(pos.x / GRID) * GRID, y: Math.round(pos.y / GRID) * GRID };
-      const last = this._wire.intermediatePoints.length > 0
-        ? this._wire.intermediatePoints[this._wire.intermediatePoints.length - 1]
-        : getAbsPinPos(this._wire.startPin);
-      const seg = calculateOrthogonalPoints(last, snapped, this._wire.flip ? 'v' : 'h');
-      seg.shift();
-      this._wire.intermediatePoints.push(...seg);
-      this._updateGhost(pos);
+      // If we clicked a pin or another wire, finish the wire
+      const pin = e.target.closest('.pin-group');
+      const targetWire = e.target.closest('.wire-group');
+      
+      if (pin) {
+        if (this.tools.getTool() === 'probe') {
+          this._probePin(pin);
+        } else {
+          this._handlePinClick(pin);
+        }
+      } else if (targetWire) {
+        this._handleJunctionClick(targetWire, snapped);
+      } else {
+        const last = this._wire.intermediatePoints.length > 0
+          ? this._wire.intermediatePoints[this._wire.intermediatePoints.length - 1]
+          : getAbsPinPos(this._wire.startPin);
+        const seg = calculateOrthogonalPoints(last, snapped, this._wire.flip ? 'v' : 'h');
+        seg.shift();
+        this._wire.intermediatePoints.push(...seg);
+        this._updateGhost(pos);
+      }
     } else {
-      this._clearSelection();
-      this._trySelectWire(e);
+      // Start wire from pin or wire segment
+      const pin = e.target.closest('.pin-group');
+      const targetWire = e.target.closest('.wire-group');
+
+      if (pin && this.tools.getTool() === 'wire') {
+        this._handlePinClick(pin);
+      } else if (pin && this.tools.getTool() === 'probe') {
+        this._probePin(pin);
+      } else if (targetWire && this.tools.getTool() === 'probe') {
+        this._probeWire(targetWire);
+      } else if (targetWire && this.tools.getTool() === 'wire') {
+        this._handleJunctionClick(targetWire, snapped);
+      } else {
+        this._clearSelection();
+        this._trySelectWire(e);
+      }
+    }
+  }
+
+  _handleJunctionClick(wire, pos) {
+    if (!this._wire) {
+      // Start a wire from a junction point on an existing wire
+      this._wire = { startJunction: { wire, pos }, intermediatePoints: [], flip: false };
+      this._createGhostAt(pos);
+      this._addJunctionDot(wire, pos);
+    } else {
+      // Finish wire at a junction point
+      const pts = this._buildWirePoints(pos);
+      const newWire = createWaypointWire(this._wire.startPin || this._wire.startJunction, { wire, pos }, pts);
+      this.history.execute(new Cmds.AddWireCommand(newWire, this.canvas));
+      this._addJunctionDot(wire, pos);
+      this._cancelWire();
+    }
+  }
+
+  _createGhostAt(pos) {
+    const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    ghost.id = 'ghost-wire';
+    ghost.setAttribute('stroke', 'var(--primary)');
+    ghost.setAttribute('stroke-width', '2');
+    ghost.setAttribute('fill', 'none');
+    ghost.setAttribute('stroke-dasharray', '5,3');
+    ghost.style.pointerEvents = 'none';
+    ghost.setAttribute('d', `M ${pos.x} ${pos.y} L ${pos.x} ${pos.y}`);
+    this.canvas.appendChild(ghost);
+  }
+
+  _addJunctionDot(wire, pos) {
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', pos.x);
+    dot.setAttribute('cy', pos.y);
+    dot.setAttribute('r', '3');
+    dot.setAttribute('fill', 'var(--primary)');
+    dot.setAttribute('class', 'junction-dot');
+    wire.appendChild(dot);
+  }
+
+  _probePin(pin) {
+    const node = pin.closest('.schematic-node');
+    const pinId = pin.dataset.id;
+    const wires = Array.from(this.canvas.querySelectorAll('.wire-group'));
+    const telemetry = window.__vio.sim.telemetry;
+    
+    const state = this._getPinState(pin, wires, telemetry.digital_outputs);
+    const valueStr = state === 1 ? 'HIGH (5V)' : 'LOW (0V)';
+    const colorStr = state === 1 ? 'var(--success)' : 'var(--danger)';
+    
+    this.shell.showToast(`PROBE: ${node?.dataset.name || 'Net'}.${pinId} = ${valueStr}`, 'info');
+    
+    // Pulse animation on the pin
+    const dot = pin.querySelector('.node-pin');
+    if (dot) {
+      dot.setAttribute('r', '10');
+      dot.style.stroke = colorStr;
+      dot.style.strokeWidth = '4';
+      setTimeout(() => {
+        dot.setAttribute('r', '4');
+        dot.style.stroke = 'none';
+      }, 500);
+    }
+  }
+
+  _probeWire(wire) {
+    const wires = Array.from(this.canvas.querySelectorAll('.wire-group'));
+    const telemetry = window.__vio.sim.telemetry;
+    
+    // A wire represents a net. Use its start point (pin or junction) to get state.
+    const state = this._getPinState(wire.startPin || wire.startJunction?.wire.startPin, wires, telemetry.digital_outputs);
+    const valueStr = state === 1 ? 'HIGH (5V)' : 'LOW (0V)';
+    const colorStr = state === 1 ? 'var(--success)' : 'var(--danger)';
+
+    this.shell.showToast(`PROBE: Wire Net = ${valueStr}`, 'info');
+
+    // Pulse animation on the wire
+    const path = wire.querySelector('.schematic-wire');
+    if (path) {
+      const oldWidth = path.getAttribute('stroke-width') || '2';
+      path.setAttribute('stroke-width', '6');
+      path.style.stroke = colorStr;
+      setTimeout(() => {
+        path.setAttribute('stroke-width', oldWidth);
+        path.style.stroke = '';
+      }, 500);
     }
   }
 
@@ -405,7 +552,14 @@ export class SchematicEditor {
 
   _onMouseMove(e) {
     const pos = this.viewport.screenToWorld(e.clientX, e.clientY);
+    const dx = e.movementX;
+    const dy = e.movementY;
     this._mousePos = pos;
+
+    if (this._panning) {
+      this.viewport.pan(dx, dy);
+      return;
+    }
 
     if (this._drag) {
       const nx = Math.round((pos.x - this._drag.offsetX) / GRID) * GRID;
@@ -432,6 +586,11 @@ export class SchematicEditor {
   }
 
   _onMouseUp(e) {
+    if (this._panning) {
+      this._panning = false;
+      this.svg.classList.remove('panning');
+      return;
+    }
     if (this._drag) {
       const nx = parseInt(this._drag.target.dataset.x);
       const ny = parseInt(this._drag.target.dataset.y);
@@ -499,6 +658,7 @@ export class SchematicEditor {
       const key = e.key.toLowerCase();
       if (key === 's') this.tools.setTool('select');
       if (key === 'w') this.tools.setTool('wire');
+      if (key === 'p') this.tools.setTool('probe');
       if (key === 'r' && this._selectedChip) this._rotateSelectedChip();
       if (key === 'f') this.viewport.zoomFit(this.canvas.querySelectorAll('.schematic-node'));
       if (e.key === 'Escape') { this._cancelWire(); this._clearSelection(); }
@@ -585,6 +745,7 @@ export class SchematicEditor {
   _setupToolbar() {
     document.getElementById('tool-select')?.addEventListener('click', () => this.tools.setTool('select'));
     document.getElementById('tool-wire')?.addEventListener('click', () => this.tools.setTool('wire'));
+    document.getElementById('tool-probe')?.addEventListener('click', () => this.tools.setTool('probe'));
     document.getElementById('tool-zoom-box')?.addEventListener('click', () => this.tools.setTool('zoom-box'));
     document.getElementById('zoom-in')?.addEventListener('click', () => this.viewport.zoom(0.1));
     document.getElementById('zoom-out')?.addEventListener('click', () => this.viewport.zoom(-0.1));
@@ -724,5 +885,133 @@ export class SchematicEditor {
     group.appendChild(label);
     group.appendChild(inputWrapper);
     parent.appendChild(group);
+  }
+
+  // ─── Live Telemetry Support ────────────────────────────────────────────────
+  
+  update(telemetry) {
+    if (!telemetry || !telemetry.digital_outputs) return;
+    
+    // 1. Efficiently find all MCU pin states currently on canvas
+    const pinStates = new Map();
+    const wires = Array.from(this.canvas.querySelectorAll('.wire-group'));
+    
+    // We'll cache the connectivity once every few frames or when schematic changes
+    // But for now, let's do a direct scan for "lighting" components
+    const targets = this.canvas.querySelectorAll('.node-type-led, .node-type-seven_seg, .node-type-logic_analyzer');
+    
+    targets.forEach(node => {
+      if (node.dataset.type === 'led') {
+        this._updateLED(node, wires, telemetry.digital_outputs);
+      } else if (node.dataset.type === 'seven_seg') {
+        this._updateSevenSeg(node, wires, telemetry.digital_outputs);
+      } else if (node.dataset.type === 'logic_analyzer') {
+        this._updateLogicAnalyzer(node, wires, telemetry.digital_outputs);
+      }
+    });
+  }
+
+  _updateLED(node, wires, outputs) {
+    // LED usually lights up if Anode (A) is High AND Cathode (K) is Low
+    // Or if one is connected to a fixed rail.
+    const pinA = node.querySelector('.pin-group[data-id="A"]');
+    const stateA = this._getPinState(pinA, wires, outputs);
+    
+    // Simple heuristic: if A is connected to a High pin, it lights up
+    node.classList.toggle('led-on', stateA === 1);
+  }
+
+  _updateSevenSeg(node, wires, outputs) {
+    const segments = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'DP'];
+    segments.forEach(segId => {
+      const pin = node.querySelector(`.pin-group[data-id="${segId}"]`);
+      const state = this._getPinState(pin, wires, outputs);
+      const segEl = node.querySelector(`.seg-${segId}`);
+      if (segEl) {
+        segEl.classList.toggle('seg-lit', state === 1);
+      }
+    });
+  }
+
+  _updateLogicAnalyzer(node, wires, outputs) {
+    if (!node._history) {
+        node._history = Array.from({ length: 8 }, () => new Array(50).fill(0));
+    }
+
+    for (let i = 0; i < 8; i++) {
+        const pin = node.querySelector(`.pin-group[data-id="CH${i}"]`);
+        const state = this._getPinState(pin, wires, outputs);
+        
+        // Push to history and shift
+        node._history[i].push(state);
+        node._history[i].shift();
+
+        // Render path
+        const trace = node.querySelector(`.logic-trace-${i}`);
+        if (trace) {
+            const yBase = 35 + i * 15;
+            const step = 3.5; // 175px width / 50 samples
+            let d = `M 45 ${yBase - node._history[i][0] * 8}`;
+            
+            for (let s = 1; s < 50; s++) {
+                const x = 45 + s * step;
+                const y = yBase - node._history[i][s] * 8;
+                const prevY = yBase - node._history[i][s-1] * 8;
+                
+                if (y !== prevY) {
+                    // Vertical transition
+                    d += ` L \${x} \${prevY} L \${x} \${y}`;
+                } else {
+                    d += ` L \${x} \${y}`;
+                }
+            }
+            trace.setAttribute('d', d);
+        }
+    }
+  }
+
+  _getPinState(targetPin, wires, outputs, visited = new Set()) {
+    if (!targetPin || visited.has(targetPin)) return 0;
+    visited.add(targetPin);
+    
+    // 1. Check if this pin itself is a driver (MCU pin)
+    const pinId = targetPin.dataset.id;
+    const node = targetPin.closest('.schematic-node');
+    const match = pinId.match(/^P([A-H])(\d)$/i);
+    if (match && outputs) {
+      const port = match[1].toUpperCase().charCodeAt(0) - 65;
+      const bit = parseInt(match[2]);
+      const idx = port * 8 + bit;
+      return outputs[idx] || 0;
+    }
+
+    // 2. Check if it's a fixed power pin
+    if (['VCC', 'VDD', 'AVCC'].includes(pinId)) return 1;
+    if (['GND', 'VSS', 'AGND'].includes(pinId)) return 0;
+    if (node?.dataset.type === 'vsrc' && pinId === '+') return 1;
+    if (node?.dataset.type === 'vsrc' && pinId === '-') return 0;
+    if (node?.dataset.type === 'gnd') return 0;
+
+    // 3. Traverse all wires connected to this pin
+    for (const wire of wires) {
+      let nextPin = null;
+      if (wire.startPin === targetPin) nextPin = wire.endPin;
+      else if (wire.endPin === targetPin) nextPin = wire.startPin;
+      
+      if (nextPin) {
+        const state = this._getPinState(nextPin, wires, outputs, visited);
+        if (state !== undefined) return state;
+      }
+
+      // Handle Junctions (Wires starting/ending at this wire)
+      // This is more complex, but for now we prioritize direct pin-to-pin
+    }
+
+    // 4. Virtual Supply (Proteus-style)
+    if (['VCC', 'VDD', 'AVCC'].includes(pinId)) return 1;
+    if (['GND', 'VSS', 'AGND'].includes(pinId)) return 0;
+    if (node?.dataset.type === 'vsrc' && pinId === '-') return 0;
+
+    return 0;
   }
 }

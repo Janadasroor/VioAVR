@@ -1,5 +1,6 @@
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/gpio_port.hpp"
+#include "vioavr/core/logger.hpp"
 #include <algorithm>
 #include <vector>
 
@@ -106,8 +107,10 @@ u8 PinChangeInterrupt::read(const u16 address) noexcept
 
 void PinChangeInterrupt::write(const u16 address, const u8 value) noexcept
 {
+    fprintf(stderr, "DEBUG: PCINT0 write addr=0x%04X val=0x%02X\n", address, value);
     if (address == desc_.pcicr_address) {
         shared_state_ptr_->pcicr = value;
+        fprintf(stderr, "DEBUG: PCINT0 PCICR written with 0x%02X at addr 0x%04X (desc says 0x%04X)\n", value, address, desc_.pcicr_address);
     } else if (address == desc_.pcifr_address) {
         shared_state_ptr_->pcifr &= static_cast<u8>(~value);
         if ((shared_state_ptr_->pcifr & desc_.pcifr_flag_mask) == 0U) {
@@ -116,12 +119,15 @@ void PinChangeInterrupt::write(const u16 address, const u8 value) noexcept
     } else if (address == desc_.pcmsk_address) {
         pcmsk_ = value;
     }
+    update_interrupt_pending();
 }
 
 bool PinChangeInterrupt::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
-    if (interrupt_pending_ && (shared_state_ptr_->pcicr & desc_.pcicr_enable_mask) != 0U) {
+    bool enabled = (shared_state_ptr_->pcicr & desc_.pcicr_enable_mask) != 0U;
+    if (interrupt_pending_ && enabled) {
         request = {.vector_index = desc_.vector_index, .source_id = 0U};
+        Logger::debug("PinChangeInterrupt '" + name_ + "' IS REQUESTING interrupt vector " + std::to_string(request.vector_index));
         return true;
     }
     return false;
@@ -135,15 +141,23 @@ bool PinChangeInterrupt::consume_interrupt_request(InterruptRequest& request) no
 
     interrupt_pending_ = false;
     shared_state_ptr_->pcifr &= static_cast<u8>(~desc_.pcifr_flag_mask);
+    update_interrupt_pending();
     return true;
 }
 
 void PinChangeInterrupt::notify_pin_change(const u8 mask) noexcept
 {
     if ((mask & pcmsk_) != 0U) {
+        Logger::debug("PinChangeInterrupt '" + name_ + "' triggered by mask 0x" + Logger::hex(mask));
         shared_state_ptr_->pcifr |= desc_.pcifr_flag_mask;
         interrupt_pending_ = true;
+        update_interrupt_pending();
     }
+}
+
+void PinChangeInterrupt::update_interrupt_pending() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 }  // namespace vioavr::core

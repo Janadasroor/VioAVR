@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 namespace vioavr::core {
+class MemoryBus;
 
 /**
  * @brief Identifies which peripheral currently "owns" a physical pin.
@@ -61,6 +62,7 @@ using PinChangeCallback = std::function<void(u8 port_idx, u8 bit_idx, const PinS
 class PinMux {
 public:
     explicit PinMux(u8 num_ports) noexcept;
+    void set_memory_bus(MemoryBus* bus) noexcept { bus_ = bus; }
 
     /**
      * @brief Claims a pin for a specific peripheral.
@@ -112,6 +114,7 @@ private:
 
     std::vector<std::vector<PinEntry>> ports_;
     std::unordered_map<u16, u8> addr_to_port_;
+    MemoryBus* bus_ {nullptr};
     PinChangeCallback callback_ {};
 
     bool pullup_suppressed_ {false}; // From MCUCR PUD bit
