@@ -1,0 +1,3 @@
+* .spiceinit for ATmega168 co-simulation
+codemodel ../../build/digital.cm
+codemodel ../../build/viospice.cm
