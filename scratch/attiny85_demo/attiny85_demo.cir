@@ -1,0 +1,35 @@
+* VioAVR ATtiny85 Mixed-Signal Dynamic Frequency Demo Netlist
+
+* 1. Analog Input Sweep Signal
+* 500 Hz triangle wave sweeping from 0V to 5V (rise=1ms, fall=1ms, period=2ms)
+* We simulate for 2.0ms to see one complete cycle of frequency shifting (fast -> slow -> fast)!
+V_in adc_in_an 0 pulse(0 5 0 1m 1m 1n 2m)
+
+* 2. Analog-to-Digital Bridge (Schmitt Trigger Hysteresis)
+* Converts the analog sweep into a digital control signal for the MCU's PB1 pin
+* Thresholds: in_low=1.5V (VIL), in_high=3.5V (VIH)
+A_adc_in [adc_in_an] [pb1_dig] adc_model
+.model adc_model adc_bridge(in_low=1.5 in_high=3.5)
+
+* 3. Digital-to-Analog Bridge for the PB0 output pin
+* Converts the digital output of PB0 into an analog voltage for visualization
+A_dac_out [pb0_dig] [pb0_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* 4. VioAVR MCU Block (ATtiny85)
+* digital_pins: [pb0_dig pb1_dig] (PB0 is output at external ID 0, PB1 is input at external ID 1)
+* analog_pins: [adc_in_an] (dummy mapping to satisfy XSpice)
+A_AVR [pb0_dig pb1_dig] [adc_in_an] mcu_model
+.model mcu_model d_vioavr(mcu_type="attiny85" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/attiny85_demo/attiny85_demo.hex")
+
+* 5. SPICE Solver Options and Simulation Controls
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 2.0ms
+
+.control
+codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+run
+* Save simulated nodes to output log for Chart.js
+print v(adc_in_an) v(pb0_an)
+.endc
+.end
