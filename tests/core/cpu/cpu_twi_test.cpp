@@ -61,6 +61,7 @@ TEST_CASE("TWI (I2C) Peripheral Master Mode Test")
         .entry_word = 0U
     });
     cpu.reset();
+    twi.set_rx_buffer({0x00});
 
     SUBCASE("Master Transmission Sequence") {
         // 1. Send START

@@ -1,0 +1,52 @@
+* VioAVR PWM-to-VDMOS Co-Simulation Circuit
+
+* Power Supplies
+V_gate_supply  v12  0  DC 12.0
+V_power_supply v24  0  DC 24.0
+
+* digital-to-analog bridge for AVR Pin PB1 (mapped to external pin 1)
+a_mcu_bridge [pb1_dig] [pb1_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* BJT Gate Driver Circuit
+* Base Resistor
+R_base pb1_an base 1k
+* NPN BJT
+Q_driver gate_vdmos base 0 Q2N2222
+* Gate Pull-up to 12V
+R_pullup v12 gate_vdmos 470
+
+* VDMOS Power Stage
+* VDMOS Transistor (Drain Gate Source Bulk)
+M_power drain_vdmos gate_vdmos 0 0 IRF540
+* Load Resistor (10 ohms -> 2.4A at 24V)
+R_load v24 drain_vdmos 10
+
+* VVDMOS Feedback divider (6:1 scale factor: 20k and 4k divide 24V down to 4V max)
+* C_filter (10nF) forms a low-pass filter with 3.3k Thévenin resistance, giving tau = 33.3us.
+R_div1 drain_vdmos v_sense 20k
+R_div2 v_sense 0 4k
+C_filter v_sense 0 10n
+
+* VioAVR MCU Block
+* Vector ports: [digital_pins] [analog_pins]
+A_AVR [nc pb1_dig] [v_sense] mcu_model
+.model mcu_model d_vioavr(mcu_type="atmega328" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/pwm_vdmos_demo/pwm_driver.hex")
+
+* Transistor Models
+.model Q2N2222 NPN(Is=14.34f Xti=3 Eg=1.11 Vaf=74.03 Bf=255.9 Ne=1.307
++ Ise=14.34f Ikf=.2847 Xtb=1.5 Br=6.092 Nc=2 Isc=0 Ikr=0 Rc=1
++ Cjc=7.306p Mjc=.3416 Vjc=.75 Fc=.5 Cje=22.01p Mje=.377 Vje=.75
++ Tr=46.91n Tf=411.1p Itf=.6 Vtf=1.7 Xtf=3 Rb=10)
+
+.model IRF540 VDMOS(Rg=1.0 Vto=3.0 Rd=40m Rs=10m Rb=20m Kp=8.0 Lambda=10m
++ Cgdmax=1.0n Cgdmin=0.1n Cgs=1.5n Cds=0.5n Is=1e-12 Q=1.5)
+
+* Simulation Controls
+.tran 1us 1.5ms
+.control
+codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+run
+print v(pb1_an) v(gate_vdmos) v(drain_vdmos)
+.endc
+.end

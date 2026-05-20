@@ -15,6 +15,7 @@ target_include_directories(vioavr_custom_avr_test PRIVATE
 
 # Add to test suite
 add_test(NAME vioavr_custom_avr_full_suite COMMAND vioavr_custom_avr_test)
+set_tests_properties(vioavr_custom_avr_full_suite PROPERTIES TIMEOUT 45)
 
 # Individual test categories (can run separately)
 add_test(NAME vioavr_custom_memory_map 
@@ -37,3 +38,17 @@ add_test(NAME vioavr_custom_reset
          COMMAND vioavr_custom_avr_test -tc="*[CustomAVR]*Reset State*")
 add_test(NAME vioavr_custom_priority 
          COMMAND vioavr_custom_avr_test -tc="*[CustomAVR]*Pin Mux Priority*")
+
+set_tests_properties(
+    vioavr_custom_memory_map
+    vioavr_custom_gpio_map
+    vioavr_custom_timer_map
+    vioavr_custom_uart_map
+    vioavr_custom_pin_mux
+    vioavr_custom_interrupts
+    vioavr_custom_functional
+    vioavr_custom_timing
+    vioavr_custom_reset
+    vioavr_custom_priority
+    PROPERTIES TIMEOUT 45
+)
