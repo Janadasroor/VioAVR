@@ -135,6 +135,7 @@
 #include "vioavr/core/devices/atmega8u2.hpp"
 #include "vioavr/core/devices/atmegas128.hpp"
 #include "vioavr/core/devices/atmegas64m1.hpp"
+#include "vioavr/core/devices/attiny85.hpp"
 
 namespace vioavr::core {
 
@@ -284,6 +285,7 @@ const DeviceDescriptor* DeviceCatalog::find(std::string_view name) noexcept {
         &devices::atmega8u2,
         &devices::atmegas128,
         &devices::atmegas64m1,
+        &devices::attiny85,
     };
 
     for (const auto* device : catalog) {
@@ -433,6 +435,7 @@ std::vector<std::string_view> DeviceCatalog::list_devices() noexcept {
         devices::atmegas128.name,
         devices::atmegas64m1.name,
         devices::at90pwm316.name,
+        devices::attiny85.name,
     };
 }
 

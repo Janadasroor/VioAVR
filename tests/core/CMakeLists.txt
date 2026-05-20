@@ -165,6 +165,7 @@ set(TEST_SOURCES
     usb/usb_protocol_fidelity_test.cpp
     usb/usb_set_address_fidelity_test.cpp
     viospice/bridge_shm_test.cpp
+    viospice/attiny_shm_test.cpp
     viospice/viospice_timer2_async_test.cpp
 )
 
