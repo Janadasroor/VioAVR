@@ -34,6 +34,7 @@ void VcdWriter::write_header() {
     file_ << "$enddefinitions $end\n";
     file_ << "$dumpvars\n";
     file_ << "$end\n";
+    file_.flush();
 }
 
 void VcdWriter::update_signal(const std::string& id, uint64_t value) {
@@ -58,6 +59,7 @@ void VcdWriter::next_timestamp(uint64_t ns) {
     if (ns > current_time_) {
         current_time_ = ns;
         file_ << "#" << current_time_ << "\n";
+        file_.flush();
     }
 }
 

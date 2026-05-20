@@ -2,6 +2,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/timer16.hpp"
+#include "vioavr/core/adc.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -41,6 +42,14 @@ void AnalogComparator::on_event(u64 cycle) noexcept {
             // Notify interested peripherals
             for (auto* psc : psc_fault_listeners_) {
                 psc->notify_fault(output_high_);
+            }
+
+            if (input_capture_timer_ && (acsr_ & desc_.acic_mask)) {
+                input_capture_timer_->notify_input_capture(output_high_);
+            }
+
+            if (auto_trigger_adc_) {
+                auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::analog_comparator);
             }
 
             const u8 mode = interrupt_mode();
@@ -149,10 +158,20 @@ void AnalogComparator::evaluate_output() noexcept {
                 bus_->scheduler().cancel(ac_callback, this);
                 bus_->scheduler().schedule(delay_counter_, ac_callback, this);
                 pending_ = true;
+            } else {
+                const bool old_output = output_high_;
+                output_high_ = raw_output_;
+                if (output_high_ != old_output) {
+                    for (auto* psc : psc_fault_listeners_) {
+                        psc->notify_fault(output_high_);
+                    }
+                }
             }
         } else {
             delay_counter_ = 0;
-            if (bus_) bus_->scheduler().cancel(ac_callback, this);
+            if (bus_) {
+                bus_->scheduler().cancel(ac_callback, this);
+            }
             pending_ = false;
         }
     }

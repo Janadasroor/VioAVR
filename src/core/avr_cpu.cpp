@@ -198,6 +198,22 @@ void AvrCpu::run(const u64 cycle_budget)
              instruction.word_size = 1U;
         }
         
+        if (trace_hook_ != nullptr) {
+            if (pending_cycles > 0) {
+                advance_cycles(pending_cycles);
+                pending_cycles = 0;
+            }
+            std::string_view mnemonic = descriptor.mnemonic;
+            if (mnemonic == "AND" && 
+                decode_destination_register(opcode) == decode_source_register(opcode)) {
+                mnemonic = "TST";
+            }
+            trace_hook_->on_instruction(instruction.word_address, instruction.opcode, mnemonic);
+            if (state_ == CpuState::paused) {
+                break;
+            }
+        }
+        
         switch (descriptor_index) {
         case 0: // NOP
             program_counter_ = instruction.word_address + 1U;
@@ -345,6 +361,7 @@ void AvrCpu::run(const u64 cycle_budget)
         if (pending_cycles >= 1) {
             advance_cycles(pending_cycles);
             pending_cycles = 0;
+            synchronize_if_needed();
             if (interrupt_pending_) break;
         }
     }
@@ -450,6 +467,8 @@ void AvrCpu::step()
         return;
     }
 
+    refresh_interrupt_pending();
+
     if (state_ == CpuState::sleeping) {
         if (!interrupt_pending_) {
             advance_cycles(1U);
@@ -499,6 +518,18 @@ void AvrCpu::step()
              instruction.words[1] = static_cast<u16>(bus_->read_program_word(program_counter_ + 1U));
         } else {
              instruction.word_size = 1U;
+        }
+        
+        if (trace_hook_ != nullptr) {
+            std::string_view mnemonic = descriptor.mnemonic;
+            if (mnemonic == "AND" && 
+                decode_destination_register(opcode) == decode_source_register(opcode)) {
+                mnemonic = "TST";
+            }
+            trace_hook_->on_instruction(instruction.word_address, instruction.opcode, mnemonic);
+            if (state_ == CpuState::paused) {
+                return;
+            }
         }
         
         (this->*descriptor.handler)(instruction);

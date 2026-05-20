@@ -84,21 +84,39 @@ void Timer16::reset() noexcept {
     noise_canceler_register_ = 0U;
     noise_canceler_counter_ = 0U;
     cycle_accumulator_ = 0U;
-    last_sync_cycle_ = bus_ ? bus_->cpu_cycles() : 0U;
+    last_sync_cycle_ = bus_ ? bus_->domain_cycles(clock_domain()) : 0U;
     update_pin_ownership();
 }
 
 void Timer16::tick(u64 elapsed_cycles) noexcept {
-    (void)elapsed_cycles;
+    if (power_reduction_enabled()) return;
+
+    const u8 cs = tccrb_ & desc_.cs_mask;
+    if (cs == 0) return; // Stopped
+    
+    if (cs <= 5) {
+        static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
+        const u16 divisor = prescalers[cs];
+        
+        cycle_accumulator_ += elapsed_cycles;
+        const u64 ticks = cycle_accumulator_ / divisor;
+        cycle_accumulator_ %= divisor;
+
+        for (u64 i = 0; i < ticks; ++i) {
+            perform_tick();
+        }
+    }
 }
 
 void Timer16::sync() noexcept {
     if (!bus_) return;
-    const u64 current = bus_->cpu_cycles();
+    const u64 current = bus_->domain_cycles(clock_domain());
     if (current <= last_sync_cycle_) return;
     
     const u64 elapsed = current - last_sync_cycle_;
     last_sync_cycle_ = current;
+
+    if (power_reduction_enabled()) return;
 
     const u8 cs = tccrb_ & desc_.cs_mask;
     if (cs == 0) return; // Stopped
@@ -118,47 +136,14 @@ void Timer16::sync() noexcept {
 }
 
 void Timer16::perform_tick() noexcept {
-    // 1. Input Capture
-    if (pin_icp_) {
-        bool current_level = (pin_icp_->port->read(pin_icp_->port->pin_address()) & (1U << pin_icp_->bit)) != 0;
-        
-        if (!icp_initialized_) {
-            last_icp_state_ = current_level;
-            noise_canceler_register_ = current_level ? 1 : 0;
-            noise_canceler_counter_ = 10;
-            icp_initialized_ = true;
-        }
-
-        if (tccrb_ & desc_.icnc_mask) {
-            if (current_level == (bool)(noise_canceler_register_ & 1)) {
-                if (++noise_canceler_counter_ >= 4) {
-                    bool edge_level = current_level;
-                    const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
-                    if (edge_level != (bool)last_icp_state_) {
-                        if (edge_level == rising_edge) handle_input_capture();
-                        last_icp_state_ = edge_level;
-                    }
-                }
-            } else {
-                noise_canceler_register_ = current_level ? 1 : 0;
-                noise_canceler_counter_ = 1;
-            }
-        } else {
-            const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
-            if (current_level != (bool)last_icp_state_) {
-                if (current_level == rising_edge) handle_input_capture();
-                last_icp_state_ = current_level;
-            }
-        }
-    }
-
-    // 2. Timer Counter Update
+    // 1. Timer Counter Update
     u16 top = 0xFFFFU;
     bool update_ocr_at_top = false;
     bool update_ocr_at_bottom = false;
     bool is_phase_correct = false;
 
     u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
+    // printf("[Timer16 perform_tick] tcnt=%u, ocra=%u, wgm=%u, tccra=0x%02X, tccrb=0x%02X\n", tcnt_, ocra_, wgm, tccra_, tccrb_);
     switch (wgm) {
         case 0:  top = 0xFFFFU; break;
         case 1:  top = 0x00FFU; is_phase_correct = true; update_ocr_at_top = true; break;
@@ -203,6 +188,7 @@ void Timer16::perform_tick() noexcept {
             tifr_ |= kTov1;
             if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; }
             for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.overflow_trigger_source);
+            update_pwm_pins(); // Set pin HIGH at BOTTOM for Fast PWM non-inverting (COM=2)
         } else {
             tcnt_++;
         }
@@ -223,6 +209,40 @@ void Timer16::perform_tick() noexcept {
         tifr_ |= kOcf1c;
         update_pwm_pins();
         for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.compare_c_trigger_source);
+    }
+
+    // 2. Input Capture (run after counter update to capture the updated TCNT value)
+    if (pin_icp_) {
+        bool current_level = (pin_icp_->port->read(pin_icp_->port->pin_address()) & (1U << pin_icp_->bit)) != 0;
+        
+        if (!icp_initialized_) {
+            last_icp_state_ = current_level;
+            noise_canceler_register_ = current_level ? 1 : 0;
+            noise_canceler_counter_ = 10;
+            icp_initialized_ = true;
+        }
+
+        if (tccrb_ & desc_.icnc_mask) {
+            if (current_level == (bool)(noise_canceler_register_ & 1)) {
+                if (++noise_canceler_counter_ >= 4) {
+                    bool edge_level = current_level;
+                    const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
+                    if (edge_level != (bool)last_icp_state_) {
+                        if (edge_level == rising_edge) handle_input_capture();
+                        last_icp_state_ = edge_level;
+                    }
+                }
+            } else {
+                noise_canceler_register_ = current_level ? 1 : 0;
+                noise_canceler_counter_ = 1;
+            }
+        } else {
+            const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
+            if (current_level != (bool)last_icp_state_) {
+                if (current_level == rising_edge) handle_input_capture();
+                last_icp_state_ = current_level;
+            }
+        }
     }
 }
 
@@ -284,6 +304,7 @@ void Timer16::write(u16 address, u8 value) noexcept {
 void Timer16::recalculate_event() noexcept {
     if (!bus_) return;
     bus_->scheduler().cancel(timer16_callback, this);
+    if (power_reduction_enabled()) return;
     const u8 cs = tccrb_ & desc_.cs_mask;
     if (cs == 0 || cs > 5) return;
 
@@ -328,12 +349,19 @@ bool Timer16::on_external_pin_change(u16 address, u8 bit, PinLevel level) noexce
 
 void Timer16::update_pin_ownership() noexcept {
     if (!pin_mux_) return;
-    auto claim = [&](const std::optional<BoundPin>& pin) {
-        if (pin) pin_mux_->claim_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer);
+
+    auto update_ownership = [&](const std::optional<BoundPin>& pin, u8 com) {
+        if (!pin) return;
+        if (com != 0) {
+            pin_mux_->claim_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer);
+        } else {
+            pin_mux_->release_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer);
+        }
     };
-    claim(pin_a_);
-    claim(pin_b_);
-    claim(pin_c_);
+
+    update_ownership(pin_a_, (tccra_ >> 6) & 0x03);
+    update_ownership(pin_b_, (tccra_ >> 4) & 0x03);
+    update_ownership(pin_c_, (tccra_ >> 2) & 0x03);
 }
 
 void Timer16::update_pwm_pins() noexcept {
@@ -375,6 +403,17 @@ bool Timer16::consume_interrupt_request(InterruptRequest& request) noexcept {
     else if (request.vector_index == desc_.compare_c_vector_index) tifr_ &= ~kOcf1c;
     else if (request.vector_index == desc_.overflow_vector_index) tifr_ &= ~kTov1;
     return true;
+}
+
+bool Timer16::power_reduction_enabled() const noexcept {
+    if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
+        return false;
+    }
+    return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
+}
+
+void Timer16::on_power_state_change() noexcept {
+    recalculate_event();
 }
 
 } // namespace vioavr::core

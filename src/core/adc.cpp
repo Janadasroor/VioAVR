@@ -73,8 +73,14 @@ void Adc::reset() noexcept {
 }
 
 void Adc::tick(u64 elapsed_cycles) noexcept {
-    (void)elapsed_cycles;
-    // Tick is no longer used, logic moved to start_conversion and on_event
+    if (!converting_) return;
+
+    if (elapsed_cycles >= cycles_remaining_) {
+        cycles_remaining_ = 0;
+        complete_conversion();
+    } else {
+        cycles_remaining_ -= static_cast<u16>(elapsed_cycles);
+    }
 }
 
 u8 Adc::read(u16 address) noexcept {

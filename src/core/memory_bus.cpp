@@ -51,6 +51,7 @@ void MemoryBus::reset() noexcept
     spm_busy_cycles_left_ = 0U;
     flash_rww_busy_ = false;
     scheduler_.reset();
+    domain_gated_cycles_.fill(0U);
     // Do NOT clear loaded_program_words_ here, it should survive reset
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
@@ -115,6 +116,13 @@ void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
     }
 }
 
+void MemoryBus::register_ticking_peripheral(IoPeripheral& peripheral) noexcept
+{
+    if (std::find(ticking_peripherals_.begin(), ticking_peripherals_.end(), &peripheral) == ticking_peripherals_.end()) {
+        ticking_peripherals_.push_back(&peripheral);
+    }
+}
+
 void MemoryBus::load_flash(std::span<const u16> words)
 {
     const std::size_t count = std::min(words.size(), flash_.size());
@@ -132,8 +140,13 @@ void MemoryBus::load_image(const HexImage& image)
 
 
 void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept {
-    (void)active_domains;
     if (elapsed_cycles == 0) return;
+
+    for (size_t i = 1; i < 256; ++i) {
+        if ((active_domains & i) == 0U) {
+            domain_gated_cycles_[i] += elapsed_cycles;
+        }
+    }
 
     if (io_stall_cycles_ > 0U) {
         if (elapsed_cycles >= io_stall_cycles_) {
@@ -154,12 +167,15 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
         }
     }
 
+    for (auto* peripheral : ticking_peripherals_) {
+        const u8 domain_bit = static_cast<u8>(peripheral->clock_domain());
+        if (domain_bit == 0U || (active_domains & domain_bit) != 0U) {
+            peripheral->tick(elapsed_cycles);
+        }
+    }
+
     const u64 target = scheduler_.current_cycle() + elapsed_cycles;
     scheduler_.advance_to(target);
-
-    for (auto* peripheral : ticking_peripherals_) {
-        peripheral->tick(elapsed_cycles);
-    }
 
     if (spm_busy_cycles_left_ > 0U) {
         if (elapsed_cycles >= spm_busy_cycles_left_) {

@@ -119,6 +119,7 @@ public:
         if (flag_s_) val |= 0x10U;
         if (flag_h_) val |= 0x20U;
         if (flag_t_) val |= 0x40U;
+        if (flag_i_) val |= 0x80U;
         return val;
     }
 

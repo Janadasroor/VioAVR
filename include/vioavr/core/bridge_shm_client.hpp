@@ -16,6 +16,7 @@ public:
     bool is_connected() const { return shm_ != nullptr; }
 
     void reset();
+    void load_hex(const std::string& path);
     void step(double delta_time_seconds);
     void step_cycles(uint64_t cycles);
 
@@ -43,10 +44,14 @@ public:
         return false;
     }
 
+    uint64_t get_last_target_cycles() const { return last_target_cycles_; }
+    void set_last_target_cycles(uint64_t cycles) { last_target_cycles_ = cycles; }
+
 private:
     std::string shm_name_;
     int shm_fd_ {-1};
     VioBridgeShm* shm_ {nullptr};
+    uint64_t last_target_cycles_ {0};
 
     void signal_and_wait();
 };

@@ -51,6 +51,26 @@ BridgeShmServer::BridgeShmServer(const DeviceDescriptor& device, std::string ins
         throw std::runtime_error("Failed to init ack semaphore");
     }
 
+    // Setup default pin mapping matching XSpice/VioAVR standard
+    if (avr_.bus().device().name == "ATmega3290A" || avr_.bus().device().name == "ATmega3290P") {
+        for (int i = 0; i < 8; i++) avr_.add_pin_mapping("PORTA", i, i);
+        for (int i = 0; i < 8; i++) avr_.add_pin_mapping("PORTC", i, 8 + i);
+        for (int i = 0; i < 8; i++) avr_.add_pin_mapping("PORTD", i, 16 + i);
+    } else {
+        for (int i = 0; i < 8; i++) avr_.add_pin_mapping("PORTB", i, i);
+        for (int i = 0; i < 8; i++) avr_.add_pin_mapping("PORTC", i, 8 + i);
+        for (int i = 0; i < 8; i++) avr_.add_pin_mapping("PORTD", i, 16 + i);
+    }
+
+    // Enable VCD Tracing by default
+    vcd_writer_ = std::make_unique<VcdWriter>("trace.vcd");
+    for (int i = 0; i < 32; i++) {
+        vcd_writer_->add_signal("pin_" + std::to_string(i), 1, "p" + std::to_string(i));
+    }
+    vcd_writer_->add_signal("pc", 16, "pc");
+    vcd_writer_->write_header();
+    std::cout << "VCD Tracing enabled -> trace.vcd" << std::endl;
+
     std::cout << "VioAVR Shm Bridge Server started at " << shm_name_ << std::endl;
 }
 
@@ -186,12 +206,18 @@ void BridgeShmServer::handle_step() {
 
 void BridgeShmServer::handle_command(uint32_t cmd) {
     if (cmd & 0x01) { // RESET
+        std::cout << "[DEBUG] Received command: RESET" << std::endl;
         avr_.reset();
     }
     if (cmd & 0x02) { // LOAD_HEX
         std::string hex_path(shm_->command_arg);
+        std::cout << "[DEBUG] Received command: LOAD_HEX path='" << hex_path << "'" << std::endl;
         if (!hex_path.empty()) {
-            avr_.load_hex(hex_path);
+            bool ok = avr_.load_hex(hex_path);
+            std::cout << "[DEBUG] Load HEX success status: " << (ok ? "SUCCESS" : "FAILED") << std::endl;
+            if (ok) {
+                avr_.reset();
+            }
         }
     }
     if (cmd & (1 << 16)) { // TOGGLE_VCD

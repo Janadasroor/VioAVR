@@ -3,7 +3,7 @@
 
 namespace vioavr::core {
 
-PllController::PllController(u16 address) : address_(address) {
+PllController::PllController(u16 address) : address_(address), pllcsr_(0), lock_delay_remaining_(0) {
     ranges_[0] = {address, address};
 }
 

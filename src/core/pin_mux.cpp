@@ -7,7 +7,8 @@ namespace vioavr::core {
 
 PinMux::PinMux(u8 num_ports) noexcept
 {
-    ports_.resize(num_ports);
+    u8 actual_ports = (num_ports > 16) ? num_ports : 16;
+    ports_.resize(actual_ports);
     for (auto& port : ports_) {
         port.resize(8); // Standard AVR ports have 8 pins
         for (auto& pin : port) {
@@ -170,8 +171,6 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
             }
         }
     }
-    Logger::debug("PinMux::reevaluate_ownership port=" + std::to_string(port_idx) + " bit=" + std::to_string(bit_idx) + " claims=0x" + Logger::hex(entry.active_claims) + " owner=" + std::to_string((int)highest_owner));
-
     entry.state.owner = highest_owner;
     
     // Check if any owner wants Wired-AND

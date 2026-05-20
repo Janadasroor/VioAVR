@@ -35,7 +35,11 @@ document.addEventListener('DOMContentLoaded', () => {
         'pd6_an': '#9b59b6', // Amethyst Purple
         'pd7_an': '#e84393', // Magenta
         'adc_in_an': '#00d2ff', // Neon Cyan (Analog Input)
-        'v_dac': '#39ff14'    // Bright Neon Green (Staircase DAC Output)
+        'v_dac': '#39ff14',    // Bright Neon Green (Staircase DAC Output)
+        'pa0_an': '#00d2ff',   // Neon Electric Cyan (COM0)
+        'pa4_an': '#ff4757',   // Neon Coral Red (SEG0)
+        'pc5_an': '#39ff14',   // Neon Electric Green (SEG11)
+        'pd7_an': '#ffa502'    // Neon Orange (SEG19)
     };
 
     // Load available netlists on startup

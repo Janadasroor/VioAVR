@@ -40,4 +40,4 @@ Integrate VioAVR with ngspice (via XSPICE) to enable cycle-accurate mixed-mode c
 6. [DONE] Rebuild all apps and tests successfully.
 7. [DONE] Implement Shared Memory Bridge (SHM) for high-fidelity co-simulation.
 8. [DONE] Successfully built the `viospice.cm` plugin using discoverable local ngspice headers.
-9. [TODO] Implement Voltage-to-Logic threshold mapping based on datasheet Vih/Vil.
+9. [DONE] Implement Voltage-to-Logic threshold mapping based on datasheet Vih/Vil.

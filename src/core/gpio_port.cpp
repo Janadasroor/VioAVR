@@ -335,9 +335,15 @@ void GpioPort::update_pin_latched() noexcept
 }
 
 void GpioPort::bind_input_signal(const u8 bit_index, const AnalogSignalBank& bank, const u8 channel,
-                                 const DigitalThresholdConfig threshold) noexcept
+                                 DigitalThresholdConfig threshold) noexcept
 {
     if (bit_index >= 8) return;
+    
+    // Adapt default thresholds to device's datasheet factors if attached to a bus
+    if (threshold.low_threshold == 0.3 && threshold.high_threshold == 0.6 && bus_ != nullptr) {
+        threshold.low_threshold = bus_->device().vil_factor;
+        threshold.high_threshold = bus_->device().vih_factor;
+    }
     
     pin_bindings_[bit_index] = {
         .bank = &bank,
@@ -346,6 +352,9 @@ void GpioPort::bind_input_signal(const u8 bit_index, const AnalogSignalBank& ban
         .active = true
     };
     has_analog_binding_[bit_index] = true;
+    if (bus_ != nullptr) {
+        bus_->register_ticking_peripheral(*this);
+    }
     (void)sample_levels();
 }
 
@@ -355,7 +364,16 @@ void GpioPort::set_input_voltage(const u8 bit_index, const double normalized_vol
     pin_voltages_[bit_index] = normalized_voltage;
     has_voltage_input_[bit_index] = true;
     
-    apply_pin_voltage(bit_index, normalized_voltage, pin_bindings_[bit_index].threshold);
+    if (bus_ != nullptr) {
+        bus_->register_ticking_peripheral(*this);
+    }
+    
+    auto threshold = pin_bindings_[bit_index].threshold;
+    if (threshold.low_threshold == 0.3 && threshold.high_threshold == 0.6 && bus_ != nullptr) {
+        threshold.low_threshold = bus_->device().vil_factor;
+        threshold.high_threshold = bus_->device().vih_factor;
+    }
+    apply_pin_voltage(bit_index, normalized_voltage, threshold);
 }
 
 u8 GpioPort::sample_levels() noexcept
@@ -363,7 +381,12 @@ u8 GpioPort::sample_levels() noexcept
     for (u8 i = 0; i < 8; ++i) {
         if (has_analog_binding_[i]) {
             const double voltage = pin_bindings_[i].bank->voltage(pin_bindings_[i].channel);
-            apply_pin_voltage(i, voltage, pin_bindings_[i].threshold);
+            auto threshold = pin_bindings_[i].threshold;
+            if (threshold.low_threshold == 0.3 && threshold.high_threshold == 0.6 && bus_ != nullptr) {
+                threshold.low_threshold = bus_->device().vil_factor;
+                threshold.high_threshold = bus_->device().vih_factor;
+            }
+            apply_pin_voltage(i, voltage, threshold);
         }
     }
     return pin_latched_;

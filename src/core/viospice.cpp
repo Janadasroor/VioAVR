@@ -56,7 +56,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         // Connect PWM output pins if defined in descriptor
         if (desc.ocra_pin_address != 0) {
             for (auto* port : ports_) {
-                if (port->pin_address() == desc.ocra_pin_address) {
+                if (port->port_address() == desc.ocra_pin_address || port->pin_address() == desc.ocra_pin_address) {
                     timer->connect_compare_output_a(*port, desc.ocra_pin_bit);
                     break;
                 }
@@ -64,7 +64,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         }
         if (desc.ocrb_pin_address != 0) {
             for (auto* port : ports_) {
-                if (port->pin_address() == desc.ocrb_pin_address) {
+                if (port->port_address() == desc.ocrb_pin_address || port->pin_address() == desc.ocrb_pin_address) {
                     timer->connect_compare_output_b(*port, desc.ocrb_pin_bit);
                     break;
                 }
@@ -76,8 +76,42 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     }
 
     for (u8 i = 0; i < device.timer16_count; ++i) {
-        auto timer = std::make_unique<Timer16>("TIMER16_" + std::to_string(i), device.timers16[i], &pin_mux_);
-        bus_.attach_peripheral(*timer.release());
+        const auto& desc16 = device.timers16[i];
+        auto timer = std::make_unique<Timer16>("TIMER16_" + std::to_string(i), desc16, &pin_mux_);
+        timer->set_bus(bus_);
+
+        // Connect compare output pins (OC1A, OC1B, OC1C) to the GPIO ports
+        if (desc16.ocra_pin_address != 0) {
+            for (auto* port : ports_) {
+                fprintf(stderr, "[VioSpice DBG] Timer16 OC1A: port=%s port_addr=0x%04X pin_addr=0x%04X desc_addr=0x%04X\n",
+                        port->name().data(), port->port_address(), port->pin_address(), desc16.ocra_pin_address);
+                if (port->port_address() == desc16.ocra_pin_address || port->pin_address() == desc16.ocra_pin_address) {
+                    fprintf(stderr, "[VioSpice DBG] CONNECTED OC1A to %s bit %u\n",
+                            port->name().data(), desc16.ocra_pin_bit);
+                    timer->connect_compare_output_a(*port, desc16.ocra_pin_bit);
+                    break;
+                }
+            }
+        }
+        if (desc16.ocrb_pin_address != 0) {
+            for (auto* port : ports_) {
+                if (port->port_address() == desc16.ocrb_pin_address || port->pin_address() == desc16.ocrb_pin_address) {
+                    timer->connect_compare_output_b(*port, desc16.ocrb_pin_bit);
+                    break;
+                }
+            }
+        }
+        if (desc16.ocrc_pin_address != 0) {
+            for (auto* port : ports_) {
+                if (port->port_address() == desc16.ocrc_pin_address || port->pin_address() == desc16.ocrc_pin_address) {
+                    timer->connect_compare_output_c(*port, desc16.ocrc_pin_bit);
+                    break;
+                }
+            }
+        }
+
+        bus_.attach_peripheral(*timer);
+        owned_peripherals_.push_back(std::move(timer));
     }
 
     // 3. Analog
@@ -142,14 +176,14 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(lcd));
     }
 
-    static constexpr std::string_view kPortNames[] = {
-        "PORTA", "PORTB", "PORTC", "PORTD", "PORTE", "PORTF", "PORTG", "PORTH", "PORTI", "PORTJ", "PORTK", "PORTL"
-    };
-
     pin_mux_.set_callback([this](u8 port_idx, u8 bit_idx, const PinState& state) {
+        static const std::string port_names[] = {
+            "PORTA", "PORTB", "PORTC", "PORTD", "PORTE", "PORTF", "PORTG", "PORTH",
+            "PORTI", "PORTJ", "PORTK", "PORTL", "PORTM", "PORTN", "PORTO", "PORTP"
+        };
         PinStateChange change;
-        if (port_idx < (sizeof(kPortNames) / sizeof(kPortNames[0]))) {
-            change.port_name = kPortNames[port_idx];
+        if (port_idx < 16) {
+            change.port_name = port_names[port_idx];
         } else {
             change.port_name = "PORT?";
         }
