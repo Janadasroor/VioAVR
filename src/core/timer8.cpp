@@ -79,6 +79,7 @@ void Timer8::reset() noexcept
     cycle_accumulator_ = 0U;
     last_clk_pin_state_ = 0U;
     update_pin_ownership();
+    update_interrupt_state();
 }
 
 void Timer8::tick(const u64 elapsed_cycles) noexcept
@@ -230,8 +231,14 @@ void Timer8::write(const u16 address, const u8 value) noexcept
     else if (address == desc_.assr_address) {
         assr_ = static_cast<u8>((assr_ & (desc_.as2_mask | desc_.exclk_mask | desc_.tcn2ub_mask | desc_.ocr2aub_mask | desc_.ocr2bub_mask | desc_.tcr2aub_mask | desc_.tcr2bub_mask)) | (value & (desc_.as2_mask | desc_.exclk_mask)));
     }
-    else if (address == desc_.timsk_address) timsk_ = value;
-    else if (address == desc_.tifr_address) tifr_ &= static_cast<u8>(~value);
+    else if (address == desc_.timsk_address) {
+        timsk_ = value;
+        update_interrupt_state();
+    }
+    else if (address == desc_.tifr_address) {
+        tifr_ &= static_cast<u8>(~value);
+        update_interrupt_state();
+    }
 }
 
 bool Timer8::pending_interrupt_request(InterruptRequest& request) const noexcept
@@ -257,6 +264,7 @@ bool Timer8::consume_interrupt_request(InterruptRequest& request) noexcept
         if (request.vector_index == desc_.compare_a_vector_index) tifr_ &= ~desc_.compare_a_enable_mask;
         else if (request.vector_index == desc_.compare_b_vector_index) tifr_ &= ~desc_.compare_b_enable_mask;
         else tifr_ &= ~desc_.overflow_enable_mask;
+        update_interrupt_state();
         return true;
     }
     return false;
@@ -394,6 +402,7 @@ void Timer8::connect_dac_auto_trigger(Dac& dac) noexcept
 void Timer8::handle_compare_match_a() noexcept
 {
     tifr_ |= desc_.compare_a_enable_mask;
+    update_interrupt_state();
     
     PinAction action = get_pin_action_a();
     if (mode_ == Mode::pc_pwm_ff || mode_ == Mode::pc_pwm_ocra) {
@@ -417,12 +426,14 @@ void Timer8::handle_compare_match_a() noexcept
 void Timer8::handle_compare_match_b() noexcept
 {
     tifr_ |= desc_.compare_b_enable_mask;
+    update_interrupt_state();
     apply_pin_action(pin_b_, get_pin_action_b());
 }
 
 void Timer8::handle_overflow() noexcept
 {
     tifr_ |= desc_.overflow_enable_mask;
+    update_interrupt_state();
     if (adc_overflow_trigger_) {
         adc_overflow_trigger_->notify_auto_trigger(desc_.overflow_trigger_source);
     }
@@ -524,6 +535,21 @@ void Timer8::retire_async_busy(const u64 cycles) noexcept
         async_busy_countdown_ = 0;
         assr_ &= static_cast<u8>(desc_.as2_mask | desc_.exclk_mask);
     }
+}
+
+void Timer8::update_interrupt_state() noexcept
+{
+    bool pending = false;
+    if ((tifr_ & desc_.compare_a_enable_mask) && (timsk_ & desc_.compare_a_enable_mask)) {
+        pending = true;
+    }
+    else if ((tifr_ & desc_.compare_b_enable_mask) && (timsk_ & desc_.compare_b_enable_mask)) {
+        pending = true;
+    }
+    else if ((tifr_ & desc_.overflow_enable_mask) && (timsk_ & desc_.overflow_enable_mask)) {
+        pending = true;
+    }
+    set_interrupt_pending(pending);
 }
 
 }  // namespace vioavr::core

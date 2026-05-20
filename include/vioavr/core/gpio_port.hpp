@@ -37,6 +37,7 @@ public:
     [[nodiscard]] bool consume_pin_change(PinStateChange& change) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     void set_input_levels(u8 levels) noexcept;
 
@@ -54,6 +55,7 @@ public:
 private:
     void apply_pin_voltage(u8 bit_index, double voltage, DigitalThresholdConfig threshold) noexcept;
     void update_pin_latched() noexcept;
+    void update_interrupt_state() noexcept;
 
     PinMux* pin_mux_ {};
     std::string name_;

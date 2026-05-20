@@ -35,6 +35,7 @@ public:
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
     
     void sync() noexcept override;
     void on_power_state_change() noexcept override;
@@ -101,6 +102,7 @@ private:
     u8 noise_canceler_counter_ {0};
     u64 cycle_accumulator_ {0};
     u64 last_sync_cycle_ {0};
+    void update_interrupt_state() noexcept;
 };
 
 } // namespace vioavr::core

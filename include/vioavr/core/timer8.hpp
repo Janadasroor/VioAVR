@@ -49,6 +49,7 @@ public:
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     [[nodiscard]] ClockDomain clock_domain() const noexcept override;
 
@@ -91,6 +92,7 @@ private:
     [[nodiscard]] PinAction get_pin_action_a() const noexcept;
     [[nodiscard]] PinAction get_pin_action_b() const noexcept;
     void update_pin_ownership() noexcept;
+    void update_interrupt_state() noexcept;
 
     PinMux* pin_mux_ {};
     std::string name_;

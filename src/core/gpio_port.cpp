@@ -90,6 +90,7 @@ void GpioPort::reset() noexcept
     prev_external_levels_ = 0U;
     pending_changes_mask_ = 0U;
     intflags_ = 0U;
+    update_interrupt_state();
     pin_ctrl_.fill(0U);
 
     if (pin_mux_) {
@@ -108,7 +109,10 @@ void GpioPort::tick(const u64 elapsed_cycles) noexcept
 
 u8 GpioPort::read(const u16 address) noexcept
 {
+    const bool is_rmw = (bus_ != nullptr && bus_->in_rmw());
+
     if (address == desc_.pin_address) {
+        if (is_rmw) return 0x00U;
         update_pin_latched();
         return pin_latched_;
     }
@@ -129,6 +133,7 @@ u8 GpioPort::read(const u16 address) noexcept
         if (address == desc_.vport_base + 0) return ddr_;
         if (address == desc_.vport_base + 1) return port_;
         if (address == desc_.vport_base + 2) {
+            if (is_rmw) return 0x00U;
             update_pin_latched();
             return pin_latched_;
         }
@@ -155,7 +160,7 @@ void GpioPort::write(const u16 address, const u8 value) noexcept
     }
     if (address == desc_.ddr_address) { ddr_ = value; update_pin_latched(); return; }
     if (address == desc_.port_address) { apply_port(value); return; }
-    if (address == desc_.intflags_address) { intflags_ &= static_cast<u8>(~value); return; }
+    if (address == desc_.intflags_address) { intflags_ &= static_cast<u8>(~value); update_interrupt_state(); return; }
 
     if (desc_.pin_ctrl_base != 0 && address >= desc_.pin_ctrl_base && address < desc_.pin_ctrl_base + 8) {
         pin_ctrl_[address - desc_.pin_ctrl_base] = value;
@@ -177,7 +182,7 @@ void GpioPort::write(const u16 address, const u8 value) noexcept
         if (address == desc_.vport_base + 0) { ddr_ = value; update_pin_latched(); return; }
         if (address == desc_.vport_base + 1) { apply_port(value); return; }
         if (address == desc_.vport_base + 2) { apply_port(port_ ^ value); return; }
-        if (address == desc_.vport_base + 3) { intflags_ &= static_cast<u8>(~value); return; }
+        if (address == desc_.vport_base + 3) { intflags_ &= static_cast<u8>(~value); update_interrupt_state(); return; }
     }
 }
 
@@ -249,6 +254,7 @@ bool GpioPort::on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel le
 
         if (trigger) {
             intflags_ |= mask;
+            update_interrupt_state();
         }
     }
 
@@ -403,6 +409,12 @@ void GpioPort::apply_pin_voltage(const u8 bit_index, const double voltage, const
         else levels &= static_cast<u8>(~(1U << bit_index));
         set_input_levels(levels);
     }
+}
+
+void GpioPort::update_interrupt_state() noexcept
+{
+    const bool pending = (intflags_ != 0U && desc_.vector_index != 0xFFU);
+    set_interrupt_pending(pending);
 }
 
 }  // namespace vioavr::core

@@ -113,7 +113,7 @@ TEST_CASE("CPU Interrupt Handling Test")
 
         // Verify return address on stack - low byte at SP, high byte at SP+1
         // RETI pushes return address (word address, not byte address)
-        // CHECK(bus.read_data(ramend) == 0x09U);
+        CHECK(bus.read_data(ramend) == 0x09U);
         CHECK(bus.read_data(static_cast<vioavr::core::u16>(ramend - 1U)) == 0x00U);
     }
 
@@ -139,4 +139,73 @@ TEST_CASE("CPU Interrupt Handling Test")
         CHECK(snapshot.gpr[18] == 0x55U);
         CHECK(snapshot.program_counter == 10U);
     }
+}
+
+TEST_CASE("CPU Interrupt Handling: SREG Write Delay Test")
+{
+    using vioavr::core::AvrCpu;
+    using vioavr::core::HexImage;
+    using vioavr::core::MemoryBus;
+    using vioavr::core::SregFlag;
+    using vioavr::core::Timer8;
+    using vioavr::core::devices::atmega328p;
+
+    MemoryBus bus {atmega328p};
+    Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
+    bus.attach_peripheral(timer0);
+    AvrCpu cpu {bus};
+
+    constexpr u16 isr_word_address = atmega328p.timers8[0].compare_a_vector_index * 2U;
+    std::vector<u16> flash_words(30, kNop);
+
+    // Mainline code: enable compare interrupt, start timer, then OUT SREG, r16 instead of SEI
+    flash_words[0] = encode_ldi(16U, 0x01U);   // 0 OCR0A compare threshold
+    flash_words[1] = encode_out(0x27U, 16U);   // 1 OCR0A
+    flash_words[2] = encode_ldi(19U, 0x02U);   // 2 OCIE0A (bit 1)
+    flash_words[3] = encode_sts(19U);           // 3 STS TIMSK0
+    flash_words[4] = atmega328p.timers8[0].timsk_address; // 4 TIMSK0 address
+    flash_words[5] = encode_ldi(20U, 0x01U);   // 5 CS00
+    flash_words[6] = encode_out(0x25U, 20U);   // 6 TCCR0B
+    flash_words[7] = encode_ldi(16U, 0x80U);   // 7 Load 0x80 (I-flag set)
+    flash_words[8] = encode_out(0x3FU, 16U);   // 8 OUT SREG, r16 (0x3F is SREG)
+    flash_words[9] = kNop;                      // 9 NOP (this must be executed due to delay!)
+    flash_words[10] = encode_ldi(18U, 0x55U);  // 10 mainline execution after ISR
+
+    // ISR at vector address
+    flash_words[static_cast<size_t>(isr_word_address)] = encode_ldi(17U, 0x77U);
+    flash_words[static_cast<size_t>(isr_word_address) + 1] = kReti;
+
+    bus.load_image(HexImage {
+        .flash_words = std::move(flash_words),
+        .entry_word = 0U
+    });
+
+    cpu.reset();
+
+    // Step up to OUT SREG, r16
+    for (int i = 0; i < 7; ++i) {
+        cpu.step();
+    }
+    // Now PC = 8 (the OUT instruction)
+    CHECK(cpu.snapshot().program_counter == 8U);
+
+    // Execute OUT SREG, r16
+    cpu.step(); 
+    // Now PC = 9 (the NOP instruction). I-flag is set, and interrupt_delay_ is 1.
+    CHECK(cpu.snapshot().program_counter == 9U);
+    CHECK((cpu.snapshot().sreg & 0x80U) != 0U);
+
+    // Execute NOP (PC=9). Since interrupt_delay_ is 1, interrupt is delayed by this instruction!
+    cpu.step();
+    // Now PC = 10 (the LDI instruction). interrupt_delay_ is 0.
+    CHECK(cpu.snapshot().program_counter == 10U);
+
+    // The next step services the interrupt. PC jumps to ISR.
+    cpu.step();
+    CHECK(cpu.snapshot().program_counter == isr_word_address);
+
+    // Verify return address is 10 (address after NOP)
+    const auto ramend = atmega328p.sram_range().end;
+    CHECK(bus.read_data(ramend) == 0x0AU);
+    CHECK(bus.read_data(static_cast<vioavr::core::u16>(ramend - 1U)) == 0x00U);
 }

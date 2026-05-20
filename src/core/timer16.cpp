@@ -86,6 +86,7 @@ void Timer16::reset() noexcept {
     cycle_accumulator_ = 0U;
     last_sync_cycle_ = bus_ ? bus_->domain_cycles(clock_domain()) : 0U;
     update_pin_ownership();
+    update_interrupt_state();
 }
 
 void Timer16::tick(u64 elapsed_cycles) noexcept {
@@ -102,8 +103,11 @@ void Timer16::tick(u64 elapsed_cycles) noexcept {
         const u64 ticks = cycle_accumulator_ / divisor;
         cycle_accumulator_ %= divisor;
 
-        for (u64 i = 0; i < ticks; ++i) {
-            perform_tick();
+        if (ticks > 0) {
+            for (u64 i = 0; i < ticks; ++i) {
+                perform_tick();
+            }
+            update_interrupt_state();
         }
     }
 }
@@ -129,8 +133,11 @@ void Timer16::sync() noexcept {
         const u64 ticks = cycle_accumulator_ / divisor;
         cycle_accumulator_ %= divisor;
 
-        for (u64 i = 0; i < ticks; ++i) {
-            perform_tick();
+        if (ticks > 0) {
+            for (u64 i = 0; i < ticks; ++i) {
+                perform_tick();
+            }
+            update_interrupt_state();
         }
     }
 }
@@ -286,8 +293,8 @@ void Timer16::write(u16 address, u8 value) noexcept {
     else if (address == desc_.ocrb_address) { ocrb_buffer_ = (static_cast<u16>(temp_) << 8) | value; }
     else if (address == desc_.icr_address + 1) { temp_ = value; }
     else if (address == desc_.icr_address) { icr_ = (static_cast<u16>(temp_) << 8) | value; }
-    else if (address == desc_.timsk_address) { timsk_ = value; }
-    else if (address == desc_.tifr_address) { tifr_ &= ~value; }
+    else if (address == desc_.timsk_address) { timsk_ = value; update_interrupt_state(); }
+    else if (address == desc_.tifr_address) { tifr_ &= ~value; update_interrupt_state(); }
     
     // Immediate update for OCR if not in double-buffered mode
     u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
@@ -336,6 +343,7 @@ void Timer16::notify_input_capture(bool high) noexcept {
 void Timer16::handle_input_capture() noexcept {
     icr_ = tcnt_;
     tifr_ |= kIcf1;
+    update_interrupt_state();
     for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.capture_trigger_source);
 }
 
@@ -402,6 +410,7 @@ bool Timer16::consume_interrupt_request(InterruptRequest& request) noexcept {
     else if (request.vector_index == desc_.compare_b_vector_index) tifr_ &= ~kOcf1b;
     else if (request.vector_index == desc_.compare_c_vector_index) tifr_ &= ~kOcf1c;
     else if (request.vector_index == desc_.overflow_vector_index) tifr_ &= ~kTov1;
+    update_interrupt_state();
     return true;
 }
 
@@ -414,6 +423,16 @@ bool Timer16::power_reduction_enabled() const noexcept {
 
 void Timer16::on_power_state_change() noexcept {
     recalculate_event();
+}
+
+void Timer16::update_interrupt_state() noexcept {
+    bool pending = false;
+    if ((tifr_ & kIcf1) && (timsk_ & kIcie1)) pending = true;
+    else if ((tifr_ & kOcf1a) && (timsk_ & kOcie1a)) pending = true;
+    else if ((tifr_ & kOcf1b) && (timsk_ & kOcie1b)) pending = true;
+    else if ((tifr_ & kOcf1c) && (timsk_ & kOcie1c)) pending = true;
+    else if ((tifr_ & kTov1) && (timsk_ & kToie1)) pending = true;
+    set_interrupt_pending(pending);
 }
 
 } // namespace vioavr::core

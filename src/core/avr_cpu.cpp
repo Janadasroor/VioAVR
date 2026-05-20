@@ -1659,7 +1659,9 @@ void AvrCpu::execute_cbi(const DecodedInstruction& instruction)
     const u8 io_offset = static_cast<u8>((instruction.opcode >> 3U) & 0x1FU);
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     const u16 address = MemoryBus::low_io_address(io_offset);
+    bus_->set_in_rmw(true);
     const u8 value = static_cast<u8>(read_data_bus(address) & static_cast<u8>(~(1U << bit_index)));
+    bus_->set_in_rmw(false);
     write_data_bus(address, value);
     ++program_counter_;
     advance_cycles(2U);
@@ -1697,7 +1699,9 @@ void AvrCpu::execute_sbi(const DecodedInstruction& instruction)
     const u8 io_offset = static_cast<u8>((instruction.opcode >> 3U) & 0x1FU);
     const u8 bit_index = static_cast<u8>(instruction.opcode & 0x07U);
     const u16 address = MemoryBus::low_io_address(io_offset);
+    bus_->set_in_rmw(true);
     const u8 value = static_cast<u8>(read_data_bus(address) | static_cast<u8>(1U << bit_index));
+    bus_->set_in_rmw(false);
     write_data_bus(address, value);
     ++program_counter_;
     advance_cycles(2U);
@@ -2134,7 +2138,11 @@ void AvrCpu::execute_bclr(const DecodedInstruction& instruction)
 
 void AvrCpu::execute_bset(const DecodedInstruction& instruction)
 {
-    set_flag(decode_sreg_bit(instruction.opcode), true);
+    const auto flag_bit = decode_sreg_bit(instruction.opcode);
+    set_flag(flag_bit, true);
+    if (flag_bit == SregFlag::interrupt) {
+        interrupt_delay_ = 1U;
+    }
     ++program_counter_;
     advance_cycles(1U);
 }

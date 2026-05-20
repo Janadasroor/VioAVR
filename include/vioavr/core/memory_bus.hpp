@@ -200,6 +200,9 @@ public:
 
     [[nodiscard]] u8 get_wait_states(u16 address) const noexcept;
 
+    [[nodiscard]] bool in_rmw() const noexcept { return in_rmw_; }
+    void set_in_rmw(bool value) noexcept { in_rmw_ = value; }
+
 private:
     [[nodiscard]] inline IoPeripheral* find_peripheral(u16 address) noexcept
     {
@@ -224,6 +227,8 @@ private:
     class CpuInt* cpu_int_ {nullptr};
     class Zcd* zcd_ {nullptr};
     uint64_t pending_interrupt_mask_ {0U};
+    bool all_peripherals_support_mask_ {true};
+    uint64_t mask_support_bits_ {0ULL};
     std::vector<IoPeripheral*> peripherals_ {};
     std::vector<IoPeripheral*> ticking_peripherals_ {};
     std::array<IoPeripheral*, 65536> dispatch_table_ {};
@@ -249,6 +254,7 @@ private:
     u64 cpu_cycles_ {0U};
     std::array<u64, 256> domain_gated_cycles_ {};
     bool analysis_freeze_requested_ {false};
+    bool in_rmw_ {false};
     EventScheduler scheduler_;
 };
 }  // namespace vioavr::core

@@ -31,6 +31,7 @@ public:
     [[nodiscard]] bool on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     void bind_int0_signal(const AnalogSignalBank& signal_bank, u8 channel, DigitalThresholdConfig threshold = {}) noexcept;
     void connect_adc_auto_trigger(Adc& adc) noexcept;

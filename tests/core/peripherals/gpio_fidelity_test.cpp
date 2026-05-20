@@ -97,3 +97,70 @@ TEST_CASE("GPIO Fidelity: PIN Register Toggle") {
     bus.write_data(d.ports[0].pin_address, 0x03);
     CHECK(bus.read_data(d.ports[0].port_address) == 0x03);
 }
+
+TEST_CASE("GPIO Fidelity: PIN RMW SBI/CBI Toggle") {
+    auto machine = Machine::create_for_device("ATmega328P");
+    auto& bus = machine->bus();
+    auto& cpu = machine->cpu();
+    const auto& d = bus.device();
+    
+    // Calculate register offsets and low I/O address for ports[0] (PORTB)
+    const u16 pin_address = d.ports[0].pin_address;
+    const u16 port_address = d.ports[0].port_address;
+    const u8 io_offset = static_cast<u8>(pin_address - 0x20);
+
+    // SBI PINB, 0
+    const u16 sbi_opcode = static_cast<u16>(0x9A00U | (io_offset << 3) | 0);
+    // CBI PINB, 0
+    const u16 cbi_opcode = static_cast<u16>(0x9800U | (io_offset << 3) | 0);
+
+    SUBCASE("SBI PINB, 0 with unrelated external pin held high") {
+        // Set DDRB to 0x01 (PB0 is output, PB1 is input)
+        bus.write_data(d.ports[0].ddr_address, 0x01);
+
+        // Set PORTB initially to 0x00
+        bus.write_data(port_address, 0x00);
+        
+        // Pull PB1 high externally
+        bus.propagate_external_pin_change(pin_address, 1, PinLevel::high);
+        
+        // PINB read-back should show PB1 as high (0x02)
+        CHECK(bus.read_data(pin_address) == 0x02U);
+        
+        // Load instruction: SBI PINB, 0 followed by NOP
+        bus.write_program_word(0, sbi_opcode);
+        bus.write_program_word(1, 0x0000); // NOP
+        
+        cpu.set_program_counter(0);
+        cpu.step(); // Step SBI PINB, 0
+        
+        // Assert: PORTB.0 has toggled to 1 (PORTB = 0x01)
+        // Assert: PORTB.1 remains 0 (no cascading toggle due to RMW)
+        CHECK(bus.read_data(port_address) == 0x01U);
+    }
+
+    SUBCASE("CBI PINB, 0 with unrelated external pin held high") {
+        // Set DDRB to 0x01 (PB0 is output, PB1 is input)
+        bus.write_data(d.ports[0].ddr_address, 0x01);
+
+        // Set PORTB initially to 0x01 (PB0 is high)
+        bus.write_data(port_address, 0x01);
+        
+        // Pull PB1 high externally
+        bus.propagate_external_pin_change(pin_address, 1, PinLevel::high);
+        
+        // PINB read-back should show PB1 as high and PB0 as high (0x03)
+        CHECK(bus.read_data(pin_address) == 0x03U);
+        
+        // Load instruction: CBI PINB, 0 followed by NOP
+        bus.write_program_word(0, cbi_opcode);
+        bus.write_program_word(1, 0x0000); // NOP
+        
+        cpu.set_program_counter(0);
+        cpu.step(); // Step CBI PINB, 0
+        
+        // Assert: PORTB.0 remains 1 (CBI PINB,0 writes 0 to pin 0, so no toggle occurs)
+        // Assert: PORTB.1 remains 0 (no cascading toggle due to RMW)
+        CHECK(bus.read_data(port_address) == 0x01U);
+    }
+}

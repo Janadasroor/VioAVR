@@ -29,6 +29,7 @@ public:
     
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     [[nodiscard]] bool get_wo_level(u8 index) const noexcept;
 
@@ -118,6 +119,7 @@ private:
     void update_prescaler() noexcept;
 
     std::array<bool, 6> wo_states_ {false, false, false, false, false, false};
+    void update_interrupt_state() noexcept;
 };
 
 } // namespace vioavr::core

@@ -70,6 +70,7 @@ void Twi::reset() noexcept
     rx_idx_ = 0;
     rx_buffer_.clear();
     tx_buffer_.clear();
+    update_interrupt_state();
 }
 
 void Twi::tick(const u64 elapsed_cycles) noexcept
@@ -124,6 +125,7 @@ void Twi::write(const u16 address, const u8 value) noexcept
         twcr_ = value & ~desc_.twint_mask; // Clear TWINT internally
     }
     else if (address == desc_.twamr_address) twamr_ = value;
+    update_interrupt_state();
 }
 
 bool Twi::pending_interrupt_request(InterruptRequest& request) const noexcept
@@ -181,6 +183,7 @@ void Twi::complete_step() noexcept
     }
     
     interrupt_pending_ = true;
+    update_interrupt_state();
 }
 
 void Twi::handle_master_step() noexcept
@@ -245,13 +248,17 @@ void Twi::set_rx_buffer(const std::vector<u8>& data) noexcept
 
 const std::vector<u8>& Twi::tx_buffer() const noexcept { return tx_buffer_; }
 bool Twi::busy() const noexcept { return step_cycles_left_ > 0; }
-
 bool Twi::power_reduction_enabled() const noexcept
 {
     if (!bus_ || desc_.pr_address == 0U || desc_.pr_bit == 0xFFU) {
         return false;
     }
     return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
+}
+
+void Twi::update_interrupt_state() noexcept
+{
+    set_interrupt_pending(interrupt_pending_ && (twcr_ & desc_.twie_mask));
 }
 
 } // namespace vioavr::core
