@@ -913,7 +913,7 @@ bool AvrCpu::service_interrupt_if_needed()
         trace_hook_->on_interrupt(request.vector_index);
     }
 
-    push_pc(program_counter_);
+    const u32 old_pc = program_counter_;
     set_flag(SregFlag::interrupt, false);
     program_counter_ = interrupt_vector_word_address(request.vector_index);
     interrupt_pending_ = false;
@@ -930,9 +930,44 @@ bool AvrCpu::service_interrupt_if_needed()
     }
 
     if (bus_->device().flash_words > 65536) {
-        advance_cycles(5U);
+        // 3-byte PC devices: 5 cycles
+        // Cycle 1: Start vectoring sequence
+        advance_cycles(1U);
+
+        // Cycle 2: Push PC low byte
+        write_data_bus(stack_pointer_, static_cast<u8>(old_pc & 0xFFU));
+        --stack_pointer_;
+        advance_cycles(1U);
+
+        // Cycle 3: Push PC mid byte
+        write_data_bus(stack_pointer_, static_cast<u8>((old_pc >> 8U) & 0xFFU));
+        --stack_pointer_;
+        advance_cycles(1U);
+
+        // Cycle 4: Push PC high byte
+        write_data_bus(stack_pointer_, static_cast<u8>((old_pc >> 16U) & 0xFFU));
+        --stack_pointer_;
+        advance_cycles(1U);
+
+        // Cycle 5: Jump vector
+        advance_cycles(1U);
     } else {
-        advance_cycles(4U);
+        // 2-byte PC devices: 4 cycles
+        // Cycle 1: Start vectoring sequence
+        advance_cycles(1U);
+
+        // Cycle 2: Push PC low byte
+        write_data_bus(stack_pointer_, static_cast<u8>(old_pc & 0xFFU));
+        --stack_pointer_;
+        advance_cycles(1U);
+
+        // Cycle 3: Push PC high byte
+        write_data_bus(stack_pointer_, static_cast<u8>((old_pc >> 8U) & 0xFFU));
+        --stack_pointer_;
+        advance_cycles(1U);
+
+        // Cycle 4: Jump vector
+        advance_cycles(1U);
     }
     return true;
 }
