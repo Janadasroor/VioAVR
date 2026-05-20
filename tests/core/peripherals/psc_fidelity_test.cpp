@@ -17,8 +17,8 @@ TEST_CASE("PSC Fidelity - Basic PWM Cycle") {
     psc.reset();
     
     // Period = 500 (OCR0RB)
-    psc.write(desc.ocrrb_address, 0x01);
-    psc.write(desc.ocrrb_address + 1, 0xF4);
+    psc.write(desc.ocrrb_address + 1, 0x01);
+    psc.write(desc.ocrrb_address, 0xF4);
     
     // Enable PSC (PRUN = 1)
     psc.write(desc.pctl_address, desc.prun_mask);
@@ -32,13 +32,13 @@ TEST_CASE("PSC Fidelity - 12-bit Register Access (TEMP Buffer)") {
     Psc psc {"PSC0", desc};
     psc.reset();
     
-    // Big-Endian: Write High first
-    psc.write(desc.ocrsa_address, 0x0A);
-    CHECK(psc.read(desc.ocrsa_address) == 0x00);
+    // Little-Endian: Write High first
+    psc.write(desc.ocrsa_address + 1, 0x0A);
+    CHECK(psc.read(desc.ocrsa_address + 1) == 0x00);
     
-    psc.write(desc.ocrsa_address + 1, 0xBC);
-    CHECK(psc.read(desc.ocrsa_address) == 0x0A);
-    CHECK(psc.read(desc.ocrsa_address + 1) == 0xBC);
+    psc.write(desc.ocrsa_address, 0xBC);
+    CHECK(psc.read(desc.ocrsa_address + 1) == 0x0A);
+    CHECK(psc.read(desc.ocrsa_address) == 0xBC);
 }
 
 TEST_CASE("PSC Fidelity - Interrupt Logic") {
@@ -47,8 +47,8 @@ TEST_CASE("PSC Fidelity - Interrupt Logic") {
     psc.reset();
     
     // Period = 10
-    psc.write(desc.ocrrb_address, 0);
-    psc.write(desc.ocrrb_address + 1, 10);
+    psc.write(desc.ocrrb_address + 1, 0);
+    psc.write(desc.ocrrb_address, 10);
     psc.write(desc.pctl_address, desc.prun_mask);
     psc.write(desc.pim_address, desc.ec_flag_mask);
     
@@ -64,8 +64,8 @@ TEST_CASE("PSC Fidelity - Center Aligned Mode") {
     psc.reset();
     
     // Period = 10
-    psc.write(desc.ocrrb_address, 0);
-    psc.write(desc.ocrrb_address + 1, 10);
+    psc.write(desc.ocrrb_address + 1, 0);
+    psc.write(desc.ocrrb_address, 10);
     // Mode = 3 for Center Aligned (bits [4:3] = 11)
     psc.write(desc.pconf_address, 0x18); 
     psc.write(desc.pctl_address, desc.prun_mask); 
@@ -83,8 +83,8 @@ TEST_CASE("PSC Fidelity - Analog Comparator Fault Protection") {
     Psc psc {"PSC0", psc_desc};
     psc.reset();
     // Period = 100
-    psc.write(psc_desc.ocrrb_address, 0);
-    psc.write(psc_desc.ocrrb_address + 1, 100);
+    psc.write(psc_desc.ocrrb_address + 1, 0);
+    psc.write(psc_desc.ocrrb_address, 100);
     psc.write(psc_desc.pctl_address, psc_desc.prun_mask); 
     
     psc.write(psc_desc.psoc_address, 0x05); // POEN0A, POEN0B
@@ -116,15 +116,15 @@ TEST_CASE("PSC Fidelity - Output Polarity") {
     psc.reset();
     
     psc.write(desc.psoc_address, 0x05); 
-    psc.write(desc.ocrra_address, 0);
-    psc.write(desc.ocrra_address + 1, 10);
-    psc.write(desc.ocrrb_address, 0);
-    psc.write(desc.ocrrb_address + 1, 10);
+    psc.write(desc.ocrra_address + 1, 0);
+    psc.write(desc.ocrra_address, 10);
+    psc.write(desc.ocrrb_address + 1, 0);
+    psc.write(desc.ocrrb_address, 10);
     psc.write(desc.pctl_address, desc.prun_mask); 
     
     CHECK(psc.read_output_a() == true);
     CHECK(psc.read_output_b() == true);
-
+ 
     psc.write(desc.pconf_address, 0x04); // Set POP0
     psc.tick(1);
     CHECK(psc.read_output_a() == false);
@@ -137,18 +137,18 @@ TEST_CASE("PSC Fidelity - Burst Flank Modulation (PBFM)") {
     psc.reset();
     
     // Period = 100
-    psc.write(desc.ocrrb_address, 0);
-    psc.write(desc.ocrrb_address + 1, 100);
+    psc.write(desc.ocrrb_address + 1, 0);
+    psc.write(desc.ocrrb_address, 100);
     
     // First pulse: 10 to 30
-    psc.write(desc.ocrsa_address, 0);
-    psc.write(desc.ocrsa_address + 1, 10);
-    psc.write(desc.ocrra_address, 0);
-    psc.write(desc.ocrra_address + 1, 30);
+    psc.write(desc.ocrsa_address + 1, 0);
+    psc.write(desc.ocrsa_address, 10);
+    psc.write(desc.ocrra_address + 1, 0);
+    psc.write(desc.ocrra_address, 30);
     
     // Second pulse: 60 to 80
-    psc.write(desc.ocrsb_address, 0);
-    psc.write(desc.ocrsb_address + 1, 60);
+    psc.write(desc.ocrsb_address + 1, 0);
+    psc.write(desc.ocrsb_address, 60);
     
     // Enable Output A in PSOC
     psc.write(desc.psoc_address, 0x01);

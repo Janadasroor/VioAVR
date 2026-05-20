@@ -24,11 +24,11 @@ TEST_CASE("PLL Lock Simulation")
     CHECK((bus.read_data(0x49) & 0x01) == 0); // Still locking
 
     // Tick half way
-    pll.tick(500);
+    pll.tick(50);
     CHECK((bus.read_data(0x49) & 0x01) == 0);
 
     // Tick till lock
-    pll.tick(501);
+    pll.tick(51);
     CHECK((bus.read_data(0x49) & 0x01) != 0); // LOCKED!
 
     // Disable PLL

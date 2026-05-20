@@ -21,10 +21,14 @@ TEST_CASE("ATmega328P Voltmeter Integration Test") {
     // The build system should produce voltmeter.hex
     std::string hex_path = "tests/voltmeter.hex"; 
     if (!std::filesystem::exists(hex_path)) {
-        // Fallback to absolute if needed, but build/tests/voltmeter.hex is expected
+        hex_path = "../voltmeter.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
+        hex_path = "../tests/voltmeter.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
         hex_path = "build/tests/voltmeter.hex";
     }
-    
     if (!std::filesystem::exists(hex_path)) {
         FAIL("voltmeter.hex not found. Run make in build directory first.");
     }

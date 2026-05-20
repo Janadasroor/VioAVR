@@ -1,0 +1,32 @@
+* VioAVR Mixed-Signal ADC Quantization Demo Netlist
+
+* 1. Analog Input Signal
+* 1 kHz triangle wave sweeping from 0V to 5V (rise=0.5ms, fall=0.5ms, period=1ms)
+V_in adc_in_an 0 pulse(0 5 0 0.5m 0.5m 1n 1m)
+
+* 2. Digital-to-Analog Bridges for the 8 PORTD output bits
+A_mcu_bridge [pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [pd0_an pd1_an pd2_an pd3_an pd4_an pd5_an pd6_an pd7_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* 3. Reconstructed 8-bit DAC Output (Behavioral Voltage Source)
+* Translates the 8 binary-weighted PORTD bits into a quantized staircase voltage (0V to 5V)
+* Formula: (bit7*128 + bit6*64 + bit5*32 + bit4*16 + bit3*8 + bit2*4 + bit1*2 + bit0*1) * 5.0 / 256.0 / 5.0
+B_dac v_dac 0 V = (v(pd7_an)*128 + v(pd6_an)*64 + v(pd5_an)*32 + v(pd4_an)*16 + v(pd3_an)*8 + v(pd2_an)*4 + v(pd1_an)*2 + v(pd0_an)) / 256.0
+
+* 4. VioAVR MCU Block
+* Digital pins: PB0-7, PORTC0-7, PORTD0-7 (total 24 pins)
+* Analog pins: PC0/ADC0 (Channel 0) is mapped to the first element in the analog vector [adc_in_an]
+A_AVR [pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [adc_in_an] mcu_model
+.model mcu_model d_vioavr(mcu_type="atmega328" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/adc_demo/adc_demo.hex")
+
+* 5. SPICE Solver Options and Simulation Controls
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 2.0ms
+
+.control
+codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+run
+* Save simulated nodes to output log
+print v(adc_in_an) v(v_dac) v(pd0_an) v(pd7_an)
+.endc
+.end

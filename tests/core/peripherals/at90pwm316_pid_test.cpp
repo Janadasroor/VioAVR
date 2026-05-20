@@ -21,7 +21,16 @@ TEST_CASE("AT90PWM316 PSC PID Control Loop Integration") {
     // 2. Load Firmware
     std::string hex_path = "tests/psc_pid.hex"; // From build root
     if (!std::filesystem::exists(hex_path)) {
-        FAIL("Firmware hex not found: " << hex_path);
+        hex_path = "../psc_pid.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
+        hex_path = "../tests/psc_pid.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
+        hex_path = "build/tests/psc_pid.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
+        FAIL("Firmware hex not found: tests/psc_pid.hex");
     }
     auto image = HexImageLoader::load_file(hex_path, at90pwm316);
     machine.bus().load_image(image);
@@ -47,9 +56,9 @@ TEST_CASE("AT90PWM316 PSC PID Control Loop Integration") {
     // std::cout << "Final PC: " << std::hex << machine.cpu().pc() << std::endl;
     // std::cout << "PCTL0: " << (int)psc->read(0xD8) << std::endl;
 
-    // Read internal OCR0RA (Big-Endian buffering check)
-    u16 ocrra = (static_cast<u16>(psc->read(at90pwm316.pscs[0].ocrra_address)) << 8);
-    ocrra |= psc->read(at90pwm316.pscs[0].ocrra_address + 1);
+    // Read internal OCR0RA (Little-Endian buffering check)
+    u16 ocrra = (static_cast<u16>(psc->read(at90pwm316.pscs[0].ocrra_address + 1)) << 8);
+    ocrra |= psc->read(at90pwm316.pscs[0].ocrra_address);
     
     if (ocrra == 0) {
         printf("FAILED! PC: 0x%04X, SP: 0x%04X\n", (int)machine.cpu().program_counter(), 
@@ -65,8 +74,8 @@ TEST_CASE("AT90PWM316 PSC PID Control Loop Integration") {
     adc->set_channel_voltage(0, 0.6);
     machine.run(500000);
 
-    ocrra = psc->read(at90pwm316.pscs[0].ocrra_address) << 8;
-    ocrra |= psc->read(at90pwm316.pscs[0].ocrra_address + 1);
+    ocrra = psc->read(at90pwm316.pscs[0].ocrra_address + 1) << 8;
+    ocrra |= psc->read(at90pwm316.pscs[0].ocrra_address);
     
     if (ocrra != 10) {
         printf("SECOND STEP FAILED! ocrra: %d, PC: 0x%04X, SP: 0x%04X\n", (int)ocrra, (int)machine.cpu().program_counter(), 

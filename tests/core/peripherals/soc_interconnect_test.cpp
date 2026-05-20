@@ -32,7 +32,7 @@ TEST_CASE("SoC: Analog Comparator Triggers Timer1 Capture") {
     bus.write_data(devices::atmega32u4.timers16[0].tcnt_address, 0x34); 
     
     ac.set_negative_input_voltage(0.1);
-    ac.set_positive_input_voltage(0.2); 
+    ac.set_positive_input_voltage(0.15); 
     bus.tick_peripherals(10); // Propagation delay
     
     u16 icr_l = bus.read_data(devices::atmega32u4.timers16[0].icr_address);

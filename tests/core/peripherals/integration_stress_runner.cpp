@@ -6,6 +6,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include <string>
 #include <vector>
+#include <filesystem>
 
 using namespace vioavr::core;
 
@@ -15,7 +16,20 @@ TEST_CASE("System Integration Stress Test") {
     auto& machine = *machine_ptr;
 
     // Load integration_stress.hex
-    auto image = HexImageLoader::load_file("/home/jnd/cpp_projects/VioAVR/integration_stress.hex", machine.bus().device());
+    std::string hex_path = "/home/jnd/cpp_projects/VioAVR/integration_stress.hex";
+    if (!std::filesystem::exists(hex_path)) {
+        hex_path = "tests/integration_stress.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
+        hex_path = "../integration_stress.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
+        hex_path = "../tests/integration_stress.hex";
+    }
+    if (!std::filesystem::exists(hex_path)) {
+        hex_path = "build/tests/integration_stress.hex";
+    }
+    auto image = HexImageLoader::load_file(hex_path, machine.bus().device());
     machine.bus().load_image(image);
     machine.reset(); // Crucial: sets PC to entry point and state to running
 

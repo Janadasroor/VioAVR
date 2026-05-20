@@ -56,8 +56,8 @@ TEST_CASE("AT90PWM316 ADC-to-PWM System Integration") {
     auto changes = machine.consume_pin_changes();
     int pb7_toggles = 0;
     for (const auto& c : changes) {
+        std::cout << "DEBUG CHANGE: port=" << c.port_name << ", bit=" << (int)c.bit_index << ", level=" << c.level << " @ " << c.cycle_stamp << std::endl;
         if (c.bit_index == 7 && c.port_name == "PORTB") {
-            std::cout << "  Toggle on PB7: level=" << c.level << " @ cycle " << c.cycle_stamp << std::endl;
             pb7_toggles++;
         }
     }

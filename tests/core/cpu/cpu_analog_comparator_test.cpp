@@ -37,7 +37,7 @@ TEST_CASE("Analog Comparator Functional Test")
 
         // Positive 0.83 > Negative 0.80 -> ACO=1, ACI=1 (Rising edge)
         comparator.set_positive_input_voltage(0.83);
-        comparator.tick(10);
+        bus.tick_peripherals(10);
         CHECK((bus.read_data(acsr_addr) & 0x30U) == 0x30U);
     }
 
@@ -45,7 +45,7 @@ TEST_CASE("Analog Comparator Functional Test")
         bus.write_data(acsr_addr, 0x0BU);
         comparator.set_negative_input_voltage(0.80);
         comparator.set_positive_input_voltage(0.83);
-        comparator.tick(10);
+        bus.tick_peripherals(10);
         
         InterruptRequest request {};
         CHECK(bus.pending_interrupt_request(request));

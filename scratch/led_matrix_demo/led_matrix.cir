@@ -1,0 +1,59 @@
+* VioAVR 10-LED Matrix Mixed-Signal Co-Simulation Netlist
+
+* 1. 10-channel digital-to-analog bridge for LED pins
+A_mcu_bridge [pb0_dig pb1_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [pb0_an pb1_an pd0_an pd1_an pd2_an pd3_an pd4_an pd5_an pd6_an pd7_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* 2. LED Matrix Circuits (Current-limiting resistor + Diode to ground)
+* PORTB LEDs (Pins 0 and 1)
+R_b0 pb0_an pb0_led 330
+D_b0 pb0_led 0 led_model
+
+R_b1 pb1_an pb1_led 330
+D_b1 pb1_led 0 led_model
+
+* PORTD LEDs (Pins 0 to 7)
+R_d0 pd0_an pd0_led 330
+D_d0 pd0_led 0 led_model
+
+R_d1 pd1_an pd1_led 330
+D_d1 pd1_led 0 led_model
+
+R_d2 pd2_an pd2_led 330
+D_d2 pd2_led 0 led_model
+
+R_d3 pd3_an pd3_led 330
+D_d3 pd3_led 0 led_model
+
+R_d4 pd4_an pd4_led 330
+D_d4 pd4_led 0 led_model
+
+R_d5 pd5_an pd5_led 330
+D_d5 pd5_led 0 led_model
+
+R_d6 pd6_an pd6_led 330
+D_d6 pd6_led 0 led_model
+
+R_d7 pd7_an pd7_led 330
+D_d7 pd7_led 0 led_model
+
+* High-fidelity LED diode model
+.model led_model D(Is=1e-22 Rs=10 N=1.5 Cjo=10p)
+
+* 3. VioAVR MCU Block
+* We map the 24 digital pins of the MCU in order (PORTB0-7, PORTC0-7, PORTD0-7).
+* We pass a dummy node [nc_an] for the analog inputs vector to satisfy the XSpice parser.
+A_AVR [pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [nc_an] mcu_model
+.model mcu_model d_vioavr(mcu_type="atmega328" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/led_matrix_demo/led_matrix.hex")
+
+* 4. SPICE Solver Options and Simulation Controls
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 2.5ms
+
+.control
+codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+run
+* Save simulated LED voltage nodes to output log
+print v(pb0_an) v(pb1_an) v(pd0_an) v(pd1_an) v(pd2_an) v(pd3_an) v(pd4_an) v(pd5_an) v(pd6_an) v(pd7_an)
+.endc
+.end

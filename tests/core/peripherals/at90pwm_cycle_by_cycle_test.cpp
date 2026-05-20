@@ -25,16 +25,16 @@ TEST_CASE("AT90PWM - Cycle-by-Cycle Overcurrent Protection Fidelity") {
 
     // 1. Setup PSC0: 100 cycle period
     // OCR0RB = 100
-    psc.write(psc_desc.ocrrb_address, 100);
     psc.write(psc_desc.ocrrb_address + 1, 0);
+    psc.write(psc_desc.ocrrb_address, 100);
     
     // OCR0RA = 50 (50% Duty Cycle)
-    psc.write(psc_desc.ocrra_address, 50);
     psc.write(psc_desc.ocrra_address + 1, 0);
+    psc.write(psc_desc.ocrra_address, 50);
 
     // 2. Configure Fault Protection (Mode 4: Deactivate outputs)
-    // PRFM = 4 (bits 3:0), PELEV = 0 (Normal - bit 5)
-    psc.write(psc_desc.pfrc0a_address, 0x04); 
+    // PRFM = 4 (bits 3:0), PELEV = 1 (Active High - bit 5)
+    psc.write(psc_desc.pfrc0a_address, 0x24); 
 
     // 3. Configure PSOC0: Output A enabled
     // PSOC0 bit 0 = 1 (POENA)
@@ -88,10 +88,23 @@ TEST_CASE("AT90PWM - Multi-Comparator Fault Routing") {
     ac0.connect_psc_fault(psc);
     ac1.connect_psc_fault(psc);
     
-    psc.write(psc_desc.ocrrb_address, 100);
+    // OCR0RB = 100
     psc.write(psc_desc.ocrrb_address + 1, 0);
-    psc.write(psc_desc.pctl_address, psc_desc.prun_mask);
+    psc.write(psc_desc.ocrrb_address, 100);
+    
+    // OCR0RA = 50 (50% Duty Cycle)
+    psc.write(psc_desc.ocrra_address + 1, 0);
+    psc.write(psc_desc.ocrra_address, 50);
+    
+    // Configure Fault Protection (Mode 4, Active High)
+    psc.write(psc_desc.pfrc0a_address, 0x24);
+    
     psc.write(psc_desc.psoc_address, 0x01); // POENA
+    psc.write(psc_desc.pctl_address, psc_desc.prun_mask);
+    
+    // Tick to establish output A as HIGH
+    psc.tick(10);
+    REQUIRE(psc.read_output_a() == true);
     
     // Fault on AC0
     ac0.set_positive_input_voltage(0.9);

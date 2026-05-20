@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VioSpice Mixed-Signal Co-Simulation Dashboard</title>
+    <!-- Premium Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="app-container">
+        
+        <!-- Sidebar Panel -->
+        <aside class="sidebar glass-panel">
+            <div class="logo-area">
+                <span class="logo-icon">⚡</span>
+                <h1>VioSpice</h1>
+                <p class="subtitle">Mixed-Signal Co-Simulation</p>
+            </div>
+            
+            <div class="section-title">Available Netlists</div>
+            <div id="netlist-container" class="netlist-list">
+                <!-- Dynamically loaded files go here -->
+                <div class="loading-placeholder">Loading SPICE netlists...</div>
+            </div>
+            
+            <div class="control-actions">
+                <button id="run-btn" class="glow-button" disabled>
+                    <span class="btn-text">Run Co-Simulation</span>
+                    <span class="btn-glow"></span>
+                </button>
+            </div>
+
+            <div class="status-panel card">
+                <div class="status-header">
+                    <span class="status-indicator idle" id="status-dot"></span>
+                    <span class="status-text" id="status-text">Status: Idle</span>
+                </div>
+                <div class="status-metrics" id="status-metrics">
+                    <div class="metric"><span class="label">MCU:</span> <span class="val" id="metric-mcu">-</span></div>
+                    <div class="metric"><span class="label">Time:</span> <span class="val" id="metric-time">-</span></div>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Dashboard Panel -->
+        <main class="main-content">
+            <header class="main-header glass-panel">
+                <div class="header-title">
+                    <h2>Live Waveform Visualizer</h2>
+                    <p>Real-time mixed-signal pin voltage outputs</p>
+                </div>
+                <div class="header-controls">
+                    <button class="icon-button" id="toggle-grid" title="Toggle Grid Lines">🌐 Grid</button>
+                    <button class="icon-button" id="reset-zoom" title="Reset View">🔄 Reset</button>
+                </div>
+            </header>
+            
+            <!-- Waveform View Area -->
+            <section class="chart-container glass-panel">
+                <canvas id="waveform-chart"></canvas>
+                <div class="chart-placeholder" id="chart-placeholder">
+                    <div class="placeholder-icon">📈</div>
+                    <h3>No Simulation Executed</h3>
+                    <p>Select a netlist from the sidebar and click "Run Co-Simulation" to capture waveform data.</p>
+                </div>
+            </section>
+            
+            <!-- Live Terminal Log Console -->
+            <section class="console-container glass-panel">
+                <div class="console-header">
+                    <h3>Simulation Output Log</h3>
+                    <button id="copy-log-btn" class="text-button">Copy Log</button>
+                </div>
+                <div class="console-terminal" id="console-terminal">
+                    <div class="term-line system">[SYSTEM] Ready. Select a netlist to begin.</div>
+                </div>
+            </section>
+        </main>
+        
+    </div>
+</body>
+</html>

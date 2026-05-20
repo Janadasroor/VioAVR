@@ -21,8 +21,8 @@ TEST_CASE("AT90PWM316 - PSC Prescaler Timing") {
     const u16 ocrrb0 = 0xD8; // OCR0RB (TOP)
     
     // Set OCR0RB to 100
-    bus.write_data(ocrrb0, 0);
-    bus.write_data(ocrrb0 + 1, 100);
+    bus.write_data(ocrrb0 + 1, 0);
+    bus.write_data(ocrrb0, 100);
     
     // Enable PSC0, One-Ramp, Prescaler /32
     // PPRE = 10 (bits 7:6), PRUN = 1 (bit 0) -> 0x81
@@ -153,8 +153,8 @@ TEST_CASE("AT90PWM316 - PSC Complete Cycle (PCCYC)") {
     const u16 pctl0 = 0xDB;
     const u16 ocrrb0 = 0xD8;
     
-    bus.write_data(ocrrb0, 0);      // High byte first
-    bus.write_data(ocrrb0 + 1, 10); // Low byte second (triggers update)
+    bus.write_data(ocrrb0 + 1, 0);      // High byte first
+    bus.write_data(ocrrb0, 10); // Low byte second (triggers update)
     
     // Enable PSC0, One-Ramp, Prescaler /1, PCCYC = 1
     // PCCYC is bit 1. PRUN is bit 0. -> 0x03
@@ -187,9 +187,9 @@ TEST_CASE("AT90PWM316 - PSC Fault Protection") {
     CHECK(state.owner == PinOwner::psc);
     
     // Set non-zero duty cycle so we can see it go LOW on fault
-    bus.write_data(0xD8, 0); bus.write_data(0xD9, 100); // TOP=100
-    bus.write_data(0xD2, 0); bus.write_data(0xD3, 0);   // SA=0
-    bus.write_data(0xD4, 0); bus.write_data(0xD5, 50);  // RA=50
+    bus.write_data(0xD9, 0); bus.write_data(0xD8, 100); // TOP=100
+    bus.write_data(0xD3, 0); bus.write_data(0xD2, 0);   // SA=0
+    bus.write_data(0xD5, 0); bus.write_data(0xD4, 50);  // RA=50
     
     // Set PSC0 Fault Mode: Fault on Level (Mode 6), No Filter
     bus.write_data(0xDC, 0x06); // PFRC0A = 6 (PELEV=0, trigger on LOW)
@@ -275,9 +275,9 @@ TEST_CASE("AT90PWM316 - PSC PAOC Fault Bypass") {
     const u16 ocrrb0 = 0xD8;
     
     // Set 50% duty cycle (TOP=100, RA=50)
-    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
-    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 0);
-    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 50);
+    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 0);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 50);
     
     // Enable Output A, Fault Level = LOW (PSOC bit 1 = 0)
     bus.write_data(psoc0, 0x01); 
@@ -348,8 +348,8 @@ TEST_CASE("AT90PWM316 - PSC Blanking Window") {
 
     // Configure PWM: SA=0, RA=50
     // PSC update triggers on LOW byte write
-    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 0);
-    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 50);
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 0);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 50);
     bus.write_data(psoc0, 0x01); // Enable OutA
     
     // Set Mode: Fault on Level (Mode 6)
@@ -398,9 +398,9 @@ TEST_CASE("AT90PWM316 - PSC PBFM Modulation") {
     u16 psoc0 = 0xD0;
 
     // 1. Configure PWM: TOP=100, Pulse=40 to 60 (Width 20)
-    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
-    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 40);
-    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 60);
+    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 40);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 60);
     bus.write_data(psoc0, 0x01); // Enable OutA
     
     // Enable PSC with PBFM (Bit 5 = 0x20)
@@ -426,8 +426,8 @@ TEST_CASE("AT90PWM316 - PSC PBFM Modulation") {
     // 2. Change registers to NON-CENTERED values: 0 to 20 (Width 20)
     // But PBFM should KEEP it centered at 40 to 60!
     bus.write_data(pctl0, 0x02); // Stop (PBFM remains 0 for now)
-    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 0);
-    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 20);
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 0);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 20);
     // Restart with PBFM=1
     bus.write_data(pctl0, 0x23); 
     
@@ -517,9 +517,9 @@ TEST_CASE("AT90PWM316 - PSC High-Resolution 64MHz Fidelity") {
     u16 pllcsr = 0x49;
 
     // 1. Configure PSC: TOP=100, Pulse=40..60. CLKSEL=1 (High Res)
-    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
-    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 40);
-    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 60);
+    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 40);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 60);
     bus.write_data(psoc0, 0x01); // Enable OutA
     
     // Enable High Res (Bit 1 of PCNF0 = CLKSEL)
@@ -583,8 +583,8 @@ TEST_CASE("AT90PWM316 - Analog Comparator Fault Triggering") {
     bus.write_data(0xDA, 0x00); // PCONF0: Normal mode
     bus.write_data(0xDC, 0x47); // PFRC0A: PAFE=1, PRFM=7 (Fault on Level, No Auto Restart)
     bus.write_data(0xD0, 0x01); // PSOC0: POUT0A=1
-    bus.write_data(0xD2, 0); bus.write_data(0xD2 + 1, 10); // OCR0SA = 10
-    bus.write_data(0xD4, 0); bus.write_data(0xD4 + 1, 100); // OCR0RA = 100 (Long pulse)
+    bus.write_data(0xD3, 0); bus.write_data(0xD2, 10); // OCR0SA = 10
+    bus.write_data(0xD5, 0); bus.write_data(0xD4, 100); // OCR0RA = 100 (Long pulse)
     bus.write_data(0xDB, 0x01); // PCTL0: PRUN=1
 
     // Run enough cycles to get the PSC started and past OCR0SA (10)
@@ -748,10 +748,10 @@ TEST_CASE("AT90PWM316 - PSC Four-Ramp Mode Fidelity") {
     bus.write_data(pcnf0, 0x10); // PMODE=2 (0b10 << 3 = 0x10)
     
     // Set Ramp segments: 10, 20, 30, 40 cycles
-    bus.write_data(ocrsa0, 0); bus.write_data(ocrsa0 + 1, 10);
-    bus.write_data(ocrra0, 0); bus.write_data(ocrra0 + 1, 30);
-    bus.write_data(ocrsb0, 0); bus.write_data(ocrsb0 + 1, 60);
-    bus.write_data(ocrrb0, 0); bus.write_data(ocrrb0 + 1, 100);
+    bus.write_data(ocrsa0 + 1, 0); bus.write_data(ocrsa0, 10);
+    bus.write_data(ocrra0 + 1, 0); bus.write_data(ocrra0, 30);
+    bus.write_data(ocrsb0 + 1, 0); bus.write_data(ocrsb0, 60);
+    bus.write_data(ocrrb0 + 1, 0); bus.write_data(ocrrb0, 100);
 
     // Start PSC
     bus.write_data(pctl0, 0x01); // PRUN=1
