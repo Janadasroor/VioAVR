@@ -53,6 +53,7 @@ void Tca::reset() noexcept {
     prescaler_counter_ = 0;
     prescaler_limit_ = 1;
     wo_states_.fill(false);
+    update_interrupt_state();
 }
 
 std::span<const AddressRange> Tca::mapped_ranges() const noexcept {
@@ -173,18 +174,22 @@ void Tca::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value;
         update_prescaler();
+        update_interrupt_state();
     } else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
     } else if (address == desc_.ctrlc_address) {
         ctrlc_ = value;
     } else if (address == desc_.ctrld_address) {
         ctrld_ = value;
+        update_interrupt_state();
     } else if (address == desc_.evctrl_address) {
         evctrl_ = value;
     } else if (address == desc_.intctrl_address) {
         intctrl_ = value;
+        update_interrupt_state();
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value; // Clear on write 1
+        update_interrupt_state();
     } else if (address == desc_.temp_address) {
         temp_ = value;
     }
@@ -242,6 +247,7 @@ void Tca::tick(u64 elapsed_cycles) noexcept {
     if (elapsed_cycles == 0) return;
     if (!is_enabled()) return;
     
+    bool ticked = false;
     for (u64 i = 0; i < elapsed_cycles; ++i) {
         if (++prescaler_counter_ >= prescaler_limit_) {
             prescaler_counter_ = 0;
@@ -250,7 +256,11 @@ void Tca::tick(u64 elapsed_cycles) noexcept {
             } else {
                 perform_tick();
             }
+            ticked = true;
         }
+    }
+    if (ticked) {
+        update_interrupt_state();
     }
 }
 
@@ -475,4 +485,17 @@ void Tca::update_outputs() {
         for (u8 i = 3; i < 6; ++i) port_mux_->drive_tca0_wo(i, false, false);
     }
 }
+
+void Tca::update_interrupt_state() noexcept {
+    bool pending = false;
+    if (is_enabled()) {
+        if (intflags_ & intctrl_ & 0x01) pending = true;
+        else if (is_split_mode() && (intflags_ & intctrl_ & 0x02)) pending = true;
+        else if (intflags_ & intctrl_ & 0x10) pending = true;
+        else if (intflags_ & intctrl_ & 0x20) pending = true;
+        else if (intflags_ & intctrl_ & 0x40) pending = true;
+    }
+    set_interrupt_pending(pending);
+}
+
 } // namespace vioavr::core

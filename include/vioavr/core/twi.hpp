@@ -23,6 +23,7 @@ public:
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     // Host-side API for TWI simulation
     void set_rx_buffer(const std::vector<u8>& data) noexcept;
@@ -65,6 +66,7 @@ private:
     std::size_t rx_idx_ {0};
     std::vector<u8> tx_buffer_ {};
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
+    void update_interrupt_state() noexcept;
 };
 
 }  // namespace vioavr::core

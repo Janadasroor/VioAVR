@@ -482,7 +482,12 @@ inline void AvrCpu::write_sreg(const u8 value) noexcept
     flag_s_ = (value & 0x10U) != 0U;
     flag_h_ = (value & 0x20U) != 0U;
     flag_t_ = (value & 0x40U) != 0U;
+
+    const bool old_i = flag_i_;
     flag_i_ = (value & 0x80U) != 0U;
+    if (flag_i_ && !old_i) {
+        interrupt_delay_ = 1U;
+    }
 
     if (trace_hook_ != nullptr) {
         trace_hook_->on_sreg_write(value);

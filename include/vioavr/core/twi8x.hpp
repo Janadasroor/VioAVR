@@ -39,6 +39,7 @@ public:
 
     bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     void set_port_mux(class PortMux* port_mux) noexcept;
     void set_event_system(class EventSystem* evsys) noexcept;
@@ -50,6 +51,7 @@ public:
 
 private:
     void tick_master_core() noexcept;
+    void update_interrupt_state() noexcept;
 
     const Twi8xDescriptor desc_;
     class EventSystem* evsys_ {nullptr};

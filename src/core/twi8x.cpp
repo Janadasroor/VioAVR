@@ -67,10 +67,14 @@ void Twi8x::reset() noexcept {
     bit_duration_ = 20; // Default for MBAUD=0
     bits_left_ = 0;
     host_phase_ = TwiPhase::idle;
+    update_interrupt_state();
 }
 
 void Twi8x::tick(u64 elapsed_cycles) noexcept {
     if (!(sctrla_ & 0x01U) && !(mctrla_ & 0x01U)) return;
+
+    const u8 old_mstatus = mstatus_;
+    const u8 old_sstatus = sstatus_;
 
     for (u64 c = 0; c < elapsed_cycles; ++c) {
         PinLevel sda = port_mux_->get_twi_sda_level(desc_.index);
@@ -190,6 +194,10 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
         prev_scl_ = scl;
         prev_sda_ = sda;
     }
+
+    if (mstatus_ != old_mstatus || sstatus_ != old_sstatus) {
+        update_interrupt_state();
+    }
 }
 
 void Twi8x::tick_master_core() noexcept {
@@ -267,6 +275,7 @@ u8 Twi8x::read(u16 address) noexcept {
                 data_read_accumulator_ = 0;
                 host_phase_ = TwiPhase::read_data;
             }
+            update_interrupt_state();
         }
         return mdata_;
     }
@@ -372,6 +381,7 @@ void Twi8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.sdata_address) sdata_ = value;
     else if (address == desc_.saddrmask_address) saddrmask_ = value;
     else if (address == desc_.dbgctrl_address) dbgctrl_ = value;
+    update_interrupt_state();
 }
 
 bool Twi8x::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -415,6 +425,7 @@ void Twi8x::inject_bus_address(u8 address) noexcept {
         slave_phase_ = TwiSlavePhase::idle;
         sstatus_ &= ~SSTATUS_AP;
     }
+    update_interrupt_state();
 }
 
 void Twi8x::inject_bus_data(u8 data) noexcept {
@@ -422,12 +433,14 @@ void Twi8x::inject_bus_data(u8 data) noexcept {
     slave_shift_register_ = data;
     sstatus_ |= (SSTATUS_DIF | SSTATUS_CLKHOLD);
     slave_phase_ = TwiSlavePhase::ack_setup;
+    update_interrupt_state();
 }
 
 void Twi8x::inject_bus_stop() noexcept {
     sstatus_ |= SSTATUS_APIF;
     sstatus_ &= ~SSTATUS_AP;
     slave_phase_ = TwiSlavePhase::idle;
+    update_interrupt_state();
 }
 
 void Twi8x::set_event_system(EventSystem* evsys) noexcept {
@@ -436,6 +449,14 @@ void Twi8x::set_event_system(EventSystem* evsys) noexcept {
 
 void Twi8x::set_port_mux(PortMux* port_mux) noexcept {
     port_mux_ = port_mux;
+}
+
+void Twi8x::update_interrupt_state() noexcept {
+    bool rif = (mstatus_ & MSTATUS_RIF) && (mctrla_ & 0x80U);
+    bool wif = (mstatus_ & MSTATUS_WIF) && (mctrla_ & 0x40U);
+    bool s_drif = (sstatus_ & SSTATUS_DIF) && (sctrla_ & 0x80U);
+    bool s_apif = (sstatus_ & SSTATUS_APIF) && (sctrla_ & 0x40U);
+    set_interrupt_pending(rif || wif || s_drif || s_apif);
 }
 
 } // namespace vioavr::core

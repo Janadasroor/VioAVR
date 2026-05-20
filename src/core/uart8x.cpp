@@ -71,6 +71,7 @@ void Uart8x::reset() noexcept {
     rx_last_level_ = PinLevel::high;
     tx_output_queue_.clear();
     tx_event_triggered_ = false;
+    update_interrupt_state();
 }
     
 void Uart8x::set_event_system(EventSystem* evsys) noexcept {
@@ -98,6 +99,8 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
     if (baud_ > 64) {
         bit_duration = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
     }
+
+    const u8 old_status = status_;
 
     for (u64 i = 0; i < elapsed_cycles; ++i) {
         // 1. Transmitter
@@ -241,6 +244,10 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
             }
         }
     }
+
+    if (status_ != old_status) {
+        update_interrupt_state();
+    }
 }
 
 u8 Uart8x::read(u16 address) noexcept {
@@ -257,6 +264,7 @@ u8 Uart8x::read(u16 address) noexcept {
         rx_fifo_read_idx_ = (rx_fifo_read_idx_ + 1) % 2;
         rx_fifo_count_--;
         if (rx_fifo_count_ == 0) status_ &= ~STATUS_RXCIF;
+        update_interrupt_state();
         return data;
     }
     if (address == desc_.rxdata_address + 1) {
@@ -305,6 +313,7 @@ void Uart8x::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.dbgctrl_address) dbgctrl_ = value;
     else if (address == desc_.evctrl_address) evctrl_ = value;
+    update_interrupt_state();
 }
 
 bool Uart8x::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -327,6 +336,7 @@ bool Uart8x::pending_interrupt_request(InterruptRequest& request) const noexcept
 bool Uart8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (!pending_interrupt_request(request)) return false;
     if (request.vector_index == desc_.tx_vector_index) status_ &= ~STATUS_TXCIF;
+    update_interrupt_state();
     return true;
 }
 
@@ -374,8 +384,16 @@ bool Uart8x::consume_transmitted_byte(u16& data) noexcept {
     tx_output_queue_.pop_front();
     if (tx_output_queue_.empty()) {
         status_ &= ~STATUS_TXCIF;
+        update_interrupt_state();
     }
     return true;
+}
+
+void Uart8x::update_interrupt_state() noexcept {
+    bool rif = (status_ & STATUS_RXCIF) && (ctrla_ & CTRLA_RXCIE);
+    bool dreif = (status_ & STATUS_DREIF) && (ctrla_ & CTRLA_DREIE);
+    bool txicif = (status_ & STATUS_TXCIF) && (ctrla_ & CTRLA_TXCIE);
+    set_interrupt_pending(rif || dreif || txicif);
 }
 
 } // namespace vioavr::core

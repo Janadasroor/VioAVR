@@ -75,12 +75,18 @@ void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
     Logger::debug("Attaching peripheral to memory bus: " + std::string(peripheral.name()) + " this=" + Logger::hex((uintptr_t)&peripheral));
     peripherals_.push_back(&peripheral);
     peripheral.bus_id_ = static_cast<u8>(peripherals_.size() - 1);
+    if (peripheral.supports_interrupt_mask()) {
+        mask_support_bits_ |= (1ULL << peripheral.bus_id_);
+    } else {
+        all_peripherals_support_mask_ = false;
+    }
 
     if (peripheral.wants_tick()) {
         ticking_peripherals_.push_back(&peripheral);
         printf("PERIPHERAL TICKING: %s\n", peripheral.name().data());
     }
     Logger::debug("MemoryBus: peripherals size is now " + std::to_string(peripherals_.size()) + " (ticking: " + std::to_string(ticking_peripherals_.size()) + ")");
+    peripheral.bus_ = this;
     peripheral.set_memory_bus(this);
 
     // Auto-identify special peripherals
@@ -227,11 +233,24 @@ void MemoryBus::propagate_analog_pin_change(u16 pin_address, u8 bit_index, doubl
 
 bool MemoryBus::pending_interrupt_request(InterruptRequest& request, const u8 active_domains) const noexcept
 {
+    // Super Fast Path: if all peripherals support the mask and no interrupts are pending, return false immediately!
+    if (all_peripherals_support_mask_ && pending_interrupt_mask_ == 0ULL) {
+        return false;
+    }
+
     bool found = false;
     InterruptRequest best_request {};
 
     for (const IoPeripheral* peripheral : peripherals_) {
         if (peripheral == nullptr) continue;
+
+        const u8 bus_id = peripheral->bus_id_;
+        // If it supports the mask, and its bit is not set, we can skip it entirely!
+        if ((mask_support_bits_ & (1ULL << bus_id)) != 0) {
+            if ((pending_interrupt_mask_ & (1ULL << bus_id)) == 0) {
+                continue;
+            }
+        }
 
         const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
         if ((domain_mask & active_domains) == 0 && domain_mask != 0) {
@@ -311,6 +330,15 @@ bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 ac
     IoPeripheral* selected_peripheral = nullptr;
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral == nullptr) continue;
+
+        const u8 bus_id = peripheral->bus_id_;
+        // If it supports the mask, and its bit is not set, we can skip it entirely!
+        if ((mask_support_bits_ & (1ULL << bus_id)) != 0) {
+            if ((pending_interrupt_mask_ & (1ULL << bus_id)) == 0) {
+                continue;
+            }
+        }
+
         InterruptRequest candidate;
         if (peripheral->pending_interrupt_request(candidate)) {
             if (candidate.vector_index == selected_request.vector_index && candidate.source_id == selected_request.source_id) {

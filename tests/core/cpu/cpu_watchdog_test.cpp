@@ -112,9 +112,10 @@ TEST_CASE("Watchdog Timer: Interrupt Mode") {
     // PC should still be in the loop (not vector 25)
     CHECK(cpu.program_counter() != 6U);
 
-    // Now enable interrupts and step once to trigger ISR
+    // Now enable interrupts and step to trigger ISR (accounting for 1-instruction enable delay)
     cpu.write_sreg(0x80); // SEI
-    cpu.step();
+    cpu.step();           // Executes instruction (delayed)
+    cpu.step();           // Services interrupt, vectors to 12
 
     // PC should be at vector 6 (WDT) -> word address 12
     CHECK(cpu.program_counter() == 12U);

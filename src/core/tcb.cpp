@@ -45,6 +45,7 @@ void Tcb::reset() noexcept {
     temp_ = 0;
     cnt_ = 0;
     ccmp_ = 0;
+    update_interrupt_state();
 }
 
 std::span<const AddressRange> Tcb::mapped_ranges() const noexcept {
@@ -89,8 +90,10 @@ void Tcb::write(u16 address, u8 value) noexcept {
         evctrl_ = value;
     } else if (address == desc_.intctrl_address) {
         intctrl_ = value;
+        update_interrupt_state();
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value;
+        update_interrupt_state();
     } else if (address == desc_.temp_address) {
         temp_ = value;
     } else if (address == desc_.cnt_address + 1) {
@@ -110,11 +113,13 @@ void Tcb::tick(u64 elapsed_cycles) noexcept {
     if (!is_enabled()) return;
     
     u8 clksel = get_clksel();
-
+    bool ticked = false;
+ 
     if (clksel == 0) { // CLK_PER
         for (u64 i = 0; i < elapsed_cycles; ++i) {
             perform_tick(true);
         }
+        ticked = true;
     } else if (clksel == 1) { // CLK_PER / 2
         for (u64 i = 0; i < elapsed_cycles; ++i) {
             bool fire = false;
@@ -123,11 +128,16 @@ void Tcb::tick(u64 elapsed_cycles) noexcept {
                 fire = true;
             }
             perform_tick(fire);
+            if (fire) ticked = true;
         }
     } else {
         for (u64 i = 0; i < elapsed_cycles; ++i) {
             perform_tick(false);
         }
+    }
+
+    if (ticked) {
+        update_interrupt_state();
     }
     update_outputs();
 }
@@ -199,6 +209,7 @@ void Tcb::set_event_system(EventSystem* evsys) noexcept {
         evsys_->register_generator_callback(128, [this](bool) {
             if (is_enabled() && get_clksel() == 2) {
                 perform_tick(true);
+                update_interrupt_state();
             }
         });
     }
@@ -207,21 +218,24 @@ void Tcb::set_event_system(EventSystem* evsys) noexcept {
 void Tcb::on_event(bool level) noexcept {
     if (!is_enabled()) return;
     if (!(evctrl_ & 0x01)) return; // CAPTEI
-
+ 
     u8 mode = get_mode();
     bool edge_select = (evctrl_ & 0x02) != 0; // 0=Rising, 1=Falling
     bool match_edge = (level != edge_select); // true if level=1 and edge=0, or level=0 and edge=1
-
+    bool updated = false;
+ 
     if (mode == 2 || mode == 0 || mode == 1) { // Input Capture or Periodic/TEP
         if (match_edge) {
             ccmp_ = cnt_;
             intflags_ |= 0x01; // CAPT
+            updated = true;
         }
     } else if (mode == 3) { // Frequency Measurement
         if (match_edge) {
             ccmp_ = cnt_;
             cnt_ = 0;
             intflags_ |= 0x01; // CAPT
+            updated = true;
         }
     } else if (mode == 4 || mode == 5) { // Pulse Width or Frequency/Pulse Width
         // Mode 4: Capture on opposite edge, reset on match edge
@@ -232,7 +246,11 @@ void Tcb::on_event(bool level) noexcept {
             ccmp_ = cnt_;
             status_ &= ~0x01;
             intflags_ |= 0x01; // CAPT
+            updated = true;
         }
+    }
+    if (updated) {
+        update_interrupt_state();
     }
 }
 
@@ -247,6 +265,7 @@ bool Tcb::pending_interrupt_request(InterruptRequest& request) const noexcept {
 bool Tcb::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
         intflags_ &= ~0x01;
+        update_interrupt_state();
         return true;
     }
     return false;
@@ -272,4 +291,10 @@ void Tcb::update_outputs() noexcept {
     bool en = ctrlb_ & 0x10; // CCEN
     port_mux_->drive_tcb_wo(index_, get_wo_level(), en);
 }
+
+void Tcb::update_interrupt_state() noexcept {
+    bool pending = (intflags_ & 0x01) && (intctrl_ & 0x01);
+    set_interrupt_pending(pending);
+}
+
 } // namespace vioavr::core

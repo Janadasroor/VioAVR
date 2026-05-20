@@ -28,6 +28,7 @@ public:
     
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
     
     [[nodiscard]] bool get_wo_level() const noexcept;
 
@@ -69,6 +70,7 @@ private:
     u8 get_clksel() const noexcept { return (ctrla_ >> 1) & 0x03; }
 
     u8 prescaler_counter_ {0};
+    void update_interrupt_state() noexcept;
 };
 
 } // namespace vioavr::core

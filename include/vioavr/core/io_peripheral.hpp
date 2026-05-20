@@ -88,6 +88,8 @@ public:
         return false;
     }
 
+    [[nodiscard]] virtual bool supports_interrupt_mask() const noexcept { return false; }
+
 protected:
     class MemoryBus* bus_ {nullptr};
     u8 bus_id_ {0xFFU};

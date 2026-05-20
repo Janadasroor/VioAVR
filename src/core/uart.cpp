@@ -63,11 +63,14 @@ void Uart::reset() noexcept
     tx_bit_duration_ = 160U;
     tx_output_queue_.clear();
     tx_buffer_full_ = false;
+    update_interrupt_state();
 }
 
 void Uart::tick(const u64 elapsed_cycles) noexcept
 {
     if (power_reduction_enabled()) return;
+
+    const u8 old_ucsra = ucsra_;
 
     // Start transmission if buffer is full and shift register is idle
     if (!tx_active_ && tx_buffer_full_) {
@@ -103,12 +106,17 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
             }
         }
     }
+
+    if (ucsra_ != old_ucsra) {
+        update_interrupt_state();
+    }
 }
 
 u8 Uart::read(const u16 address) noexcept
 {
     if (address == desc_.udr_address) {
         ucsra_ &= ~desc_.rxc_mask;
+        update_interrupt_state();
         return udr_rx_;
     }
     if (address == desc_.ucsra_address) return ucsra_;
@@ -138,6 +146,7 @@ void Uart::write(const u16 address, const u8 value) noexcept
     } else if (address == desc_.ubrrh_address) {
         ubrrh_ = value & 0x0FU;
     }
+    update_interrupt_state();
 }
 
 bool Uart::pending_interrupt_request(InterruptRequest& request) const noexcept
@@ -172,6 +181,7 @@ bool Uart::consume_interrupt_request(InterruptRequest& request) noexcept
 
     if (request.vector_index == desc_.tx_vector_index) {
         ucsra_ &= ~desc_.txc_mask;
+        update_interrupt_state();
     }
     return true;
 }
@@ -180,6 +190,7 @@ void Uart::inject_received_byte(const u8 data) noexcept
 {
     udr_rx_ = data;
     ucsra_ |= desc_.rxc_mask;
+    update_interrupt_state();
 }
 
 bool Uart::consume_transmitted_byte(u8& data) noexcept
@@ -196,6 +207,14 @@ bool Uart::power_reduction_enabled() const noexcept
         return false;
     }
     return (bus_->read_data(desc_.pr_address) & (1U << desc_.pr_bit)) != 0;
+}
+
+void Uart::update_interrupt_state() noexcept
+{
+    const bool rxc = (ucsra_ & desc_.rxc_mask) && (ucsrb_ & desc_.rxcie_mask);
+    const bool udre = (ucsra_ & desc_.udre_mask) && (ucsrb_ & desc_.udrie_mask);
+    const bool txc = (ucsra_ & desc_.txc_mask) && (ucsrb_ & desc_.txcie_mask);
+    set_interrupt_pending(rxc || udre || txc);
 }
 
 }  // namespace vioavr::core

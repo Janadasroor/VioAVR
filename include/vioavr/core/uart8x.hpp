@@ -26,6 +26,7 @@ public:
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
+    [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     void set_memory_bus(class MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(class EventSystem* evsys) noexcept;
@@ -109,6 +110,7 @@ private:
 
     void update_pin_ownership() noexcept;
     void actually_push_to_fifo(u8 data, bool bit9) noexcept;
+    void update_interrupt_state() noexcept;
     
     PinLevel rx_last_level_ {PinLevel::high};
     std::deque<u16> tx_output_queue_;
