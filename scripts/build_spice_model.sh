@@ -24,18 +24,27 @@ if [ ! -f "${BUILD_DIR}/src/core/libvioavr_core.a" ]; then
     exit 1
 fi
 
-# Compile the bridge
+# Compile the bridge and ifspec
 echo "Compiling viospice_bridge.cpp..."
-g++ -std=c++20 -fPIC -O3 \
+g++ -std=c++20 -fPIC -O0 -g \
     -I"${INCLUDE_DIR}" \
     -I"${NGSPICE_INC}" \
     -I"/home/jnd/cpp_projects/ngspice/release/src/include" \
     -c "${VIOSPICE_DIR}/viospice_bridge.cpp" -o "${BUILD_DIR}/viospice_bridge.o"
 
+echo "Compiling modified ifspec.c..."
+gcc -fPIC -O0 -g \
+    -I"${INCLUDE_DIR}" \
+    -I"${NGSPICE_INC}" \
+    -I"/home/jnd/cpp_projects/ngspice/release/src/include" \
+    -c "${PROJECT_ROOT}/scratch/cmpp_build/d_vioavr/ifspec.c" -o "${PROJECT_ROOT}/scratch/cmpp_build/d_vioavr/ifspec.o"
+
 # Link into a shared library
 echo "Linking ${OUTPUT_NAME}..."
 g++ -shared -fPIC \
     "${BUILD_DIR}/viospice_bridge.o" \
+    "${PROJECT_ROOT}/scratch/cmpp_build/dlmain.o" \
+    "${PROJECT_ROOT}/scratch/cmpp_build/d_vioavr/ifspec.o" \
     "${BUILD_DIR}/src/core/libvioavr_core.a" \
     -lrt -lpthread \
     -o "${BUILD_DIR}/${OUTPUT_NAME}"

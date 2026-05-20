@@ -13,6 +13,7 @@
 #include <cmath>
 #include <thread>
 #include <chrono>
+#include <atomic>
 
 using namespace vioavr::core;
 
@@ -59,7 +60,7 @@ int main() {
     PinMux pin_mux {5};
     MemoryBus bus {devices::atmega328};
     AvrCpu cpu {bus};
-    auto gpio_b = std::make_unique<GpioPort>(devices::atmega328.ports[1], pin_mux);
+    auto gpio_b = std::make_unique<GpioPort>(devices::atmega328.ports[0], pin_mux);
     bus.attach_peripheral(*gpio_b);
 
     const u64 quantum = 10000;
@@ -79,15 +80,15 @@ int main() {
         firmware::out(0x05, 16),      // 2: PORTB = 1
         firmware::ldi(20, 100),       // 3: Delay approx 50ms (simplified)
         firmware::dec(20),            // 4: 
-        firmware::brne(-1),           // 5: 
+        firmware::brne(-2),           // 5: 
         
         firmware::ldi(17, 0x00),      // 6: 
         firmware::out(0x05, 17),      // 7: PORTB = 0
         firmware::ldi(20, 100),       // 8: Delay
         firmware::dec(20),            // 9: 
-        firmware::brne(-1),           // 10: 
+        firmware::brne(-2),           // 10: 
         
-        firmware::rjmp(-9)            // 11: Back to 2
+        firmware::rjmp(-10)           // 11: Back to 2
     };
 
     bus.load_flash(blink_with_delay);
@@ -104,8 +105,18 @@ int main() {
         << "Visual" << std::endl;
     out << std::string(60, '-') << std::endl;
 
+    std::atomic<bool> cpu_running {true};
+    std::thread cpu_thread([&]() {
+        cpu.run(200 * quantum);
+        cpu_running = false;
+    });
+
     for (int step = 0; step < 200; ++step) {
-        cpu.run(quantum);
+        // Wait for CPU to reach the quantum boundary
+        u64 target_cycles = (step + 1) * quantum;
+        while (cpu.cycles() < target_cycles && cpu_running) {
+            std::this_thread::yield();
+        }
         
         auto changes = sync->consume_pin_changes();
         for (const auto& change : changes) {
@@ -129,7 +140,10 @@ int main() {
         }
 
         sync->resume();
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    if (cpu_thread.joinable()) {
+        cpu_thread.join();
     }
 
     out << "\nDemo Finished." << std::endl;

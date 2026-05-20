@@ -31,12 +31,14 @@ int main(int argc, char** argv) {
     std::string mcu_name = "atmega328p";
     std::string instance_name = "default";
     int gdb_port = -1;
+    uint32_t frequency = 16000000;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--mcu" && i + 1 < argc) mcu_name = argv[++i];
         else if (arg == "--instance" && i + 1 < argc) instance_name = argv[++i];
         else if (arg == "--gdb" && i + 1 < argc) gdb_port = std::stoi(argv[++i]);
+        else if (arg == "--freq" && i + 1 < argc) frequency = std::stoul(argv[++i]);
         else if (arg == "--help") { print_help(argv[0]); return 0; }
     }
 
@@ -46,16 +48,20 @@ int main(int argc, char** argv) {
     try {
         std::cout << "--- VioAVR Shared Memory Bridge Daemon ---" << std::endl;
         
-        auto device = DeviceCatalog::find(mcu_name);
-        if (!device) {
+        auto const_device = DeviceCatalog::find(mcu_name);
+        if (!const_device) {
             std::cerr << "Error: MCU '" << mcu_name << "' not found in catalog." << std::endl;
             return 1;
         }
 
+        DeviceDescriptor device = *const_device;
+        device.cpu_frequency_hz = frequency;
+
         std::cout << "MCU:      " << mcu_name << std::endl;
         std::cout << "Instance: " << instance_name << std::endl;
+        std::cout << "Clock:    " << frequency << " Hz" << std::endl;
 
-        BridgeShmServer server(*device, instance_name);
+        BridgeShmServer server(device, instance_name);
         global_server = &server;
 
         // Start GDB Stub if requested

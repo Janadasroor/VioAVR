@@ -37,6 +37,7 @@ public:
     void set_pin_mux(class PinMux* pin_mux) noexcept { pin_mux_ = pin_mux; }
     [[nodiscard]] class PinMux* pin_mux() const noexcept { return pin_mux_; }
     void attach_peripheral(IoPeripheral& peripheral);
+    void register_ticking_peripheral(IoPeripheral& peripheral) noexcept;
     void load_flash(std::span<const u16> words);
     void load_image(const HexImage& image);
 
@@ -143,6 +144,14 @@ public:
     void tick_peripherals(u64 elapsed_cycles, u8 active_domains = 0xFFU) noexcept;
     
     [[nodiscard]] inline u64 cpu_cycles() const noexcept { return scheduler_.current_cycle(); }
+    [[nodiscard]] inline u64 domain_cycles(ClockDomain domain) const noexcept
+    {
+        const u8 d = static_cast<u8>(domain);
+        const u64 current = scheduler_.current_cycle();
+        const u64 gated = domain_gated_cycles_[d];
+        if (current <= gated) return 0U;
+        return current - gated;
+    }
     [[nodiscard]] inline u32 io_stall_cycles() const noexcept { return io_stall_cycles_; }
     [[nodiscard]] EventScheduler& scheduler() noexcept { return scheduler_; }
     [[nodiscard]] inline bool has_pending_pin_changes() const noexcept { return has_pending_pin_changes_; }
@@ -238,6 +247,7 @@ private:
     u8 last_spmcsr_val_ {0U};
     u8 flash_wait_states_ {0U};
     u64 cpu_cycles_ {0U};
+    std::array<u64, 256> domain_gated_cycles_ {};
     bool analysis_freeze_requested_ {false};
     EventScheduler scheduler_;
 };
@@ -338,6 +348,7 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
     if (device_.mapped_eeprom.size > 0 &&
         address >= device_.mapped_eeprom.data_start &&
         address < device_.mapped_eeprom.data_start + device_.mapped_eeprom.size) {
+        request_cpu_stall(54400U);
         const u32 offset = address - device_.mapped_eeprom.data_start;
         if (offset < eeprom_page_buffer_.size()) {
             eeprom_page_buffer_[offset] = value;
@@ -356,10 +367,28 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
             return;
         }
     }
+    const bool is_prr_write = ((device_.prr_address != 0U && address == device_.prr_address) ||
+                               (device_.prr0_address != 0U && address == device_.prr0_address) ||
+                               (device_.prr1_address != 0U && address == device_.prr1_address));
+    if (is_prr_write) {
+        for (IoPeripheral* p : peripherals_) {
+            if (p != nullptr) {
+                p->sync();
+            }
+        }
+    }
+
     // 2. High-performance path for Registers/Peripherals
     if (IoPeripheral* peripheral = dispatch_table_[address]; peripheral != nullptr) {
         printf("DEBUG: MemoryBus writing to %s at 0x%04X val 0x%02X\n", peripheral->name().data(), address, value);
         peripheral->write(address, value);
+        if (is_prr_write) {
+            for (IoPeripheral* p : peripherals_) {
+                if (p != nullptr) {
+                    p->on_power_state_change();
+                }
+            }
+        }
         return;
     }
 

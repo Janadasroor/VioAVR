@@ -1,0 +1,29 @@
+* VioAVR ATmega3290A LCD Mixed-Signal Co-Simulation Netlist
+
+* 1. Dummy Analog Input Source
+V_dummy dummy_an 0 0V
+
+* 2. Digital-to-Analog Bridges for LCD COM and SEG lines
+* PA0 -> COM0
+* PA4 -> SEG0  (Active Segment on COM0, Pattern 1)
+* PC5 -> SEG11 (Active Segment on COM0, Pattern 1)
+* PD7 -> SEG19 (Active Segment on COM0, Pattern 2)
+A_mcu_bridge [pa0_dig pa4_dig pc5_dig pd7_dig] [pa0_an pa4_an pc5_an pd7_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* 3. VioAVR MCU Block
+* We list exactly 24 digital pins mapping to PORTA (0-7), PORTC (0-7), and PORTD (0-7)
+A_AVR [pa0_dig pa1_dig pa2_dig pa3_dig pa4_dig pa5_dig pa6_dig pa7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [dummy_an] mcu_model
+.model mcu_model d_vioavr(mcu_type="atmega3290a" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/lcd_demo/lcd_demo.hex")
+
+* 4. SPICE Solver Options and Simulation Controls
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 2.0ms
+
+.control
+codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+run
+* Save simulated nodes to output log for Chart.js display
+print v(pa0_an) v(pa4_an) v(pc5_an) v(pd7_an)
+.endc
+.end

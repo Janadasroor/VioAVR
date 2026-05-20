@@ -170,9 +170,11 @@ void Spi::inject_miso_byte(const u8 value) noexcept
 void Spi::trigger_slave_transfer() noexcept
 {
     if ((spcr_ & kSpiEnable) != 0U && (spcr_ & kSpiMaster) == 0U) {
-        // Slave transfer start duration is usually external-clock dependent.
-        // We'll just use a fixed 1 cycle here to trigger completion next step.
+        // Slave transfer: completion is externally clocked, fire callback after 1 cycle
         transfer_cycles_left_ = 1U;
+        if (bus_) {
+            bus_->scheduler().schedule(transfer_cycles_left_, spi_callback, this);
+        }
     }
 }
 

@@ -40,6 +40,9 @@ public:
     virtual void tick(u64 elapsed_cycles) noexcept = 0;
     [[nodiscard]] virtual bool wants_tick() const noexcept { return true; }
 
+    virtual void sync() noexcept {}
+    virtual void on_power_state_change() noexcept {}
+
     [[nodiscard]] virtual u8 read(u16 address) noexcept = 0;
     virtual void write(u16 address, u8 value) noexcept = 0;
     

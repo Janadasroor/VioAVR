@@ -52,6 +52,15 @@ void BridgeShmClient::reset() {
     }
 }
 
+void BridgeShmClient::load_hex(const std::string& path) {
+    if (shm_) {
+        std::memset(shm_->command_arg, 0, sizeof(shm_->command_arg));
+        std::strncpy(shm_->command_arg, path.c_str(), sizeof(shm_->command_arg) - 1);
+        shm_->command.store(2); // CMD_LOAD_HEX (0x02)
+        signal_and_wait();
+    }
+}
+
 void BridgeShmClient::signal_and_wait() {
     if (!shm_) return;
     sem_post(&shm_->sem_req);

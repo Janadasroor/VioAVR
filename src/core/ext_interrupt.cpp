@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <vector>
 #include "vioavr/core/ext_interrupt.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/logger.hpp"
 
@@ -160,6 +161,9 @@ void ExtInterrupt::bind_int0_signal(const AnalogSignalBank& signal_bank,
     signal_bank_ = &signal_bank;
     signal_channel_ = channel;
     threshold_config_ = threshold;
+    if (bus_ != nullptr) {
+        bus_->register_ticking_peripheral(*this);
+    }
     refresh_bound_input();
 }
 
@@ -206,6 +210,9 @@ void ExtInterrupt::set_int0_level(const bool high) noexcept
 
 void ExtInterrupt::set_int0_voltage(const double normalized_voltage) noexcept
 {
+    if (bus_ != nullptr) {
+        bus_->register_ticking_peripheral(*this);
+    }
     set_int0_level(apply_schmitt_threshold(int0_level_, normalized_voltage));
 }
 

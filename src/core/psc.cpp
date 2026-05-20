@@ -83,26 +83,26 @@ u8 Psc::read(u16 address) noexcept {
     if (address == desc_.pom_address) return pom_;
     
     if (address == desc_.ocrsa_address) {
-        return (ocrsa_ >> 8) & 0x0F;
+        return ocrsa_ & 0xFF;
     }
     if (address == desc_.ocrsa_address + 1) {
-        return ocrsa_ & 0xFF;
+        return (ocrsa_ >> 8) & 0x0F;
     }
     
     if (address == desc_.ocrra_address) {
-        return (ocrra_ >> 8) & 0x0F;
+        return ocrra_ & 0xFF;
     }
-    if (address == desc_.ocrra_address + 1) return ocrra_ & 0xFF;
+    if (address == desc_.ocrra_address + 1) return (ocrra_ >> 8) & 0x0F;
     
     if (address == desc_.ocrsb_address) {
-        return (ocrsb_ >> 8) & 0x0F;
+        return ocrsb_ & 0xFF;
     }
-    if (address == desc_.ocrsb_address + 1) return ocrsb_ & 0xFF;
+    if (address == desc_.ocrsb_address + 1) return (ocrsb_ >> 8) & 0x0F;
     
     if (address == desc_.ocrrb_address) {
-        return (ocrrb_ >> 8) & 0x0F;
+        return ocrrb_ & 0xFF;
     }
-    if (address == desc_.ocrrb_address + 1) return ocrrb_ & 0xFF;
+    if (address == desc_.ocrrb_address + 1) return (ocrrb_ >> 8) & 0x0F;
     
     return 0;
 }
@@ -136,16 +136,16 @@ void Psc::write(u16 address, u8 value) noexcept {
         pom_ = value;
     } else if (address >= desc_.ocrsa_address && address < desc_.ocrsa_address + 8) {
         u8 offset = address - desc_.ocrsa_address;
-        if (offset % 2 == 0) {
-            // High byte written first (Big-Endian in PSC map, High is at even offset)
+        if (offset % 2 == 1) {
+            // High byte written first (High is at odd offset)
             temp_high_ = value;
         } else {
             // Low byte written second, completing the 16-bit value
             u16 val = (u16(temp_high_) << 8) | value;
-            if (offset == 1) ocrsa_ = val;
-            else if (offset == 3) ocrra_ = val;
-            else if (offset == 5) ocrsb_ = val;
-            else if (offset == 7) ocrrb_ = val;
+            if (offset == 0) ocrsa_ = val;
+            else if (offset == 2) ocrra_ = val;
+            else if (offset == 4) ocrsb_ = val;
+            else if (offset == 6) ocrrb_ = val;
         }
     }
     update_outputs();
@@ -248,6 +248,7 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                 case 0x02: // Retrigger on Level
                     counter_ = 0; down_counting_ = false;
                     break;
+                case 0x04: // Cycle-by-Cycle
                 case 0x06: // Fault on Level (Auto Restart)
                 case 0x07: // Fault on Level (No Auto Restart)
                     fault_occured = true;
@@ -307,6 +308,10 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                     pifr_ |= desc_.ec_flag_mask;
                     notify_adc();
                     
+                    if ((pfrc0a_ & 0x0F) == 0x04) {
+                        fault_active_ = false;
+                    }
+                    
                     if (pctl_ & desc_.pccyc_mask) {
                         pctl_ &= ~desc_.prun_mask;
                     }
@@ -329,8 +334,44 @@ void Psc::notify_adc() noexcept {
 void Psc::notify_fault(bool level, u8 channel) noexcept {
     if (channel == 0) {
         fault_a_.level = level;
+        if (!(pfrc0a_ & 0x10)) { // PFLTE (asynchronous)
+            bool trigger_level_a = (pfrc0a_ & 0x20); // PELEV
+            fault_a_.filtered_level = (fault_a_.level == trigger_level_a);
+            
+            u8 prfm_a = (pfrc0a_ & 0x0F);
+            if (fault_a_.filtered_level) {
+                if (prfm_a == 0x04 || prfm_a == 0x06 || prfm_a == 0x07) {
+                    if (!fault_active_) {
+                        fault_active_ = true;
+                        pifr_ |= desc_.capt_flag_mask;
+                        if (bus_) bus_->request_analysis_freeze();
+                    }
+                } else if (prfm_a == 0x01) {
+                    if (!last_fault_level_) {
+                        counter_ = 0;
+                        down_counting_ = false;
+                    }
+                } else if (prfm_a == 0x02) {
+                    counter_ = 0;
+                    down_counting_ = false;
+                }
+            } else {
+                if (fault_active_) {
+                    if (prfm_a == 0x06) {
+                        fault_active_ = false;
+                    }
+                }
+            }
+            last_fault_level_ = fault_a_.filtered_level;
+            update_outputs();
+        }
     } else if (channel == 1) {
         fault_b_.level = level;
+        if (!(pfrc0b_ & 0x10)) {
+            bool trigger_level_b = (pfrc0b_ & 0x20);
+            fault_b_.filtered_level = (fault_b_.level == trigger_level_b);
+            update_outputs();
+        }
     }
 }
 
@@ -367,16 +408,33 @@ void Psc::update_outputs() noexcept {
     if (!(pctl_ & desc_.prun_mask)) {
         output_a_ = output_b_ = false;
     } else {
-        bool pulse_a, pulse_b;
+        bool pulse_a = false;
+        bool pulse_b = false;
         if (pctl_ & desc_.pbfm_mask) {
-            // Burst Flank Modulation:
-            // Pulse 1 is defined by OCRnSA and OCRnRA
-            // Pulse 2 is defined by OCRnSB and OCRnRB
-            bool in_pulse1 = (counter_ >= ocrsa_ && counter_ < ocrra_);
-            bool in_pulse2 = (counter_ >= ocrsb_ && counter_ < ocrrb_);
-            
-            pulse_a = in_pulse1 || in_pulse2;
-            pulse_b = pulse_a; 
+            if (ocrsb_ > 0) {
+                // Burst Flank Modulation (BFM):
+                // Pulse 1 is defined by OCRnSA and OCRnRA
+                // Pulse 2 is defined by OCRnSB and OCRnRB
+                bool in_pulse1 = (counter_ >= ocrsa_ && counter_ < ocrra_);
+                bool in_pulse2 = (counter_ >= ocrsb_ && counter_ < ocrrb_);
+                pulse_a = in_pulse1 || in_pulse2;
+                pulse_b = pulse_a;
+            } else {
+                // Phase Balanced Flank Modulation (PBFM):
+                // The pulse defined by OCRnSA and OCRnRA is centered around the middle of the cycle (ocrrb_ / 2).
+                u16 top = ocrrb_;
+                u16 width_a = (ocrra_ > ocrsa_) ? (ocrra_ - ocrsa_) : 0;
+                u16 center = top / 2;
+                u16 start_a = (width_a < center) ? (center - width_a / 2) : 0;
+                u16 end_a = start_a + width_a;
+                pulse_a = (counter_ >= start_a && counter_ < end_a);
+                
+                // Similarly for pulse_b:
+                u16 width_b = (ocrrb_ > ocrsb_) ? (ocrrb_ - ocrsb_) : 0;
+                u16 start_b = (width_b < center) ? (center - width_b / 2) : 0;
+                u16 end_b = start_b + width_b;
+                pulse_b = (counter_ >= start_b && counter_ < end_b);
+            }
         } else {
             pulse_a = (counter_ >= ocrsa_ && counter_ < ocrra_);
             pulse_b = (counter_ >= ocrsb_ && counter_ < ocrrb_);

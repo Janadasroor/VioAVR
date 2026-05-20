@@ -36,7 +36,8 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
     
-    void sync() noexcept;
+    void sync() noexcept override;
+    void on_power_state_change() noexcept override;
     void on_event(u64 cycle) noexcept;
     bool on_external_pin_change(u16 address, u8 bit, PinLevel level) noexcept override;
     void notify_input_capture(bool high) noexcept;
@@ -50,6 +51,7 @@ public:
     void connect_analog_comparator(AnalogComparator& ac) noexcept;
 
 private:
+    [[nodiscard]] bool power_reduction_enabled() const noexcept;
     void perform_tick() noexcept;
     void recalculate_event() noexcept;
     void handle_matches() noexcept;
