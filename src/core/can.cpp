@@ -212,7 +212,10 @@ u8 CanBus::read(u16 address) noexcept {
 void CanBus::write(u16 address, u8 value) noexcept {
     if (address == desc_.cangcon_address) {
         cangcon_ = value;
-        if (value & 0x01U) reset(); // SWRES
+        if (value & 0x01U) {
+            reset(); // SWRES
+            evaluate_interrupts();
+        }
     } else if (address == desc_.cangie_address) {
         cangie_ = value;
         evaluate_interrupts();
@@ -406,13 +409,14 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
 
         if (match) {
             // MOb Match found!
-            size_t dlc = (mob.cancdmob & 0x0FU);
-            for (size_t d = 0; d < std::min<size_t>(msg.data.size(), dlc); ++d) {
+            size_t mob_dlc = (mob.cancdmob & 0x0FU);
+            size_t rx_dlc = msg.data.size();
+            for (size_t d = 0; d < std::min<size_t>(rx_dlc, 8); ++d) {
                 mob.data[d] = msg.data[d];
             }
             
             mob.canstmob |= 0x20U; // RXOK
-            if (msg.data.size() != dlc) mob.canstmob |= 0x80U; // DLCW
+            if (rx_dlc != mob_dlc) mob.canstmob |= 0x80U; // DLCW
 
             cangit_ |= 0x20U; // RXOK bit
 

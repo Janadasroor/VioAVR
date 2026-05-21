@@ -384,10 +384,10 @@ Writing EEMPE=1 twice before first 4-cycle timeout expires schedules second call
 
 Reset value hardcoded to 0x06 (8N1) instead of using `desc_.ucsrc_reset`.
 
-### M28 — UART UCSRA write corrupts read-only flags
-**File:** `src/core/uart.cpp:138-139`
+### ~~M28 — UART UCSRA write corrupts read-only flags~~ NOT A BUG
+**File:** `src/core/uart.cpp:163-165`
 
-Value bits 2-7 not masked — can set FE, DOR, UPE (read-only) and other reserved bits.
+Current code: `(ucsra_ & ~(u2x|mpcm)) | (value & (u2x|mpcm))` — only U2X and MPCM are writable; all read-only flags (FE, DOR, UPE, UDRE, RXC) are preserved. TXC write-1-to-clear is handled separately. Already correct.
 
 ### M29 — UART interrupt priority starvation for TXC
 **File:** `src/core/uart.cpp:152-173`
@@ -399,10 +399,10 @@ Returns first pending (RXC > UDRE > TXC). RXC persistently set makes TXC interru
 
 TXC cleared only when TX vector consumed. RXC or UDRE consumption leaves TXC uncleared — TXC interrupt lost forever.
 
-### M31 — UART RXEN/TXEN gating not checked
+### ~~M31 — UART RXEN/TXEN gating not checked~~ FIXED
 **File:** `src/core/uart.cpp`
 
-Never checks `ucsrb_ & desc_.rxen_mask` before asserting RXC, or `txen_mask` before starting TX.
+Added TXEN gate to TX start (`tick` line 84) and RX abort on RXEN=0 mid-reception.
 
 ### ~~M32 — SPI WCOL not cleared after transfer completes~~ FIXED
 **File:** `src/core/spi.cpp:191`
@@ -489,20 +489,20 @@ Data toggle should only flip when DATA1 follows DATA0 or vice versa. Retransmitt
 
 TEC decremented on successful TX, REC decremented on successful RX. `evaluate_error_state()` called after each update.
 
-### M49 — CAN DLC read from MOb configuration, not received message
-**File:** `src/core/can.cpp:402`
+### ~~M49 — CAN DLC read from MOb configuration, not received message~~ FIXED
+**File:** `src/core/can.cpp:409`
 
-Number of bytes to copy determined by MOb CDM register, not received message DLC field.
+Now copies `msg.data.size()` bytes (actual received DLC), compares against MOb DLC for DLCW flag.
 
 ### M50 — CAN MOb data overwritten without checking if CPU is still reading
 **File:** `src/core/can.cpp:400-421`
 
 New received message overwrites data buffer unconditionally. No overrun protection.
 
-### M51 — CAN SWRES doesn't re-evaluate interrupts
+### ~~M51 — CAN SWRES doesn't re-evaluate interrupts~~ FIXED
 **File:** `src/core/can.cpp:208-214`
 
-reset() called without evaluate_interrupts(). Spurious interrupt after software reset.
+reset() now followed by evaluate_interrupts() to clear spurious interrupts.
 
 ### M52 — EUSART RX overrun/overflow not detected or limited
 **File:** `src/core/eusart.cpp:236-237`
@@ -698,12 +698,12 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 | Severity | Count | Fixed | Key Areas |
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | 23 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 7 (+1 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **43 (+6 NAB)** | |
+| 🟠 HIGH | 32 | 25 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🟡 MEDIUM | 42 | 10 (+2 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN |
+| **Total** | **88** | **48 (+5 NAB)** | |
 
 ### Quick Fix Guide
 
-All 14 critical bugs resolved (13 fixed + 1 confirmed not a bug). All 32 high bugs resolved (28 fixed + 4 NAB). 7 of 42 medium bugs fixed (+1 NAB). Proceed to remaining 34 medium bugs.
+All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 12 of 42 medium bugs resolved (10 fixed + 2 NAB). Proceed to remaining 30 medium bugs.
 
 

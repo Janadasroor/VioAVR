@@ -81,7 +81,7 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
     const u8 old_ucsra = ucsra_;
 
     // Start transmission if buffer is full and shift register is idle
-    if (!tx_active_ && tx_buffer_full_) {
+    if (!tx_active_ && tx_buffer_full_ && (ucsrb_ & desc_.txen_mask)) {
         tx_shift_reg_ = udr_tx_;
         tx_active_ = true;
         tx_buffer_full_ = false;
@@ -117,6 +117,9 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
             }
         }
     }
+
+    // Abort RX if receiver disabled mid-reception
+    if ((ucsrb_ & desc_.rxen_mask) == 0U) rx_active_ = false;
 
     // RX timing
     if (rx_active_) {
