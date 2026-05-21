@@ -22,8 +22,8 @@ public:
     void write(u16 address, u8 value) noexcept override;
 
     // External interaction
-    void inject_received_byte(u8 data) noexcept;
-    bool consume_transmitted_byte(u8& data) noexcept;
+    void inject_received_byte(u32 data) noexcept;
+    bool consume_transmitted_byte(u32& data) noexcept;
 
 private:
     std::string name_;
