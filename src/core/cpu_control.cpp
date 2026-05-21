@@ -177,8 +177,10 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         pllcsr_ = value;
     } else if (address == d.clkpr_address) {
         if (value == 0x80U) {
-            // Write to CLKPCE
-            clkpr_expiry_ = cpu_.cycles() + 4;
+            // Write to CLKPCE — only start window if not already active
+            if (cpu_.cycles() >= clkpr_expiry_) {
+                clkpr_expiry_ = cpu_.cycles() + 4;
+            }
         } else if (cpu_.cycles() < clkpr_expiry_) {
             // Update CLKPS if CE is not set in this write
             if (!(value & 0x80U)) {
