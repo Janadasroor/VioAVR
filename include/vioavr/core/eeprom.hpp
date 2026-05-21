@@ -55,7 +55,6 @@ private:
     
     u32 write_cycles_left_ {};
     u8 master_write_enable_timeout_ {};
-    bool interrupt_pending_ {};
 };
 
 }  // namespace vioavr::core

@@ -62,7 +62,7 @@ void Eeprom::reset() noexcept
     eear_ = 0U;
     write_cycles_left_ = 0U;
     master_write_enable_timeout_ = 0U;
-    interrupt_pending_ = false;
+    set_interrupt_pending(false);
 }
 
 void Eeprom::tick(const u64 elapsed_cycles) noexcept
@@ -161,7 +161,7 @@ void Eeprom::update_interrupt_pending() noexcept {
 bool Eeprom::consume_interrupt_request(InterruptRequest& request) noexcept
 {
     if (pending_interrupt_request(request)) {
-        interrupt_pending_ = false;
+        set_interrupt_pending(false);
         return true;
     }
     return false;
@@ -235,7 +235,7 @@ void Eeprom::complete_write() noexcept
         storage_[addr] = eedr_;
     }
     
-    interrupt_pending_ = true;
+    update_interrupt_pending();
 }
 
 void Eeprom::commit_page(u32 address, std::span<const u8> data) noexcept

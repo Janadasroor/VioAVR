@@ -214,11 +214,12 @@ void Usb::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.ueintx_address) {
         u8 old_flags = ep.interrupt_flags;
-        ep.interrupt_flags &= (value | 0xA0U); // Only allow clearing bits 0-4, 6. Bit 5 (RWAL) and 7 (FIFOCON) handled separately.
-        u8 cleared_bits = old_flags & (~value);
+        // Write-1-to-clear for bits 0-4,6. Bits 5 (RWAL) and 7 (FIFOCON) handled separately.
+        ep.interrupt_flags &= ~(value & ~0xA0U);
+        u8 cleared_bits = old_flags & value;
         
-        // Handle FIFOCON (Bit 7) clearing
-        if (!(value & 0x80U)) {
+        // Handle FIFOCON (Bit 7) clearing — write-1-to-clear
+        if (value & 0x80U) {
             bool is_in = (ep.config0 & 0x80U) != 0;
             auto& current_bank = ep.banks[ep.cpu_bank];
             if (is_in) {

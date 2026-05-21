@@ -98,12 +98,14 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
         if (sctrla_ & 0x01U) {
             if (scl == PinLevel::high && last_intended_sda_ == PinLevel::high) {
                 if (prev_sda_ == PinLevel::high && sda == PinLevel::low) {
-                    slave_phase_ = TwiSlavePhase::addr;
-                    slave_bits_left_ = 8;
-                    slave_shift_register_ = 0;
-                    sstatus_ |= SSTATUS_AP;
-                    sstatus_ &= ~(SSTATUS_DIF | SSTATUS_CLKHOLD | SSTATUS_RXACK | SSTATUS_DIR | SSTATUS_COLL | SSTATUS_BUSERR);
-                    Logger::debug("TWI8X Slave START");
+                    if (slave_phase_ == TwiSlavePhase::idle) {
+                        slave_phase_ = TwiSlavePhase::addr;
+                        slave_bits_left_ = 8;
+                        slave_shift_register_ = 0;
+                        sstatus_ |= SSTATUS_AP;
+                        sstatus_ &= ~(SSTATUS_DIF | SSTATUS_CLKHOLD | SSTATUS_RXACK | SSTATUS_DIR | SSTATUS_COLL | SSTATUS_BUSERR);
+                        Logger::debug("TWI8X Slave START");
+                    }
                 }
                 else if (prev_sda_ == PinLevel::low && sda == PinLevel::high) {
                     if (slave_phase_ != TwiSlavePhase::idle) {

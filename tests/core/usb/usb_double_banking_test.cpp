@@ -38,8 +38,8 @@ TEST_CASE("USB Double Banking Fidelity")
     bus.write_data(atmega32u4.usbs[0].uedatx_address, 'B');
     bus.write_data(atmega32u4.usbs[0].uedatx_address, '0');
     
-    // Clear FIFOCON to release Bank 0 to SIE
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x7F); 
+    // Clear FIFOCON to release Bank 0 to SIE (write-1-to-clear)
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x80); 
     
     // 4. State check: CURRBK should be 1, NBUSYBK should be 1
     uesta1x = bus.read_data(atmega32u4.usbs[0].uesta1x_address);
@@ -50,8 +50,8 @@ TEST_CASE("USB Double Banking Fidelity")
     bus.write_data(atmega32u4.usbs[0].uedatx_address, 'B');
     bus.write_data(atmega32u4.usbs[0].uedatx_address, '1');
     
-    // Clear FIFOCON to release Bank 1 to SIE
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x7F);
+    // Clear FIFOCON to release Bank 1 to SIE (write-1-to-clear)
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x80);
 
     // 6. State check: NBUSYBK should be 2, TXINI should be 0 (all banks full)
     uesta1x = bus.read_data(atmega32u4.usbs[0].uesta1x_address);

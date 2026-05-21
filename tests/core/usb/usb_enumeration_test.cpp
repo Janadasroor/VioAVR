@@ -45,8 +45,8 @@ TEST_CASE("USB Enumeration Fidelity - SETUP Handling")
     CHECK(bus.read_data(atmega32u4.usbs[0].uedatx_address) == 0x40);
     CHECK(bus.read_data(atmega32u4.usbs[0].uedatx_address) == 0x00);
 
-    // 5. Firmware clears RXSTPI
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, ~0x08); 
+    // 5. Firmware clears RXSTPI (write-1-to-clear)
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x08); 
     CHECK((bus.read_data(atmega32u4.usbs[0].ueintx_address) & 0x08) == 0);
 }
 

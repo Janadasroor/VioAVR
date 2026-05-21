@@ -51,6 +51,7 @@ private:
     
     u32 transfer_cycles_left_ {};
     bool interrupt_pending_ {};
+    bool spsr_read_since_spif_ {};
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
 };
 

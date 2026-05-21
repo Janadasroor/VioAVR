@@ -15,6 +15,7 @@ std::span<const AddressRange> Zcd::mapped_ranges() const noexcept {
 void Zcd::reset() noexcept {
     ctrla_ = 0;
     int_pending_ = false;
+    update_interrupt_pending();
 }
 
 void Zcd::tick(u64) noexcept {}
@@ -31,6 +32,7 @@ u8 Zcd::read(u16 address) noexcept {
 void Zcd::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value & 0x7FU; // Bit 7 (STATE) is read-only
+        update_interrupt_pending();
     }
 }
 
@@ -48,6 +50,7 @@ bool Zcd::on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) 
     
     // ZCD typically triggers on crossing.
     int_pending_ = true;
+    update_interrupt_pending();
     return true;
 }
 
@@ -62,9 +65,15 @@ bool Zcd::pending_interrupt_request(InterruptRequest& request) const noexcept {
 bool Zcd::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
         int_pending_ = false;
+        update_interrupt_pending();
         return true;
     }
     return false;
+}
+
+void Zcd::update_interrupt_pending() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 } // namespace vioavr::core

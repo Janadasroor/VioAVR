@@ -26,6 +26,8 @@ public:
     [[nodiscard]] bool on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept override;
 
 private:
+    void update_interrupt_pending() noexcept;
+
     ZcdDescriptor desc_;
     std::array<AddressRange, 1> ranges_{};
     
