@@ -195,10 +195,7 @@ void Tcb::perform_tick(bool clock_event) {
         // Measurement Modes: counter free-runs
         cnt_++;
         if (cnt_ == 0) { // Overflow
-            // Some TCB implementations set a flag on overflow in measurement modes
-            // In 4809, it can trigger an interrupt if enabled?
-            // Actually, in measurement modes, overflow often sets the CAPT flag too
-            // or just wraps around.
+            intflags_ |= 0x01; // CAPT
         }
     }
 }

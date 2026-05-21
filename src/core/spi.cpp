@@ -206,7 +206,7 @@ void Spi::complete_transfer() noexcept
         );
     }
     spdr_ = received;
-    spsr_ |= desc_.spif_mask;
+    spsr_ = static_cast<u8>((spsr_ & ~desc_.wcol_mask) | desc_.spif_mask);
     interrupt_pending_ = true;
 }
 

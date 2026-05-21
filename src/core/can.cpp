@@ -124,6 +124,9 @@ void CanBus::tick(u64 elapsed_cycles) noexcept {
                 mob.canstmob |= 0x40U; // TXOK
                 cangit_ |= 0x10U; // TXOK bit
                 
+                // Decrement TEC on successful transmission
+                if (cantec_ > 0) cantec_--;
+                
                 // Clear conmob
                 mob.cancdmob &= 0x3FU;
                 // Update CANEN
@@ -132,6 +135,7 @@ void CanBus::tick(u64 elapsed_cycles) noexcept {
 
                 current_tx_mob_ = -1;
                 tx_wait_cycles_ = 0;
+                evaluate_error_state();
                 evaluate_interrupts();
                 find_high_priority_mob();
             }
@@ -411,12 +415,16 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
             if (msg.data.size() != dlc) mob.canstmob |= 0x80U; // DLCW
 
             cangit_ |= 0x20U; // RXOK bit
+
+            // Decrement REC on successful reception
+            if (canrec_ > 0) canrec_--;
             
             // Disable MOb after reception
             mob.cancdmob &= 0x3FU; 
             if (i < 8) canen2_ &= ~(1 << i);
             else canen1_ &= ~(1 << (i - 8));
             
+            evaluate_error_state();
             evaluate_interrupts();
             find_high_priority_mob();
             return;

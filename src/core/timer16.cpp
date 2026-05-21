@@ -227,7 +227,7 @@ void Timer16::perform_tick() noexcept {
         if (!icp_initialized_) {
             last_icp_state_ = current_level;
             noise_canceler_register_ = current_level ? 1 : 0;
-            noise_canceler_counter_ = 10;
+            noise_canceler_counter_ = 0;
             icp_initialized_ = true;
         }
 
