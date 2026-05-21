@@ -314,10 +314,10 @@ Comparator output transitions instantly on every tick. No settling time.
 
 Member initializer is `{0}` but `reset()` sets it to 0xFF. Value incorrect if read before reset().
 
-### M14 — TCA FRQ mode erroneously sets OVF flag
-**File:** `src/core/tca.cpp:354,390`
+### ~~M14 — TCA FRQ mode erroneously sets OVF flag~~ FIXED
+**File:** `src/core/tca.cpp:406`
 
-Setting `update_cond = true` in FRQ mode at CMP0 causes OVF flag set. FRQ mode should NOT set OVF.
+OVF flag now guarded with `wgmode != 0x01` (not set in FRQ mode).
 
 ### ~~M15 — TCB measurement mode overflow doesn't set CAPT flag~~ FIXED
 **File:** `src/core/tcb.cpp:189-194`
@@ -646,10 +646,10 @@ The flag is only cleared after ALL peripherals have been tried and none claimed 
 
 sync() call runs but on_power_state_change() only runs if write hits dispatch table.
 
-### M80 — MemoryBus read_program_word re-stalls on every NRWW read during SPM
+### ~~M80 — MemoryBus read_program_word re-stalls on every NRWW read during SPM~~ FIXED
 **File:** `include/vioavr/core/memory_bus.hpp:72-74`
 
-request_cpu_stall() uses std::max — re-extends stall to full remaining SPM time on every NRWW read.
+`spm_busy_cycles_left_` cleared to 0 after requesting stall — prevents infinite re-stall on subsequent NRWW reads. Same fix applied to `read_program_byte`. Made `spm_busy_cycles_left_` mutable for const methods.
 
 ### M81 — ExtInterrupt hardcodes INT0 on pin bit_index 2 (PD2)
 **File:** `src/core/ext_interrupt.cpp:117`
@@ -671,15 +671,15 @@ lcdpm = lcdcrb_ & 0x0FU yields 0-15 but kSegmentLimits[15] accessed. Bounds asse
 
 `cpu_frequency_ / 32768.0` as double then multiplied and cast to u64. Rounding error accumulates.
 
-### M85 — PinChangeInterrupt interrupt_pending_ shadows base class
+### ~~M85 — PinChangeInterrupt interrupt_pending_ shadows base class~~ FIXED
 **File:** `include/vioavr/core/pin_change_interrupt.hpp:52`
 
-Same pattern as EEPROM (C5). Derived class declares own interrupt_pending_ shadowing IoPeripheral member.
+Renamed to `pcint_pending_` to stop shadowing `IoPeripheral::interrupt_pending_`.
 
-### M86 — PinChangeInterrupt unconditional stderr debug output
+### ~~M86 — PinChangeInterrupt unconditional stderr debug output~~ FIXED
 **File:** `src/core/pin_change_interrupt.cpp:113, 116`
 
-fprintf(stderr, ...) on every PCI register write. Debug artifact, not guarded.
+Removed fprintf(stderr) debug lines from write().
 
 ### M87 — CpuControl effective_frequency() uses float for OSCCAL scaling
 **File:** `src/core/cpu_control.cpp:89-91`
@@ -699,11 +699,11 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
 | 🟠 HIGH | 32 | 25 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 10 (+2 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN |
-| **Total** | **88** | **48 (+5 NAB)** | |
+| 🟡 MEDIUM | 42 | 14 (+2 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI |
+| **Total** | **88** | **52 (+5 NAB)** | |
 
 ### Quick Fix Guide
 
-All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 12 of 42 medium bugs resolved (10 fixed + 2 NAB). Proceed to remaining 30 medium bugs.
+All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 16 of 42 medium bugs resolved (14 fixed + 2 NAB). Proceed to remaining 26 medium bugs.
 
 
