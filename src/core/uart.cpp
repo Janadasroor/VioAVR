@@ -6,6 +6,12 @@
 
 namespace vioavr::core {
 
+namespace {
+constexpr u8 kFeMask = 0x10U;
+constexpr u8 kDorMask = 0x08U;
+constexpr u8 kUpeMask = 0x04U;
+}
+
 Uart::Uart(std::string_view name, const UartDescriptor& descriptor, PinMux& pin_mux) noexcept
     : name_(std::string(name)), desc_(descriptor), pin_mux_(&pin_mux)
 {
@@ -63,6 +69,8 @@ void Uart::reset() noexcept
     tx_bit_duration_ = 160U;
     tx_output_queue_.clear();
     tx_buffer_full_ = false;
+    rx_shift_reg_ = 0;
+    rx_bits_left_ = 0;
     update_interrupt_state();
 }
 
@@ -110,6 +118,21 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
         }
     }
 
+    // RX timing
+    if (rx_active_) {
+        rx_cycle_accumulator_ += elapsed_cycles;
+        u16 ubrr = (static_cast<u16>(ubrrh_) << 8) | ubrrl_;
+        u32 bit_duration = ((ucsra_ & desc_.u2x_mask) ? 8U : 16U) * (ubrr + 1U);
+        u8 data_bits = (ucsrb_ & 0x04U) ? 9 : ((ucsrc_ >> 1) & 0x03U) + 5;
+        u8 parity_bits = ((ucsrc_ & 0x30U) != 0) ? 1 : 0;
+        u8 stop_bits = (ucsrc_ & 0x08U) ? 2 : 1;
+        const u64 limit = bit_duration * (1ULL + data_bits + parity_bits + stop_bits);
+        if (rx_cycle_accumulator_ >= limit) {
+            rx_active_ = false;
+            ucsra_ |= desc_.rxc_mask;
+        }
+    }
+
     if (ucsra_ != old_ucsra) {
         update_interrupt_state();
     }
@@ -118,7 +141,7 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
 u8 Uart::read(const u16 address) noexcept
 {
     if (address == desc_.udr_address) {
-        ucsra_ &= ~desc_.rxc_mask;
+        ucsra_ &= ~(desc_.rxc_mask | kDorMask);
         update_interrupt_state();
         return udr_rx_;
     }
@@ -191,8 +214,16 @@ bool Uart::consume_interrupt_request(InterruptRequest& request) noexcept
 
 void Uart::inject_received_byte(const u8 data) noexcept
 {
+    if ((ucsrb_ & desc_.rxen_mask) == 0U) return;
+
+    if ((ucsra_ & desc_.rxc_mask) != 0U || rx_active_) {
+        ucsra_ |= kDorMask;
+        return;
+    }
+
     udr_rx_ = data;
-    ucsra_ |= desc_.rxc_mask;
+    rx_cycle_accumulator_ = 0;
+    rx_active_ = true;
     update_interrupt_state();
 }
 
@@ -220,4 +251,4 @@ void Uart::update_interrupt_state() noexcept
     set_interrupt_pending(rxc || udre || txc);
 }
 
-}  // namespace vioavr::core
+} // namespace vioavr::core

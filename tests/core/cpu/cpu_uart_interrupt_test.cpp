@@ -34,6 +34,7 @@ TEST_CASE("UART0 Interrupt Flag and Priority Test")
 
         // Inject byte to trigger RXC
         uart0.inject_received_byte(0x33U);
+        bus.tick_peripherals(160U); // Wait for RX frame to complete
         
         // RXC should now override UDRE (higher priority, lower vector index)
         CHECK(bus.pending_interrupt_request(request));
