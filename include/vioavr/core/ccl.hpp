@@ -67,11 +67,11 @@ private:
         u8 user_a_index {0xFF};
         u8 user_b_index {0xFF};
     };
-    std::array<LutState, 4> luts_ {}; // ATmega4809 has 4 LUTs
-    std::array<bool, 4> outputs_ {};
-    std::array<bool, 4> prev_outputs_ {};
-    std::array<bool, 4> prev_raw_outputs_ {};
-    std::array<bool, 2> prev_luts_in2_ {};
+    std::vector<LutState> luts_ {};
+    std::vector<u8> outputs_ {};
+    std::vector<u8> prev_outputs_ {};
+    std::vector<u8> prev_raw_outputs_ {};
+    std::vector<u8> prev_luts_in2_ {};
     
     // State for sequential logic (SEQ0, SEQ1)
     std::array<bool, 2> seq_state_ {};
@@ -80,6 +80,7 @@ private:
     
     void update_logic() noexcept;
     void update_routing() noexcept;
+    void update_interrupt_state() noexcept;
     bool compute_lut(u8 index) const noexcept;
 };
 

@@ -342,6 +342,21 @@ bool Tca::pending_interrupt_request(InterruptRequest& request) const noexcept {
 
 bool Tca::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
+        if (request.vector_index == desc_.luf_ovf_vector_index) {
+            intflags_ &= ~0x01U;
+        } else if (request.vector_index == desc_.hunf_vector_index) {
+            intflags_ &= ~0x02U;
+        } else if (request.vector_index == desc_.cmp0_vector_index ||
+                   request.vector_index == desc_.lcmp0_vector_index) {
+            intflags_ &= ~0x10U;
+        } else if (request.vector_index == desc_.cmp1_vector_index ||
+                   request.vector_index == desc_.lcmp1_vector_index) {
+            intflags_ &= ~0x20U;
+        } else if (request.vector_index == desc_.cmp2_vector_index ||
+                   request.vector_index == desc_.lcmp2_vector_index) {
+            intflags_ &= ~0x40U;
+        }
+        update_interrupt_state();
         return true;
     }
     return false;

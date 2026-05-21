@@ -40,13 +40,13 @@ TEST_CASE("USB SET_ADDRESS Handshake Fidelity")
     u8 ueintx = bus.read_data(atmega32u4.usbs[0].ueintx_address);
     CHECK((ueintx & 0x08) != 0); 
 
-    // 2. Firmware acks the SETUP by clearing RXSTPI
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, (u8)~0x08U);
+    // 2. Firmware acks the SETUP by clearing RXSTPI (write-1-to-clear)
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x08U);
     CHECK((bus.read_data(atmega32u4.usbs[0].ueintx_address) & 0x08) == 0);
 
     // 3. Firmware prepares Status Stage (ZLP IN)
-    // For ZLP, we just clear TXINI without adding data
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, (u8)~0x01U); // Clear TXINI (marks as busy)
+    // For ZLP, we just clear TXINI without adding data (write-1-to-clear)
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x01U); // Clear TXINI (marks as busy)
     CHECK((bus.read_data(atmega32u4.usbs[0].ueintx_address) & 0x01) == 0);
 
     // 4. Host sends IN token for status stage

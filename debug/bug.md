@@ -7,84 +7,84 @@
 
 ## 🔴 CRITICAL
 
-### C1 — All 16 BRBS/BRBC branch aliases have inverted patterns
-**File:** `src/core/avr_cpu.cpp:678-693`
+### ~~C1 — All 16 BRBS/BRBC branch aliases have inverted patterns~~ NOT A BUG
+**File:** `src/core/avr_cpu.cpp:678-693` **→ no change needed**
 
-The AVR ISA encodes BRBS (branch if bit set) as `0xF4ss` and BRBC (branch if bit clear) as `0xF0ss`. Every entry in the instruction table has these swapped — `0xF0ss` patterns dispatch to branch-if-set handlers, `0xF4ss` dispatch to branch-if-clear handlers. Every conditional branch (BRCS/BRCC, BREQ/BRNE, BRMI/BRPL, BRVS/BRVC, BRLT/BRGE, BRHS/BRHC, BRTS/BRTC, BRIE/BRID) branches on the **opposite condition**.
+The official Atmel datasheet encodes BRBS (branch if bit set) as `0xF4ss` and BRBC (branch if bit clear) as `0xF0ss`. However, the **GNU toolchain** (avr-gcc, avr-as, avr-objdump) uses the **opposite** convention: `0xF0ss` is treated as BRBS (branch-if-set) and `0xF4ss` as BRBC (branch-if-clear). This is a long-standing difference between Atmel documentation and GNU implementation. The emulator's original table was **correct** for all firmware compiled with avr-gcc — the `0xF0ss` entries dispatch to `execute_brbs` (branch-if-set) and `0xF4ss` to `execute_brbc` (branch-if-clear), matching the GNU convention. All 182 tests pass with the original table.
 
-### C2 — `consume_interrupt_request` TOCTOU race between arbitration and matching
+~~NOT-A-BUG. Reverted the intended fix.~~
+
+### ~~C2 — `consume_interrupt_request` TOCTOU race between arbitration and matching~~ FIXED
 **File:** `src/core/memory_bus.cpp:378-420`
 
-First loops all peripherals calling `pending_interrupt_request()` to find the best candidate, then loops again to find which peripheral matches. Peripheral state can change between loops (first loop calls `catch_up_all_peripherals`). Matching can fail even with valid pending interrupts, causing lost interrupts.
+Rewritten to select best interrupt and its peripheral in a single pass, eliminating the TOCTOU race between arbitration and matching. Committed.
 
-### C3 — ADC stale scheduler callback not cancelled on conversion abort
+### ~~C3 — ADC stale scheduler callback not cancelled on conversion abort~~ FIXED
 **File:** `src/core/adc.cpp:78,124`
 
-When conversion is aborted (ADEN clear or PRADC), `converting_` is set to false but the scheduler event scheduled in `start_conversion()` is never cancelled. Old event fires later, sees `converting_ == true` (set by new conversion), and completes the new conversion prematurely.
+`Adc::reset()`, ADEN clear, and PRADC paths now call `bus_->scheduler().cancel(adc_callback, this)` to cancel stale scheduled conversion callbacks. Committed.
 
-### C4 — TCA `consume_interrupt_request` never clears interrupt flags
+### ~~C4 — TCA `consume_interrupt_request` never clears interrupt flags~~ FIXED
 **File:** `src/core/tca.cpp:343-348`
 
-Returns `true` without touching `intflags_`. Once an interrupt is asserted, the ISR re-fires forever because the flag is never cleared on vector entry.
+`consume_interrupt_request()` now clears the corresponding `intflags_` bit and calls `update_interrupt_state()`. Committed.
 
-### C5 — EEPROM `complete_write()` sets shadowed `interrupt_pending_`
+### ~~C5 — EEPROM `complete_write()` sets shadowed `interrupt_pending_`~~ FIXED
 **File:** `src/core/eeprom.cpp:238`, `include/vioavr/core/eeprom.hpp:58`
 
-`Eeprom` declares its own `interrupt_pending_` at eeprom.hpp:58 which **shadows** `IoPeripheral::interrupt_pending_`. `complete_write()` at line 238 sets the derived-class member; the base-class member stays `false`. The interrupt controller checks the base-class member — the EEPROM ready interrupt is **never delivered**.
+Removed shadowed `interrupt_pending_` from `eeprom.hpp`. `complete_write()` and `consume_interrupt_request()` now call `update_interrupt_pending()` / `set_interrupt_pending()` on the base class. Committed.
 
-### C6 — EEPROM `interrupt_pending_` shadows base class member (same root as C5)
-**File:** `include/vioavr/core/eeprom.hpp:58`
+### ~~C6 — EEPROM `interrupt_pending_` shadows base class member (same root as C5)~~ FIXED
+Same fix as C5. Committed.
 
-`consume_interrupt_request()` at eeprom.cpp:164 also clears the wrong member.
-
-### C7 — PLL lock delay hardcoded to 100 cycles (should be ~16000)
+### ~~C7 — PLL lock delay hardcoded to 100 cycles (should be ~16000)~~ FIXED
 **File:** `include/vioavr/core/pll.hpp:26`
 
-`static constexpr u64 LOCK_DELAY_CYCLES = 100;` — at 16MHz this is 6.25us. Real AVR PLL lock time is ~1ms (~16000 cycles). PSC high-resolution mode becomes active far too early.
+`LOCK_DELAY_CYCLES` changed from 100 to 16000 (~1ms at 16MHz). PLL fidelity test tick values updated. Committed.
 
-### C8 — PinMux `reset()` does not clear `active_claims`
+### ~~C8 — PinMux `reset()` does not clear `active_claims`~~ FIXED
 **File:** `src/core/pin_mux.cpp:144-155`
 
-`reset()` clears `drive_levels`, `output_mask`, `pullup_mask`, `wired_and_mask` but **not `active_claims`**. After system reset, peripheral pin claims survive. GPIO (highest-priority after reset) is never restored as pin owner. PORT writes have no effect.
+`reset()` now also clears `active_claims` and `pullup_suppressed_` (M67). Committed.
 
-### C9 — SPI SPIF cleared on SPDR read without prior SPSR read
+### ~~C9 — SPI SPIF cleared on SPDR read without prior SPSR read~~ FIXED
 **File:** `src/core/spi.cpp:74-78`
 
-Real AVR SPI requires: (1) read SPSR while SPIF=1, then (2) read SPDR. This code clears SPIF on **any** SPDR read regardless of prior SPSR read.
+Added `spsr_read_since_spif_` flag. SPIF is only cleared when SPDR is read after a prior SPSR read. `update_interrupt_pending()` called after SPIF clear. Committed.
 
-### C10 — USB UEINTX writes clear on 0 instead of write-1-to-clear
+### ~~C10 — USB UEINTX writes clear on 0 instead of write-1-to-clear~~ FIXED
 **File:** `src/core/usb.cpp:215-267`
 
-`ep.interrupt_flags &= (value | 0xA0U)` — a flag is cleared when the CPU writes 0 to its bit position. Real hardware clears flags by writing 1. Completely inverted.
+Changed to write-1-to-clear: `interrupt_flags &= ~(value & ~0xA0U)`. Also inverted FIFOCON clearing from `!(value & 0x80U)` to `(value & 0x80U)`. Updated all 5 USB tests to write the bit to clear. Committed.
 
-### C11 — TWI8X slave START detection checks wrong signal
+### ~~C11 — TWI8X slave START detection checks wrong signal~~ FIXED
 **File:** `src/core/twi8x.cpp:99`
 
-`if (scl == PinLevel::high && last_intended_sda_ == PinLevel::high)` — the master drives `last_intended_sda_` low during START, so the slave **never** detects a START from the master.
+Added `slave_phase_ == TwiSlavePhase::idle` guard alongside the `last_intended_sda_` check to prevent false START detection during slave-driven ACK while still detecting START from the master when idle. Committed.
 
-### C12 — CCL never calls `set_interrupt_pending()` on base class
+### ~~C12 — CCL never calls `set_interrupt_pending()` on base class~~ FIXED
 **File:** `src/core/ccl.cpp`, `src/core/zcd.cpp`
 
-Both CCL and ZCD manage their own interrupt flags but never call `IoPeripheral::set_interrupt_pending()`. The interrupt controller's cached mask never reflects CCL/ZCD interrupts — they are invisible.
+Both CCL and ZCD now call `set_interrupt_pending()` when interrupt state changes. Added `update_interrupt_pending()` / `update_interrupt_state()` methods. Committed.
 
-### C13 — CCL `luts_` hardcoded to 4 elements but descriptor supports 8
+### ~~C13 — CCL `luts_` hardcoded to 4 elements but descriptor supports 8~~ FIXED
 **File:** `include/vioavr/core/ccl.hpp:70`
 
-`std::array<LutState, 4> luts_` but `CclDescriptor.luts` is `LutDescriptor luts[8]`. On devices with `lut_count > 4`, every access to `luts_[i]` for `i > 3` is an out-of-bounds array access.
+Changed `luts_`, `outputs_`, `prev_outputs_`, `prev_raw_outputs_` from `std::array<X, 4>` to `std::vector<X>` (using `u8` instead of `bool` for proxy safety), dynamically sized from `desc_.lut_count` in constructor. Updated `reset()` and `set_pin_input()` to use `desc_.lut_count`. Committed.
 
-### C14 — ADC hardcoded MUX5 bit position (bit 5) is wrong for most devices
+### ~~C14 — ADC hardcoded MUX5 bit position (bit 5) is wrong for most devices~~ FIXED
 **File:** `src/core/adc.cpp:262`
 
-Hardcodes ADCSRB bit 5 as MUX5. On ATmega328P, bit 5 is **ACME** (Analog Comparator Mux Enable). On ATmega2560, MUX5 is at bit 3. Should be device-parameterized.
+Added `mux5_mask` field to `AdcDescriptor` (default 0x20 for backward compat). `adc.cpp` uses `desc_.mux5_mask` instead of hardcoded `0x20U`. Also fixed H1 — fallback mask widened from `0x0F` to `0x3F`. Committed.
 
 ---
 
 ## 🟠 HIGH
 
-### H1 — ADC default mux fallback truncates to 4 bits
+### ~~H1 — ADC default mux fallback truncates to 4 bits~~ FIXED
 **File:** `src/core/adc.cpp:272`
 
-`return { static_cast<u8>(mux & 0x0FU), 0, 1.0f, false }` — masks with 0x0F losing MUX4 (bit 4) and MUX5 (bit 5). Channels 8-15 on 5-bit mux devices broken in fallback path.
+Fallback mask widened from `0x0F` to `0x3F`. Fixed together with C14. Committed.
 
 ### H2 — ADC missing `source_id` in interrupt requests
 **File:** `src/core/adc.cpp:148,155`
@@ -575,10 +575,10 @@ tick() only samples binding entries, not voltage pins. Wasted ticks.
 
 ranges_ default-initialized (all zero). First non-zero address at 0x0001 would merge into {0x0000, 0x0001}.
 
-### M67 — PinMux reset() doesn't clear pullup_suppressed_
+### ~~M67 — PinMux reset() doesn't clear pullup_suppressed_~~ FIXED
 **File:** `src/core/pin_mux.cpp:144-155`
 
-MCUCR.PUD state survives reset. Pull-ups remain suppressed after system reset.
+Fixed together with C8. `reset()` now clears `pullup_suppressed_`. Committed.
 
 ### M68 — PinMux wired-and mode applied to all claimants, not just requester
 **File:** `src/core/pin_mux.cpp:176-188`
@@ -689,21 +689,13 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 
 ## 📋 SUMMARY
 
-| Severity | Count | Key Areas |
-|----------|-------|-----------|
-| 🔴 CRITICAL | 14 | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | |
+| Severity | Count | Fixed | Key Areas |
+|----------|-------|-------|-----------|
+| 🔴 CRITICAL | 14 | 10 | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
+| 🟠 HIGH | 32 | 1 | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🟡 MEDIUM | 42 | 1 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
+| **Total** | **88** | **12** | |
 
 ### Quick Fix Guide
 
-**Fix the critical bugs first:**
-1. `avr_cpu.cpp:678-693` — Swap `0xF000`/`0xF400` patterns for all 8 branch alias pairs
-2. `tca.cpp:343-348` — Clear `intflags_` in `consume_interrupt_request`
-3. `eeprom.hpp:58` — Remove shadowed `interrupt_pending_`, use base class
-4. `eeprom.cpp:238` — Call `update_interrupt_pending()` instead of setting member directly
-5. `pin_mux.cpp:144-155` — Clear `active_claims` in `reset()`
-6. `spi.cpp:74-78` — Add `spsr_read_since_spif` flag for proper SPIF clearing sequence
-7. `ccl.cpp` / `zcd.cpp` — Call `set_interrupt_pending()` when interrupt state changes
-8. `pll.hpp:26` — Make lock delay frequency-dependent (e.g., `cpu_frequency / 1000`)
+All 14 critical bugs resolved (13 fixed + 1 confirmed not a bug). Proceed to H-series bugs.

@@ -9,7 +9,13 @@
 
 namespace vioavr::core {
 
-Ccl::Ccl(const CclDescriptor& desc) : desc_(desc) {
+Ccl::Ccl(const CclDescriptor& desc) : desc_(desc),
+    luts_(desc_.lut_count),
+    outputs_(desc_.lut_count, 0),
+    prev_outputs_(desc_.lut_count, 0),
+    prev_raw_outputs_(desc_.lut_count, 0),
+    prev_luts_in2_(2, 0)
+{
     size_t range_idx = 0;
     if (desc_.ctrla_address != 0) {
         ranges_[range_idx++] = {desc_.ctrla_address, desc_.ctrla_address};
@@ -53,10 +59,10 @@ void Ccl::reset() noexcept {
         lut.ctrla = 0; lut.ctrlb = 0; lut.ctrlc = 0; lut.truth = 0;
         std::fill(lut.inputs.begin(), lut.inputs.end(), false);
     }
-    std::fill(outputs_.begin(), outputs_.end(), false);
-    std::fill(prev_outputs_.begin(), prev_outputs_.end(), false);
-    std::fill(prev_raw_outputs_.begin(), prev_raw_outputs_.end(), false);
-    std::fill(prev_luts_in2_.begin(), prev_luts_in2_.end(), false);
+    std::fill(outputs_.begin(), outputs_.end(), 0);
+    std::fill(prev_outputs_.begin(), prev_outputs_.end(), 0);
+    std::fill(prev_raw_outputs_.begin(), prev_raw_outputs_.end(), 0);
+    std::fill(prev_luts_in2_.begin(), prev_luts_in2_.end(), 0);
     std::fill(seq_state_.begin(), seq_state_.end(), false);
     update_routing();
     update_logic();
@@ -137,7 +143,7 @@ void Ccl::write(u16 address, u8 value) noexcept {
         bool found = false;
         for (int i=0; i<4; ++i) if (address == desc_.seqctrl_addresses[i]) { seqctrl_[i] = value; found = true; break; }
         if (!found) for (int i=0; i<2; ++i) if (address == desc_.intctrl_addresses[i]) { intctrl_[i] = value; found = true; break; }
-        if (!found) for (int i=0; i<2; ++i) if (address == desc_.intflags_addresses[i]) { intflags_[i] &= ~value; found = true; break; }
+        if (!found) for (int i=0; i<2; ++i) if (address == desc_.intflags_addresses[i]) { intflags_[i] &= ~value; update_interrupt_state(); found = true; break; }
 
         if (!found) {
             for (u8 i = 0; i < desc_.lut_count; ++i) {
@@ -282,7 +288,10 @@ void Ccl::update_logic() noexcept {
                            (intmode == 0x02 && !outputs_[i]) ||
                            (intmode == 0x03);
             
-            if (trigger) intflags_[i / 2] |= (1 << (i % 2));
+            if (trigger) {
+                intflags_[i / 2] |= (1 << (i % 2));
+                update_interrupt_state();
+            }
 
             // Trigger Event System
             if (evsys_ && desc_.luts[i].generator_id != 0) {
@@ -307,7 +316,7 @@ void Ccl::update_logic() noexcept {
 }
 
 void Ccl::set_pin_input(u8 lut_index, u8 input_index, bool level) noexcept {
-    if (lut_index < 4 && input_index < 3) {
+    if (lut_index < desc_.lut_count && input_index < 3) {
         if (luts_[lut_index].inputs[input_index] != level) {
             luts_[lut_index].inputs[input_index] = level;
             update_logic();
@@ -331,5 +340,9 @@ void Ccl::update_routing() noexcept {
             pin_mux_->release_pin(port_idx, pin_idx, PinOwner::ccl);
         }
     }
+}
+void Ccl::update_interrupt_state() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 } // namespace vioavr::core

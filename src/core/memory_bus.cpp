@@ -377,42 +377,82 @@ void MemoryBus::notify_interrupt_state_change(IoPeripheral* peripheral, bool pen
 
 bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 active_domains) noexcept
 {
-    InterruptRequest selected_request;
-    if (!pending_interrupt_request(selected_request, active_domains)) {
+    catch_up_all_peripherals(cpu_cycles());
+
+    if (all_peripherals_support_mask_ && pending_interrupt_mask_ == 0ULL) {
         return false;
     }
 
-    IoPeripheral* selected_peripheral = nullptr;
+    bool found = false;
+    InterruptRequest best_request {};
+    IoPeripheral* best_peripheral = nullptr;
+
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral == nullptr) continue;
 
         const u8 bus_id = peripheral->bus_id_;
-        // If it supports the mask, and its bit is not set, we can skip it entirely!
         if ((mask_support_bits_ & (1ULL << bus_id)) != 0) {
             if ((pending_interrupt_mask_ & (1ULL << bus_id)) == 0) {
                 continue;
             }
         }
 
-        InterruptRequest candidate;
+        const u8 domain_mask = static_cast<u8>(peripheral->clock_domain());
+        if ((domain_mask & active_domains) == 0 && domain_mask != 0) {
+            continue;
+        }
+
+        InterruptRequest candidate {};
         if (peripheral->pending_interrupt_request(candidate)) {
-            if (candidate.vector_index == selected_request.vector_index && candidate.source_id == selected_request.source_id) {
-                selected_peripheral = peripheral;
-                break;
+            bool replace = false;
+            if (!found) {
+                replace = true;
+            } else if (cpu_int_) {
+                bool candidate_is_lvl1 = cpu_int_->is_lvl1_vector(candidate.vector_index);
+                bool best_is_lvl1 = cpu_int_->is_lvl1_vector(best_request.vector_index);
+
+                if (candidate_is_lvl1 && !best_is_lvl1) {
+                    replace = true;
+                } else if (!candidate_is_lvl1 && best_is_lvl1) {
+                    replace = false;
+                } else {
+                    u8 base = cpu_int_->highest_priority_vector();
+                    u32 n = static_cast<u32>(device_.interrupt_vector_count);
+
+                    if (n > 0) {
+                        u32 p_candidate = (static_cast<u32>(candidate.vector_index) + n - base) % n;
+                        u32 p_best = (static_cast<u32>(best_request.vector_index) + n - base) % n;
+
+                        if (p_candidate < p_best) {
+                            replace = true;
+                        }
+                    } else {
+                        if (candidate.vector_index < best_request.vector_index) {
+                            replace = true;
+                        }
+                    }
+                }
+            } else {
+                if (candidate.vector_index < best_request.vector_index ||
+                    (candidate.vector_index == best_request.vector_index && candidate.source_id < best_request.source_id)) {
+                    replace = true;
+                }
+            }
+
+            if (replace) {
+                best_request = candidate;
+                best_peripheral = peripheral;
+                found = true;
             }
         }
     }
 
-    if (selected_peripheral == nullptr) {
-        printf("[DEBUG] MemoryBus: Selected selected_request but found no matching peripheral for vec %d!\n", selected_request.vector_index);
+    if (!found) {
         return false;
     }
 
-    request = selected_request;
-    bool consumed = selected_peripheral->consume_interrupt_request(request);
-    if (!consumed) {
-        printf("[DEBUG] MemoryBus: Peripheral refused to consume vec %d!\n", request.vector_index);
-    }
+    request = best_request;
+    bool consumed = best_peripheral->consume_interrupt_request(request);
     if (consumed && cpu_int_) {
         cpu_int_->on_interrupt_acknowledged(request.vector_index);
     }

@@ -66,6 +66,7 @@ void Adc::reset() noexcept {
     didr0_ = 0x00U;
     result_ = 0x00U;
     converting_ = false;
+    if (bus_) bus_->scheduler().cancel(adc_callback, this);
     pending_ = false;
     first_conversion_ = true;
     cycles_remaining_ = 0;
@@ -77,6 +78,7 @@ void Adc::tick(u64 elapsed_cycles) noexcept {
         if (converting_) {
             converting_ = false;
             adcsra_ &= ~desc_.adsc_mask;
+            if (bus_) bus_->scheduler().cancel(adc_callback, this);
         }
         return;
     }
@@ -122,6 +124,7 @@ void Adc::write(u16 address, u8 value) noexcept {
         } else if (!(adcsra_ & desc_.aden_mask) && (old_val & desc_.aden_mask)) {
             update_pin_ownership();
             converting_ = false;
+            if (bus_) bus_->scheduler().cancel(adc_callback, this);
             first_conversion_ = true;
         }
         

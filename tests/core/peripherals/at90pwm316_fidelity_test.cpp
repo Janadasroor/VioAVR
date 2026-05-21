@@ -535,7 +535,7 @@ TEST_CASE("AT90PWM316 - PSC High-Resolution 64MHz Fidelity") {
     
     // 3. Enable PLL
     bus.write_data(pllcsr, 0x02); // PLLE=1
-    bus.tick_peripherals(150); // Wait for lock (100 cycles) + some margin
+    bus.tick_peripherals(16500); // Wait for lock (16000 cycles) + some margin
     
     // Now PLOCK should be 1. PSC runs at 4x speed.
     // We are at cycle ~190 total.

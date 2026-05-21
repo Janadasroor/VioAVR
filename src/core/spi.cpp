@@ -49,6 +49,7 @@ void Spi::reset() noexcept
     miso_buffer_ = 0U;
     transfer_cycles_left_ = 0U;
     interrupt_pending_ = false;
+    spsr_read_since_spif_ = false;
 }
 
 void Spi::tick(const u64 elapsed_cycles) noexcept
@@ -69,13 +70,18 @@ u8 Spi::read(const u16 address) noexcept
         return spcr_;
     }
     if (address == desc_.spsr_address) {
+        if ((spsr_ & desc_.spif_mask) != 0U) {
+            spsr_read_since_spif_ = true;
+        }
         return spsr_;
     }
     if (address == desc_.spdr_address) {
-        if ((spsr_ & desc_.spif_mask) != 0U) {
+        if ((spsr_ & desc_.spif_mask) != 0U && spsr_read_since_spif_) {
             spsr_ &= static_cast<u8>(~desc_.spif_mask);
             interrupt_pending_ = false;
+            update_interrupt_pending();
         }
+        spsr_read_since_spif_ = false;
         return spdr_;
     }
     return 0U;
@@ -149,8 +155,7 @@ bool Spi::pending_interrupt_request(InterruptRequest& request) const noexcept
 bool Spi::consume_interrupt_request(InterruptRequest& request) noexcept
 {
     if (pending_interrupt_request(request)) {
-        // Flags are cleared by reading SPSR then SPDR
-        // But some implementations clear on ISR entry too
+        interrupt_pending_ = false;
         update_interrupt_pending();
         return true;
     }
