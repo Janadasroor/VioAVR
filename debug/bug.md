@@ -156,25 +156,25 @@ After 4th matching sample passes, counter keeps incrementing. Every subsequent s
 
 CS=6 (falling edge T1) and CS=7 (rising edge T1) fall through with no action. Timer deadlocked.
 
-### H16 — Timer10 match-at-TOP fires before overflow (100% duty glitch)
+### ~~H16 — Timer10 match-at-TOP fires before overflow (100% duty glitch)~~ FIXED
 **File:** `src/core/timer10.cpp:170-198`
 
-When `ocra_ == ocrc_` (100% duty), match fires pin LOW then overflow fires pin HIGH in same tick. Real hardware prioritizes overflow.
+When `ocra_ == ocrc_` (100% duty), match fires pin LOW then overflow fires pin HIGH in same tick. Real hardware prioritizes overflow. Fixed in commit 0ea6e3f.
 
-### H17 — Timer10 no clock select / prescaler implementation
+### ~~H17 — Timer10 no clock select / prescaler implementation~~ FIXED
 **File:** `src/core/timer10.cpp:60-67`
 
-All clock select bits silently ignored. Timer always ticks at CPU rate.
+All clock select bits silently ignored. Timer always ticks at CPU rate. Fixed in commit 0ea6e3f.
 
-### H18 — PSC 16-bit reads bypass temp register latch
+### ~~H18 — PSC 16-bit reads bypass temp register latch~~ FIXED
 **File:** `src/core/psc.cpp:85-105`
 
-Write path correctly uses temp register (high-byte-first). Read path reads each byte from live register. Inconsistent 16-bit reads.
+Write path correctly uses temp register (high-byte-first). Read path reads each byte from live register. Inconsistent 16-bit reads. Fixed in commit 0ea6e3f.
 
-### H19 — DAC voltage calculation uses 1023 instead of 1024
+### ~~H19 — DAC voltage calculation uses 1023 instead of 1024~~ FIXED
 **File:** `src/core/dac.cpp:134`
 
-`voltage_ = static_cast<double>(data_) / 1023.0` — correct for 10-bit DAC is `/ 1024.0`. Systematic -0.1% error.
+`voltage_ = static_cast<double>(data_) / 1023.0` — correct for 10-bit DAC is `/ 1024.0`. Systematic -0.1% error. Fixed in commit 0ea6e3f.
 
 ### ~~H20 — Mapped EEPROM writes bypass all protection sequences~~ FIXED
 **File:** `src/core/eeprom.cpp:134-143`
@@ -696,9 +696,9 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 | Severity | Count | Fixed | Key Areas |
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | 19 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🟠 HIGH | 32 | 23 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
 | 🟡 MEDIUM | 42 | 1 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **33 (+5 NAB)** | |
+| **Total** | **88** | **37 (+5 NAB)** | |
 
 ### Quick Fix Guide
 
