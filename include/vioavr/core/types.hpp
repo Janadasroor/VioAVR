@@ -60,6 +60,7 @@ struct PinStateChange {
     u8 bit_index {};
     bool level {};
     u64 cycle_stamp {};
+    u8 change_mask {};
 };
 
 struct InterruptRequest {
