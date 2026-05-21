@@ -18,7 +18,9 @@ void Ac8x::set_event_system(EventSystem* evsys) noexcept {
         if (desc_.user_event_address >= user_base) {
             u8 user_index = static_cast<u8>(desc_.user_event_address - user_base);
             evsys_->register_user_callback(user_index, [this](bool) {
-                // Some ACs might use events to trigger comparison or something
+                if (is_enabled() && !(ctrla_ & 0x08U)) {
+                    evaluate();
+                }
             });
         }
     }
@@ -47,6 +49,8 @@ void Ac8x::reset() noexcept {
     dacctrla_ = 0xFF; // Specific initval for DACREF
     intctrl_ = 0;
     status_ = 0;
+    pending_state_ = false;
+    settle_counter_ = 0;
     vref_ = 5.0;
 }
 
@@ -76,34 +80,25 @@ void Ac8x::write(u16 address, u8 value) noexcept {
     }
 }
 
-void Ac8x::tick(u64 elapsed_cycles) noexcept {
-    (void)elapsed_cycles;
-    if (!is_enabled()) return;
-    if (ctrla_ & 0x08U) return; // LPMODE: comparator powered down, output latched
-
+void Ac8x::evaluate() noexcept {
     double p_volts = 0.5;
     double n_volts = 0.0;
 
     if (signal_bank_) {
         u8 p_mux = (muxctrla_ >> 3) & 0x07U;
         u8 n_mux = muxctrla_ & 0x07U;
-
-        // Simplified mapping for now
         p_volts = signal_bank_->voltage(p_mux);
-        
-        if (n_mux == 0x03U) { // DACREF: V_DACREF = DACREF * VREF / 256
+        if (n_mux == 0x03U) {
             n_volts = static_cast<double>(dacctrla_) * vref_ / 256.0;
         } else {
-            n_volts = signal_bank_->voltage(n_mux + 4); // Dummy offset for negative pins
+            n_volts = signal_bank_->voltage(n_mux + 4);
         }
     }
     
     bool old_state = (status_ & 0x10U) != 0;
-    // H8: Apply INVERT bit
     bool new_state = (p_volts > n_volts);
     if (muxctrla_ & 0x80U) new_state = !new_state;
 
-    // H9: Apply hysteresis
     u8 hys = (ctrla_ >> 1) & 0x03U;
     if (hys > 0) {
         double hyst_v = 0.0;
@@ -118,28 +113,45 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
             if (muxctrla_ & 0x80U) new_state = !new_state;
         }
     }
+    pending_state_ = new_state;
+}
 
-    if (new_state) status_ |= 0x10U;
+void Ac8x::tick(u64 elapsed_cycles) noexcept {
+    (void)elapsed_cycles;
+    if (!is_enabled()) return;
+    if (ctrla_ & 0x08U) return;
+
+    evaluate();
+
+    bool old_state = (status_ & 0x10U) != 0;
+    if (pending_state_ == old_state) {
+        settle_counter_ = 0;
+        return;
+    }
+
+    if (settle_counter_ > 0) {
+        settle_counter_--;
+        if (settle_counter_ > 0) return;
+    } else {
+        settle_counter_ = PROPAGATION_DELAY;
+        if (settle_counter_ > 0) return;
+    }
+
+    if (pending_state_) status_ |= 0x10U;
     else status_ &= ~0x10U;
 
-    if (old_state != new_state) {
-        // Check for interrupt trigger
-        u8 mode = (ctrla_ >> 4) & 0x03U;
-        bool trigger = false;
-        switch (mode) {
-            case 0: trigger = true; break; // BOTHEDGE
-            case 2: trigger = !new_state; break; // NEGEDGE
-            case 3: trigger = new_state; break; // POSEDGE
-            default: break;
-        }
+    u8 mode = (ctrla_ >> 4) & 0x03U;
+    bool trigger = false;
+    switch (mode) {
+        case 0: trigger = true; break;
+        case 2: trigger = !pending_state_; break;
+        case 3: trigger = pending_state_; break;
+        default: break;
+    }
+    if (trigger) status_ |= 0x01U;
 
-        if (trigger) {
-            status_ |= 0x01U; // CMP flag
-        }
-
-        if (evsys_ && desc_.out_generator_id != 0 && (ctrla_ & 0x40U)) {
-            evsys_->trigger_event(desc_.out_generator_id, new_state);
-        }
+    if (evsys_ && desc_.out_generator_id != 0 && (ctrla_ & 0x40U)) {
+        evsys_->trigger_event(desc_.out_generator_id, pending_state_);
     }
 }
 

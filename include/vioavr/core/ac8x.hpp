@@ -58,8 +58,14 @@ private:
     u8 intctrl_ {0};
     u8 status_ {0};
 
+    static constexpr u64 PROPAGATION_DELAY = 0;
+
     bool is_enabled() const noexcept { return (ctrla_ & (0x01U | 0x80U)); }
     void update_interrupt_state() noexcept;
+    void evaluate() noexcept;
+
+    bool pending_state_ {false};
+    u64 settle_counter_ {0};
 };
 
 } // namespace vioavr::core
