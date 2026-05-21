@@ -34,7 +34,7 @@ void Dac::reset() noexcept {
 
 void Dac::tick(u64 elapsed_cycles) noexcept {
     (void)elapsed_cycles;
-    if (power_reduction_enabled()) return;
+    if (power_reduction_enabled() || !bus_) return;
 
     bool enabled = (dacon_ & desc_.daen_mask);
     if (enabled && (dacon_ & desc_.dacoe_mask)) {
@@ -117,6 +117,9 @@ void Dac::notify_auto_trigger(AdcAutoTriggerSource source) noexcept {
     if (triggered) {
         data_ = buffer_value_;
         update_voltage();
+        if (bus_ && desc_.dac_pin_address && (dacon_ & desc_.dacoe_mask)) {
+            bus_->pin_mux()->update_analog_pin_by_address(desc_.dac_pin_address, desc_.dac_pin_bit, PinOwner::dac, voltage_);
+        }
     }
 }
 
