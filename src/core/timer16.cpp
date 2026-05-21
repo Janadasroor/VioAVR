@@ -171,12 +171,14 @@ void Timer16::perform_tick() noexcept {
         case 15: top = ocra_; update_ocr_at_top = true; break;
     }
 
+    bool ocr_loaded_this_tick = false;
+
     if (is_phase_correct) {
         if (counting_up_) {
             if (tcnt_ >= top) {
                 counting_up_ = false;
                 if (tcnt_ > 0) tcnt_--;
-                if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; }
+                if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocr_loaded_this_tick = true; }
             } else {
                 tcnt_++;
             }
@@ -185,7 +187,7 @@ void Timer16::perform_tick() noexcept {
                 counting_up_ = true;
                 tcnt_++;
                 tifr_ |= kTov1;
-                if (update_ocr_at_bottom) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; }
+                if (update_ocr_at_bottom) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocr_loaded_this_tick = true; }
                 for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.overflow_trigger_source);
             } else {
                 tcnt_--;
@@ -195,7 +197,7 @@ void Timer16::perform_tick() noexcept {
         if (tcnt_ >= top) {
             tcnt_ = 0;
             tifr_ |= kTov1;
-            if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; }
+            if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocr_loaded_this_tick = true; }
             for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.overflow_trigger_source);
             update_pwm_pins(); // Set pin HIGH at BOTTOM for Fast PWM non-inverting (COM=2)
         } else {
@@ -203,7 +205,8 @@ void Timer16::perform_tick() noexcept {
         }
     }
 
-    // Matches
+    // Matches (skip if OCR was just loaded to prevent spurious same-tick match)
+    if (!ocr_loaded_this_tick) {
     if (tcnt_ == ocra_) {
         tifr_ |= kOcf1a;
         update_pwm_pins();
@@ -218,6 +221,7 @@ void Timer16::perform_tick() noexcept {
         tifr_ |= kOcf1c;
         update_pwm_pins();
         for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.compare_c_trigger_source);
+    }
     }
 
     // 2. Input Capture (run after counter update to capture the updated TCNT value)

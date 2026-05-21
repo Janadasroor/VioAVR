@@ -29,7 +29,8 @@ Adc::Adc(std::string_view name,
 {
     std::vector<u16> addrs = { 
         desc_.adcl_address, desc_.adch_address, desc_.adcsra_address, 
-        desc_.adcsrb_address, desc_.admux_address, desc_.didr0_address
+        desc_.adcsrb_address, desc_.admux_address, desc_.didr0_address,
+        desc_.didr2_address
     };
     std::sort(addrs.begin(), addrs.end());
     
@@ -64,6 +65,7 @@ void Adc::reset() noexcept {
     adcsrb_ = desc_.adcsrb_reset;
     admux_ = desc_.admux_reset;
     didr0_ = 0x00U;
+    didr2_ = 0x00U;
     result_ = 0x00U;
     converting_ = false;
     if (bus_) bus_->scheduler().cancel(adc_callback, this);
@@ -109,10 +111,14 @@ u8 Adc::read(u16 address) noexcept {
             return static_cast<u8>((val >> 2U) & 0xFFU);
         return static_cast<u8>((val >> 8U) & 0xFFU);
     }
-    if (address == desc_.adcsra_address) return adcsra_;
+    if (address == desc_.adcsra_address) {
+        const u8 valid_mask = desc_.aden_mask | desc_.adsc_mask | desc_.adate_mask | desc_.adif_mask | desc_.adie_mask | 0x07U;
+        return adcsra_ & valid_mask;
+    }
     if (address == desc_.adcsrb_address) return adcsrb_;
     if (address == desc_.admux_address) return admux_;
     if (address == desc_.didr0_address) return didr0_;
+    if (address == desc_.didr2_address) return didr2_;
     return 0x00U;
 }
 
@@ -148,6 +154,9 @@ void Adc::write(u16 address, u8 value) noexcept {
         update_auto_trigger_source_from_register();
     } else if (address == desc_.didr0_address) {
         didr0_ = value;
+        update_pin_ownership();
+    } else if (address == desc_.didr2_address) {
+        didr2_ = value;
         update_pin_ownership();
     }
 }
@@ -239,6 +248,16 @@ void Adc::update_interrupt_pending() noexcept {
 }
 
 void Adc::complete_conversion() noexcept {
+    if (vref_ <= 0.0) {
+        result_ = 0;
+        adcsra_ &= ~desc_.adsc_mask;
+        adcsra_ |= desc_.adif_mask;
+        update_interrupt_pending();
+        converting_ = false;
+        if (free_running_enabled()) start_conversion();
+        return;
+    }
+
     const MuxMapping mapping = resolve_mux();
     double pos_v = get_voltage(mapping.positive_channel);
     double result_v = pos_v;
@@ -309,6 +328,12 @@ void Adc::bind_pin_map(const PinMap& pin_map) noexcept {
 
 void Adc::select_auto_trigger_source(AutoTriggerSource source) noexcept {
     auto_trigger_source_ = source;
+    for (u8 i = 0; i < desc_.auto_trigger_map.size(); ++i) {
+        if (desc_.auto_trigger_map[i] == source) {
+            adcsrb_ = (adcsrb_ & ~desc_.adts_mask) | (i & desc_.adts_mask);
+            return;
+        }
+    }
 }
 
 void Adc::connect_comparator_auto_trigger(AnalogComparator& comparator) noexcept {

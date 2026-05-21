@@ -18,7 +18,8 @@ Psc::Psc(std::string_view name, const PscDescriptor& desc, PinMux* pin_mux)
         desc.ocrsb_address, static_cast<u16>(desc.ocrsb_address + 1),
         desc.ocrrb_address, static_cast<u16>(desc.ocrrb_address + 1),
         desc.pfrc0a_address, desc.pfrc0b_address,
-        desc.pom_address
+        desc.pom_address,
+        desc.pcnt_address, static_cast<u16>(desc.pcnt_address + 1)
     };
     
     fault_a_.blanking_duration = desc_.blanking_duration;
@@ -108,6 +109,9 @@ u8 Psc::read(u16 address) noexcept {
         return ocrrb_ & 0xFF;
     }
     if (address == desc_.ocrrb_address + 1) return read_temp_high_;
+    
+    if (address == desc_.pcnt_address) return counter_ & 0xFF;
+    if (desc_.pcnt_address != 0 && address == desc_.pcnt_address + 1) return (counter_ >> 8) & 0x0F;
     
     return 0;
 }
@@ -201,8 +205,8 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
         
         // Blanking Logic A
         if (fault_a_.blanking_counter > 0) {
-            fault_a_.blanking_counter--;
             raw_triggered_a = false; 
+            fault_a_.blanking_counter--;
         }
 
         if (pfrc0a_ & 0x10) { // PFLTE (Filter Enable)
@@ -224,8 +228,8 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
         
         // Blanking Logic B
         if (fault_b_.blanking_counter > 0) {
-            fault_b_.blanking_counter--;
             raw_triggered_b = false;
+            fault_b_.blanking_counter--;
         }
 
         if (pfrc0b_ & 0x10) { // PFLTE (Filter Enable)

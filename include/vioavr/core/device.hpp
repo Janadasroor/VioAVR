@@ -70,6 +70,7 @@ struct AdcDescriptor {
     u8 adcsrb_reset {0x00U};
     u8 admux_reset {0x00U};
     u16 didr0_address {};
+    u16 didr2_address {};
     std::array<u16, 16> adc_pin_address {}; // Increased to 16 for mega2560
     std::array<u8, 16> adc_pin_bit {};
     std::array<AdcAutoTriggerSource, 16> auto_trigger_map {};
@@ -120,6 +121,8 @@ struct Ac8xDescriptor {
     u8 vector_index {};
     u16 user_event_address {};
     u8 out_generator_id {};
+    u8 muxpos_base {0};           // Positive input signal bank base (default 0)
+    u8 muxneg_base {4};           // Negative input signal bank base (default 4, legacy offset)
 };
 
 struct AnalogComparatorDescriptor {
@@ -770,6 +773,7 @@ struct PscDescriptor {
     u16 pfrc0a_address {};
     u16 pfrc0b_address {};
     u16 pom_address {}; // For PSC2 Output Matrix
+    u16 pcnt_address {};
     
     u8 psc_index {};
     u8 gen_vector_index {};

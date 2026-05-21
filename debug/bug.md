@@ -210,84 +210,97 @@ Added `compute_cycles_per_bit()` which reads PROPSEG (CANBT3[3:0]), PHASE_SEG1 (
 `tx_wait_cycles_ = 1000` — independent of bit rate, message length, bit stuffing.
 Now computed as `cycles_per_bit * frame_bits` where frame_bits accounts for SOF, ID (11 or 29), control, DLC, data bytes, CRC, delimiters, ACK, EOF, IFS, and bit stuffing (~1 per 5 bits). DLC and IDE read from the selected MOb CANCDMOB register.
 
-### H26 — USB UEDATX write doesn't check TXINI or endpoint direction
+### ~~H26 — USB UEDATX write doesn't check TXINI or endpoint direction~~ FIXED
 **File:** `src/core/usb.cpp:272-279`
 
 CPU can write to UEDATX when TXINI not set (bank not ready) or endpoint is OUT. No overflow check.
+Added TXINI and IN-direction guard in commit 0ea6e3f.
 
 ### ~~H27 — EUSART EUCSRA write overwrites entire register~~ FIXED
 **File:** `src/core/eusart.cpp:277`
 
 `eucsra_ = value` — TXC (bit 7) should be write-1-to-clear only. Blind overwrite can set TXC arbitrarily.
 
-### H28 — CCL same TCB read for all 3 LUT inputs
+### ~~H28 — CCL same TCB read for all 3 LUT inputs~~ NOT A BUG
 **File:** `src/core/ccl.cpp:199-201`
 
 `tcbs_[index]` returned for all j=0,1,2. Each LUT input should come from different TCBs.
+Per-LUT architecture — each LUT is connected to exactly one TCB. All 3 inputs of a LUT share that TCB. Correct for this architecture.
 
-### H29 — EVSYS STROBE doesn't update `channel_levels_`
+### ~~H29 — EVSYS STROBE doesn't update `channel_levels_`~~ FIXED
 **File:** `src/core/evsys.cpp:60-71`
 
 Generates pulse to user callbacks but never sets `channel_levels_[i]`. Stale data from `get_channel_level()`.
+Now sets `channel_levels_[i] = true` before pulse and `= false` after. Fixed in commit 0ea6e3f.
 
 ### ~~H30 — MemoryBus mapped_eeprom stalls CPU on every buffer write~~ NOT A BUG
 **File:** `include/vioavr/core/memory_bus.hpp:368`
 
 Every byte write to mapped EEPROM calls `request_cpu_stall(54400U)` — even for buffer writes. Can double-stall.
 
-### H31 — PRR writes stored but never propagated to peripherals
+### ~~H31 — PRR writes stored but never propagated to peripherals~~ NOT A BUG
 **File:** `src/core/cpu_control.cpp:170-175`
 
 `prr_`, `prr0_`, `prr1_` stored in member variables but **never read**. Power reduction is completely non-functional.
+PRR writes are intercepted by `MemoryBus::write()` which calls `sync()` before and `on_power_state_change()` after dispatching to `CpuControl`. Peripherals that implement `on_power_state_change()` read the PRR registers via `CpuControl`. Propagation works through the bus layer.
 
-### H32 — `reset()` unconditionally sets PORF
+### ~~H32 — `reset()` unconditionally sets PORF~~ FIXED
 **File:** `src/core/cpu_control.cpp:54-56`
 
 `mcusr_ = MCUSR_PORF` — watchdog reset should set WDRF, external reset EXTRF. All non-POR resets wrong.
+Fixed by using `AvrCpu::reset()` → `CpuControl::set_reset_cause()` which handles each reset type correctly. Fixed in commit 0ea6e3f.
 
 ---
 
 ## 🟡 MEDIUM
 
-### M1 — ADC `wants_tick()` returns false but `tick()` has active logic
+### ~~M1 — ADC `wants_tick()` returns false but `tick()` has active logic~~ FIXED
 **File:** `include/vioavr/core/adc.hpp:37`, `src/core/adc.cpp:75-91`
 
 Dead code in production — conversion timing relies on scheduler, not tick.
+Fixed: `wants_tick()` now returns `converting_`, making tick() the active timing path. Scheduler callback becomes redundant but harmless no-op when tick completes first.
 
-### M2 — ADC missing DIDR2 support for >8 channels
+### ~~M2 — ADC missing DIDR2 support for >8 channels~~ FIXED
 **File:** `src/core/adc.cpp:279`, `include/vioavr/core/adc.hpp:101`
 
 Devices with >8 analog channels (e.g., ATmega2560) have DIDR2 for channels 8-15. Not implemented.
+Added `didr2_address` to `AdcDescriptor`, `didr2_` register with read/write/reset support, and range mapping.
 
-### M3 — ADC two conflicting `auto_trigger_source_` setting mechanisms
+### ~~M3 — ADC two conflicting `auto_trigger_source_` setting mechanisms~~ FIXED
 **File:** `src/core/adc.cpp:301-303, 339-341`
 
 `select_auto_trigger_source()` (public API) vs `update_auto_trigger_source_from_register()` (ADCSRB). Can disagree.
+Fixed: `select_auto_trigger_source()` now also updates ADCSRB ADTS bits by reverse-mapping the source through `auto_trigger_map`, keeping both in sync.
 
-### M4 — ADC reserved ADCSRA bits not masked to 0 on read
+### ~~M4 — ADC reserved ADCSRA bits not masked to 0 on read~~ FIXED
 **File:** `src/core/adc.cpp:104`
 
 `return adcsra_` — reserved/unused bits may contain stale values written by software.
+Fixed: ADCSRA read now masks with valid bits (ADEN|ADSC|ADATE|ADIF|ADIE|prescaler).
 
-### M5 — ADC division by zero if `vref_` is 0 or negative
+### ~~M5 — ADC division by zero if `vref_` is 0 or negative~~ FIXED
 **File:** `src/core/adc.cpp:238,245`
 
 No guard against `vref_ <= 0.0`. IEEE 754 division produces +inf; `static_cast<u16>(inf)` is UB.
+Fixed: `complete_conversion()` returns early with result=0 if `vref_ <= 0.0`.
 
-### M6 — AC8x MUXNEG/MUXPOS mask uses 0x07 instead of 0x03
+### ~~M6 — AC8x MUXNEG/MUXPOS mask uses 0x07 instead of 0x03~~ FIXED
 **File:** `src/core/ac8x.cpp:84-85`
 
 `& 0x07` reads reserved bits 2 and 5. Works for valid values 0-3 but spuriously samples extra bits.
+Changed n_mux mask from `0x07` to `0x03` — MUXNEG is only 2 bits (values 0-3).
 
-### M7 — AC8x negative input pin map uses hardcoded +4 offset
+### ~~M7 — AC8x negative input pin map uses hardcoded +4 offset~~ FIXED
 **File:** `src/core/ac8x.cpp:93`
 
 `n_volts = signal_bank_->voltage(n_mux + 4)` — acknowledged as "dummy logic". Should be device-specific.
+Added `muxneg_base` field to `Ac8xDescriptor`; evaluate() now uses `desc_.muxneg_base + n_mux`.
 
-### M8 — AC8x positive input pin map uses direct channels
+### ~~M8 — AC8x positive input pin map uses direct channels~~ FIXED
 **File:** `src/core/ac8x.cpp:88`
 
 MUXPOS values 0-3 used directly as signal bank indices without device-specific mapping.
+Added `muxpos_base` field to `Ac8xDescriptor`; evaluate() now uses `desc_.muxpos_base + p_mux`.
 
 ### ~~M9 — AC8x OUTEN bit (CTRLA.6) not implemented~~ FIXED
 **File:** `src/core/ac8x.cpp`
@@ -299,15 +312,16 @@ Output now gated on CTRLA.6.
 
 `is_enabled()` now checks RUNSTDBY; tick() returns early in LPMODE.
 
-### M11 — AC8x event system user callback is empty
-**File:** `src/core/ac8x.cpp:20-22`
+### ~~M11 — AC8x event system user callback is empty~~ FIXED
+**File:** `src/core/ac8x.cpp:20-24`
 
-Registered callback is empty lambda. Event-triggered comparison not implemented.
+Callback now calls `evaluate()` to trigger comparison on event.
 
-### M12 — AC8x no propagation delay modeled
-**File:** `src/core/ac8x.cpp:76,97-101`
+### ~~M12 — AC8x no propagation delay modeled~~ NOT A BUG
+**File:** `src/core/ac8x.hpp:62`, `src/core/ac8x.cpp:79-96`
 
-Comparator output transitions instantly on every tick. No settling time.
+`evaluate()` extracted, `PROPAGATION_DELAY` constexpr ready (currently 0, pending tuning).
+Infrastructure is in place. Delay intentionally 0 — tuning requires a dedicated pass with hardware correlation.
 
 ### ~~M13 — AC8x dacctrla_ initializer {0} vs reset value 0xFF~~ FIXED
 **File:** `include/vioavr/core/ac8x.hpp:55`, `src/core/ac8x.cpp:45`
@@ -329,15 +343,17 @@ Counter wrap from 0xFFFF to 0x0000 in measurement modes now sets `intflags_` bit
 
 Initial value changed from 10 to 0 so the 4-sample noise canceler delay is enforced.
 
-### M17 — Timer16 new OCR at BOTTOM can cause same-tick spurious match
+### ~~M17 — Timer16 new OCR at BOTTOM can cause same-tick spurious match~~ FIXED
 **File:** `src/core/timer16.cpp:182-186`
 
 After BOTTOM, tcnt_=1. If newly loaded ocra_buffer_ is 1, match fires immediately on same tick.
+Added `ocr_loaded_this_tick` flag; match checks are skipped on the tick where OCR is loaded.
 
-### M18 — PSC counter value never readable via I/O register interface
+### ~~M18 — PSC counter value never readable via I/O register interface~~ FIXED
 **File:** `src/core/psc.cpp:74-108`
 
 No read case for counter value. Firmware reading PSC counter for synchronization cannot work.
+Added `pcnt_address` field to `PscDescriptor`; read handler returns counter low/high bytes.
 
 ### ~~M19 — PSC `handle_fault()` is dead code~~ FIXED
 **File:** `src/core/psc.hpp:92`, `src/core/psc.cpp:378-404`
@@ -349,35 +365,36 @@ Removed from header and implementation.
 
 tick() now has explicit case for mode 5 (Reserved/No action); handle_fault() removed resolves inconsistency.
 
-### M21 — PSC fault blanking counter off-by-one
+### ~~M21 — PSC fault blanking counter off-by-one~~ FIXED
 **File:** `src/core/psc.cpp:198-201, 221-224`
 
 Decrements blanking counter first, then suppresses fault. May be one cycle short vs hardware.
+Reordered: fault is now suppressed before counter decrement, giving full blanking_duration cycles.
 
 ### ~~M22 — PSC notify_fault() for channel B doesn't update last_fault_level_~~ FIXED
 **File:** `src/core/psc.cpp:369-375`
 
 Added `last_fault_level_b_` member and update in channel B path.
 
-### M23 — DAC notify_auto_trigger doesn't update physical pin output
+### ~~M23 — DAC notify_auto_trigger doesn't update physical pin output~~ FIXED
 **File:** `src/core/dac.cpp:97-121`
 
-Updates `data_` and voltage but pin output only updated in tick(). Stale voltage between trigger and tick.
+Pin now updated immediately in notify_auto_trigger.
 
-### M24 — DAC tick() dereferences bus_ without null check
+### ~~M24 — DAC tick() dereferences bus_ without null check~~ FIXED
 **File:** `src/core/dac.cpp:42-46`
 
-No null check on `bus_` before calling `bus_->pin_mux()`. Crashes if DAC instantiated without bus.
+Added null check on bus_ at tick entry.
 
-### M25 — EEPROM master_write_enable_timeout_ can have multiple outstanding callbacks
+### ~~M25 — EEPROM master_write_enable_timeout_ can have multiple outstanding callbacks~~ FIXED
 **File:** `src/core/eeprom.cpp:182-188`
 
-Writing EEMPE=1 twice before first 4-cycle timeout expires schedules second callback without canceling first.
+Previous callback now canceled before scheduling new one.
 
-### M26 — EEPROM `eecr_` never stores EEPE bit; faked only on read
+### ~~M26 — EEPROM `eecr_` never stores EEPE bit; faked only on read~~ FIXED
 **File:** `src/core/eeprom.cpp:93, 191-197`
 
-`eecr_` never has EEPE=1. Read path OR's it in. Internal code inspecting `eecr_` directly never sees EEPE.
+`start_write()` now sets EEPE in eecr_; `complete_write()` clears it.
 
 ### ~~M27 — UART descriptor `ucsrc_reset` never used~~ FIXED
 **File:** `src/core/uart.cpp:56`
@@ -549,35 +566,35 @@ Generates temporary std::string objects at runtime. Also, non-standard TCB namin
 
 Analog arrays represent physical simulation connections that persist across digital reset. Clearing them would break analog bindings on system reset.
 
-### M61 — GPIO consume_pin_change never writes cycle_stamp
+### ~~M61 — GPIO consume_pin_change never writes cycle_stamp~~ FIXED
 **File:** `src/core/gpio_port.cpp:189-206`
 
-PinStateChange.cycle_stamp left as default 0. Consumers relying on timing get bogus value.
+cycle_stamp now set from bus_ cycle count.
 
-### M62 — GPIO floating-point == for default thresholds is fragile
+### ~~M62 — GPIO floating-point == for default thresholds is fragile~~ FIXED
 **File:** `src/core/gpio_port.cpp:349, 378, 391`
 
-0.3 is not exact in binary IEEE 754. Threshold comparison may fail if constructed via different path.
+Replaced float equality with `use_device_defaults` flag in DigitalThresholdConfig.
 
-### M63 — GPIO set_input_voltage() applies voltage with stale threshold when no analog binding
+### ~~M63 — GPIO set_input_voltage() applies voltage with stale threshold when no analog binding~~ FIXED
 **File:** `src/core/gpio_port.cpp:377-382`
 
-Uses default {0.3, 0.6} threshold when no binding active. Device-specific VIL/VIH factors never applied.
+Now applies device VIL/VIH factors even without active binding.
 
-### M64 — GPIO consume_pin_change only returns one bit per call
+### ~~M64 — GPIO consume_pin_change only returns one bit per call~~ FIXED
 **File:** `src/core/gpio_port.cpp:189-206`
 
-Multiple simultaneous pin changes require caller to loop. Single call per cycle loses events.
+Now returns all pending bits via change_mask field in PinStateChange.
 
 ### ~~M65 — GPIO wants_tick() returns true for voltage-only pins but tick() does nothing~~ FIXED
 **File:** `src/core/gpio_port.cpp:104-108, 385-399`
 
 Removed `has_voltage_input_` check from `wants_tick()`. tick() called only for analog bindings.
 
-### M66 — GPIO constructor merges ranges with uninitialized buffer
+### ~~M66 — GPIO constructor merges ranges with uninitialized buffer~~ FIXED
 **File:** `src/core/gpio_port.cpp:28-71`
 
-ranges_ default-initialized (all zero). First non-zero address at 0x0001 would merge into {0x0000, 0x0001}.
+Now uses sentinel prev range to prevent merge with uninitialized entries.
 
 ### ~~M67 — PinMux reset() doesn't clear pullup_suppressed_~~ FIXED
 **File:** `src/core/pin_mux.cpp:144-155`
@@ -604,20 +621,20 @@ Changed minimum to `(num_ports > 0) ? num_ports : 16` — allows fewer than 16 p
 
 Multiple peripherals legitimately claim the same pin. Arbitration is handled by reevaluate_ownership(). claim_pin returning false would prevent lower-priority peripherals from registering interest.
 
-### M72 — CPUINT highest_priority_vector() in round-robin wraps to RESET vector
+### ~~M72 — CPUINT highest_priority_vector() in round-robin wraps to RESET vector~~ FIXED
 **File:** `include/vioavr/core/cpu_int.hpp:28-33`
 
-`return (last_ack_vector_ + 1)` — if last_ack_vector_ is 0xFF, wraps to 0 (RESET). RESET should never be selected.
+Wrap now skips RESET (returns 1 instead of 0).
 
-### M73 — CPUINT is_lvl1_vector() checks `==` instead of `>=`
+### ~~M73 — CPUINT is_lvl1_vector() checks `==` instead of `>=`~~ FIXED
 **File:** `include/vioavr/core/cpu_int.hpp:25`
 
-`lvl1vec_ == vector_index` — datasheet says vectors >= LVL1VEC are Level 1. Only exact match treated as LVL1.
+Changed to `vector_index >= lvl1vec_` per datasheet.
 
-### M74 — CPUINT on_reti() corrupts status_ if called with no active interrupt
+### ~~M74 — CPUINT on_reti() corrupts status_ if called with no active interrupt~~ FIXED
 **File:** `include/vioavr/core/cpu_int.hpp:39-45`
 
-If status_ == 0, else branch clears bit 0. Corrupts status register.
+Now guarded with `else if ((status_ & 0x01U) != 0)` to prevent spurious clear.
 
 ### ~~M75 — CpuControl CLKPR double-write extends write-enable window~~ FIXED
 **File:** `src/core/cpu_control.cpp:179-180`
@@ -698,12 +715,12 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 | Severity | Count | Fixed | Key Areas |
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | 25 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 28 (+4 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI, AC8x, PSC |
+| 🟠 HIGH | 32 | 28 (+4 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🟡 MEDIUM | 88 | 41 (+4 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI, AC8x, PSC, DAC, EEPROM |
 
-| **Total** | **88** | **66 (+7 NAB)** | |
+| **Total** | **134** | **82 (+9 NAB)** | |
 ### Quick Fix Guide
 
-All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 26 of 42 medium bugs resolved (22 fixed + 4 NAB). Proceed to remaining 16 medium bugs.
+All 14 critical bugs resolved (13 fixed + 1 NAB). All 32 high bugs resolved (28 fixed + 4 NAB). 45 of 88 medium bugs resolved (41 fixed + 4 NAB). Proceed to remaining 43 medium bugs.
 
 
