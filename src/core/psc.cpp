@@ -58,6 +58,7 @@ void Psc::reset() noexcept {
     down_counting_ = false;
     fault_active_ = false;
     last_fault_level_ = false;
+    last_fault_level_b_ = false;
     fault_pending_restart_ = false;
     fault_a_.blanking_counter = 0;
     fault_b_.blanking_counter = 0;
@@ -253,6 +254,8 @@ void Psc::tick(u64 elapsed_cycles) noexcept {
                     counter_ = 0; down_counting_ = false;
                     break;
                 case 0x04: // Cycle-by-Cycle
+                case 0x05: // Reserved (no action)
+                    break;
                 case 0x06: // Fault on Level (Auto Restart)
                 case 0x07: // Fault on Level (No Auto Restart)
                     fault_occured = true;
@@ -374,37 +377,10 @@ void Psc::notify_fault(bool level, u8 channel) noexcept {
         if (!(pfrc0b_ & 0x10)) {
             bool trigger_level_b = (pfrc0b_ & 0x20);
             fault_b_.filtered_level = (fault_b_.level == trigger_level_b);
+            last_fault_level_b_ = fault_b_.filtered_level;
             update_outputs();
         }
     }
-}
-
-void Psc::handle_fault(bool level) noexcept {
-    bool pelev = (pfrc0a_ & 0x20);
-    bool triggered = false;
-    
-    if (!pelev && level) triggered = true;
-    else if (pelev && !level) triggered = true;
-
-    if (triggered && !fault_active_) {
-        pifr_ |= desc_.capt_flag_mask; 
-        fault_active_ = true;
-        if (bus_) bus_->request_analysis_freeze();
-        
-        u8 prfm = (pfrc0a_ & 0x0F);
-        if (prfm == 1 || prfm == 2 || prfm == 5 || prfm == 6) {
-             counter_ = 0;
-             down_counting_ = false;
-        }
-    } else if (!triggered && fault_active_) {
-        u8 prfm = (pfrc0a_ & 0x0F);
-        if (prfm == 0x03) {
-             fault_active_ = false;
-        }
-    }
-    
-    last_fault_level_ = level;
-    update_outputs();
 }
 
 void Psc::update_outputs() noexcept {

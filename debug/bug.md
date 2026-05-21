@@ -289,15 +289,15 @@ No guard against `vref_ <= 0.0`. IEEE 754 division produces +inf; `static_cast<u
 
 MUXPOS values 0-3 used directly as signal bank indices without device-specific mapping.
 
-### M9 — AC8x OUTEN bit (CTRLA.6) not implemented
+### ~~M9 — AC8x OUTEN bit (CTRLA.6) not implemented~~ FIXED
 **File:** `src/core/ac8x.cpp`
 
-Output on physical pin never driven.
+Output now gated on CTRLA.6.
 
-### M10 — AC8x LPMODE and RUNSTDBY bits not implemented
+### ~~M10 — AC8x LPMODE and RUNSTDBY bits not implemented~~ FIXED
 **File:** `src/core/ac8x.cpp`
 
-CTRLA bits 3 (LPMODE) and 7 (RUNSTDBY) never checked.
+`is_enabled()` now checks RUNSTDBY; tick() returns early in LPMODE.
 
 ### M11 — AC8x event system user callback is empty
 **File:** `src/core/ac8x.cpp:20-22`
@@ -309,10 +309,10 @@ Registered callback is empty lambda. Event-triggered comparison not implemented.
 
 Comparator output transitions instantly on every tick. No settling time.
 
-### M13 — AC8x dacctrla_ initializer {0} vs reset value 0xFF
+### ~~M13 — AC8x dacctrla_ initializer {0} vs reset value 0xFF~~ FIXED
 **File:** `include/vioavr/core/ac8x.hpp:55`, `src/core/ac8x.cpp:45`
 
-Member initializer is `{0}` but `reset()` sets it to 0xFF. Value incorrect if read before reset().
+Member initializer now `{0xFF}` to match reset value.
 
 ### ~~M14 — TCA FRQ mode erroneously sets OVF flag~~ FIXED
 **File:** `src/core/tca.cpp:406`
@@ -339,25 +339,25 @@ After BOTTOM, tcnt_=1. If newly loaded ocra_buffer_ is 1, match fires immediatel
 
 No read case for counter value. Firmware reading PSC counter for synchronization cannot work.
 
-### M19 — PSC `handle_fault()` is dead code
+### ~~M19 — PSC `handle_fault()` is dead code~~ FIXED
 **File:** `src/core/psc.hpp:92`, `src/core/psc.cpp:378-404`
 
-Declared, defined, never called. Contains logic inconsistent with inline fault handling.
+Removed from header and implementation.
 
-### M20 — PSC PRFM mode 5 handled inconsistently across code paths
+### ~~M20 — PSC PRFM mode 5 handled inconsistently across code paths~~ FIXED
 **File:** `src/core/psc.cpp:244-257, 342-357, 390-392`
 
-tick() treats mode 5 as "no action", notify_fault() treats it as retrigger, handle_fault() (dead) groups with retrigger.
+tick() now has explicit case for mode 5 (Reserved/No action); handle_fault() removed resolves inconsistency.
 
 ### M21 — PSC fault blanking counter off-by-one
 **File:** `src/core/psc.cpp:198-201, 221-224`
 
 Decrements blanking counter first, then suppresses fault. May be one cycle short vs hardware.
 
-### M22 — PSC notify_fault() for channel B doesn't update last_fault_level_
+### ~~M22 — PSC notify_fault() for channel B doesn't update last_fault_level_~~ FIXED
 **File:** `src/core/psc.cpp:369-375`
 
-Channel A updates it, channel B doesn't. Asymmetric.
+Added `last_fault_level_b_` member and update in channel B path.
 
 ### M23 — DAC notify_auto_trigger doesn't update physical pin output
 **File:** `src/core/dac.cpp:97-121`
@@ -699,9 +699,9 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
 | 🟠 HIGH | 32 | 25 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 22 (+4 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI |
-| **Total** | **88** | **60 (+7 NAB)** | |
+| 🟡 MEDIUM | 42 | 28 (+4 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI, AC8x, PSC |
 
+| **Total** | **88** | **66 (+7 NAB)** | |
 ### Quick Fix Guide
 
 All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 26 of 42 medium bugs resolved (22 fixed + 4 NAB). Proceed to remaining 16 medium bugs.

@@ -66,6 +66,7 @@ private:
     bool down_counting_ {false};
     bool fault_active_ {false};
     bool last_fault_level_ {false};
+    bool last_fault_level_b_ {false};
     bool fault_pending_restart_ {false};
     u64 cycle_accumulator_ {0};
     u8 ramp_number_ {0}; // For Two-Ramp / Four-Ramp modes
@@ -90,7 +91,6 @@ private:
     bool output_d_ {false};
 
     void notify_adc() noexcept;
-    void handle_fault(bool level) noexcept;
     void update_outputs() noexcept;
     void evaluate_interrupts() noexcept;
 };

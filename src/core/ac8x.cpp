@@ -79,6 +79,7 @@ void Ac8x::write(u16 address, u8 value) noexcept {
 void Ac8x::tick(u64 elapsed_cycles) noexcept {
     (void)elapsed_cycles;
     if (!is_enabled()) return;
+    if (ctrla_ & 0x08U) return; // LPMODE: comparator powered down, output latched
 
     double p_volts = 0.5;
     double n_volts = 0.0;
@@ -136,7 +137,7 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
             status_ |= 0x01U; // CMP flag
         }
 
-        if (evsys_ && desc_.out_generator_id != 0) {
+        if (evsys_ && desc_.out_generator_id != 0 && (ctrla_ & 0x40U)) {
             evsys_->trigger_event(desc_.out_generator_id, new_state);
         }
     }
