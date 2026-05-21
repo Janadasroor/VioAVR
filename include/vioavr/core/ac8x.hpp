@@ -24,6 +24,7 @@ public:
     void set_event_system(EventSystem* evsys) noexcept override;
     void set_analog_signal_bank(AnalogSignalBank* bank) noexcept { signal_bank_ = bank; }
     void set_vdd(double vdd) noexcept { vdd_ = vdd; }
+    void set_vref(double vref) noexcept { vref_ = vref; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override { return {ranges_.data(), 1}; }
@@ -46,6 +47,7 @@ private:
     EventSystem* evsys_ {nullptr};
     AnalogSignalBank* signal_bank_ {nullptr};
     double vdd_ {5.0};
+    double vref_ {5.0};
 
     std::array<AddressRange, 1> ranges_ {};
 
@@ -57,6 +59,7 @@ private:
     u8 status_ {0};
 
     bool is_enabled() const noexcept { return (ctrla_ & 0x01U); }
+    void update_interrupt_state() noexcept;
 };
 
 } // namespace vioavr::core

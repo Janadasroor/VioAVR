@@ -94,14 +94,20 @@ void Adc::tick(u64 elapsed_cycles) noexcept {
 
 u8 Adc::read(u16 address) noexcept {
     if (address == desc_.adcl_address) {
+        // H5: Latch high byte on ADCL read
+        adcl_read_ = true;
+        latched_result_ = result_;
         if (admux_ & desc_.adlar_mask)
             return static_cast<u8>((result_ & 0x03U) << 6U);
         return static_cast<u8>(result_ & 0xFFU);
     }
     if (address == desc_.adch_address) {
+        // H5: Return latched value if ADCL was read since last ADCH read
+        u16 val = adcl_read_ ? latched_result_ : result_;
+        adcl_read_ = false;
         if (admux_ & desc_.adlar_mask)
-            return static_cast<u8>((result_ >> 2U) & 0xFFU);
-        return static_cast<u8>((result_ >> 8U) & 0xFFU);
+            return static_cast<u8>((val >> 2U) & 0xFFU);
+        return static_cast<u8>((val >> 8U) & 0xFFU);
     }
     if (address == desc_.adcsra_address) return adcsra_;
     if (address == desc_.adcsrb_address) return adcsrb_;
@@ -149,6 +155,7 @@ void Adc::write(u16 address, u8 value) noexcept {
 bool Adc::pending_interrupt_request(InterruptRequest& request) const noexcept {
     if ((adcsra_ & desc_.adie_mask) && (adcsra_ & desc_.adif_mask)) {
         request.vector_index = desc_.vector_index;
+        request.source_id = source_id_;
         return true;
     }
     return false;
@@ -207,7 +214,7 @@ double Adc::get_voltage(u8 channel) const noexcept {
     u32 lookup_id = channel;
 
     // Use pin map to resolve the physical pin dedicated to this ADC channel
-    if (pin_map_ && channel < 8) {
+    if (pin_map_ && channel < desc_.adc_pin_address.size()) {
         const u16 addr = desc_.adc_pin_address[channel];
         const u8 bit = desc_.adc_pin_bit[channel];
         if (addr != 0) {
@@ -279,13 +286,12 @@ void Adc::update_pin_ownership() noexcept {
     if (!pin_mux_) return;
 
     const bool enabled = (adcsra_ & desc_.aden_mask);
-    for (u8 i = 0; i < 8; ++i) {
+    for (u8 i = 0; i < desc_.adc_pin_address.size(); ++i) {
         const u16 pin_addr = desc_.adc_pin_address[i];
         const u8 pin_bit = desc_.adc_pin_bit[i];
         if (pin_addr == 0) continue;
 
-        const bool disabled_digitally = (didr0_ & (1U << i));
-        if (enabled && disabled_digitally) {
+        if (enabled) {
             pin_mux_->claim_pin_by_address(pin_addr, pin_bit, PinOwner::adc);
         } else {
             pin_mux_->release_pin_by_address(pin_addr, pin_bit, PinOwner::adc);

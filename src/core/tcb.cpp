@@ -132,10 +132,18 @@ void Tcb::tick(u64 elapsed_cycles) noexcept {
             perform_tick(fire);
             if (fire) ticked = true;
         }
-    } else {
+    } else if (clksel == 2) { // CLK_PER / 4
         for (u64 i = 0; i < elapsed_cycles; ++i) {
-            perform_tick(false);
+            bool fire = false;
+            if (++prescaler_counter_ >= 4) {
+                prescaler_counter_ = 0;
+                fire = true;
+            }
+            perform_tick(fire);
+            if (fire) ticked = true;
         }
+    } else { // clksel == 3: Cascaded from TCA — handled via event callback
+        // Do not tick here; TCA OVF events trigger perform_tick via set_event_system
     }
 
     if (ticked) {
@@ -209,7 +217,7 @@ void Tcb::set_event_system(EventSystem* evsys) noexcept {
         // We should ideally use desc_.tca_ovf_generator_id if added to descriptor.
         // For now, assume 128 as per most ATDFs for TCA0.
         evsys_->register_generator_callback(128, [this](bool) {
-            if (is_enabled() && get_clksel() == 2) {
+            if (is_enabled() && get_clksel() == 3) {
                 perform_tick(true);
                 update_interrupt_state();
             }
@@ -223,7 +231,7 @@ void Tcb::on_event(bool level) noexcept {
  
     u8 mode = get_mode();
     bool edge_select = (evctrl_ & 0x02) != 0; // 0=Rising, 1=Falling
-    bool match_edge = (level != edge_select); // true if level=1 and edge=0, or level=0 and edge=1
+    bool match_edge = (level != edge_select);
     bool updated = false;
  
     if (mode == 2 || mode == 0 || mode == 1) { // Input Capture or Periodic/TEP

@@ -34,6 +34,8 @@ bool Ac8x::pending_interrupt_request(InterruptRequest& request) const noexcept {
 
 bool Ac8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
+        status_ &= ~0x01U; // H7: Clear CMP flag on consume
+        update_interrupt_state();
         return true;
     }
     return false;
@@ -45,6 +47,7 @@ void Ac8x::reset() noexcept {
     dacctrla_ = 0xFF; // Specific initval for DACREF
     intctrl_ = 0;
     status_ = 0;
+    vref_ = 5.0;
 }
 
 u8 Ac8x::read(u16 address) noexcept {
@@ -87,15 +90,33 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
         // Simplified mapping for now
         p_volts = signal_bank_->voltage(p_mux);
         
-        if (n_mux == 0x03U) { // DACREF: V_DACREF = DACREF * VDD / 256
-            n_volts = static_cast<double>(dacctrla_) * vdd_ / 256.0;
+        if (n_mux == 0x03U) { // DACREF: V_DACREF = DACREF * VREF / 256
+            n_volts = static_cast<double>(dacctrla_) * vref_ / 256.0;
         } else {
             n_volts = signal_bank_->voltage(n_mux + 4); // Dummy offset for negative pins
         }
     }
     
     bool old_state = (status_ & 0x10U) != 0;
+    // H8: Apply INVERT bit
     bool new_state = (p_volts > n_volts);
+    if (muxctrla_ & 0x80U) new_state = !new_state;
+
+    // H9: Apply hysteresis
+    u8 hys = (ctrla_ >> 1) & 0x03U;
+    if (hys > 0) {
+        double hyst_v = 0.0;
+        if (hys == 1) hyst_v = 0.010;
+        else if (hys == 2) hyst_v = 0.025;
+        else hyst_v = 0.050;
+        if (old_state) {
+            new_state = (p_volts > n_volts - hyst_v);
+            if (muxctrla_ & 0x80U) new_state = !new_state;
+        } else {
+            new_state = (p_volts > n_volts + hyst_v);
+            if (muxctrla_ & 0x80U) new_state = !new_state;
+        }
+    }
 
     if (new_state) status_ |= 0x10U;
     else status_ &= ~0x10U;
@@ -119,6 +140,11 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
             evsys_->trigger_event(desc_.out_generator_id, new_state);
         }
     }
+}
+
+void Ac8x::update_interrupt_state() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 } // namespace vioavr::core
