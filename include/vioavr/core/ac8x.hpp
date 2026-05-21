@@ -54,11 +54,11 @@ private:
     // Registers
     u8 ctrla_ {0};
     u8 muxctrla_ {0};
-    u8 dacctrla_ {0};
+    u8 dacctrla_ {0xFF};
     u8 intctrl_ {0};
     u8 status_ {0};
 
-    bool is_enabled() const noexcept { return (ctrla_ & 0x01U); }
+    bool is_enabled() const noexcept { return (ctrla_ & (0x01U | 0x80U)); }
     void update_interrupt_state() noexcept;
 };
 
