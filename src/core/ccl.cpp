@@ -12,6 +12,7 @@ namespace vioavr::core {
 Ccl::Ccl(const CclDescriptor& desc) : desc_(desc),
     luts_(desc_.lut_count),
     outputs_(desc_.lut_count, 0),
+    raw_outputs_(desc_.lut_count, 0),
     prev_outputs_(desc_.lut_count, 0),
     prev_raw_outputs_(desc_.lut_count, 0),
     prev_luts_in2_(2, 0)
@@ -50,6 +51,14 @@ Ccl::Ccl(const CclDescriptor& desc) : desc_(desc),
     if (has_lut) ranges_[range_idx++] = {min_lut, max_lut};
 }
 
+Ccl::~Ccl() noexcept {
+    if (!evsys_) return;
+    for (const auto& lut : luts_) {
+        if (lut.user_a_index != 0xFF) evsys_->unregister_user_callback(lut.user_a_index);
+        if (lut.user_b_index != 0xFF) evsys_->unregister_user_callback(lut.user_b_index);
+    }
+}
+
 void Ccl::reset() noexcept {
     ctrla_ = 0;
     std::fill(seqctrl_.begin(), seqctrl_.end(), 0);
@@ -60,6 +69,7 @@ void Ccl::reset() noexcept {
         std::fill(lut.inputs.begin(), lut.inputs.end(), false);
     }
     std::fill(outputs_.begin(), outputs_.end(), 0);
+    std::fill(raw_outputs_.begin(), raw_outputs_.end(), 0);
     std::fill(prev_outputs_.begin(), prev_outputs_.end(), 0);
     std::fill(prev_raw_outputs_.begin(), prev_raw_outputs_.end(), 0);
     std::fill(prev_luts_in2_.begin(), prev_luts_in2_.end(), 0);
@@ -92,7 +102,8 @@ void Ccl::set_memory_bus(MemoryBus* bus) noexcept {
 
     tca0_ = static_cast<Tca*>(bus_->get_peripheral_by_name("TCA0"));
     for (int i = 0; i < 4; ++i) {
-        tcbs_[i] = static_cast<Tcb*>(bus_->get_peripheral_by_name("TCB" + std::to_string(i)));
+        static constexpr std::string_view kTcbNames[] = {"TCB0", "TCB1", "TCB2", "TCB3"};
+        tcbs_[i] = static_cast<Tcb*>(bus_->get_peripheral_by_name(kTcbNames[i]));
     }
     ac0_ = static_cast<Ac8x*>(bus_->get_peripheral_by_name("AC0"));
 }
@@ -179,8 +190,8 @@ bool Ccl::compute_lut(u8 index) const noexcept {
             case 0x00: // MASK
                 in[j] = false;
                 break;
-            case 0x01: // FEEDBACK
-                in[j] = outputs_[index];
+            case 0x01: // FEEDBACK (use pre-seq raw output)
+                in[j] = raw_outputs_[index];
                 break;
             case 0x02: // LINK
                 in[j] = outputs_[(index + desc_.lut_count - 1) % desc_.lut_count];
@@ -219,7 +230,8 @@ void Ccl::update_logic() noexcept {
     if (!(ctrla_ & 0x01)) return; // Peripheral disabled
 
     // Iterative update for feedback/links
-    for (int iter = 0; iter < 4; ++iter) {
+    const auto initial_outputs = outputs_;
+    for (int iter = 0; iter < 100; ++iter) {
         bool changed = false;
         for (u8 i = 0; i < desc_.lut_count; ++i) {
             bool old_val = outputs_[i];
@@ -227,9 +239,18 @@ void Ccl::update_logic() noexcept {
             if (outputs_[i] != old_val) changed = true;
         }
         if (!changed) break;
+        // Oscillation detection: if state returns to initial after even # of passes
+        if ((iter & 1) && iter >= 1) {
+            bool back = true;
+            for (u8 i = 0; i < desc_.lut_count && back; ++i) {
+                if (outputs_[i] != initial_outputs[i]) back = false;
+            }
+            if (back) break;
+        }
     }
 
     // Sequential Units
+    raw_outputs_ = outputs_;
     for (u8 s = 0; s < 2; ++s) {
         u8 mode = seqctrl_[s] & 0x07;
         if (mode == 0) continue;
@@ -267,7 +288,7 @@ void Ccl::update_logic() noexcept {
             case 0x04: // RS Latch
                 if (in0 && !in1) seq_state_[s] = true;
                 else if (!in0 && in1) seq_state_[s] = false;
-                else if (in0 && in1) seq_state_[s] = false; 
+                // S=1, R=1: hold previous state (do nothing)
                 break;
             default: break;
         }
@@ -300,15 +321,9 @@ void Ccl::update_logic() noexcept {
         }
         
         // Drive physical pin if (luts_[i].ctrla & 0x40) (OUTEN)
-        if (pin_mux_ && (luts_[i].ctrla & 0x40)) {
-            u8 port_idx = 0;
-            u8 pin_idx = 3; // Standard OUT pins are PA3, PC3, PD3, PF3
-            if (i == 0) port_idx = 0; // PORTA
-            else if (i == 1) port_idx = 2; // PORTC
-            else if (i == 2) port_idx = 3; // PORTD
-            else if (i == 3) port_idx = 5; // PORTF
-            
-            pin_mux_->update_pin(port_idx, pin_idx, PinOwner::ccl, true, outputs_[i], false);
+        if (pin_mux_ && (luts_[i].ctrla & 0x40) && desc_.luts[i].output_pin_address != 0) {
+            pin_mux_->update_pin_by_address(desc_.luts[i].output_pin_address, desc_.luts[i].output_bit_index,
+                PinOwner::ccl, true, outputs_[i], false);
         }
     }
 
@@ -327,17 +342,14 @@ void Ccl::set_pin_input(u8 lut_index, u8 input_index, bool level) noexcept {
 void Ccl::update_routing() noexcept {
     if (!pin_mux_) return;
     for (u8 i = 0; i < desc_.lut_count; ++i) {
-        u8 port_idx = 0;
-        u8 pin_idx = 3;
-        if (i == 0) port_idx = 0; // PORTA
-        else if (i == 1) port_idx = 2; // PORTC
-        else if (i == 2) port_idx = 3; // PORTD
-        else if (i == 3) port_idx = 5; // PORTF
+        u16 pin_addr = desc_.luts[i].output_pin_address;
+        u8 pin_bit = desc_.luts[i].output_bit_index;
+        if (pin_addr == 0) continue;
 
         if (ctrla_ & 0x01 && (luts_[i].ctrla & 0x40)) {
-            pin_mux_->claim_pin(port_idx, pin_idx, PinOwner::ccl);
+            pin_mux_->claim_pin_by_address(pin_addr, pin_bit, PinOwner::ccl);
         } else {
-            pin_mux_->release_pin(port_idx, pin_idx, PinOwner::ccl);
+            pin_mux_->release_pin_by_address(pin_addr, pin_bit, PinOwner::ccl);
         }
     }
 }

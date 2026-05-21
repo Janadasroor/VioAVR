@@ -17,6 +17,7 @@ class MemoryBus;
 class Ccl : public IoPeripheral {
 public:
     explicit Ccl(const CclDescriptor& desc);
+    ~Ccl() noexcept;
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
@@ -69,6 +70,7 @@ private:
     };
     std::vector<LutState> luts_ {};
     std::vector<u8> outputs_ {};
+    std::vector<u8> raw_outputs_ {};
     std::vector<u8> prev_outputs_ {};
     std::vector<u8> prev_raw_outputs_ {};
     std::vector<u8> prev_luts_in2_ {};
