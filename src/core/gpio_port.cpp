@@ -53,6 +53,7 @@ GpioPort::GpioPort(const PortDescriptor& desc, PinMux& pin_mux) noexcept
         std::sort(addrs.begin(), addrs.end());
         addrs.erase(std::unique(addrs.begin(), addrs.end()), addrs.end());
         
+        AddressRange prev = {0xFFFF, 0xFFFF};
         size_t ri = 0;
         for (u16 addr : addrs) {
             if (addr == 0) continue;
@@ -60,10 +61,13 @@ GpioPort::GpioPort(const PortDescriptor& desc, PinMux& pin_mux) noexcept
             // Register address in PinMux so claim_pin_by_address works
             pin_mux_->register_port(addr, port_idx_);
 
-            if (ri > 0 && addr == ranges_[ri-1].end + 1) {
-                ranges_[ri-1].end = addr;
+            if (ri > 0 && addr == prev.end + 1) {
+                ranges_[ri - 1].end = addr;
+                prev.end = addr;
             } else if (ri < ranges_.size()) {
-                ranges_[ri++] = {addr, addr};
+                ranges_[ri] = {addr, addr};
+                prev = ranges_[ri];
+                ri++;
             }
         }
         num_ranges_ = static_cast<u8>(ri);
@@ -192,16 +196,19 @@ bool GpioPort::consume_pin_change(PinStateChange& change) noexcept
         return false;
     }
 
+    u8 mask = pending_changes_mask_;
     for (u8 i = 0; i < 8; ++i) {
-        if ((pending_changes_mask_ & (1U << i)) != 0U) {
+        if ((mask & (1U << i)) != 0U) {
             change.port_name = name_;
             change.bit_index = i;
             change.level = (port_ & (1U << i)) != 0U;
-            pending_changes_mask_ &= static_cast<u8>(~(1U << i));
+            change.cycle_stamp = bus_ ? bus_->cpu_cycles() : 0;
+            change.change_mask = mask;
+            pending_changes_mask_ = 0;
             return true;
         }
     }
-
+    pending_changes_mask_ = 0;
     return false;
 }
 
@@ -346,10 +353,11 @@ void GpioPort::bind_input_signal(const u8 bit_index, const AnalogSignalBank& ban
     if (bit_index >= 8) return;
     
     // Adapt default thresholds to device's datasheet factors if attached to a bus
-    if (threshold.low_threshold == 0.3 && threshold.high_threshold == 0.6 && bus_ != nullptr) {
+    if (threshold.use_device_defaults && bus_ != nullptr) {
         threshold.low_threshold = bus_->device().vil_factor;
         threshold.high_threshold = bus_->device().vih_factor;
     }
+    threshold.use_device_defaults = false;
     
     pin_bindings_[bit_index] = {
         .bank = &bank,
@@ -375,7 +383,7 @@ void GpioPort::set_input_voltage(const u8 bit_index, const double normalized_vol
     }
     
     auto threshold = pin_bindings_[bit_index].threshold;
-    if (threshold.low_threshold == 0.3 && threshold.high_threshold == 0.6 && bus_ != nullptr) {
+    if ((!pin_bindings_[bit_index].active || threshold.use_device_defaults) && bus_ != nullptr) {
         threshold.low_threshold = bus_->device().vil_factor;
         threshold.high_threshold = bus_->device().vih_factor;
     }
@@ -388,7 +396,7 @@ u8 GpioPort::sample_levels() noexcept
         if (has_analog_binding_[i]) {
             const double voltage = pin_bindings_[i].bank->voltage(pin_bindings_[i].channel);
             auto threshold = pin_bindings_[i].threshold;
-            if (threshold.low_threshold == 0.3 && threshold.high_threshold == 0.6 && bus_ != nullptr) {
+            if (threshold.use_device_defaults && bus_ != nullptr) {
                 threshold.low_threshold = bus_->device().vil_factor;
                 threshold.high_threshold = bus_->device().vih_factor;
             }

@@ -5,6 +5,7 @@ namespace vioavr::core {
 struct DigitalThresholdConfig {
     double low_threshold {0.3};
     double high_threshold {0.6};
+    bool use_device_defaults {true};
 };
 
 [[nodiscard]] inline bool apply_schmitt_threshold(const bool previous_level,
