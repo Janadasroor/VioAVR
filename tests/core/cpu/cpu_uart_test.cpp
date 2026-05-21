@@ -44,7 +44,9 @@ TEST_CASE("UART0 Peripheral Functional Test")
     }
 
     SUBCASE("Reception and Flag Clearing") {
+        bus.write_data(ucsrb, 0x18U); // RXEN, TXEN
         uart0.inject_received_byte(0xA5U);
+        bus.tick_peripherals(160U); // Wait for RX frame (UBRR=0, 8N1: 10*16=160)
         
         // RXC (bit 7) should be set
         CHECK((bus.read_data(ucsra) & 0x80U) != 0U);

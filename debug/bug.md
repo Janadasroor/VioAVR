@@ -186,10 +186,11 @@ AVR8X mapped-data EEPROM writes store directly without checking EEMPE, write-in-
 
 `const u64 limit = bit_duration * 10` — ignores UCSRC character size (5-9 bits), parity, and stop bits.
 
-### H22 — UART no RX state machine
+### ~~H22 — UART no RX state machine~~ FIXED
 **File:** `src/core/uart.cpp:69-113`
 
 Only TX half implemented. No start-bit validation, noise rejection, or bit-timing for RX.
+Added RX timing state machine in `tick()`: computes frame duration from UBRR, U2X, character size, parity, and stop bits. `inject_received_byte()` stores the byte and starts the timing; RXC is set when the frame duration elapses. DOR detection: inject while RXC set or RX active sets DOR flag. DOR cleared on UDR read. Gated on RXEN.
 
 ### ~~H23 — SPI no CPOL/CPHA modeling~~ NOT A BUG
 **File:** `src/core/spi.cpp`
@@ -695,9 +696,9 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 | Severity | Count | Fixed | Key Areas |
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | 18 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🟠 HIGH | 32 | 19 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
 | 🟡 MEDIUM | 42 | 1 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **32 (+5 NAB)** | |
+| **Total** | **88** | **33 (+5 NAB)** | |
 
 ### Quick Fix Guide
 
