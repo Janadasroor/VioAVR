@@ -73,6 +73,9 @@ avr-libc/
 Testing/
 build_release/
 
+# Debug artifacts
+debug/
+
 # Scratch build artifacts
 scratch/cmpp_build/
 scratch/check_shm
