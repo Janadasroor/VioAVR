@@ -408,6 +408,11 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
         }
 
         if (match) {
+            // Check if MOb already has unread message — overrun
+            if ((mob.canstmob & 0x20U) != 0) {
+                cangit_ |= 0x40U; // OVRTIM bit
+                continue;
+            }
             // MOb Match found!
             size_t mob_dlc = (mob.cancdmob & 0x0FU);
             size_t rx_dlc = msg.data.size();
