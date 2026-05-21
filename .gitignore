@@ -91,3 +91,6 @@ TODO.md
 
 
 *_output_*.txt
+
+# Debug artifacts
+*.vcd
