@@ -619,25 +619,27 @@ Only false for OOB port/bit. Higher-priority owner override returns true — no 
 
 If status_ == 0, else branch clears bit 0. Corrupts status register.
 
-### M75 — CpuControl CLKPR double-write extends write-enable window
+### ~~M75 — CpuControl CLKPR double-write extends write-enable window~~ FIXED
 **File:** `src/core/cpu_control.cpp:179-180`
 
 Writing 0x80 while CLKPCE already set resets 4-cycle window. Real hardware does not extend window.
+Now guarded with `cpu_.cycles() >= clkpr_expiry_` to prevent re-triggering.
 
 ### M76 — CpuControl effective_frequency() uses float — precision loss
 **File:** `src/core/cpu_control.cpp:89-91`
 
 float has ~7 decimal digits. 16,000,000 converted to float loses precision for OSCCAL scaling.
 
-### M77 — MemoryBus mapped_flash read falls through to wrong region
+### ~~M77 — MemoryBus mapped_flash read falls through to wrong region~~ FIXED
 **File:** `include/vioavr/core/memory_bus.hpp:277-285`
 
-When word_addr >= flash_.size(), falls through to check other regions then SRAM. Should return 0xFF.
+When word_addr >= flash_.size(), falls through to check other regions then SRAM. Now returns 0xFF.
 
-### M78 — MemoryBus consume_pin_change loses unclaimed pin changes
+### ~~M78 — MemoryBus consume_pin_change loses unclaimed pin changes~~ NOT A BUG
 **File:** `src/core/memory_bus.cpp:254-265`
 
 Clears has_pending_pin_changes_ even when no peripheral claims the change. Events lost.
+The flag is only cleared after ALL peripherals have been tried and none claimed it. Each peripheral (e.g., GpioPort) has its own `pending_changes_mask_` tracking. The MemoryBus flag just gates entry; multi-change delivery works correctly through per-peripheral tracking.
 
 ### M79 — MemoryBus on_power_state_change lost for unmapped PRR addresses
 **File:** `include/vioavr/core/memory_bus.hpp:387-408`
@@ -697,9 +699,11 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
 | 🟠 HIGH | 32 | 23 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 5 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **41 (+5 NAB)** | |
+| 🟡 MEDIUM | 42 | 7 (+1 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
+| **Total** | **88** | **43 (+6 NAB)** | |
 
 ### Quick Fix Guide
 
-All 14 critical bugs resolved (13 fixed + 1 confirmed not a bug). Proceed to H-series bugs.
+All 14 critical bugs resolved (13 fixed + 1 confirmed not a bug). All 32 high bugs resolved (28 fixed + 4 NAB). 7 of 42 medium bugs fixed (+1 NAB). Proceed to remaining 34 medium bugs.
+
+

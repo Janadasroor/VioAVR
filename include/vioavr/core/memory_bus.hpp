@@ -283,6 +283,7 @@ inline u8 MemoryBus::read_data(const u16 address) noexcept
             const u16 word = flash_[word_addr];
             return (offset & 1) ? static_cast<u8>(word >> 8) : static_cast<u8>(word & 0xFF);
         }
+        return 0xFFU;
     } else if (device_.mapped_fuses.size > 0 &&
         address >= device_.mapped_fuses.data_start &&
         address < device_.mapped_fuses.data_start + device_.mapped_fuses.size) {
