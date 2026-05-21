@@ -38,6 +38,7 @@ public:
     // Callbacks for users: true = active/high/rising, false = inactive/low/falling
     using EventCallback = std::function<void(bool level)>;
     void register_user_callback(u8 user_index, EventCallback callback);
+    void unregister_user_callback(u8 user_index);
     void register_generator_callback(u8 generator_id, EventCallback callback);
 
     [[nodiscard]] u16 users_base() const noexcept { return desc_.users_address; }

@@ -152,6 +152,12 @@ void EventSystem::register_user_callback(u8 user_index, EventCallback callback) 
     }
 }
 
+void EventSystem::unregister_user_callback(u8 user_index) {
+    if (user_index < callbacks_.size()) {
+        callbacks_[user_index] = nullptr;
+    }
+}
+
 void EventSystem::register_generator_callback(u8 generator_id, EventCallback callback) {
     if (generator_id != 0) {
         generator_callbacks_[generator_id].push_back(std::move(callback));

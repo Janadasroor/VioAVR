@@ -586,6 +586,8 @@ struct LutDescriptor {
     u16 user_event_a_address {};
     u16 user_event_b_address {};
     u8 generator_id {0};
+    u16 output_pin_address {0};
+    u8 output_bit_index {0};
 };
 
 struct CclDescriptor {
