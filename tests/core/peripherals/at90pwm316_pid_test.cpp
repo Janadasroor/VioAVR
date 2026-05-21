@@ -41,8 +41,8 @@ TEST_CASE("AT90PWM316 PSC PID Control Loop Integration") {
     auto* adc = adcs[0];
 
     // 3. Set Feedback Voltage (ADC0 / PB0)
-    // 0.5V / 5.0V = 0.1
-    adc->set_channel_voltage(0, 0.1);
+    // 0.5V / 5.0V VREF -> ADC = 102
+    adc->set_channel_voltage(0, 0.5);
 
     // 4. Run Machine
     machine.run(1000000); 
@@ -70,8 +70,8 @@ TEST_CASE("AT90PWM316 PSC PID Control Loop Integration") {
     CHECK(ocrra == 150);
 
     // 6. Change Feedback to be ABOVE setpoint (3.0V)
-    // 3.0V / 5.0V = 0.6
-    adc->set_channel_voltage(0, 0.6);
+    // 3.0V / 5.0V VREF -> ADC = 614
+    adc->set_channel_voltage(0, 3.0);
     machine.run(500000);
 
     ocrra = psc->read(at90pwm316.pscs[0].ocrra_address + 1) << 8;

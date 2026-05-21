@@ -22,18 +22,18 @@ TEST_CASE("ADC Differential Channels and Gain")
     adc.reset();
 
     SUBCASE("Single-Ended ADC0") {
-        adc.set_channel_voltage(0, 0.5); // 0.5 * Vref
+        adc.set_channel_voltage(0, 2.5); // 2.5V input, VREF=5.0V
         bus.write_data(atmega32u4.adcs[0].admux_address, 0x00); // MUX=0
         bus.write_data(atmega32u4.adcs[0].adcsra_address, 0xC0); // ADEN=1, ADSC=1
         
         adc.tick(13);
-        CHECK(adc.result() == 512); // 0.5 * 1024
+        CHECK(adc.result() == 512); // 2.5V / 5.0V * 1024 = 512
     }
 
     SUBCASE("Differential ADC0(+) vs ADC1(-) with 10x Gain") {
-        adc.set_channel_voltage(0, 0.4); 
-        adc.set_channel_voltage(1, 0.35); // Delta = 0.05
-        // Gain 10x -> Result = 0.05 * 10 = 0.5
+        adc.set_channel_voltage(0, 2.0); 
+        adc.set_channel_voltage(1, 1.75); // Delta = 0.25V
+        // Gain 10x -> VREF=5.0V -> (0.25V * 10) / 5.0V = 0.5
         // Result = 0.5 * 512 = 256
         
         bus.write_data(atmega32u4.adcs[0].admux_address, 0x08); // MUX=8
@@ -44,9 +44,9 @@ TEST_CASE("ADC Differential Channels and Gain")
     }
 
     SUBCASE("Differential ADC0(+) vs ADC1(-) with 40x Gain (Negative Result)") {
-        adc.set_channel_voltage(0, 0.3); 
-        adc.set_channel_voltage(1, 0.31); // Delta = -0.01
-        // Gain 40x -> Result = -0.4
+        adc.set_channel_voltage(0, 1.5); 
+        adc.set_channel_voltage(1, 1.55); // Delta = -0.05V
+        // Gain 40x -> VREF=5.0V -> (-0.05V * 40) / 5.0V = -0.4
         // Result = -0.4 * 512 = -204.8 -> -204 (truncation)
         
         bus.write_data(atmega32u4.adcs[0].admux_address, 0x09); // MUX=9
@@ -59,9 +59,9 @@ TEST_CASE("ADC Differential Channels and Gain")
     }
 
     SUBCASE("High-Side Offset (Clipping)") {
-        adc.set_channel_voltage(0, 0.6); 
-        adc.set_channel_voltage(1, 0.5); // Delta = 0.1
-        // Gain 10x -> Result = 1.0 (Full scale)
+        adc.set_channel_voltage(0, 3.0); 
+        adc.set_channel_voltage(1, 2.5); // Delta = 0.5V
+        // Gain 10x -> VREF=5.0V -> (0.5V * 10) / 5.0V = 1.0 (Full scale)
         
         bus.write_data(atmega32u4.adcs[0].admux_address, 0x08); 
         bus.write_data(atmega32u4.adcs[0].adcsra_address, 0xC0); 

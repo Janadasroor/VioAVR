@@ -26,10 +26,10 @@ TEST_CASE("AT90PWM316 ADC-to-PWM System Integration") {
     REQUIRE(loaded);
     machine.reset();
     
-    // 1. Set ADC0 (PB0) to 2.5V (50% of 5V)
-    // 50% of 1023 is ~512. 512 >> 2 is 128.
+    // 1. Set ADC0 (PB0) to 2.5V (50% of 5V VREF)
+    // 2.5V / 5.0V * 1024 = 512. 512 >> 2 is 128.
     // Expected OCR0A = 128
-    machine.set_external_voltage(0, 0.5); 
+    machine.set_external_voltage(0, 2.5); 
     
     // 2. Run for 20ms (320,000 cycles @ 16MHz)
     // Timer0 at 16MHz with /64 prescaler has a cycle of (16e6 / 64) = 250kHz

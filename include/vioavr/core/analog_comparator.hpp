@@ -43,8 +43,8 @@ public:
     void connect_psc_fault(class Psc& psc) noexcept;
     void connect_dac(const class Dac& dac) noexcept;
     void connect_adc(const class Adc& adc) noexcept;
-    void set_positive_input_voltage(double normalized_voltage) noexcept;
-    void set_negative_input_voltage(double normalized_voltage) noexcept;
+    void set_positive_input_voltage(double voltage) noexcept;
+    void set_negative_input_voltage(double voltage) noexcept;
     void on_analog_pin_change(u16 pin_address, u8 bit_index, double voltage) noexcept override;
     void on_event(u64 cycle) noexcept;
 

@@ -168,7 +168,10 @@ u8 Adc8x::read(u16 address) noexcept {
     else if (address == desc_.intflags_address) val = intflags_;
     else if (address == desc_.dbgctrl_address) val = dbgctrl_;
     else if (address == desc_.temp_address) val = 0; // Temp usually returns LAST read or something
-    else if (address == desc_.res_address) val = static_cast<u8>(res_);
+    else if (address == desc_.res_address) {
+        val = static_cast<u8>(res_);
+        intflags_ &= ~0x01U; // Clear RESRDY on RES read (per datasheet)
+    }
     else if (address == desc_.res_address + 1) val = static_cast<u8>(res_ >> 8);
     else if (address == desc_.winlt_address) val = static_cast<u8>(winlt_);
     else if (address == desc_.winlt_address + 1) val = static_cast<u8>(winlt_ >> 8);
@@ -236,8 +239,6 @@ bool Adc8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
 
 bool Adc8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
-        // Note: INTFLAGS for ADC are usually cleared by hardware when vector is called,
-        // but often only if data is read? Actually, for modern AVR, you clear it by writing 1 or reading RES.
         return true; 
     }
     return false;
@@ -268,7 +269,7 @@ void Adc8x::start_conversion() noexcept {
 
 void Adc8x::complete_conversion() noexcept {
     // This is called AFTER conversion phase ticks complete
-    double input_voltage = 0.5;
+    double input_voltage = 0.0;
     if (signal_bank_) {
         // Simple mapping: AIN0-AIN15 map to bank channels 0-15
         if (muxpos_ < AnalogSignalBank::kChannelCount) {

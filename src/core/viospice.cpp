@@ -132,6 +132,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         auto ac = std::make_unique<Ac8x>("AC" + std::to_string(i), device.acs8x[i]);
         ac->set_memory_bus(&bus_);
         ac->set_analog_signal_bank(&analog_signal_bank_);
+        ac->set_vdd(device.operating_voltage_v);
         bus_.attach_peripheral(*ac);
         owned_peripherals_.push_back(std::move(ac));
     }
@@ -241,8 +242,8 @@ void VioSpice::set_external_pin(u32 external_id, PinLevel level) {
     }
 }
 
-void VioSpice::set_external_voltage(u8 channel, double normalized_voltage) {
-    analog_signal_bank_.set_voltage(channel, normalized_voltage);
+void VioSpice::set_external_voltage(u8 channel, double voltage_volts) {
+    analog_signal_bank_.set_voltage(channel, voltage_volts);
 }
 
 void VioSpice::set_external_voltage_to_digital(u32 external_id, double voltage) {

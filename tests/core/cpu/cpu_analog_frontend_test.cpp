@@ -24,8 +24,10 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
     constexpr auto comparator_vector = atmega328p.acs[0].vector_index;
 
     AnalogSignalBank signals;
-    signals.set_voltage(0U, 0.25);
-    signals.set_voltage(1U, 0.70);
+    // Absolute voltages in Volts. ADC VREF = 5.0V, so 1.25V -> ADC = 256
+    // Comparator bind: positive=channel0, negative=channel1
+    signals.set_voltage(0U, 1.25);
+    signals.set_voltage(1U, 1.30);
 
     MemoryBus bus(atmega328p);
     PinMux pin_mux {8};
@@ -49,20 +51,20 @@ TEST_CASE("Analog Frontend ADC and Comparator Integration Test")
             bus.read_data(atmega328p.adcs[0].adcl_address) |
             (static_cast<vioavr::core::u16>(bus.read_data(atmega328p.adcs[0].adch_address)) << 8U)
         );
-        // 0.25V -> 1024 * 0.25 = 256
+        // 1.25V / 5.0V VREF * 1024 = 256
         CHECK(result >= 254U);
         CHECK(result <= 258U);
     }
 
     SUBCASE("Analog Comparator Level and Flags") {
         bus.write_data(acsr, 0x0BU); // ACIE | ACIS1 | ACIS0
-        CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (0.25 < 0.70)
+        CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (1.25 < 1.30)
 
-        signals.set_voltage(0U, 0.69);
+        signals.set_voltage(0U, 1.29); // Still below neg=1.30
         bus.tick_peripherals(1U);
-        CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (0.69 < 0.70)
+        CHECK((bus.read_data(acsr) & 0x20U) == 0U); // ACO=0 (1.29 < 1.30)
 
-        signals.set_voltage(0U, 0.75); // Greater than 0.70 -> ACO=1
+        signals.set_voltage(0U, 1.35); // 1.35 > 1.30 -> ACO=1
         bus.tick_peripherals(10U);
         
         CHECK((bus.read_data(acsr) & 0x30U) == 0x30U);

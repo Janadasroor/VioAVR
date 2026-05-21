@@ -29,7 +29,7 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Test")
     bus.attach_peripheral(exti);
     bus.reset();
 
-    adc0.set_channel_voltage(0U, 0.42);
+    adc0.set_channel_voltage(0U, 2.1); // 2.1V / 5.0V * 1024 = 430.08
     bus.write_data(atmega328p.adcs[0].admux_address, 0x00U);
     bus.write_data(atmega328p.adcs[0].adcsrb_address, 0x02U); // External Interrupt 0 Trigger
     bus.write_data(atmega328p.ext_interrupts[0].eicra_address, 0x02U); // Falling edge

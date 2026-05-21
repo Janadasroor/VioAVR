@@ -31,9 +31,9 @@ TEST_CASE("ADC Analog Comparator Auto-Trigger Test")
     bus.attach_peripheral(comparator);
     bus.reset();
 
-    adc0.set_channel_voltage(0U, 0.75);
-    comparator.set_negative_input_voltage(0.80);
-    comparator.set_positive_input_voltage(0.20); // ACO = 0
+    adc0.set_channel_voltage(0U, 3.75); // 3.75V / 5.0V * 1024 = 768
+    comparator.set_negative_input_voltage(0.80); // 0.80V reference (absolute)
+    comparator.set_positive_input_voltage(0.20); // 0.20V, ACO = 0
 
     bus.write_data(atmega328p.adcs[0].admux_address, 0x00U);
     bus.write_data(atmega328p.adcs[0].adcsrb_address, 0x01U); // Analog Comparator Trigger

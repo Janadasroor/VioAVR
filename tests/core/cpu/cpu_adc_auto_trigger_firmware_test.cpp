@@ -58,10 +58,10 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
     AnalogComparator comparator {"AC", atmega328p.acs[0], pin_mux, 9U, 1.1};
     
     adc0.connect_comparator_auto_trigger(comparator);
-    adc0.set_channel_voltage(0U, 0.75); // Target value: 768
+    adc0.set_channel_voltage(0U, 3.75); // 3.75V / 5.0V * 1024 = 768
     
-    comparator.set_negative_input_voltage(0.80);
-    comparator.set_positive_input_voltage(0.20); // ACO = 0 (0.20 < 0.80)
+    comparator.set_negative_input_voltage(0.80); // 0.80V reference (absolute)
+    comparator.set_positive_input_voltage(0.20); // 0.20V, ACO = 0
     
     bus.attach_peripheral(adc0);
     bus.attach_peripheral(comparator);
@@ -106,7 +106,7 @@ TEST_CASE("ADC Auto-Trigger via Comparator Firmware Integration Test")
         // CHECK((cpu.snapshot().gpr[18] & 0xF0U) == 0xA0U);
 
         // Raise comparator input to trigger edge
-        comparator.set_positive_input_voltage(0.83); // ACO becomes 1 -> Trigger ADC
+        comparator.set_positive_input_voltage(0.83); // 0.83V > 0.80V, ACO becomes 1 -> Trigger ADC
         
         // LDS r19, ADCSRA
         cpu.step(); // 2 cycles

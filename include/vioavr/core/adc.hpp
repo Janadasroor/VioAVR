@@ -45,12 +45,14 @@ public:
 
     void bind_signal_bank(const AnalogSignalBank& signal_bank) noexcept;
     void bind_pin_map(const PinMap& pin_map) noexcept;
+    void set_vref(double vref_voltage) noexcept { vref_ = vref_voltage; }
+    [[nodiscard]] double vref() const noexcept { return vref_; }
     void select_auto_trigger_source(AutoTriggerSource source) noexcept;
     void connect_comparator_auto_trigger(AnalogComparator& comparator) noexcept;
     void connect_external_interrupt_0_auto_trigger(ExtInterrupt& ext_interrupt) noexcept;
     void connect_timer_compare_auto_trigger(Timer8& timer) noexcept;
     void connect_timer_overflow_auto_trigger(Timer8& timer) noexcept;
-    void set_channel_voltage(u8 channel, double normalized_voltage) noexcept;
+    void set_channel_voltage(u8 channel, double voltage_volts) noexcept;
     void notify_auto_trigger(AutoTriggerSource source) noexcept;
     void on_event(u64 cycle) noexcept;
 
@@ -90,6 +92,7 @@ private:
     size_t ri_ {0};
     u8 source_id_;
     u16 conversion_cycles_;
+    double vref_ {5.0};
     const AnalogSignalBank* signal_bank_ {};
     std::array<double, 16> local_channel_voltage_ {};
     u8 adcsra_ {};

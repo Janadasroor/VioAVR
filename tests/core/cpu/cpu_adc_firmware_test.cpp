@@ -49,7 +49,7 @@ TEST_CASE("ADC Firmware Integration Test")
     MemoryBus bus {atmega328p};
     Adc adc0 {"ADC0", atmega328p.adcs[0], pin_mux, 6U, 4U};
     adc0.set_bus(bus);
-    adc0.set_channel_voltage(0U, 0.25);
+    adc0.set_channel_voltage(0U, 1.25); // 1.25V / 5.0V * 1024 = 256
     bus.attach_peripheral(adc0);
     AvrCpu cpu {bus};
 
@@ -104,7 +104,7 @@ TEST_CASE("ADC Firmware Integration Test")
         const auto result = static_cast<vioavr::core::u16>(
             s2.gpr[20] | (static_cast<vioavr::core::u16>(s2.gpr[21]) << 8U)
         );
-        // 0.25V -> 256
+        // 1.25V / 5.0V -> 256
         CHECK(result >= 254U);
         CHECK(result <= 258U);
     }

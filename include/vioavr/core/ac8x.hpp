@@ -23,6 +23,7 @@ public:
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
     void set_analog_signal_bank(AnalogSignalBank* bank) noexcept { signal_bank_ = bank; }
+    void set_vdd(double vdd) noexcept { vdd_ = vdd; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override { return {ranges_.data(), 1}; }
@@ -44,6 +45,7 @@ private:
     MemoryBus* bus_ {nullptr};
     EventSystem* evsys_ {nullptr};
     AnalogSignalBank* signal_bank_ {nullptr};
+    double vdd_ {5.0};
 
     std::array<AddressRange, 1> ranges_ {};
 

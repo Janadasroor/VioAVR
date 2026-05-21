@@ -87,8 +87,8 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
         // Simplified mapping for now
         p_volts = signal_bank_->voltage(p_mux);
         
-        if (n_mux == 0x03U) { // DACREF
-            n_volts = static_cast<double>(dacctrla_) / 255.0;
+        if (n_mux == 0x03U) { // DACREF: V_DACREF = DACREF * VDD / 256
+            n_volts = static_cast<double>(dacctrla_) * vdd_ / 256.0;
         } else {
             n_volts = signal_bank_->voltage(n_mux + 4); // Dummy offset for negative pins
         }

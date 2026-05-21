@@ -52,13 +52,14 @@ TEST_CASE("AVR8X CCL + EVSYS Fidelity: AC0 -> EVSYS -> CCL -> EVSYS -> TCB0") {
     bus.write_data(0xA84, 0x01); // EVCTRL: CAPTEI=1
     
     // 6. Stimulate AC0
+    // DACREF=128 * VDD(5.0V) / 256 = 2.5V
     auto& signal_bank = machine.analog_signal_bank();
-    signal_bank.set_voltage(0, 0.1); // Lower than DACREF
+    signal_bank.set_voltage(0, 2.0); // Lower than DACREF (2.5V)
     bus.tick_peripherals(10);
     
     CHECK(bus.read_data(0xA86) == 0); // CAPT flag should be 0
     
-    signal_bank.set_voltage(0, 0.9); // Higher than DACREF -> AC0_OUT goes high
+    signal_bank.set_voltage(0, 3.0); // Higher than DACREF -> AC0_OUT goes high
     bus.tick_peripherals(10);
     
     u8 tcb0_flags = bus.read_data(0xA86);

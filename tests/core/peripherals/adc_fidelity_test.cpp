@@ -23,11 +23,10 @@ TEST_CASE("ADC: Differential Channels and Gain") {
         // MUX 0x08: ADC0-ADC1 10x
         bus.write_data(devices::atmega32u4.adcs[0].admux_address, 0x08);
         
-        // Let's use clean values. 
-        // result_v = (pos - neg) * gain
-        // With ref = 1.0 (implicit in out get_voltage/result_v logic for now)
-        signals.set_voltage(0, 0.2);
-        signals.set_voltage(1, 0.1);
+        // (pos - neg) * gain / VREF * 512 = 511 (max 10-bit differential)
+        // (0.5 - 0.0) * 10 / 5.0 * 512 = 512 -> clamp to 511
+        signals.set_voltage(0, 0.5);
+        signals.set_voltage(1, 0.0);
         
         // Start conversion: ADEN=1, ADSC=1
         bus.write_data(devices::atmega32u4.adcs[0].adcsra_address, 0xC0);
@@ -38,8 +37,8 @@ TEST_CASE("ADC: Differential Channels and Gain") {
         u16 result = bus.read_data(devices::atmega32u4.adcs[0].adcl_address);
         result |= (static_cast<u16>(bus.read_data(devices::atmega32u4.adcs[0].adch_address)) << 8);
         
-        // (0.2 - 0.1) * 10 = 1.0. 
-        // result = clamp(1.0 * 512, -512, 511) = 511 (0x1FF)
+        // (0.5 - 0.0) * 10 / 5.0 * 512 = 512
+        // result = clamp(512, -512, 511) = 511 (0x1FF)
         CHECK(result == 0x1FF);
     }
 }

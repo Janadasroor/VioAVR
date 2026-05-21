@@ -56,7 +56,7 @@ TEST_CASE("ADC External Interrupt Auto-Trigger Firmware Integration Test")
     ExtInterrupt exti {"EXTINT", atmega328p.ext_interrupts[0], pin_mux, 4U};
     
     adc0.connect_external_interrupt_0_auto_trigger(exti);
-    adc0.set_channel_voltage(0U, 0.42); // Expected result: 430
+    adc0.set_channel_voltage(0U, 2.1); // 2.1V / 5.0V * 1024 = 430.08 -> Expected result: 430
     
     bus.attach_peripheral(adc0);
     bus.attach_peripheral(exti);
