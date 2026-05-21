@@ -20,14 +20,13 @@ public:
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
     [[nodiscard]] bool is_lvl1_vector(u8 vector_index) const noexcept {
-        // According to datasheet, if lvl1vec_ > highest_vector_idx, it is disabled.
-        // We use 0xFF as a safe "disabled" value for standard chips.
-        return lvl1vec_ == vector_index && lvl1vec_ < 255U;
+        return vector_index >= lvl1vec_ && lvl1vec_ < 255U;
     }
 
     [[nodiscard]] u8 highest_priority_vector() const noexcept {
         if (round_robin_enabled()) {
-            return (last_ack_vector_ + 1);
+            u8 next = static_cast<u8>(last_ack_vector_ + 1);
+            return (next == 0) ? 1 : next;
         }
         return lvl0pri_;
     }
@@ -38,9 +37,9 @@ public:
 
     void on_reti() noexcept {
         if ((status_ & 0x02U) != 0) {
-            status_ &= ~0x02U; // Clear LVL1EX
-        } else {
-            status_ &= ~0x01U; // Clear LVL0EX
+            status_ &= ~0x02U;
+        } else if ((status_ & 0x01U) != 0) {
+            status_ &= ~0x01U;
         }
     }
 
