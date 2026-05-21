@@ -59,3 +59,36 @@ endif()
 
 # Custom Chip Test Kit
 add_subdirectory(custom_chip)
+
+# Host SimAVR and comparison tests
+set(SIMAVR_ROOT "/home/jnd/cpp_projects/simavr" CACHE PATH "Path to SimAVR root directory")
+find_path(SIMAVR_INCLUDE_DIR NAMES sim_avr.h HINTS "${SIMAVR_ROOT}/simavr/sim")
+find_library(SIMAVR_LIBRARY NAMES simavr HINTS "${SIMAVR_ROOT}/simavr/obj-x86_64-linux-gnu")
+
+if(SIMAVR_INCLUDE_DIR AND SIMAVR_LIBRARY)
+    message(STATUS "Found SimAVR headers: ${SIMAVR_INCLUDE_DIR}")
+    message(STATUS "Found SimAVR library: ${SIMAVR_LIBRARY}")
+
+    add_executable(simavr_tracer programs/simavr_tracer.c)
+    target_include_directories(simavr_tracer PRIVATE ${SIMAVR_INCLUDE_DIR})
+    target_link_libraries(simavr_tracer PRIVATE ${SIMAVR_LIBRARY} rt)
+    set_target_properties(simavr_tracer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+
+    function(add_comparison_test test_name cycles)
+        set(elf_file "${CMAKE_CURRENT_BINARY_DIR}/${test_name}.elf")
+        add_test(
+            NAME "compare_${test_name}"
+            COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/programs/simavr_compare.py" "${elf_file}" "${cycles}"
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        )
+    endfunction()
+
+    add_comparison_test(adc_pwm 5000)
+    add_comparison_test(adc_test_compare 5000)
+    add_comparison_test(timer1_interrupt_compare 2000)
+    add_comparison_test(timer_pwm_compare 1000)
+    add_comparison_test(uart_test_compare 10000)
+else()
+    message(WARNING "SimAVR headers or library not found. SimAVR comparison tests will be skipped.")
+endif()
+

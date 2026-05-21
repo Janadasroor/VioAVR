@@ -54,6 +54,7 @@ void Tca::reset() noexcept {
     prescaler_limit_ = 1;
     wo_states_.fill(false);
     update_interrupt_state();
+    update_active_state();
 }
 
 std::span<const AddressRange> Tca::mapped_ranges() const noexcept {
@@ -175,6 +176,7 @@ void Tca::write(u16 address, u8 value) noexcept {
         ctrla_ = value;
         update_prescaler();
         update_interrupt_state();
+        update_active_state();
     } else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
     } else if (address == desc_.ctrlc_address) {
@@ -496,6 +498,19 @@ void Tca::update_interrupt_state() noexcept {
         else if (intflags_ & intctrl_ & 0x40) pending = true;
     }
     set_interrupt_pending(pending);
+}
+
+void Tca::update_active_state() noexcept
+{
+    if (bus_) {
+        bool active = is_enabled();
+        bus_->set_peripheral_active(this, active);
+    }
+}
+
+void Tca::on_power_state_change() noexcept
+{
+    update_active_state();
 }
 
 } // namespace vioavr::core

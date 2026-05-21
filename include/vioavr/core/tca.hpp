@@ -24,6 +24,7 @@ public:
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     void on_routing_changed() noexcept override;
+    void on_power_state_change() noexcept override;
 
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
     
@@ -117,6 +118,7 @@ private:
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     [[nodiscard]] bool is_split_mode() const noexcept { return ctrld_ & 0x01; }
     void update_prescaler() noexcept;
+    void update_active_state() noexcept;
 
     std::array<bool, 6> wo_states_ {false, false, false, false, false, false};
     void update_interrupt_state() noexcept;

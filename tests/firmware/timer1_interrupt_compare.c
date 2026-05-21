@@ -31,16 +31,5 @@ int main() {
     // Let's use /1 to see EVERY cycle clearly.
     TCCR1B |= (1 << CS10);
     
-    while(1) {
-        if (count >= 10) {
-            // Stop after 10 interrupts
-            TCCR1B = 0;
-            break;
-        }
-    }
-    
-    // Infinite loop or crash to stop tracer
-    while(1) {
-        asm volatile("nop");
-    }
+    while(1);
 }

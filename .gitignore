@@ -65,6 +65,24 @@ tests/programs/*.csv
 tmp/
 # avr-libc
 avr-libc/
+
+# VCD trace files
+*.vcd
+
+# Testing artifacts
+Testing/
+build_release/
+
+# Scratch build artifacts
+scratch/cmpp_build/
+scratch/check_shm
+scratch/check_shm.cpp
+scratch/test_dlopen
+scratch/test_dlopen.c
+scratch/view_shm
+scratch/view_shm.cpp
+scratch/test_shm.py
+tests/programs/simavr_tracer
 TODO.md
 *_TODO.md
 

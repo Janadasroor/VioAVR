@@ -23,6 +23,7 @@ public:
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     void on_routing_changed() noexcept override;
+    void on_power_state_change() noexcept override;
 
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
     
@@ -71,6 +72,7 @@ private:
 
     u8 prescaler_counter_ {0};
     void update_interrupt_state() noexcept;
+    void update_active_state() noexcept;
 };
 
 } // namespace vioavr::core

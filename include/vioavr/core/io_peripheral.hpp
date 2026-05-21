@@ -96,6 +96,7 @@ protected:
 
 private:
     bool interrupt_pending_ {false};
+    u64 last_update_cycle_ {0U};
     friend class MemoryBus;
 };
 

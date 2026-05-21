@@ -49,12 +49,16 @@ TEST_CASE("AVR8X CPUINT Fidelity Test") {
         bool consume_interrupt_request(InterruptRequest& request) noexcept override {
             if (pending_ && request.vector_index == vector_) {
                 pending_ = false;
+                if (bus_) bus_->notify_interrupt_state_change(this, false);
                 return true;
             }
             return false;
         }
 
-        void trigger() { pending_ = true; }
+        void trigger() {
+            pending_ = true;
+            if (bus_) bus_->notify_interrupt_state_change(this, true);
+        }
 
     private:
         std::string name_;

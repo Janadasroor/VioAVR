@@ -55,11 +55,15 @@ public:
      * @brief Advance time and process events.
      * @return Cycles until the next event.
      */
-    u64 advance_to(u64 target_cycle) {
+    u64 advance_to(u64 target_cycle, const std::function<void(u64)>& pre_event_hook = nullptr) {
         while (!events_.empty() && events_.front().target_cycle <= target_cycle) {
             ScheduledEvent event = events_.front();
             std::pop_heap(events_.begin(), events_.end(), std::greater<ScheduledEvent>());
             events_.pop_back();
+
+            if (pre_event_hook) {
+                pre_event_hook(event.target_cycle);
+            }
 
             current_cycle_ = event.target_cycle;
             event.callback(current_cycle_, event.param);

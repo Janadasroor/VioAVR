@@ -4,7 +4,7 @@ project(
     VioAVR
     VERSION 0.1.0
     DESCRIPTION "Lightweight AVR ISS for ATmega8/328 co-simulation"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 option(VIOAVR_BUILD_TESTS "Build unit tests" ON)

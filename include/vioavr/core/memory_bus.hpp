@@ -38,6 +38,7 @@ public:
     [[nodiscard]] class PinMux* pin_mux() const noexcept { return pin_mux_; }
     void attach_peripheral(IoPeripheral& peripheral);
     void register_ticking_peripheral(IoPeripheral& peripheral) noexcept;
+    void set_peripheral_active(IoPeripheral* peripheral, bool active) noexcept;
     void load_flash(std::span<const u16> words);
     void load_image(const HexImage& image);
 
@@ -203,6 +204,10 @@ public:
     [[nodiscard]] bool in_rmw() const noexcept { return in_rmw_; }
     void set_in_rmw(bool value) noexcept { in_rmw_ = value; }
 
+    [[nodiscard]] inline bool interrupts_dirty() const noexcept { return interrupts_dirty_; }
+    inline void clear_interrupts_dirty() noexcept { interrupts_dirty_ = false; }
+    inline void set_interrupts_dirty() noexcept { interrupts_dirty_ = true; }
+
 private:
     [[nodiscard]] inline IoPeripheral* find_peripheral(u16 address) noexcept
     {
@@ -231,6 +236,7 @@ private:
     uint64_t mask_support_bits_ {0ULL};
     std::vector<IoPeripheral*> peripherals_ {};
     std::vector<IoPeripheral*> ticking_peripherals_ {};
+    std::vector<IoPeripheral*> active_ticking_peripherals_ {};
     std::array<IoPeripheral*, 65536> dispatch_table_ {};
     u32 loaded_program_words_ {};
     u32 reset_word_address_ {};
@@ -255,6 +261,9 @@ private:
     std::array<u64, 256> domain_gated_cycles_ {};
     bool analysis_freeze_requested_ {false};
     bool in_rmw_ {false};
+    bool interrupts_dirty_ {true};
+    u8 current_active_domains_ {0xFFU};
+    void catch_up_all_peripherals(u64 target_cycle) const noexcept;
     EventScheduler scheduler_;
 };
 }  // namespace vioavr::core
@@ -263,6 +272,7 @@ namespace vioavr::core {
 
 inline u8 MemoryBus::read_data(const u16 address) noexcept
 {
+    catch_up_all_peripherals(cpu_cycles());
     // 1. Unified Memory Map aliases (AVR8X)
     if (device_.mapped_flash.size > 0 && 
         address >= device_.mapped_flash.data_start && 
@@ -330,6 +340,7 @@ inline u8 MemoryBus::read_data(const u16 address) noexcept
 
 inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
 {
+    catch_up_all_peripherals(cpu_cycles());
     // 1. Update Unified Memory Map aliases (Shadow Buffers for NVM commands)
     if (device_.mapped_flash.size > 0 && 
         address >= device_.mapped_flash.data_start && 
@@ -386,7 +397,6 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
 
     // 2. High-performance path for Registers/Peripherals
     if (IoPeripheral* peripheral = dispatch_table_[address]; peripheral != nullptr) {
-        printf("DEBUG: MemoryBus writing to %s at 0x%04X val 0x%02X\n", peripheral->name().data(), address, value);
         peripheral->write(address, value);
         if (is_prr_write) {
             for (IoPeripheral* p : peripherals_) {

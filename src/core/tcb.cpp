@@ -46,6 +46,7 @@ void Tcb::reset() noexcept {
     cnt_ = 0;
     ccmp_ = 0;
     update_interrupt_state();
+    update_active_state();
 }
 
 std::span<const AddressRange> Tcb::mapped_ranges() const noexcept {
@@ -84,6 +85,7 @@ u8 Tcb::read(u16 address) noexcept {
 void Tcb::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value;
+        update_active_state();
     } else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
     } else if (address == desc_.evctrl_address) {
@@ -295,6 +297,19 @@ void Tcb::update_outputs() noexcept {
 void Tcb::update_interrupt_state() noexcept {
     bool pending = (intflags_ & 0x01) && (intctrl_ & 0x01);
     set_interrupt_pending(pending);
+}
+
+void Tcb::update_active_state() noexcept
+{
+    if (bus_) {
+        bool active = is_enabled();
+        bus_->set_peripheral_active(this, active);
+    }
+}
+
+void Tcb::on_power_state_change() noexcept
+{
+    update_active_state();
 }
 
 } // namespace vioavr::core

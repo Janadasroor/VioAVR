@@ -43,6 +43,7 @@ public:
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
     void tick_async(const u64 elapsed_ticks) noexcept;
+    void on_power_state_change() noexcept override;
     bool on_external_pin_change(u16 address, u8 bit, PinLevel level) noexcept override;
 
     [[nodiscard]] u8 read(u16 address) noexcept override;
@@ -93,6 +94,7 @@ private:
     [[nodiscard]] PinAction get_pin_action_b() const noexcept;
     void update_pin_ownership() noexcept;
     void update_interrupt_state() noexcept;
+    void update_active_state() noexcept;
 
     PinMux* pin_mux_ {};
     std::string name_;

@@ -3,7 +3,7 @@ set -e
 
 # Configuration
 PROJECT_ROOT=$(pwd)
-BUILD_DIR="${PROJECT_ROOT}/build"
+BUILD_DIR="${BUILD_DIR:-${PROJECT_ROOT}/build_release}"
 VIOSPICE_DIR="${PROJECT_ROOT}/viospice"
 INCLUDE_DIR="${PROJECT_ROOT}/include"
 OUTPUT_NAME="viospice.cm"
