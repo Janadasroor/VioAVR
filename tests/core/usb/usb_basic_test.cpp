@@ -19,6 +19,12 @@ TEST_CASE("USB Peripheral Basic Register and FIFO Fidelity")
 
     const auto& desc = atmega32u4.usbs[0];
 
+    auto setup_in_endpoint = [&](u8 ep_num) {
+        bus.write_data(desc.uenum_address, ep_num);
+        bus.write_data(desc.uecfg0x_address, 0x80); // IN direction
+        bus.write_data(desc.ueconx_address, 0x01);  // EPEN -> sets TXINI
+    };
+
     SUBCASE("Register Access") {
         bus.write_data(desc.usbcon_address, 0x80); // USBE = 1
         CHECK(bus.read_data(desc.usbcon_address) == 0x80);
@@ -28,27 +34,27 @@ TEST_CASE("USB Peripheral Basic Register and FIFO Fidelity")
     }
 
     SUBCASE("Endpoint Selection and FIFO Access") {
-        // Select Endpoint 0
-        bus.write_data(desc.uenum_address, 0);
+        // Select Endpoint 0, configure as IN
+        setup_in_endpoint(0);
         bus.write_data(desc.uedatx_address, 0xAA);
         bus.write_data(desc.uedatx_address, 0xBB);
         
-        // Select Endpoint 1
-        bus.write_data(desc.uenum_address, 1);
+        // Select Endpoint 1, configure as IN
+        setup_in_endpoint(1);
         bus.write_data(desc.uedatx_address, 0xCC);
         
         // Go back to Endpoint 0 and read
-        bus.write_data(desc.uenum_address, 0);
+        setup_in_endpoint(0);
         CHECK(bus.read_data(desc.uedatx_address) == 0xAA);
         CHECK(bus.read_data(desc.uedatx_address) == 0xBB);
         
         // Go back to Endpoint 1 and read
-        bus.write_data(desc.uenum_address, 1);
+        setup_in_endpoint(1);
         CHECK(bus.read_data(desc.uedatx_address) == 0xCC);
     }
 
     SUBCASE("Byte Count and FIFO Reset simulation") {
-        bus.write_data(desc.uenum_address, 2);
+        setup_in_endpoint(2);
         bus.write_data(desc.uedatx_address, 0x01);
         bus.write_data(desc.uedatx_address, 0x02);
         bus.write_data(desc.uedatx_address, 0x03);

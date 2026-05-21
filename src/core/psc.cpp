@@ -83,26 +83,30 @@ u8 Psc::read(u16 address) noexcept {
     if (address == desc_.pom_address) return pom_;
     
     if (address == desc_.ocrsa_address) {
+        read_temp_high_ = (ocrsa_ >> 8) & 0x0F;
         return ocrsa_ & 0xFF;
     }
     if (address == desc_.ocrsa_address + 1) {
-        return (ocrsa_ >> 8) & 0x0F;
+        return read_temp_high_;
     }
     
     if (address == desc_.ocrra_address) {
+        read_temp_high_ = (ocrra_ >> 8) & 0x0F;
         return ocrra_ & 0xFF;
     }
-    if (address == desc_.ocrra_address + 1) return (ocrra_ >> 8) & 0x0F;
+    if (address == desc_.ocrra_address + 1) return read_temp_high_;
     
     if (address == desc_.ocrsb_address) {
+        read_temp_high_ = (ocrsb_ >> 8) & 0x0F;
         return ocrsb_ & 0xFF;
     }
-    if (address == desc_.ocrsb_address + 1) return (ocrsb_ >> 8) & 0x0F;
+    if (address == desc_.ocrsb_address + 1) return read_temp_high_;
     
     if (address == desc_.ocrrb_address) {
+        read_temp_high_ = (ocrrb_ >> 8) & 0x0F;
         return ocrrb_ & 0xFF;
     }
-    if (address == desc_.ocrrb_address + 1) return (ocrrb_ >> 8) & 0x0F;
+    if (address == desc_.ocrrb_address + 1) return read_temp_high_;
     
     return 0;
 }
@@ -142,10 +146,10 @@ void Psc::write(u16 address, u8 value) noexcept {
         } else {
             // Low byte written second, completing the 16-bit value
             u16 val = (u16(temp_high_) << 8) | value;
-            if (offset == 0) ocrsa_ = val;
-            else if (offset == 2) ocrra_ = val;
-            else if (offset == 4) ocrsb_ = val;
-            else if (offset == 6) ocrrb_ = val;
+            if (offset == 0) { ocrsa_ = val; read_temp_high_ = temp_high_; }
+            else if (offset == 2) { ocrra_ = val; read_temp_high_ = temp_high_; }
+            else if (offset == 4) { ocrsb_ = val; read_temp_high_ = temp_high_; }
+            else if (offset == 6) { ocrrb_ = val; read_temp_high_ = temp_high_; }
         }
     }
     update_outputs();

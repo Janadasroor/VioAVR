@@ -66,14 +66,14 @@ TEST_CASE("AT90PWM316 DAC Fidelity") {
         }
     }
     REQUIRE(dac_ptr != nullptr);
-    REQUIRE(dac_ptr->voltage() == doctest::Approx(512.0 / 1023.0));
+    REQUIRE(dac_ptr->voltage() == doctest::Approx(512.0 / 1024.0));
     
     // Tick DAC to propagate to PinMux
     bus.tick_peripherals(1);
     
     auto state = bus.pin_mux()->get_state_by_address(0x23, 1); // PB1/DACOUT
     CHECK(state.owner == PinOwner::dac);
-    CHECK(state.voltage == doctest::Approx(512.0 / 1023.0));
+    CHECK(state.voltage == doctest::Approx(512.0 / 1024.0));
 }
 
 TEST_CASE("AT90PWM316 - EUSART Timing") {
@@ -645,7 +645,7 @@ TEST_CASE("AT90PWM316 - DAC Fidelity and Left Adjust") {
     bus.write_data(dacl, 0xFF);
     bus.write_data(dach, 0x03); // 1023 total
     
-    CHECK(dacs[0]->voltage() == doctest::Approx(1.0));
+    CHECK(dacs[0]->voltage() == doctest::Approx(1023.0 / 1024.0));
     
     // 2. Left Adjust (DALA=1)
     bus.write_data(dacon, 0x05); // DAEN=1, DALA=1
@@ -655,7 +655,7 @@ TEST_CASE("AT90PWM316 - DAC Fidelity and Left Adjust") {
     bus.write_data(dacl, 0xC0);
     bus.write_data(dach, 0xFF);
     
-    CHECK(dacs[0]->voltage() == doctest::Approx(1.0));
+    CHECK(dacs[0]->voltage() == doctest::Approx(1023.0 / 1024.0));
     
     // 3. Middle value (Left Adjust)
     bus.write_data(dacl, 0x00);
@@ -675,7 +675,7 @@ TEST_CASE("AT90PWM316 - DAC Fidelity and Left Adjust") {
     CHECK(dacs[0]->voltage() == 0.0); // Should not update until triggered
     
     dacs[0]->notify_auto_trigger(AdcAutoTriggerSource::analog_comparator);
-    CHECK(dacs[0]->voltage() == doctest::Approx(1.0));
+    CHECK(dacs[0]->voltage() == doctest::Approx(1023.0 / 1024.0));
 }
 
 TEST_CASE("AT90PWM316 - OpAmp Gain and Fidelity") {

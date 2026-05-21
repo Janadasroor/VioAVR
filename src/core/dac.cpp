@@ -131,7 +131,7 @@ void Dac::update_voltage() noexcept {
         return;
     }
     // Convert 10-bit data to 0.0-1.0 range
-    voltage_ = static_cast<double>(data_) / 1023.0;
+    voltage_ = static_cast<double>(data_) / 1024.0;
 }
 
 } // namespace vioavr::core

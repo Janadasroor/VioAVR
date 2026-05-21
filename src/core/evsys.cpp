@@ -60,6 +60,7 @@ void EventSystem::write(u16 address, u8 value) noexcept {
         for (u8 i = 0; i < desc_.channel_count; ++i) {
             if (value & (1 << i)) {
                 // Strobe generates a pulse (true then false)
+                channel_levels_[i] = true;
                 for (size_t u = 0; u < users_.size(); ++u) {
                     if (users_[u] == (i + 1)) {
                         if (callbacks_[u]) {
@@ -68,6 +69,7 @@ void EventSystem::write(u16 address, u8 value) noexcept {
                         }
                     }
                 }
+                channel_levels_[i] = false;
             }
         }
     } else if (address >= desc_.channels_address && address < desc_.channels_address + desc_.channel_count) {

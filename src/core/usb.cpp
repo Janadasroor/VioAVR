@@ -271,11 +271,14 @@ void Usb::write(u16 address, u8 value) noexcept {
         update_ueint();
     }
     else if (address == desc_.uedatx_address) {
-        auto& bank = ep.banks[ep.cpu_bank];
-        if (bank.byte_count < bank.fifo.size()) {
-            bank.fifo[bank.write_idx] = value;
-            bank.write_idx = (bank.write_idx + 1) % bank.fifo.size();
-            bank.byte_count++;
+        // Only allow writes for IN endpoints with TXINI set
+        if ((ep.config0 & 0x80U) && (ep.interrupt_flags & desc_.ueintx_txini_mask)) {
+            auto& bank = ep.banks[ep.cpu_bank];
+            if (bank.byte_count < bank.fifo.size()) {
+                bank.fifo[bank.write_idx] = value;
+                bank.write_idx = (bank.write_idx + 1) % bank.fifo.size();
+                bank.byte_count++;
+            }
         }
     }
 }

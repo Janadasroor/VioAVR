@@ -54,15 +54,26 @@ void Timer10::reset() noexcept {
     target_b_ = false; target_b_neg_ = false;
     target_d_ = false; target_d_neg_ = false;
     clock_ratio_ = 1;
+    cycle_accumulator_ = 0;
     pll_enabled_ = false;
 }
 
 void Timer10::tick(u64 elapsed_cycles) noexcept {
     if (power_reduction_enabled()) return;
-    
+
     u64 timer_ticks = elapsed_cycles * clock_ratio_;
-    for (u64 i = 0; i < timer_ticks; ++i) {
-        perform_tick();
+
+    const u8 cs = tccrb_ & desc_.cs_mask;
+    if (cs == 0) return;
+    if (cs <= 5) {
+        static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
+        const u16 divisor = prescalers[cs];
+        cycle_accumulator_ += static_cast<u32>(timer_ticks);
+        u32 ticks = cycle_accumulator_ / divisor;
+        cycle_accumulator_ %= divisor;
+        for (u32 i = 0; i < ticks; ++i) {
+            perform_tick();
+        }
     }
 }
 
@@ -175,10 +186,6 @@ void Timer10::perform_tick() noexcept {
         tcnt_ = (tcnt_ - 1) & 0x3FFU;
     }
 
-    if (tcnt_ == ocra_) handle_compare_match_a();
-    if (tcnt_ == ocrb_) handle_compare_match_b();
-    if (tcnt_ == ocrd_) handle_compare_match_d();
-    
     if (up_direction_ && tcnt_ >= ocrc_) {
         if (pfc) {
             up_direction_ = false;
@@ -196,6 +203,10 @@ void Timer10::perform_tick() noexcept {
         ocrb_ = ocrb_buf_;
         ocrd_ = ocrd_buf_;
     }
+
+    if (tcnt_ == ocra_) handle_compare_match_a();
+    if (tcnt_ == ocrb_) handle_compare_match_b();
+    if (tcnt_ == ocrd_) handle_compare_match_d();
 }
 
 void Timer10::apply_pin_level(std::optional<BoundPin> pin, bool high) noexcept {

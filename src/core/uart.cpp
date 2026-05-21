@@ -86,7 +86,10 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
         tx_cycle_accumulator_ += elapsed_cycles;
         u16 ubrr = (static_cast<u16>(ubrrh_) << 8) | ubrrl_;
         u32 bit_duration = ((ucsra_ & desc_.u2x_mask) ? 8U : 16U) * (ubrr + 1U);
-        const u64 limit = bit_duration * 10;
+        u8 data_bits = (ucsrb_ & 0x04U) ? 9 : ((ucsrc_ >> 1) & 0x03U) + 5;
+        u8 parity_bits = ((ucsrc_ & 0x30U) != 0) ? 1 : 0;
+        u8 stop_bits = (ucsrc_ & 0x08U) ? 2 : 1;
+        const u64 limit = bit_duration * (1ULL + data_bits + parity_bits + stop_bits);
         
         if (tx_cycle_accumulator_ >= limit) {
             // Byte finished shifting

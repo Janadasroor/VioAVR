@@ -110,6 +110,7 @@ void Timer16::tick(u64 elapsed_cycles) noexcept {
             update_interrupt_state();
         }
     }
+    // CS=6,7: external clock on T1 pin — ticking handled in on_external_pin_change
 }
 
 void Timer16::sync() noexcept {
@@ -140,6 +141,7 @@ void Timer16::sync() noexcept {
             update_interrupt_state();
         }
     }
+    // CS=6,7: external clock on T1 pin — ticking handled in on_external_pin_change
 }
 
 void Timer16::perform_tick() noexcept {
@@ -235,7 +237,10 @@ void Timer16::perform_tick() noexcept {
                     bool edge_level = current_level;
                     const bool rising_edge = (tccrb_ & desc_.ices_mask) != 0;
                     if (edge_level != (bool)last_icp_state_) {
-                        if (edge_level == rising_edge) handle_input_capture();
+                        if (edge_level == rising_edge) {
+                            handle_input_capture();
+                            noise_canceler_counter_ = 0;
+                        }
                         last_icp_state_ = edge_level;
                     }
                 }
@@ -350,6 +355,17 @@ void Timer16::handle_input_capture() noexcept {
 bool Timer16::on_external_pin_change(u16 address, u8 bit, PinLevel level) noexcept {
     if (pin_icp_ && address == pin_icp_->port->port_address() && bit == pin_icp_->bit) {
         notify_input_capture(level == PinLevel::high);
+        return true;
+    }
+    if (pin_t1_ && address == pin_t1_->port->port_address() && bit == pin_t1_->bit) {
+        bool high = (level == PinLevel::high);
+        u8 cs = tccrb_ & desc_.cs_mask;
+        if (cs == 6 && last_t1_state_ == 1 && !high) { // Falling edge
+            perform_tick();
+        } else if (cs == 7 && last_t1_state_ == 0 && high) { // Rising edge
+            perform_tick();
+        }
+        last_t1_state_ = high ? 1 : 0;
         return true;
     }
     return false;

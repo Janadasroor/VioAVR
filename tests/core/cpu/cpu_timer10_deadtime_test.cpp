@@ -32,7 +32,8 @@ TEST_CASE("Timer10 Dead-Time Fidelity")
 
     timer4.reset();
     
-    // Set Non-inverting PWM mode
+    // Set Non-inverting PWM mode, CS=1 (no prescaling)
+    bus.write_data(atmega32u4.timers10[0].tccrb_address, 0x01);
     bus.write_data(atmega32u4.timers10[0].tccra_address, 0x82); // COM4A=2, PWM4A=1
     bus.write_data(atmega32u4.timers10[0].ocra_address, 50);
     bus.write_data(atmega32u4.timers10[0].ocrc_address, 100);

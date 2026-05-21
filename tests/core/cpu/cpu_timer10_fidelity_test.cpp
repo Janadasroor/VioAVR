@@ -26,8 +26,9 @@ TEST_CASE("Timer10 High-Speed PLL Clock Fidelity")
     auto cpu_ctrl = std::make_shared<CpuControl>(cpu, atmega32u4);
     bus.attach_peripheral(*cpu_ctrl);
 
-    // 1. Initial State: PCKE=0, Ratio=1
+    // 1. Initial State: PCKE=0, Ratio=1, CS=1 (no prescaling)
     timer4.reset();
+    timer4.write(atmega32u4.timers10[0].tccrb_address, 0x01);
     bus.write_data(atmega32u4.timers10[0].ocrc_address, 0xFF);
     timer4.tick(10);
     CHECK(timer4.read(atmega32u4.timers10[0].tcnt_address) == 10);
@@ -37,7 +38,7 @@ TEST_CASE("Timer10 High-Speed PLL Clock Fidelity")
     CHECK(timer4.read(atmega32u4.timers10[0].pllcsr_address) == 0x05);
     bus.write_data(atmega32u4.timers10[0].tcnt_address, 0);
     bus.write_data(atmega32u4.timers10[0].ocrc_address, 0xFF);
-    timer4.tick(10); // 10 CPU cycles = 80 Timer cycles
+    timer4.tick(10);
     CHECK(timer4.read(atmega32u4.timers10[0].tcnt_address) == 80);
 }
 
@@ -58,8 +59,9 @@ TEST_CASE("Timer10 Output PWM Fidelity")
 
     timer4.reset();
     
-    // Set TCCRA = 0 to allow immediate OCR update, then set to PWM
+    // Set TCCRA = 0 to allow immediate OCR update, then set to PWM, CS=1 (no prescaling)
     bus.write_data(atmega32u4.timers10[0].tccra_address, 0x00);
+    bus.write_data(atmega32u4.timers10[0].tccrb_address, 0x01);
     bus.write_data(atmega32u4.timers10[0].ocra_address, 40);
     bus.write_data(atmega32u4.timers10[0].ocrc_address, 100);
     bus.write_data(atmega32u4.timers10[0].tccra_address, 0x82);

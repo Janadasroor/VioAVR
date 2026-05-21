@@ -274,7 +274,8 @@ void Eusart::write(u16 address, u8 value) noexcept {
         tx_queue_.push_back(full);
         tx_temp_ = 0; // Reset for next use
     } else if (address == desc_.eucsra_address) {
-        eucsra_ = value;
+        // TXC (bit 6) is write-1-to-clear; other bits are writable
+        eucsra_ = (value & ~0x40U) | (eucsra_ & 0x40U & ~value);
     } else if (address == desc_.eucsrb_address) {
         eucsrb_ = value;
         if ((eucsrb_ & desc_.eus_en_mask) && bus_ && bus_->pin_mux()) {

@@ -132,13 +132,14 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
     } else if (address == desc_.eearh_address) {
         eear_ = static_cast<u16>((static_cast<u16>(value) << 8U) | (eear_ & 0x00FFU));
     } else if (desc_.mapped_data.size > 0 && address >= desc_.mapped_data.data_start && address < desc_.mapped_data.data_start + desc_.mapped_data.size) {
-        // Direct mapped write (AVR8X style)
-        // According to datasheet, mapped EEPROM writes stall the CPU until complete.
-        if (bus_) bus_->request_cpu_stall(kEepromAtomicCycles);
-        const u16 offset = address - desc_.mapped_data.data_start;
-        if (offset < storage_.size()) {
-            Logger::debug("Eeprom '" + std::string(name_) + "': Direct write at offset " + std::to_string(offset) + " = 0x" + std::to_string(value));
-            storage_[offset] = value;
+        // Direct mapped write (AVR8X style) — only if no write in progress
+        if (write_cycles_left_ == 0U) {
+            if (bus_) bus_->request_cpu_stall(kEepromAtomicCycles);
+            const u16 offset = address - desc_.mapped_data.data_start;
+            if (offset < storage_.size()) {
+                Logger::debug("Eeprom '" + std::string(name_) + "': Direct write at offset " + std::to_string(offset) + " = 0x" + std::to_string(value));
+                storage_[offset] = value;
+            }
         }
     }
 }
