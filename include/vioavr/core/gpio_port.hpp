@@ -26,9 +26,6 @@ public:
         for (bool b : has_analog_binding_) {
             if (b) return true;
         }
-        for (bool b : has_voltage_input_) {
-            if (b) return true;
-        }
         return false;
     }
     [[nodiscard]] u8 read(u16 address) noexcept override;

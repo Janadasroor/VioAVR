@@ -90,7 +90,7 @@ public:
 
     bool claim_pin_by_address(u16 pin_address, u8 bit_index, PinOwner owner) noexcept;
     void release_pin_by_address(u16 pin_address, u8 bit_index, PinOwner owner) noexcept;
-    void update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, bool is_output, bool level, bool pullup = false) noexcept;
+    void update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, bool is_output, bool level, bool pullup = false, bool wired_and = false) noexcept;
     void update_analog_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, double voltage) noexcept;
     void reset() noexcept;
 

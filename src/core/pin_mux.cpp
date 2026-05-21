@@ -7,7 +7,7 @@ namespace vioavr::core {
 
 PinMux::PinMux(u8 num_ports) noexcept
 {
-    u8 actual_ports = (num_ports > 16) ? num_ports : 16;
+    u8 actual_ports = (num_ports > 0) ? num_ports : 16;
     ports_.resize(actual_ports);
     for (auto& port : ports_) {
         port.resize(8); // Standard AVR ports have 8 pins
@@ -30,7 +30,7 @@ bool PinMux::claim_pin(u8 port_idx, u8 bit_idx, PinOwner owner) noexcept
     const u32 claim_bit = (1U << static_cast<u8>(owner));
 
     if (!(entry.active_claims & claim_bit)) {
-        Logger::debug("PinMux::claim_pin port=" + std::to_string(port_idx) + " bit=" + std::to_string(bit_idx) + " owner=" + std::to_string((int)owner));
+        Logger::debug("PinMux::claim_pin port=" + std::to_string(port_idx) + " bit=" + std::to_string(bit_idx) + " owner=" + std::to_string(static_cast<int>(owner)));
         entry.active_claims |= claim_bit;
         reevaluate_ownership(port_idx, bit_idx);
     }
@@ -89,11 +89,11 @@ void PinMux::update_pin(u8 port_idx, u8 bit_idx, PinOwner requester, bool is_out
     reevaluate_ownership(port_idx, bit_idx);
 }
 
-void PinMux::update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, bool is_output, bool level, bool pullup) noexcept
+void PinMux::update_pin_by_address(u16 pin_address, u8 bit_index, PinOwner requester, bool is_output, bool level, bool pullup, bool wired_and) noexcept
 {
     auto it = addr_to_port_.find(pin_address);
     if (it != addr_to_port_.end()) {
-        update_pin(it->second, bit_index, requester, is_output, level, pullup);
+        update_pin(it->second, bit_index, requester, is_output, level, pullup, wired_and);
     }
 }
 
@@ -174,9 +174,10 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
         }
     }
     entry.state.owner = highest_owner;
-    
-    // Check if any owner wants Wired-AND
-    bool is_wired_and = (entry.wired_and_mask & entry.active_claims) != 0;
+    const u32 highest_owner_bit = (1U << static_cast<u32>(highest_owner));
+
+    // Check if the highest priority owner wants Wired-AND
+    bool is_wired_and = (entry.wired_and_mask & highest_owner_bit) != 0;
     entry.state.is_wired_and = is_wired_and;
 
     if (is_wired_and) {
@@ -190,12 +191,10 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
         }
     } else {
         // Drive level follows the highest priority owner
-        u32 owner_bit = (1U << static_cast<u32>(highest_owner));
-        entry.state.drive_level = (entry.drive_levels & owner_bit) != 0;
+        entry.state.drive_level = (entry.drive_levels & highest_owner_bit) != 0;
     }
 
     // Composite output state
-    u32 highest_owner_bit = (1U << static_cast<u32>(highest_owner));
     entry.state.is_output = (entry.output_mask & highest_owner_bit) != 0;
 
     // Composite pullup state
