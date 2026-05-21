@@ -86,12 +86,12 @@ void Ac8x::evaluate() noexcept {
 
     if (signal_bank_) {
         u8 p_mux = (muxctrla_ >> 3) & 0x07U;
-        u8 n_mux = muxctrla_ & 0x07U;
-        p_volts = signal_bank_->voltage(p_mux);
+        u8 n_mux = muxctrla_ & 0x03U;
+        p_volts = signal_bank_->voltage(desc_.muxpos_base + p_mux);
         if (n_mux == 0x03U) {
             n_volts = static_cast<double>(dacctrla_) * vref_ / 256.0;
         } else {
-            n_volts = signal_bank_->voltage(n_mux + 4);
+            n_volts = signal_bank_->voltage(desc_.muxneg_base + n_mux);
         }
     }
     
