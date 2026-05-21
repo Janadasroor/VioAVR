@@ -87,6 +87,8 @@ private:
     void evaluate_error_state() noexcept;
     void find_high_priority_mob() noexcept;
     void receive_message(const CanMessage& msg) noexcept;
+    [[nodiscard]] u32 compute_cycles_per_bit() const noexcept;
+    [[nodiscard]] u32 compute_frame_bits(u8 dlc, bool ext_id) const noexcept;
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
 };
 

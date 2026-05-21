@@ -350,7 +350,10 @@ void CanBus::find_high_priority_mob() noexcept {
         canhpmob_ = (best_idx << 4);
         if (current_tx_mob_ == -1) {
             current_tx_mob_ = best_idx;
-            tx_wait_cycles_ = 1000; // Start Tx timer
+            auto& mob = mobs_[best_idx];
+            u8 dlc = mob.cancdmob & 0x0FU;
+            bool ext_id = (mob.cancdmob & 0x10U) != 0;
+            tx_wait_cycles_ = compute_cycles_per_bit() * compute_frame_bits(dlc, ext_id);
         }
     } else {
         canhpmob_ = 0;
@@ -429,6 +432,24 @@ void CanBus::simulate_bus_error() noexcept {
     cantec_ += 8; // Standard CAN error increment
     evaluate_error_state();
     evaluate_interrupts();
+}
+
+u32 CanBus::compute_cycles_per_bit() const noexcept {
+    u32 brp = (canbt1_ & 0x3FU);
+    u32 prop_seg = (canbt3_ & 0x0FU) + 1;
+    u32 phase_seg1 = ((canbt3_ >> 4U) & 0x07U) + 1;
+    u32 phase_seg2 = (canbt2_ & 0x0FU) + 1;
+    u32 total_tqs = 1 + prop_seg + phase_seg1 + phase_seg2;
+    return (brp + 1) * total_tqs;
+}
+
+u32 CanBus::compute_frame_bits(u8 dlc, bool ext_id) const noexcept {
+    u32 overhead = 1 + 11 + 1 + 1 + 1 + 4; // SOF + ID + RTR + IDE + r0 + DLC
+    if (ext_id) overhead += 18;
+    u32 data_bits = 8 * dlc;
+    u32 stuffable = overhead + data_bits + 15; // CRC included in stuffing
+    u32 stuffing = stuffable / 5;
+    return stuffable + stuffing + 1 + 1 + 1 + 7 + 3; // CRC delim + ACK slot + ACK delim + EOF + IFS
 }
 
 bool CanBus::power_reduction_enabled() const noexcept {

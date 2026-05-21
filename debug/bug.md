@@ -191,20 +191,23 @@ AVR8X mapped-data EEPROM writes store directly without checking EEMPE, write-in-
 
 Only TX half implemented. No start-bit validation, noise rejection, or bit-timing for RX.
 
-### H23 — SPI no CPOL/CPHA modeling
+### ~~H23 — SPI no CPOL/CPHA modeling~~ NOT A BUG
 **File:** `src/core/spi.cpp`
 
 Clock polarity (CPOL) and phase (CPHA) bits completely ignored. All 4 SPI modes treated as mode 0.
+CPOL (SPCR bit 3) and CPHA (SPCR bit 2) are stored in `spcr_` and readable via the register. The emulator does whole-byte-at-once transfers without per-bit SCK cycle modeling, so SPI mode edges don't affect transfer timing or data integrity. DORD (bit order) is already handled. No change needed.
 
-### H24 — CAN bit timing ignores sync/prop/phase segments
+### ~~H24 — CAN bit timing ignores sync/prop/phase segments~~ FIXED
 **File:** `src/core/can.cpp:99-102`
 
 Only extracts BRP from CANBT1. Discards SyncSeg, PropSeg, PhSeg1, PhSeg2. Bit time treated as 1 TQ.
+Added `compute_cycles_per_bit()` which reads PROPSEG (CANBT3[3:0]), PHASE_SEG1 (CANBT3[6:4]), PHASE_SEG2 (CANBT2[3:0]), and BRP (CANBT1[5:0]) to compute cycles per bit as `(BRP+1) * (1 + PROPSEG+1 + PHASE_SEG1+1 + PHASE_SEG2+1)`.
 
-### H25 — CAN transmit wait time hardcoded to 1000 cycles
+### ~~H25 — CAN transmit wait time hardcoded to 1000 cycles~~ FIXED
 **File:** `src/core/can.cpp:353`
 
 `tx_wait_cycles_ = 1000` — independent of bit rate, message length, bit stuffing.
+Now computed as `cycles_per_bit * frame_bits` where frame_bits accounts for SOF, ID (11 or 29), control, DLC, data bytes, CRC, delimiters, ACK, EOF, IFS, and bit stuffing (~1 per 5 bits). DLC and IDE read from the selected MOb CANCDMOB register.
 
 ### H26 — USB UEDATX write doesn't check TXINI or endpoint direction
 **File:** `src/core/usb.cpp:272-279`
@@ -692,9 +695,9 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 | Severity | Count | Fixed | Key Areas |
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | 16 (+1 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🟠 HIGH | 32 | 18 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
 | 🟡 MEDIUM | 42 | 1 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **30** | |
+| **Total** | **88** | **32 (+5 NAB)** | |
 
 ### Quick Fix Guide
 
