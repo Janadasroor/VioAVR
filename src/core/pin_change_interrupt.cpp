@@ -83,7 +83,7 @@ void PinChangeInterrupt::reset() noexcept
     shared_state_ptr_->pcicr = 0U;
     shared_state_ptr_->pcifr = 0U;
     pcmsk_ = 0U;
-    interrupt_pending_ = false;
+    pcint_pending_ = false;
     last_pin_state_ = port_.read(port_.pin_address());
     was_active_ = true;
     update_active_state();
@@ -110,14 +110,12 @@ u8 PinChangeInterrupt::read(const u16 address) noexcept
 
 void PinChangeInterrupt::write(const u16 address, const u8 value) noexcept
 {
-    fprintf(stderr, "DEBUG: PCINT0 write addr=0x%04X val=0x%02X\n", address, value);
     if (address == desc_.pcicr_address) {
         shared_state_ptr_->pcicr = value;
-        fprintf(stderr, "DEBUG: PCINT0 PCICR written with 0x%02X at addr 0x%04X (desc says 0x%04X)\n", value, address, desc_.pcicr_address);
     } else if (address == desc_.pcifr_address) {
         shared_state_ptr_->pcifr &= static_cast<u8>(~value);
         if ((shared_state_ptr_->pcifr & desc_.pcifr_flag_mask) == 0U) {
-            interrupt_pending_ = false;
+            pcint_pending_ = false;
         }
     } else if (address == desc_.pcmsk_address) {
         pcmsk_ = value;
@@ -129,7 +127,7 @@ void PinChangeInterrupt::write(const u16 address, const u8 value) noexcept
 bool PinChangeInterrupt::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
     bool enabled = (shared_state_ptr_->pcicr & desc_.pcicr_enable_mask) != 0U;
-    if (interrupt_pending_ && enabled) {
+    if (pcint_pending_ && enabled) {
         request = {.vector_index = desc_.vector_index, .source_id = 0U};
         Logger::debug("PinChangeInterrupt '" + name_ + "' IS REQUESTING interrupt vector " + std::to_string(request.vector_index));
         return true;
@@ -143,7 +141,7 @@ bool PinChangeInterrupt::consume_interrupt_request(InterruptRequest& request) no
         return false;
     }
 
-    interrupt_pending_ = false;
+    pcint_pending_ = false;
     shared_state_ptr_->pcifr &= static_cast<u8>(~desc_.pcifr_flag_mask);
     update_interrupt_pending();
     return true;
@@ -154,7 +152,7 @@ void PinChangeInterrupt::notify_pin_change(const u8 mask) noexcept
     if ((mask & pcmsk_) != 0U) {
         Logger::debug("PinChangeInterrupt '" + name_ + "' triggered by mask 0x" + Logger::hex(mask));
         shared_state_ptr_->pcifr |= desc_.pcifr_flag_mask;
-        interrupt_pending_ = true;
+        pcint_pending_ = true;
         update_interrupt_pending();
     }
 }

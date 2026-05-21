@@ -403,7 +403,7 @@ void Tca::perform_tick() {
     }
 
     if (update_cond) {
-        intflags_ |= 0x01; // OVF
+        if (wgmode != 0x01) intflags_ |= 0x01; // OVF (not in FRQ mode)
         if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
 
         if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; }

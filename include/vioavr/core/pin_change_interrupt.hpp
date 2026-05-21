@@ -49,7 +49,7 @@ private:
     bool map_shared_registers_ {true};
 
     u8 pcmsk_ {};
-    bool interrupt_pending_ {};
+    bool pcint_pending_ {};
     u8 last_pin_state_ {};
     bool was_active_ {true};
     [[nodiscard]] bool is_enabled() const noexcept { return (shared_state_ptr_->pcicr & desc_.pcicr_enable_mask) != 0U; }
