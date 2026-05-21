@@ -44,7 +44,7 @@ A_AVR [nc pb1_dig] [v_sense] mcu_model
 .options reltol=0.005 method=gear trtol=7 chgtol=1e-13
 .tran 1us 1.5ms
 .control
-codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+codemodel /home/jnd/cpp_projects/VioAVR/build_release/viospice.cm
 run
 print v(pb1_an) v(gate_vdmos) v(drain_vdmos)
 .endc

@@ -63,6 +63,7 @@ int main() {
     uint16_t test_port = 12345;
     machine->enable_gdb(test_port);
     machine->reset();
+    machine->cpu().halt();
     usleep(100000); // 100ms
 
     // Connect as GDB client BEFORE starting MCU

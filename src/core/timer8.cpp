@@ -80,6 +80,7 @@ void Timer8::reset() noexcept
     last_clk_pin_state_ = 0U;
     update_pin_ownership();
     update_interrupt_state();
+    update_active_state();
 }
 
 void Timer8::tick(const u64 elapsed_cycles) noexcept
@@ -227,6 +228,7 @@ void Timer8::write(const u16 address, const u8 value) noexcept
             if (value & desc_.focb_mask) handle_compare_match_b();
         }
         mark_async_busy(address);
+        update_active_state();
     }
     else if (address == desc_.assr_address) {
         assr_ = static_cast<u8>((assr_ & (desc_.as2_mask | desc_.exclk_mask | desc_.tcn2ub_mask | desc_.ocr2aub_mask | desc_.ocr2bub_mask | desc_.tcr2aub_mask | desc_.tcr2bub_mask)) | (value & (desc_.as2_mask | desc_.exclk_mask)));
@@ -550,6 +552,19 @@ void Timer8::update_interrupt_state() noexcept
         pending = true;
     }
     set_interrupt_pending(pending);
+}
+
+void Timer8::update_active_state() noexcept
+{
+    if (bus_) {
+        bool active = running() && !power_reduction_enabled();
+        bus_->set_peripheral_active(this, active);
+    }
+}
+
+void Timer8::on_power_state_change() noexcept
+{
+    update_active_state();
 }
 
 }  // namespace vioavr::core

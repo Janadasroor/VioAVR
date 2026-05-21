@@ -30,6 +30,7 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
 
 void MemoryBus::reset() noexcept
 {
+    active_ticking_peripherals_ = ticking_peripherals_;
     // Only clear SRAM to preserve EEPROM/User Row if they are mapped to data space
     const auto sram = device_.sram_range();
     if (sram.begin < data_.size()) {
@@ -52,12 +53,15 @@ void MemoryBus::reset() noexcept
     flash_rww_busy_ = false;
     scheduler_.reset();
     domain_gated_cycles_.fill(0U);
-    // Do NOT clear loaded_program_words_ here, it should survive reset
+    cpu_cycles_ = 0U;
+    current_active_domains_ = 0xFFU;
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
             peripheral->reset();
+            peripheral->last_update_cycle_ = 0U;
         }
     }
+    interrupts_dirty_ = true;
 }
 
 void MemoryBus::set_trace_hook(ITraceHook* trace_hook) noexcept
@@ -83,7 +87,7 @@ void MemoryBus::attach_peripheral(IoPeripheral& peripheral)
 
     if (peripheral.wants_tick()) {
         ticking_peripherals_.push_back(&peripheral);
-        printf("PERIPHERAL TICKING: %s\n", peripheral.name().data());
+        active_ticking_peripherals_.push_back(&peripheral);
     }
     Logger::debug("MemoryBus: peripherals size is now " + std::to_string(peripherals_.size()) + " (ticking: " + std::to_string(ticking_peripherals_.size()) + ")");
     peripheral.bus_ = this;
@@ -127,6 +131,40 @@ void MemoryBus::register_ticking_peripheral(IoPeripheral& peripheral) noexcept
     if (std::find(ticking_peripherals_.begin(), ticking_peripherals_.end(), &peripheral) == ticking_peripherals_.end()) {
         ticking_peripherals_.push_back(&peripheral);
     }
+    if (std::find(active_ticking_peripherals_.begin(), active_ticking_peripherals_.end(), &peripheral) == active_ticking_peripherals_.end()) {
+        active_ticking_peripherals_.push_back(&peripheral);
+    }
+}
+
+void MemoryBus::set_peripheral_active(IoPeripheral* peripheral, bool active) noexcept
+{
+    if (!peripheral->wants_tick()) return;
+
+    auto it = std::find(active_ticking_peripherals_.begin(), active_ticking_peripherals_.end(), peripheral);
+    bool currently_active = (it != active_ticking_peripherals_.end());
+
+    if (active == currently_active) return;
+
+    u64 current = cpu_cycles();
+    u64 start = peripheral->last_update_cycle_;
+
+    if (active) {
+        // Transitioning from INACTIVE to ACTIVE:
+        // Do NOT tick for the inactive period, but update the last update cycle to current.
+        peripheral->last_update_cycle_ = current;
+        active_ticking_peripherals_.push_back(peripheral);
+    } else {
+        // Transitioning from ACTIVE to INACTIVE:
+        // Tick up to the current cycle before turning off!
+        if (start < current) {
+            peripheral->last_update_cycle_ = current;
+            const u8 domain_bit = static_cast<u8>(peripheral->clock_domain());
+            if (domain_bit == 0U || (current_active_domains_ & domain_bit) != 0U) {
+                peripheral->tick(current - start);
+            }
+        }
+        active_ticking_peripherals_.erase(it);
+    }
 }
 
 void MemoryBus::load_flash(std::span<const u16> words)
@@ -144,6 +182,19 @@ void MemoryBus::load_image(const HexImage& image)
 }
 
 
+
+void MemoryBus::catch_up_all_peripherals(u64 target_cycle) const noexcept {
+    for (auto* peripheral : active_ticking_peripherals_) {
+        u64 start = peripheral->last_update_cycle_;
+        if (start < target_cycle) {
+            peripheral->last_update_cycle_ = target_cycle;
+            const u8 domain_bit = static_cast<u8>(peripheral->clock_domain());
+            if (domain_bit == 0U || (current_active_domains_ & domain_bit) != 0U) {
+                peripheral->tick(target_cycle - start);
+            }
+        }
+    }
+}
 
 void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept {
     if (elapsed_cycles == 0) return;
@@ -173,15 +224,15 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
         }
     }
 
-    for (auto* peripheral : ticking_peripherals_) {
-        const u8 domain_bit = static_cast<u8>(peripheral->clock_domain());
-        if (domain_bit == 0U || (active_domains & domain_bit) != 0U) {
-            peripheral->tick(elapsed_cycles);
-        }
-    }
+    current_active_domains_ = active_domains;
+    cpu_cycles_ += elapsed_cycles;
 
     const u64 target = scheduler_.current_cycle() + elapsed_cycles;
-    scheduler_.advance_to(target);
+    catch_up_all_peripherals(target);
+
+    scheduler_.advance_to(target, [this](u64 event_cycle) {
+        this->catch_up_all_peripherals(event_cycle);
+    });
 
     if (spm_busy_cycles_left_ > 0U) {
         if (elapsed_cycles >= spm_busy_cycles_left_) {
@@ -215,6 +266,7 @@ bool MemoryBus::consume_pin_change(PinStateChange& change) noexcept
 
 void MemoryBus::propagate_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept
 {
+    catch_up_all_peripherals(cpu_cycles());
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
             peripheral->on_external_pin_change(pin_address, bit_index, level);
@@ -224,6 +276,7 @@ void MemoryBus::propagate_external_pin_change(u16 pin_address, u8 bit_index, Pin
 
 void MemoryBus::propagate_analog_pin_change(u16 pin_address, u8 bit_index, double voltage) noexcept
 {
+    catch_up_all_peripherals(cpu_cycles());
     for (IoPeripheral* peripheral : peripherals_) {
         if (peripheral != nullptr) {
             peripheral->on_analog_pin_change(pin_address, bit_index, voltage);
@@ -233,6 +286,7 @@ void MemoryBus::propagate_analog_pin_change(u16 pin_address, u8 bit_index, doubl
 
 bool MemoryBus::pending_interrupt_request(InterruptRequest& request, const u8 active_domains) const noexcept
 {
+    catch_up_all_peripherals(cpu_cycles());
     // Super Fast Path: if all peripherals support the mask and no interrupts are pending, return false immediately!
     if (all_peripherals_support_mask_ && pending_interrupt_mask_ == 0ULL) {
         return false;
@@ -318,6 +372,7 @@ void MemoryBus::notify_interrupt_state_change(IoPeripheral* peripheral, bool pen
     } else {
         pending_interrupt_mask_ &= ~(1ULL << peripheral->bus_id_);
     }
+    interrupts_dirty_ = true;
 }
 
 bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 active_domains) noexcept

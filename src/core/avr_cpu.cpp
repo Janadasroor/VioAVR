@@ -800,7 +800,7 @@ void AvrCpu::set_z_pointer(const u16 value) noexcept
 }
 
 
-u8 AvrCpu::active_clock_domains() const noexcept
+u8 AvrCpu::active_clock_domains_slow() const noexcept
 {
     if (state_ == CpuState::running) {
         return 0xFFU; // All domains active
@@ -883,17 +883,7 @@ void AvrCpu::publish_pending_pin_changes()
     }
 }
 
-void AvrCpu::refresh_interrupt_pending()
-{
-    if (bus_ == nullptr) {
-        interrupt_pending_ = false;
-        return;
-    }
 
-    const u8 domains = active_clock_domains();
-    InterruptRequest request;
-    interrupt_pending_ = bus_->pending_interrupt_request(request, domains);
-}
 bool AvrCpu::service_interrupt_if_needed()
 {
     refresh_interrupt_pending();

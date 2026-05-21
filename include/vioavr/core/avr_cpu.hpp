@@ -182,7 +182,14 @@ public:
     void set_clk_ctrl(ClkCtrl* clk) noexcept { clk_ctrl_ = clk; }
     void set_slp_ctrl(SlpCtrl* slp) noexcept { slp_ctrl_ = slp; }
     void set_rst_ctrl(RstCtrl* rst) noexcept { rst_ctrl_ = rst; }
-    [[nodiscard]] u8 active_clock_domains() const noexcept;
+    [[nodiscard]] u8 active_clock_domains_slow() const noexcept;
+    [[nodiscard]] inline u8 active_clock_domains() const noexcept
+    {
+        if (state_ == CpuState::running) {
+            return 0xFFU;
+        }
+        return active_clock_domains_slow();
+    }
 
     [[nodiscard]] constexpr u64 cycles() const noexcept
     {
@@ -392,6 +399,7 @@ private:
     bool interrupt_pending_ {};
     u8 interrupt_depth_ {};
     u8 interrupt_delay_ {};
+    u8 last_domains_ {0};
     std::vector<u16> temp_flash_page_buffer_;
     u8 spm_lock_timeout_ {};
     CpuState state_ {CpuState::halted};
@@ -431,6 +439,17 @@ inline u8 AvrCpu::read_data_bus(const u16 address) noexcept
 {
     if (bus_ == nullptr) return 0U;
     
+    // Fast-path 1: GPR (0x0000 - 0x001F)
+    if (address < kRegisterFileSize) {
+        return gpr_[address];
+    }
+    
+    // Fast-path 2: Standard SRAM (within sram_range)
+    const auto sram = bus_->device().sram_range();
+    if (address >= sram.begin && address <= sram.end) {
+        return bus_->data_space()[address];
+    }
+    
     // Inline wait state check for speed
     const u8 ws = bus_->get_wait_states(address);
     if (ws > 0) {
@@ -443,6 +462,19 @@ inline u8 AvrCpu::read_data_bus(const u16 address) noexcept
 inline void AvrCpu::write_data_bus(const u16 address, const u8 value) noexcept
 {
     if (bus_ == nullptr) return;
+
+    // Fast-path 1: GPR (0x0000 - 0x001F)
+    if (address < kRegisterFileSize) {
+        gpr_[address] = value;
+        return;
+    }
+
+    // Fast-path 2: Standard SRAM (within sram_range)
+    const auto sram = bus_->device().sram_range();
+    if (address >= sram.begin && address <= sram.end) {
+        bus_->data_space()[address] = value;
+        return;
+    }
 
     const u8 ws = bus_->get_wait_states(address);
     if (ws > 0) {
@@ -491,6 +523,21 @@ inline void AvrCpu::write_sreg(const u8 value) noexcept
 
     if (trace_hook_ != nullptr) {
         trace_hook_->on_sreg_write(value);
+    }
+}
+
+inline void AvrCpu::refresh_interrupt_pending()
+{
+    if (bus_ == nullptr) {
+        interrupt_pending_ = false;
+        return;
+    }
+    const u8 domains = active_clock_domains();
+    if (bus_->interrupts_dirty() || last_domains_ != domains) {
+        last_domains_ = domains;
+        InterruptRequest request;
+        interrupt_pending_ = bus_->pending_interrupt_request(request, domains);
+        bus_->clear_interrupts_dirty();
     }
 }
 

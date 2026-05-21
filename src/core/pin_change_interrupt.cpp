@@ -1,6 +1,7 @@
 #include "vioavr/core/pin_change_interrupt.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/logger.hpp"
+#include "vioavr/core/memory_bus.hpp"
 #include <algorithm>
 #include <vector>
 
@@ -84,6 +85,8 @@ void PinChangeInterrupt::reset() noexcept
     pcmsk_ = 0U;
     interrupt_pending_ = false;
     last_pin_state_ = port_.read(port_.pin_address());
+    was_active_ = true;
+    update_active_state();
 }
 
 void PinChangeInterrupt::tick(const u64 elapsed_cycles) noexcept
@@ -120,6 +123,7 @@ void PinChangeInterrupt::write(const u16 address, const u8 value) noexcept
         pcmsk_ = value;
     }
     update_interrupt_pending();
+    update_active_state();
 }
 
 bool PinChangeInterrupt::pending_interrupt_request(InterruptRequest& request) const noexcept
@@ -158,6 +162,18 @@ void PinChangeInterrupt::notify_pin_change(const u8 mask) noexcept
 void PinChangeInterrupt::update_interrupt_pending() noexcept {
     InterruptRequest req;
     set_interrupt_pending(pending_interrupt_request(req));
+}
+
+void PinChangeInterrupt::update_active_state() noexcept
+{
+    if (bus_) {
+        bool active = is_enabled();
+        if (active && !was_active_) {
+            last_pin_state_ = port_.read(port_.pin_address());
+        }
+        was_active_ = active;
+        bus_->set_peripheral_active(this, active);
+    }
 }
 
 }  // namespace vioavr::core

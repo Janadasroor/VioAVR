@@ -12,7 +12,12 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     double vref = 5.0;
     
     if (mif_private->circuit.init) {
-        const char* mcu_instance = mif_private->param[1]->element[0].svalue;
+        const char* mcu_instance = "default";
+        if (mif_private->num_param > 1 && mif_private->param[1] && 
+            mif_private->param[1]->element && mif_private->param[1]->element[0].svalue) {
+            mcu_instance = mif_private->param[1]->element[0].svalue;
+        }
+        
         bridge = new BridgeShmClient(mcu_instance);
         
         if (!bridge->connect()) {
@@ -22,21 +27,36 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
             return;
         }
         
-        mif_private->inst_var[0]->element[0].pvalue = (void*)bridge;
+        if (mif_private->num_inst_var > 0 && mif_private->inst_var && 
+            mif_private->inst_var[0] && mif_private->inst_var[0]->element) {
+            mif_private->inst_var[0]->element[0].pvalue = (void*)bridge;
+        }
         
-        double freq = mif_private->param[2]->element[0].rvalue;
+        double freq = 16e6;
+        if (mif_private->num_param > 2 && mif_private->param[2] && mif_private->param[2]->element) {
+            freq = mif_private->param[2]->element[0].rvalue;
+        }
         bridge->set_frequency(freq);
-        const char* hex_file = mif_private->param[0]->element[0].svalue;
+        
+        const char* hex_file = "firmware.hex";
+        if (mif_private->num_param > 0 && mif_private->param[0] && 
+            mif_private->param[0]->element && mif_private->param[0]->element[0].svalue) {
+            hex_file = mif_private->param[0]->element[0].svalue;
+        }
         bridge->load_hex(hex_file);
         bridge->reset();
         
-        int quantum_cycles = mif_private->param[4]->element[0].ivalue;
+        int quantum_cycles = 1000;
+        if (mif_private->num_param > 4 && mif_private->param[4] && mif_private->param[4]->element) {
+            quantum_cycles = mif_private->param[4]->element[0].ivalue;
+        }
         double event_step = (double)quantum_cycles / freq;
         cm_event_queue(mif_private->circuit.time + event_step);
         return;
     }
     
-    if (mif_private->num_inst_var > 0 && mif_private->inst_var[0]) {
+    if (mif_private->num_inst_var > 0 && mif_private->inst_var && 
+        mif_private->inst_var[0] && mif_private->inst_var[0]->element) {
         bridge = (BridgeShmClient *)mif_private->inst_var[0]->element[0].pvalue;
     }
     // fprintf(stderr, "[VioSpice step] num_inst_var=%d, inst_var=%p, bridge=%p, connected=%d\n", 
