@@ -66,8 +66,7 @@ void ExtInterrupt::reset() noexcept
 
 void ExtInterrupt::tick(const u64 elapsed_cycles) noexcept
 {
-    (void)elapsed_cycles;
-    refresh_bound_input();
+    if (elapsed_cycles > 0U) refresh_bound_input();
     if ((int0_sense_mode() == 0x00U) && !int0_level_) {
         raise_int0();
     }

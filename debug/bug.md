@@ -379,10 +379,10 @@ Writing EEMPE=1 twice before first 4-cycle timeout expires schedules second call
 
 `eecr_` never has EEPE=1. Read path OR's it in. Internal code inspecting `eecr_` directly never sees EEPE.
 
-### M27 — EEPROM descriptor `ucsrc_reset` never used
+### ~~M27 — UART descriptor `ucsrc_reset` never used~~ FIXED
 **File:** `src/core/uart.cpp:56`
 
-Reset value hardcoded to 0x06 (8N1) instead of using `desc_.ucsrc_reset`.
+Now uses `desc_.ucsrc_reset` (default 0x06) instead of hardcoded 0x06.
 
 ### ~~M28 — UART UCSRA write corrupts read-only flags~~ NOT A BUG
 **File:** `src/core/uart.cpp:163-165`
@@ -656,20 +656,20 @@ sync() call runs but on_power_state_change() only runs if write hits dispatch ta
 
 Assumes INT0 always on PD2. Wrong for devices with different pin mapping.
 
-### M82 — ExtInterrupt tick() ignores elapsed_cycles, may trigger spurious edges
+### ~~M82 — ExtInterrupt tick() ignores elapsed_cycles, may trigger spurious edges~~ FIXED
 **File:** `src/core/ext_interrupt.cpp:67-74`
 
-refresh_bound_input() reads current level rather than simulating transitions over elapsed window.
+Added `elapsed_cycles > 0` guard to skip redundant refresh_bound_input() calls.
 
 ### M83 — LCD controller segment limit array access bounds
 **File:** `src/core/lcd_controller.cpp:134-137`
 
 lcdpm = lcdcrb_ & 0x0FU yields 0-15 but kSegmentLimits[15] accessed. Bounds assertion missing.
 
-### M84 — LCD frame timing uses float with possible precision loss
+### ~~M84 — LCD frame timing uses float with possible precision loss~~ FIXED
 **File:** `src/core/lcd_controller.cpp:189`
 
-`cpu_frequency_ / 32768.0` as double then multiplied and cast to u64. Rounding error accumulates.
+Changed to explicit `double` casts for both operands before division.
 
 ### ~~M85 — PinChangeInterrupt interrupt_pending_ shadows base class~~ FIXED
 **File:** `include/vioavr/core/pin_change_interrupt.hpp:52`
@@ -681,10 +681,10 @@ Renamed to `pcint_pending_` to stop shadowing `IoPeripheral::interrupt_pending_`
 
 Removed fprintf(stderr) debug lines from write().
 
-### M87 — CpuControl effective_frequency() uses float for OSCCAL scaling
+### ~~M87 — CpuControl effective_frequency() uses float for OSCCAL scaling~~ FIXED
 **File:** `src/core/cpu_control.cpp:89-91`
 
-float precision loss for high frequencies. Should use double or fixed-point.
+Changed `float` to `double` for OSCCAL scaling calculation.
 
 ### M88 — ADC mux_table missing internal references for ATmega328P
 **File:** `include/vioavr/core/devices/atmega328p.hpp:71`
@@ -699,11 +699,11 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
 | 🟠 HIGH | 32 | 25 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 14 (+2 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI |
-| **Total** | **88** | **52 (+5 NAB)** | |
+| 🟡 MEDIUM | 42 | 18 (+2 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI |
+| **Total** | **88** | **56 (+5 NAB)** | |
 
 ### Quick Fix Guide
 
-All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 16 of 42 medium bugs resolved (14 fixed + 2 NAB). Proceed to remaining 26 medium bugs.
+All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 20 of 42 medium bugs resolved (18 fixed + 2 NAB). Proceed to remaining 22 medium bugs.
 
 

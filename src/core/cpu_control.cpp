@@ -86,8 +86,8 @@ u64 CpuControl::effective_frequency() const noexcept
         // 0x00 -> 50% frequency
         // 0x80 -> 100% frequency
         // 0xFF -> ~150% frequency
-        float scale = 0.5f + (static_cast<float>(osccal_) / 128.0f) * 0.5f;
-        freq = static_cast<u64>(static_cast<float>(freq) * scale);
+        double scale = 0.5 + (static_cast<double>(osccal_) / 128.0) * 0.5;
+        freq = static_cast<u64>(static_cast<double>(freq) * scale);
     }
     
     // 2. Apply CLKPR prescaler

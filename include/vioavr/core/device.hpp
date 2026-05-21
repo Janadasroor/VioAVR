@@ -291,7 +291,7 @@ struct UartDescriptor {
     u16 ubrrh_address {};
     u8 ucsra_reset {0x00U};
     u8 ucsrb_reset {0x00U};
-    u8 ucsrc_reset {0x00U};
+    u8 ucsrc_reset {0x06U};
     u8 rx_vector_index {};
     u8 udre_vector_index {};
     u8 tx_vector_index {};
