@@ -127,20 +127,18 @@ bool LcdController::consume_interrupt_request(InterruptRequest& request) noexcep
 
 void LcdController::update_pin_ownership() noexcept
 {
-    const bool enabled = (lcdcra_ & kLcden) != 0U;
-    
-    // LCDPM bits 0-3 determine number of segments (Table 24-3)
     const u8 lcdpm = lcdcrb_ & 0x0FU;
     static constexpr u8 kSegmentLimits[] = {
         13, 15, 17, 19, 21, 23, 24, 25, 27, 29, 31, 33, 35, 37, 39, 40
     };
+    if (lcdpm >= sizeof(kSegmentLimits)) return;
     const u8 active_segments = kSegmentLimits[lcdpm];
 
     // Handle Common pins
     for (u8 i = 0; i < 4; ++i) {
         const auto& pin = desc_.common_pins[i];
         if (pin.port_address != 0U) {
-            if (enabled) {
+            if (is_enabled()) {
                 pin_mux_.claim_pin_by_address(pin.port_address, pin.bit_index, PinOwner::lcd);
             } else {
                 pin_mux_.release_pin_by_address(pin.port_address, pin.bit_index, PinOwner::lcd);
@@ -152,7 +150,7 @@ void LcdController::update_pin_ownership() noexcept
     for (u8 i = 0; i < 40; ++i) {
         const auto& pin = desc_.segment_pins[i];
         if (pin.port_address != 0U) {
-            if (enabled && i < active_segments) {
+            if (is_enabled() && i < active_segments) {
                 pin_mux_.claim_pin_by_address(pin.port_address, pin.bit_index, PinOwner::lcd);
             } else {
                 pin_mux_.release_pin_by_address(pin.port_address, pin.bit_index, PinOwner::lcd);
@@ -210,6 +208,7 @@ u8 LcdController::active_segments() const noexcept
     static constexpr u8 kSegmentLimits[] = {
         13, 15, 17, 19, 21, 23, 24, 25, 27, 29, 31, 33, 35, 37, 39, 40
     };
+    if (lcdpm >= sizeof(kSegmentLimits)) return 0;
     return kSegmentLimits[lcdpm];
 }
 

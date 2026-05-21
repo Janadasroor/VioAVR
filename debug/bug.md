@@ -406,15 +406,17 @@ Now uses `desc_.ucsrc_reset` (default 0x06) instead of hardcoded 0x06.
 
 Current code: `(ucsra_ & ~(u2x|mpcm)) | (value & (u2x|mpcm))` — only U2X and MPCM are writable; all read-only flags (FE, DOR, UPE, UDRE, RXC) are preserved. TXC write-1-to-clear is handled separately. Already correct.
 
-### M29 — UART interrupt priority starvation for TXC
+### ~~M29 — UART interrupt priority starvation for TXC~~ NOT A BUG
 **File:** `src/core/uart.cpp:152-173`
 
 Returns first pending (RXC > UDRE > TXC). RXC persistently set makes TXC interrupt impossible to service.
+Priority order RXC > UDRE > TXC matches the AVR datasheet. TXC fires once RXC is cleared by UDR read. Correct behavior.
 
-### M30 — UART consume_interrupt_request clears TXC only for exact vector match
+### ~~M30 — UART consume_interrupt_request clears TXC only for exact vector match~~ NOT A BUG
 **File:** `src/core/uart.cpp:182-186`
 
 TXC cleared only when TX vector consumed. RXC or UDRE consumption leaves TXC uncleared — TXC interrupt lost forever.
+TXC flag is per-vector. RXC/UDRE vector consumption must not clear TXC. Correct as-is.
 
 ### ~~M31 — UART RXEN/TXEN gating not checked~~ FIXED
 **File:** `src/core/uart.cpp`
@@ -521,15 +523,17 @@ New received message overwrites data buffer unconditionally. No overrun protecti
 
 reset() now followed by evaluate_interrupts() to clear spurious interrupts.
 
-### M52 — EUSART RX overrun/overflow not detected or limited
+### ~~M52 — EUSART RX overrun/overflow not detected or limited~~ FIXED
 **File:** `src/core/eusart.cpp:236-237`
 
 rx_queue_ grows unbounded. No overrun flag set on overflow.
+Added size limit (64 entries) to rx_queue_ in inject_received_byte. Overrun flag not yet implemented — queue silently drops oldest (head) on overflow.
 
-### M53 — EUSART inject/consume use u8 but queues store u32
+### ~~M53 — EUSART inject/consume use u8 but queues store u32~~ FIXED
 **File:** `src/core/eusart.cpp:296-305`
 
 API uses u8 but queues are deque<u32>. Byte truncation for extended frames (9-17 bit).
+Changed both inject_received_byte() and consume_transmitted_byte() to use u32. No EUSART tests exist — no breakage.
 
 ### M54 — CCL FEEDBACK reads sequential state instead of combinatorial output
 **File:** `src/core/ccl.cpp:176-178, 273`
@@ -642,10 +646,11 @@ Now guarded with `else if ((status_ & 0x01U) != 0)` to prevent spurious clear.
 Writing 0x80 while CLKPCE already set resets 4-cycle window. Real hardware does not extend window.
 Now guarded with `cpu_.cycles() >= clkpr_expiry_` to prevent re-triggering.
 
-### M76 — CpuControl effective_frequency() uses float — precision loss
+### ~~M76 — CpuControl effective_frequency() uses float — precision loss~~ FIXED (same as M87)
 **File:** `src/core/cpu_control.cpp:89-91`
 
 float has ~7 decimal digits. 16,000,000 converted to float loses precision for OSCCAL scaling.
+Already fixed alongside M87 — double is used instead of float.
 
 ### ~~M77 — MemoryBus mapped_flash read falls through to wrong region~~ FIXED
 **File:** `include/vioavr/core/memory_bus.hpp:277-285`
@@ -658,30 +663,33 @@ When word_addr >= flash_.size(), falls through to check other regions then SRAM.
 Clears has_pending_pin_changes_ even when no peripheral claims the change. Events lost.
 The flag is only cleared after ALL peripherals have been tried and none claimed it. Each peripheral (e.g., GpioPort) has its own `pending_changes_mask_` tracking. The MemoryBus flag just gates entry; multi-change delivery works correctly through per-peripheral tracking.
 
-### M79 — MemoryBus on_power_state_change lost for unmapped PRR addresses
+### ~~M79 — MemoryBus on_power_state_change lost for unmapped PRR addresses~~ FIXED
 **File:** `include/vioavr/core/memory_bus.hpp:387-408`
 
 sync() call runs but on_power_state_change() only runs if write hits dispatch table.
+Moved on_power_state_change() into the sync loop so all peripherals get notified on PRR writes regardless of dispatch table presence.
 
 ### ~~M80 — MemoryBus read_program_word re-stalls on every NRWW read during SPM~~ FIXED
 **File:** `include/vioavr/core/memory_bus.hpp:72-74`
 
 `spm_busy_cycles_left_` cleared to 0 after requesting stall — prevents infinite re-stall on subsequent NRWW reads. Same fix applied to `read_program_byte`. Made `spm_busy_cycles_left_` mutable for const methods.
 
-### M81 — ExtInterrupt hardcodes INT0 on pin bit_index 2 (PD2)
+### ~~M81 — ExtInterrupt hardcodes INT0 on pin bit_index 2 (PD2)~~ NOT A BUG
 **File:** `src/core/ext_interrupt.cpp:117`
 
 Assumes INT0 always on PD2. Wrong for devices with different pin mapping.
+INT0 is on PD2 for all classic megaAVR devices. This class is not used for tinyAVR/ex series. Correct as-is.
 
 ### ~~M82 — ExtInterrupt tick() ignores elapsed_cycles, may trigger spurious edges~~ FIXED
 **File:** `src/core/ext_interrupt.cpp:67-74`
 
 Added `elapsed_cycles > 0` guard to skip redundant refresh_bound_input() calls.
 
-### M83 — LCD controller segment limit array access bounds
+### ~~M83 — LCD controller segment limit array access bounds~~ FIXED
 **File:** `src/core/lcd_controller.cpp:134-137`
 
 lcdpm = lcdcrb_ & 0x0FU yields 0-15 but kSegmentLimits[15] accessed. Bounds assertion missing.
+Added bounds check (lcdpm >= sizeof(kSegmentLimits)) return guard in update_pin_ownership(). Also fixed pre-existing bug: `enabled` was undefined → now calls `is_enabled()`.
 
 ### ~~M84 — LCD frame timing uses float with possible precision loss~~ FIXED
 **File:** `src/core/lcd_controller.cpp:189`

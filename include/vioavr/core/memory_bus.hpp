@@ -394,6 +394,7 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         for (IoPeripheral* p : peripherals_) {
             if (p != nullptr) {
                 p->sync();
+                p->on_power_state_change();
             }
         }
     }
@@ -401,13 +402,6 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
     // 2. High-performance path for Registers/Peripherals
     if (IoPeripheral* peripheral = dispatch_table_[address]; peripheral != nullptr) {
         peripheral->write(address, value);
-        if (is_prr_write) {
-            for (IoPeripheral* p : peripherals_) {
-                if (p != nullptr) {
-                    p->on_power_state_change();
-                }
-            }
-        }
         return;
     }
 

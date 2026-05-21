@@ -9,7 +9,7 @@ Eusart::Eusart(std::string_view name, const EusartDescriptor& desc) noexcept
     : name_(name), desc_(desc)
 {
     std::vector<u16> addrs = {
-        desc.eudr_address, desc.eudr_address + 1,
+        desc.eudr_address, static_cast<u16>(desc.eudr_address + 1),
         desc.eucsra_address, desc.eucsrb_address, desc.eucsrc_address,
         desc.mubrrl_address, desc.mubrrh_address
     };
@@ -294,11 +294,12 @@ void Eusart::write(u16 address, u8 value) noexcept {
     }
 }
 
-void Eusart::inject_received_byte(u8 data) noexcept {
+void Eusart::inject_received_byte(u32 data) noexcept {
+    if (rx_queue_.size() >= 64) return;
     rx_queue_.push_back(data);
 }
 
-bool Eusart::consume_transmitted_byte(u8& data) noexcept {
+bool Eusart::consume_transmitted_byte(u32& data) noexcept {
     if (tx_queue_.empty()) return false;
     data = tx_queue_.front();
     tx_queue_.pop_front();
