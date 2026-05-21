@@ -59,7 +59,7 @@ void Uart::reset() noexcept
     udr_tx_ = 0U;
     ucsra_ = desc_.udre_mask; // UDRE initially set
     ucsrb_ = 0U;
-    ucsrc_ = 0x06U; // default format (8N1)
+    ucsrc_ = desc_.ucsrc_reset;
     ubrrh_ = 0U;
     ubrrl_ = 0U;
     tx_active_ = false;

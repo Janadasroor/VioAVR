@@ -186,7 +186,7 @@ void LcdController::recalculate_timing() noexcept
     u64 lcd_cycles = static_cast<u64>(P) * K * D;
 
     if (lcdcrb_ & 0x80U) { // LCDCS: Asynchronous Clock Select (32.768 kHz)
-        cycles_per_frame_ = static_cast<u64>(lcd_cycles * (cpu_frequency_ / 32768.0));
+        cycles_per_frame_ = static_cast<u64>(static_cast<double>(lcd_cycles) * (static_cast<double>(cpu_frequency_) / 32768.0));
     } else {
         cycles_per_frame_ = lcd_cycles;
     }
