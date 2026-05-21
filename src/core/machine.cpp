@@ -341,6 +341,7 @@ void Machine::initialize_peripherals()
         ac->set_memory_bus(bus_.get());
         ac->set_event_system(evsys);
         ac->set_analog_signal_bank(&analog_signal_bank_);
+        ac->set_vdd(device_.operating_voltage_v);
         bus_->attach_peripheral(*ac);
         owned_peripherals_.push_back(std::move(ac));
     }

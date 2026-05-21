@@ -23,7 +23,7 @@ TEST_CASE("ADC Basic Functionality Test")
     bus.reset();
 
     SUBCASE("Single Conversion") {
-        adc0.set_channel_voltage(0U, 0.5); // 0.5V -> Expected result 512
+        adc0.set_channel_voltage(0U, 2.5); // 2.5V / 5.0V VREF -> Expected result 512
         bus.write_data(atmega328p.adcs[0].admux_address, 0x00U);
         bus.write_data(atmega328p.adcs[0].adcsra_address, 0xC8U); // ADEN | ADSC | ADIE
         

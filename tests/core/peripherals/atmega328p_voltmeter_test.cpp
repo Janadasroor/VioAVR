@@ -47,8 +47,8 @@ TEST_CASE("ATmega328P Voltmeter Integration Test") {
     auto* uart = uarts[0];
 
     // 4. Test Case 1: 2.5V Input (Mid-scale)
-    // 2.5V / 5.0V = 0.5
-    adc->set_channel_voltage(0, 0.5);
+    // 2.5V / 5.0V = 0.5 -> ADC = 512
+    adc->set_channel_voltage(0, 2.5);
     
     // Clear any previous output
     u8 dummy;
@@ -70,7 +70,7 @@ TEST_CASE("ATmega328P Voltmeter Integration Test") {
     CHECK(output.find("V: 2.500") != std::string::npos);
 
     // 5. Test Case 2: 0V Input
-    adc->set_channel_voltage(0, 0.0);
+    adc->set_channel_voltage(0, 0.0); // 0V -> ADC = 0
     machine->run(1000000);
     
     output.clear();

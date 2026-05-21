@@ -21,7 +21,7 @@ TEST_CASE("ADC Free Running Mode Test")
     bus.attach_peripheral(adc0);
     bus.reset();
 
-    adc0.set_channel_voltage(0U, 0.50);
+    adc0.set_channel_voltage(0U, 2.5); // 2.5V / 5.0V * 1024 = 512
     bus.write_data(atmega328p.adcs[0].admux_address, 0x00U);
     bus.write_data(atmega328p.adcs[0].adcsrb_address, 0x00U);   // ADTS = free running
     bus.write_data(atmega328p.adcs[0].adcsra_address, 0xE0U);   // ADEN | ADSC | ADATE
@@ -47,7 +47,7 @@ TEST_CASE("ADC Free Running Mode Test")
         
         CHECK((bus.read_data(atmega328p.adcs[0].adcsra_address) & 0x10U) == 0U);
         
-        adc0.set_channel_voltage(0U, 0.75);
+        adc0.set_channel_voltage(0U, 3.75); // 3.75V / 5.0V * 1024 = 768
         bus.tick_peripherals(8U); // Next conversion
         
         CHECK((bus.read_data(atmega328p.adcs[0].adcsra_address) & 0x10U) != 0U);

@@ -73,6 +73,13 @@ void Adc::reset() noexcept {
 }
 
 void Adc::tick(u64 elapsed_cycles) noexcept {
+    if (power_reduction_enabled()) {
+        if (converting_) {
+            converting_ = false;
+            adcsra_ &= ~desc_.adsc_mask;
+        }
+        return;
+    }
     if (!converting_) return;
 
     if (elapsed_cycles >= cycles_remaining_) {
@@ -84,8 +91,16 @@ void Adc::tick(u64 elapsed_cycles) noexcept {
 }
 
 u8 Adc::read(u16 address) noexcept {
-    if (address == desc_.adcl_address) return static_cast<u8>(result_ & 0xFFU);
-    if (address == desc_.adch_address) return static_cast<u8>((result_ >> 8U) & 0xFFU);
+    if (address == desc_.adcl_address) {
+        if (admux_ & desc_.adlar_mask)
+            return static_cast<u8>((result_ & 0x03U) << 6U);
+        return static_cast<u8>(result_ & 0xFFU);
+    }
+    if (address == desc_.adch_address) {
+        if (admux_ & desc_.adlar_mask)
+            return static_cast<u8>((result_ >> 2U) & 0xFFU);
+        return static_cast<u8>((result_ >> 8U) & 0xFFU);
+    }
     if (address == desc_.adcsra_address) return adcsra_;
     if (address == desc_.adcsrb_address) return adcsrb_;
     if (address == desc_.admux_address) return admux_;
@@ -147,6 +162,7 @@ bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
 
 void Adc::start_conversion() noexcept {
     if (converting_) return;
+    if (power_reduction_enabled()) return;
 
     u32 prescaler_bits = adcsra_ & 0x7U;
     u32 prescaler = 1U << prescaler_bits;
@@ -219,26 +235,16 @@ void Adc::complete_conversion() noexcept {
 
     if (mapping.differential) {
         double neg_v = get_voltage(mapping.negative_channel);
-        result_v = (pos_v - neg_v) * mapping.gain;
+        result_v = ((pos_v - neg_v) * mapping.gain) / vref_;
         
         // Differential results are 2's complement 10-bit (-512 to 511)
         i16 result = static_cast<i16>(std::clamp(result_v * 512.0, -512.0, 511.0));
         result_ = static_cast<u16>(result) & 0x3FFU;
     } else {
         // Single-ended results are unsigned 10-bit (0 to 1023)
-        result_ = static_cast<u16>(std::clamp(result_v * 1024.0, 0.0, 1023.0));
+        result_ = static_cast<u16>(std::clamp((result_v / vref_) * 1024.0, 0.0, 1023.0));
     }
     
-    // Left adjust if ADLAR is set
-    if (admux_ & desc_.adlar_mask) {
-        result_ <<= 6; // Standard AVR ADLAR shifts result so ADCH has 8 MSB
-        // Wait! In 16-bit it's result_ << 6? 
-        // Actually, internal result_ is u16 (10 bits).
-        // If ADLAR=1, ADCH contains bits 9:2, ADCL contains bits 1:0 in bits 7:6.
-        // My result_ stores it as 0..1023.
-        // The read() method handles ADCL/ADCH.
-    }
-
     adcsra_ &= ~desc_.adsc_mask;
     adcsra_ |= desc_.adif_mask;
     update_interrupt_pending();
@@ -312,9 +318,9 @@ void Adc::connect_timer_overflow_auto_trigger(Timer8& timer) noexcept {
     timer.connect_adc_overflow_auto_trigger(*this);
 }
 
-void Adc::set_channel_voltage(u8 channel, double normalized_voltage) noexcept {
+void Adc::set_channel_voltage(u8 channel, double voltage_volts) noexcept {
     if (channel < local_channel_voltage_.size()) {
-        local_channel_voltage_[channel] = normalized_voltage;
+        local_channel_voltage_[channel] = voltage_volts;
     }
 }
 

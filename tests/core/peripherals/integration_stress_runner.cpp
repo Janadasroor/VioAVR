@@ -46,7 +46,7 @@ TEST_CASE("System Integration Stress Test") {
     const u32 max_cycles = 20000000; // 20 million cycles (approx 1.25s real time at 16MHz)
 
     // Set some ADC values to be picked up by the conversions
-    adc->set_channel_voltage(0, 0.25); // ~256
+    adc->set_channel_voltage(0, 1.25); // 1.25V / 5.0V * 1024 = 256
     
     u32 pwm_high_counts = 0;
     u32 pwm_low_counts = 0;
@@ -78,7 +78,7 @@ TEST_CASE("System Integration Stress Test") {
 
         // Change setpoint at 500ms (8,000,000 cycles)
         if (last_cycles >= 8000000 && !adc_updated) {
-            adc->set_channel_voltage(0, 0.75); // ~768
+            adc->set_channel_voltage(0, 3.75); // 3.75V / 5.0V * 1024 = 768
             adc_updated = true;
         }
     }

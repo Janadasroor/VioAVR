@@ -66,7 +66,7 @@ TEST_CASE("ADC Timer Auto-Trigger Firmware Integrated Test")
     Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
 
     adc0.connect_timer_compare_auto_trigger(timer0);
-    adc0.set_channel_voltage(0U, 0.60); // 0.60V -> Expected result 614
+    adc0.set_channel_voltage(0U, 3.0); // 3.0V / 5.0V * 1024 = 614.4 -> Expected result 614
     bus.attach_peripheral(adc0);
     bus.attach_peripheral(timer0);
     AvrCpu cpu {bus};

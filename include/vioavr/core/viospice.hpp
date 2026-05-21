@@ -43,7 +43,7 @@ public:
     void tick_timer2_async(u64 ticks);
     
     void set_external_pin(u32 external_id, PinLevel level);
-    void set_external_voltage(u8 channel, double normalized_voltage);
+    void set_external_voltage(u8 channel, double voltage_volts);
     void set_external_voltage_to_digital(u32 external_id, double voltage);
     void set_operating_voltage(double vcc);
 

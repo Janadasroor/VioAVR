@@ -62,7 +62,7 @@ TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
     Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
 
     adc0.connect_timer_overflow_auto_trigger(timer0);
-    adc0.set_channel_voltage(0U, 0.33); // 0.33V -> Expected 338
+    adc0.set_channel_voltage(0U, 1.65); // 1.65V / 5.0V * 1024 = 337.9 -> Expected 338
     
     bus.attach_peripheral(adc0);
     bus.attach_peripheral(timer0);

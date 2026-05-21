@@ -125,12 +125,12 @@ void AnalogComparator::evaluate_output() noexcept {
 
     const double diff = positive_input_ - negative_input_;
     
-    // Dynamic Hysteresis based on ACHYST
+    // Dynamic Hysteresis based on ACHYST (in absolute Volts)
     double h = hysteresis_;
     if (desc_.achyst_mask) {
         u8 h_bits = (accon_ & desc_.achyst_mask) >> (__builtin_ctz(desc_.achyst_mask));
-        if (h_bits == 1) h = 0.004; // ~20mV @ 5V
-        else if (h_bits == 2) h = 0.01; // ~50mV @ 5V
+        if (h_bits == 1) h = 0.02;   // ~20mV
+        else if (h_bits == 2) h = 0.05; // ~50mV
         else h = 0.0;
     }
 
@@ -228,13 +228,13 @@ void AnalogComparator::connect_adc(const class Adc& adc) noexcept {
     source_adc_ = &adc;
 }
 
-void AnalogComparator::set_positive_input_voltage(double normalized_voltage) noexcept {
-    positive_input_ = normalized_voltage;
+void AnalogComparator::set_positive_input_voltage(double voltage) noexcept {
+    positive_input_ = voltage;
     evaluate_output();
 }
 
-void AnalogComparator::set_negative_input_voltage(double normalized_voltage) noexcept {
-    negative_input_ = normalized_voltage;
+void AnalogComparator::set_negative_input_voltage(double voltage) noexcept {
+    negative_input_ = voltage;
     evaluate_output();
 }
 

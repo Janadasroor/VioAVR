@@ -29,7 +29,7 @@ TEST_CASE("ADC Timer Auto-Trigger Test")
     bus.attach_peripheral(timer0);
     bus.reset();
 
-    adc0.set_channel_voltage(0U, 0.60);
+    adc0.set_channel_voltage(0U, 3.0); // 3.0V / 5.0V * 1024 = 614.4
     bus.write_data(atmega328p.adcs[0].admux_address, 0x00U);
     bus.write_data(atmega328p.adcs[0].adcsrb_address, 0x03U); // Timer0 Compare Match A
     bus.write_data(atmega328p.timers8[0].ocra_address, 0x02U);
