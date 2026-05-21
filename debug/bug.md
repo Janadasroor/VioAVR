@@ -319,15 +319,15 @@ Member initializer is `{0}` but `reset()` sets it to 0xFF. Value incorrect if re
 
 Setting `update_cond = true` in FRQ mode at CMP0 causes OVF flag set. FRQ mode should NOT set OVF.
 
-### M15 — TCB measurement mode overflow doesn't set CAPT flag
+### ~~M15 — TCB measurement mode overflow doesn't set CAPT flag~~ FIXED
 **File:** `src/core/tcb.cpp:189-194`
 
-Counter wrap from 0xFFFF to 0x0000 in measurement modes should set `intflags_` bit 0.
+Counter wrap from 0xFFFF to 0x0000 in measurement modes now sets `intflags_` bit 0 (CAPT).
 
-### M16 — Timer16 initial noise_canceler_counter_ = 10 defeats 4-sample requirement
+### ~~M16 — Timer16 initial noise_canceler_counter_ = 10 defeats 4-sample requirement~~ FIXED
 **File:** `src/core/timer16.cpp:228`
 
-Initial value 10 means first edge passes noise canceler immediately (no 4-sample delay enforced).
+Initial value changed from 10 to 0 so the 4-sample noise canceler delay is enforced.
 
 ### M17 — Timer16 new OCR at BOTTOM can cause same-tick spurious match
 **File:** `src/core/timer16.cpp:182-186`
@@ -404,10 +404,10 @@ TXC cleared only when TX vector consumed. RXC or UDRE consumption leaves TXC unc
 
 Never checks `ucsrb_ & desc_.rxen_mask` before asserting RXC, or `txen_mask` before starting TX.
 
-### M32 — SPI WCOL not cleared after transfer completes
+### ~~M32 — SPI WCOL not cleared after transfer completes~~ FIXED
 **File:** `src/core/spi.cpp:191`
 
-WCOL set by write during transfer but never cleared by hardware after transfer completes.
+WCOL set by write during transfer, now cleared in `complete_transfer()`.
 
 ### M33 — SPI slave mode ignores external SCK timing
 **File:** `src/core/spi.cpp:170-178`
@@ -484,10 +484,10 @@ Comment says "bit is not automatically cleared" — but real hardware auto-clear
 
 Data toggle should only flip when DATA1 follows DATA0 or vice versa. Retransmitted packets (same PID) should not toggle.
 
-### M48 — CAN error counters only increment, never decrement
+### ~~M48 — CAN error counters only increment, never decrement~~ FIXED
 **File:** `src/core/can.cpp:428-432`
 
-TEC/REC incremented on error but never decremented on successful tx/rx. Device enters Bus-Off permanently.
+TEC decremented on successful TX, REC decremented on successful RX. `evaluate_error_state()` called after each update.
 
 ### M49 — CAN DLC read from MOb configuration, not received message
 **File:** `src/core/can.cpp:402`
@@ -697,8 +697,8 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
 | 🟠 HIGH | 32 | 23 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 1 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **37 (+5 NAB)** | |
+| 🟡 MEDIUM | 42 | 5 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
+| **Total** | **88** | **41 (+5 NAB)** | |
 
 ### Quick Fix Guide
 
