@@ -35,12 +35,12 @@ TEST_CASE("DAC Fidelity - Basic Voltage Output") {
     
     dac.tick(1);
     
-    CHECK(dac.voltage() == doctest::Approx(512.0 / 1023.0));
+    CHECK(dac.voltage() == doctest::Approx(512.0 / 1024.0));
     
     // Verify pin update
     auto state = mux.get_state_by_address(desc.dac_pin_address, desc.dac_pin_bit);
     CHECK(state.owner == PinOwner::dac);
-    CHECK(state.voltage == doctest::Approx(512.0 / 1023.0));
+    CHECK(state.voltage == doctest::Approx(512.0 / 1024.0));
 }
 
 TEST_CASE("DAC Fidelity - Left Adjust") {
@@ -64,5 +64,5 @@ TEST_CASE("DAC Fidelity - Left Adjust") {
     dac.write(desc.dach_address, 0x80); 
     
     dac.tick(1);
-    CHECK(dac.voltage() == doctest::Approx(512.0 / 1023.0));
+    CHECK(dac.voltage() == doctest::Approx(512.0 / 1024.0));
 }

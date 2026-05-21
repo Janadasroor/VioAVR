@@ -27,7 +27,8 @@ TEST_CASE("Timer10 Phase Correct PWM Fidelity")
 
     timer4.reset();
     
-    // Set OCR values first (while PWM is disabled, so they apply immediately)
+    // Set OCR values first (while PWM is disabled, so they apply immediately), CS=1
+    bus.write_data(atmega32u4.timers10[0].tccrb_address, 0x01);
     bus.write_data(atmega32u4.timers10[0].ocra_address, 10);
     bus.write_data(atmega32u4.timers10[0].ocrc_address, 20); // TOP 
 

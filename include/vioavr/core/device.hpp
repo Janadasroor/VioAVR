@@ -945,6 +945,7 @@ struct Timer10Descriptor {
     u16 tccrd_address {};
     u16 tccre_address {};
     u16 dt4_address {};
+    u8 cs_mask {0x07U};
     u16 pllcsr_address {};
     u16 timsk_address {};
     u16 tifr_address {};

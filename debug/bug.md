@@ -146,12 +146,12 @@ Added CLKSEL=2 (CLK_PER/4) with prescaler counter. CLKSEL=3 (cascaded) now corre
 
 Confirmed original `match_edge = (level != edge_select)` is correct for event-driven architecture — each EVSYS callback is a distinct event. No change needed. Marked as NOT A BUG for current architecture.
 
-### H14 — Timer16 noise canceler counter never reset after successful capture
+### ~~H14 — Timer16 noise canceler counter never reset after successful capture~~ FIXED
 **File:** `src/core/timer16.cpp:233-244`
 
 After 4th matching sample passes, counter keeps incrementing. Every subsequent sample passes immediately.
 
-### H15 — Timer16 external clock on T1 pin (CS=6,7) not implemented
+### ~~H15 — Timer16 external clock on T1 pin (CS=6,7) not implemented~~ FIXED
 **File:** `src/core/timer16.cpp:92-113`
 
 CS=6 (falling edge T1) and CS=7 (rising edge T1) fall through with no action. Timer deadlocked.
@@ -176,12 +176,12 @@ Write path correctly uses temp register (high-byte-first). Read path reads each 
 
 `voltage_ = static_cast<double>(data_) / 1023.0` — correct for 10-bit DAC is `/ 1024.0`. Systematic -0.1% error.
 
-### H20 — Mapped EEPROM writes bypass all protection sequences
+### ~~H20 — Mapped EEPROM writes bypass all protection sequences~~ FIXED
 **File:** `src/core/eeprom.cpp:134-143`
 
 AVR8X mapped-data EEPROM writes store directly without checking EEMPE, write-in-progress, or timed protection sequence.
 
-### H21 — UART frame format hardcoded to 10 bits
+### ~~H21 — UART frame format hardcoded to 10 bits~~ FIXED
 **File:** `src/core/uart.cpp:89`
 
 `const u64 limit = bit_duration * 10` — ignores UCSRC character size (5-9 bits), parity, and stop bits.
@@ -211,7 +211,7 @@ Only extracts BRP from CANBT1. Discards SyncSeg, PropSeg, PhSeg1, PhSeg2. Bit ti
 
 CPU can write to UEDATX when TXINI not set (bank not ready) or endpoint is OUT. No overflow check.
 
-### H27 — EUSART EUCSRA write overwrites entire register
+### ~~H27 — EUSART EUCSRA write overwrites entire register~~ FIXED
 **File:** `src/core/eusart.cpp:277`
 
 `eucsra_ = value` — TXC (bit 7) should be write-1-to-clear only. Blind overwrite can set TXC arbitrarily.
@@ -226,7 +226,7 @@ CPU can write to UEDATX when TXINI not set (bank not ready) or endpoint is OUT. 
 
 Generates pulse to user callbacks but never sets `channel_levels_[i]`. Stale data from `get_channel_level()`.
 
-### H30 — MemoryBus mapped_eeprom stalls CPU on every buffer write
+### ~~H30 — MemoryBus mapped_eeprom stalls CPU on every buffer write~~ NOT A BUG
 **File:** `include/vioavr/core/memory_bus.hpp:368`
 
 Every byte write to mapped EEPROM calls `request_cpu_stall(54400U)` — even for buffer writes. Can double-stall.
@@ -692,9 +692,9 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 | Severity | Count | Fixed | Key Areas |
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | 12 | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🟠 HIGH | 32 | 16 (+1 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
 | 🟡 MEDIUM | 42 | 1 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **26** | |
+| **Total** | **88** | **30** | |
 
 ### Quick Fix Guide
 

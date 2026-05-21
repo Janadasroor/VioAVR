@@ -44,6 +44,7 @@ public:
     void notify_input_capture(bool high) noexcept;
 
     void connect_input_capture(GpioPort& port, u8 bit) noexcept { pin_icp_ = {&port, bit}; }
+    void connect_external_clock(GpioPort& port, u8 bit) noexcept { pin_t1_ = {&port, bit}; }
     void connect_compare_output_a(GpioPort& port, u8 bit) noexcept { pin_a_ = {&port, bit}; }
     void connect_compare_output_b(GpioPort& port, u8 bit) noexcept { pin_b_ = {&port, bit}; }
     void connect_compare_output_c(GpioPort& port, u8 bit) noexcept { pin_c_ = {&port, bit}; }
@@ -92,6 +93,7 @@ private:
     bool counting_up_ {true};
     
     std::optional<BoundPin> pin_icp_;
+    std::optional<BoundPin> pin_t1_;
     std::optional<BoundPin> pin_a_;
     std::optional<BoundPin> pin_b_;
     std::optional<BoundPin> pin_c_;

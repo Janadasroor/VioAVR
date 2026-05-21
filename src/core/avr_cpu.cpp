@@ -87,19 +87,8 @@ void AvrCpu::reset(ResetCause cause) noexcept
     interrupt_depth_ = 0U;
     state_ = (bus_ != nullptr && bus_->loaded_program_words() > 0U) ? CpuState::running : CpuState::halted;
 
-    if (bus_ != nullptr && bus_->device().mcusr_address != 0) {
-        u8 mcusr = 0;
-        switch(cause) {
-            case ResetCause::power_on: mcusr |= 0x01; break;
-            case ResetCause::external: mcusr |= 0x02; break;
-            case ResetCause::brown_out: mcusr |= 0x04; break;
-            case ResetCause::watchdog: mcusr |= 0x08; break;
-        }
-        bus_->write_data(bus_->device().mcusr_address, mcusr);
-    }
-    
     if (rst_ctrl_) {
-        u8 cause_mask = 0x01U; // Default POR
+        u8 cause_mask = 0x01U;
         switch (cause) {
             case ResetCause::power_on:  cause_mask = 0x01U; break;
             case ResetCause::external:  cause_mask = 0x04U; break;
@@ -107,6 +96,8 @@ void AvrCpu::reset(ResetCause cause) noexcept
             case ResetCause::watchdog:  cause_mask = 0x08U; break;
         }
         rst_ctrl_->set_reset_cause(cause_mask);
+    } else if (control_regs_) {
+        control_regs_->set_reset_cause(cause);
     }
 
     interrupt_delay_ = 0U;

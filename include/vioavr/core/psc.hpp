@@ -57,6 +57,7 @@ private:
 
     // Temp for 16-bit access
     u8 temp_high_ {0};
+    u8 read_temp_high_ {0};
 
     class Adc* adc_trigger_ {nullptr};
     class PinMux* pin_mux_ {nullptr};
