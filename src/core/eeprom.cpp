@@ -184,7 +184,10 @@ void Eeprom::update_eecr(const u8 value) noexcept
         if (write_cycles_left_ == 0U) {
             eecr_ |= kEempe;
             master_write_enable_timeout_ = kMasterWriteTimeout;
-            if (bus_) bus_->scheduler().schedule(master_write_enable_timeout_, eeprom_master_timeout_callback, this);
+            if (bus_) {
+                bus_->scheduler().cancel(eeprom_master_timeout_callback, this);
+                bus_->scheduler().schedule(master_write_enable_timeout_, eeprom_master_timeout_callback, this);
+            }
         }
     }
 
@@ -210,9 +213,9 @@ void Eeprom::update_eecr(const u8 value) noexcept
 
 void Eeprom::start_write() noexcept
 {
-    eecr_ &= static_cast<u8>(~kEempe);
+    eecr_ = static_cast<u8>((eecr_ & ~kEempe) | kEepe);
     master_write_enable_timeout_ = 0;
-    
+
     const u8 mode = (eecr_ >> 4U) & 0x03U;
     switch (mode) {
         case 0x00U: write_cycles_left_ = kEepromAtomicCycles; break;
@@ -236,6 +239,7 @@ void Eeprom::complete_write() noexcept
         storage_[addr] = eedr_;
     }
     
+    eecr_ &= static_cast<u8>(~kEepe);
     update_interrupt_pending();
 }
 
