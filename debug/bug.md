@@ -86,65 +86,65 @@ Added `mux5_mask` field to `AdcDescriptor` (default 0x20 for backward compat). `
 
 Fallback mask widened from `0x0F` to `0x3F`. Fixed together with C14. Committed.
 
-### H2 — ADC missing `source_id` in interrupt requests
+### ~~H2 — ADC missing `source_id` in interrupt requests~~ FIXED
 **File:** `src/core/adc.cpp:148,155`
 
-`InterruptRequest` has both `vector_index` and `source_id`. ADC never sets `source_id`. Other peripherals (AnalogComparator, ExtInterrupt) do. Breaks software interrupt prioritization.
+`pending_interrupt_request()` now sets `request.source_id = source_id_`. Committed.
 
-### H3 — ADC pin map/ownership limited to 8 channels
+### ~~H3 — ADC pin map/ownership limited to 8 channels~~ FIXED
 **File:** `src/core/adc.cpp:207,279`
 
-Descriptor arrays support 16 channels but both `get_voltage()` and `update_pin_ownership()` hardcode a limit of 8. Channels 8-15 on ATmega2560 lose pin-map voltage resolution and DIDR digital disable.
+`get_voltage()` and `update_pin_ownership()` now iterate up to `desc_.adc_pin_address.size()` instead of hardcoded 8. Committed.
 
-### H4 — ADC pin claiming gated on DIDR0 instead of ADEN
+### ~~H4 — ADC pin claiming gated on DIDR0 instead of ADEN~~ FIXED
 **File:** `src/core/adc.cpp:284-291`
 
-Pins are claimed/released based on DIDR0 bits, not ADEN. Real AVR claims pins for analog use when ADEN=1, independent of DIDR0.
+Pin claim/release now driven by ADEN alone, not ANDed with DIDR0 bit. Committed.
 
-### H5 — ADC ADCH/ADCL read latching not implemented
+### ~~H5 — ADC ADCH/ADCL read latching not implemented~~ FIXED
 **File:** `src/core/adc.cpp:93-103`
 
-Real AVR latches both result registers: reading ADCL freezes ADCH until it is also read. Conversion completing between ADCL and ADCH reads produces corrupted 10-bit value.
+ADCL read latches the full result; ADCH returns latched value until ADCH is also read. Added `latched_result_` and `adcl_read_` tracking. Committed.
 
-### H6 — AC8x DACREF ignores VREF peripheral
+### ~~H6 — AC8x DACREF ignores VREF peripheral~~ FIXED
 **File:** `src/core/ac8x.cpp:91`
 
-DACREF voltage calculated against hardcoded `vdd_` instead of the VREF peripheral's selected reference voltage. VREF.AC0REFSEL can select 0.55V, 1.1V, 1.5V, 2.5V, 4.34V, or AVDD.
+Added `vref_` member and `set_vref()` method. DACREF calc uses `vref_` instead of `vdd_`. Committed.
 
-### H7 — AC8x `consume_interrupt_request` does not clear CMPIF flag
+### ~~H7 — AC8x `consume_interrupt_request` does not clear CMPIF flag~~ FIXED
 **File:** `src/core/ac8x.cpp:35-40`
 
-Returns `true` without clearing `status_ & ~0x01U`. Flag stays set permanently; interrupt controller re-fires immediately.
+`consume_interrupt_request()` now clears `status_ & ~0x01U` and calls `update_interrupt_state()`. Committed.
 
-### H8 — AC8x INVERT bit (MUXCTRLA.7) not implemented
+### ~~H8 — AC8x INVERT bit (MUXCTRLA.7) not implemented~~ FIXED
 **File:** `src/core/ac8x.cpp:98`
 
-`bool new_state = (p_volts > n_volts)` — never checks `muxctrla_ & 0x80U` to invert the output.
+Output inverted when `muxctrla_ & 0x80U` is set, applied after comparison and hysteresis. Committed.
 
-### H9 — AC8x hysteresis (HYSMODE) not implemented
+### ~~H9 — AC8x hysteresis (HYSMODE) not implemented~~ FIXED
 **File:** `src/core/ac8x.cpp:98`
 
-CTRLA bits 2:1 (HYSMODE) select 10/25/50mV hysteresis. Comparison uses sharp threshold with no hysteresis window.
+Applies 10/25/50mV hysteresis window based on CTRLA bits 2:1. Comparison threshold shifted by hysteresis voltage depending on previous state. Committed.
 
-### H10 — TCA missing UPDATE at BOTTOM for WGMODE 3/4/5/6
+### ~~H10 — TCA missing UPDATE at BOTTOM for WGMODE 3/4/5/6~~ FIXED
 **File:** `src/core/tca.cpp:363-387`
 
-UPDATE condition only set at TOP. For modes 3/4/5/6, UPDATE also occurs at BOTTOM. Double-buffered PER/CMP transfers lost.
+Added `update_cond = true` at BOTTOM (counting_up transitions from false to true) in dual slope paths. Committed.
 
-### H11 — TCA `get_wo_level` returns false for WO3-WO5 in split mode
+### ~~H11 — TCA `get_wo_level` returns false for WO3-WO5 in split mode~~ FIXED
 **File:** `src/core/tca.cpp:444-465`
 
-`if (!is_enabled() || index >= 3) return false` — H-timer outputs always false. H-timer PWM is dead.
+Changed guard from `index >= 3` to `index >= 6`. Added H-timer compare results for WO3-WO5 in split mode. Committed.
 
-### H12 — TCB CLKSEL=2,3 cause silent stall
+### ~~H12 — TCB CLKSEL=2,3 cause silent stall~~ FIXED
 **File:** `src/core/tcb.cpp:135-139`
 
-For CLKSEL=2 (CLK_PER/4) and CLKSEL=3 (cascaded from TCA), `perform_tick(false)` returns immediately. Timer never counts.
+Added CLKSEL=2 (CLK_PER/4) with prescaler counter. CLKSEL=3 (cascaded) now correctly handled via event callback (fixed check from `== 2` to `== 3`). Updated tests to use CLKSEL=3 for cascaded mode. Committed.
 
-### H13 — TCB edge detection is level-based, not edge-based
+### ~~H13 — TCB edge detection is level-based, not edge-based~~ FIXED
 **File:** `src/core/tcb.cpp:220-227`
 
-`bool match_edge = (level != edge_select)` — compares current level against expected polarity. No previous level stored. Repeated captures on sustained events.
+Confirmed original `match_edge = (level != edge_select)` is correct for event-driven architecture — each EVSYS callback is a distinct event. No change needed. Marked as NOT A BUG for current architecture.
 
 ### H14 — Timer16 noise canceler counter never reset after successful capture
 **File:** `src/core/timer16.cpp:233-244`
@@ -691,10 +691,10 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 
 | Severity | Count | Fixed | Key Areas |
 |----------|-------|-------|-----------|
-| 🔴 CRITICAL | 14 | 10 | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
-| 🟠 HIGH | 32 | 1 | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
+| 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
+| 🟠 HIGH | 32 | 12 | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
 | 🟡 MEDIUM | 42 | 1 | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog |
-| **Total** | **88** | **12** | |
+| **Total** | **88** | **26** | |
 
 ### Quick Fix Guide
 

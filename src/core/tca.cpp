@@ -387,6 +387,7 @@ void Tca::perform_tick() {
         } else {
             if (norm_.tcnt == 0) {
                 counting_up_ = true;
+                update_cond = true; // H10: UPDATE also at BOTTOM for dual slope
                 norm_.tcnt++;
             } else {
                 norm_.tcnt--;
@@ -457,20 +458,22 @@ void Tca::update_prescaler() noexcept {
 }
 
 bool Tca::get_wo_level(u8 index) const noexcept {
-    if (!is_enabled() || index >= 3) return false;
+    if (!is_enabled() || index >= 6) return false;
 
     if (is_split_mode()) {
-        // In split mode, WO0-WO2 usually correspond to LCMP0-2
+        // H11: WO0-WO2 for L-timer, WO3-WO5 for H-timer
         if (index == 0) return cnt_l() < cmp0_l();
         if (index == 1) return cnt_l() < cmp1_l();
         if (index == 2) return cnt_l() < cmp2_l();
+        if (index == 3) return cnt_h() < cmp0_h();
+        if (index == 4) return cnt_h() < cmp1_h();
+        if (index == 5) return cnt_h() < cmp2_h();
     } else {
         u8 wgmode = ctrlb_ & 0x07;
         if (wgmode == 0x01 && index == 0) { // FRQ mode WO0
             return wo_states_[0];
         }
         if (index == 0) {
-            // printf("[TCA DEBUG] get_wo_level index 0: tcnt=%d, cmp0=%d, result=%d\n", (int)norm_.tcnt, (int)norm_.cmp0, (int)(norm_.tcnt < norm_.cmp0));
             return norm_.tcnt < norm_.cmp0;
         }
         if (index == 1) return norm_.tcnt < norm_.cmp1;

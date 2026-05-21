@@ -83,10 +83,10 @@ TEST_CASE("AVR8X TCB - Cascaded Mode Fidelity") {
     bus.write_data(0xA27, 0); // High byte
     bus.write_data(0xA00, 0x01); // ENABLE
 
-    // 2. Configure TCB0 for Cascaded Mode (CLKSEL=2)
+    // 2. Configure TCB0 for Cascaded Mode (CLKSEL=3)
     bus.write_data(0xA8C, 0xFF); // CCMPL
     bus.write_data(0xA8D, 0xFF); // CCMPH
-    bus.write_data(0xA80, (0x02 << 1) | 0x01);
+    bus.write_data(0xA80, (0x03 << 1) | 0x01);
 
     // 3. Tick 5 cycles
     machine.run(5);
