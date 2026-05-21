@@ -544,10 +544,10 @@ Lambda captures `this` with no lifetime management. If CCL destroyed while callb
 
 Generates temporary std::string objects at runtime. Also, non-standard TCB naming fails lookup.
 
-### M60 — GPIO reset() doesn't clear analog state arrays
+### ~~M60 — GPIO reset() doesn't clear analog state arrays~~ NOT A BUG
 **File:** `src/core/gpio_port.cpp:83-102`
 
-pin_levels_, pin_voltages_, has_voltage_input_, has_analog_binding_, pin_bindings_ not cleared on reset.
+Analog arrays represent physical simulation connections that persist across digital reset. Clearing them would break analog bindings on system reset.
 
 ### M61 — GPIO consume_pin_change never writes cycle_stamp
 **File:** `src/core/gpio_port.cpp:189-206`
@@ -569,10 +569,10 @@ Uses default {0.3, 0.6} threshold when no binding active. Device-specific VIL/VI
 
 Multiple simultaneous pin changes require caller to loop. Single call per cycle loses events.
 
-### M65 — GPIO wants_tick() returns true for voltage-only pins but tick() does nothing
+### ~~M65 — GPIO wants_tick() returns true for voltage-only pins but tick() does nothing~~ FIXED
 **File:** `src/core/gpio_port.cpp:104-108, 385-399`
 
-tick() only samples binding entries, not voltage pins. Wasted ticks.
+Removed `has_voltage_input_` check from `wants_tick()`. tick() called only for analog bindings.
 
 ### M66 — GPIO constructor merges ranges with uninitialized buffer
 **File:** `src/core/gpio_port.cpp:28-71`
@@ -584,25 +584,25 @@ ranges_ default-initialized (all zero). First non-zero address at 0x0001 would m
 
 Fixed together with C8. `reset()` now clears `pullup_suppressed_`. Committed.
 
-### M68 — PinMux wired-and mode applied to all claimants, not just requester
+### ~~M68 — PinMux wired-and mode applied to all claimants, not just requester~~ FIXED
 **File:** `src/core/pin_mux.cpp:176-188`
 
-If any claimant requests wired-and, ALL active claimants enter wired-and mode. Push-pull outputs corrupted.
+wired-and now checked against highest_owner_bit instead of active_claims (all claimants).
 
-### M69 — PinMux update_pin_by_address() drops wired_and parameter
+### ~~M69 — PinMux update_pin_by_address() drops wired_and parameter~~ FIXED
 **File:** `src/core/pin_mux.cpp:92-98`
 
-Full update_pin() accepts 7th bool wired_and. update_pin_by_address() doesn't — wired-and never settable via address API.
+Added `wired_and = false` parameter to update_pin_by_address(), forwarded to update_pin().
 
-### M70 — PinMux constructor forces minimum 16 ports even for tiny devices
+### ~~M70 — PinMux constructor forces minimum 16 ports even for tiny devices~~ FIXED
 **File:** `src/core/pin_mux.cpp:10`
 
-ATtiny with 6 ports gets 16 port structures. Ports 6-15 are valid targets despite not existing in hardware.
+Changed minimum to `(num_ports > 0) ? num_ports : 16` — allows fewer than 16 ports.
 
-### M71 — PinMux claim_pin() always returns true — conflict detection impossible
+### ~~M71 — PinMux claim_pin() always returns true — conflict detection impossible~~ NOT A BUG
 **File:** `src/core/pin_mux.cpp:25-39`
 
-Only false for OOB port/bit. Higher-priority owner override returns true — no way for caller to detect.
+Multiple peripherals legitimately claim the same pin. Arbitration is handled by reevaluate_ownership(). claim_pin returning false would prevent lower-priority peripherals from registering interest.
 
 ### M72 — CPUINT highest_priority_vector() in round-robin wraps to RESET vector
 **File:** `include/vioavr/core/cpu_int.hpp:28-33`
@@ -699,11 +699,11 @@ Temperature sensor (MUX=8), bandgap 1.1V (MUX=14), GND (MUX=15), differential pa
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL | 14 | 13 (+1 NAB) | CPU branches, interrupt delivery, EEPROM, PLL, PinMux, SPI, USB, TWI8X, CCL, ADC |
 | 🟠 HIGH | 32 | 25 (+2 NAB) | ADC, AC8x, TCA, TCB, Timer16/10, PSC, DAC, UART, SPI, CAN, USB, EEPROM, CCL, EVSYS |
-| 🟡 MEDIUM | 42 | 18 (+2 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI |
-| **Total** | **88** | **56 (+5 NAB)** | |
+| 🟡 MEDIUM | 42 | 22 (+4 NAB) | GPIO, PinMux, CCL, EVSYS, CPUINT, CpuControl, MemoryBus, ExtInterrupt, LCD, Watchdog, UART, CAN, TCA, PCI |
+| **Total** | **88** | **60 (+7 NAB)** | |
 
 ### Quick Fix Guide
 
-All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 20 of 42 medium bugs resolved (18 fixed + 2 NAB). Proceed to remaining 22 medium bugs.
+All 14 critical bugs resolved (13 fixed + 1 NAB). 27 of 32 high bugs resolved (25 fixed + 2 NAB). 26 of 42 medium bugs resolved (22 fixed + 4 NAB). Proceed to remaining 16 medium bugs.
 
 
