@@ -27,14 +27,14 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(atmega_dfp)
 set(ATMEGA_DFP_DIR ${atmega_dfp_SOURCE_DIR} CACHE PATH "Path to ATmega DFP")
 
-# To add another pack (e.g. ATtiny), follow the same pattern:
-# FetchContent_Declare(
-#     attiny_dfp
-#     URL https://packs.download.microchip.com/Microchip.ATtiny_DFP.X.Y.Z.atpack
-#     SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/attiny
-# )
-# FetchContent_MakeAvailable(attiny_dfp)
-# set(ATTINY_DFP_DIR ${attiny_dfp_SOURCE_DIR} CACHE PATH "Path to ATtiny DFP")
+# Microchip ATtiny DFP
+FetchContent_Declare(
+    attiny_dfp
+    URL https://packs.download.microchip.com/Microchip.ATtiny_DFP.3.4.278.atpack
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/attiny
+)
+FetchContent_MakeAvailable(attiny_dfp)
+set(ATTINY_DFP_DIR ${attiny_dfp_SOURCE_DIR} CACHE PATH "Path to ATtiny DFP")
 
 # Optimization and LTO
 if(NOT CMAKE_BUILD_TYPE)
