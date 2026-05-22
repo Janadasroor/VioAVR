@@ -124,6 +124,7 @@ set(TEST_SOURCES
     peripherals/at90pwm_cycle_by_cycle_test.cpp
     peripherals/atmega2560_timers_test.cpp
     peripherals/atmega328p_voltmeter_test.cpp
+    peripherals/atmega328p_sysmon_test.cpp
     peripherals/dac_fidelity_test.cpp
     peripherals/dma_fidelity_test.cpp
     peripherals/eeprom_fidelity_test.cpp
@@ -133,6 +134,7 @@ set(TEST_SOURCES
     peripherals/fuse_fidelity_test.cpp
     peripherals/cfd_fidelity_test.cpp
     peripherals/gpio_fidelity_test.cpp
+    peripherals/gpio_readback_test.cpp
     peripherals/input_pin_fidelity_test.cpp
     peripherals/integration_stress_runner.cpp
     peripherals/lcd_3290_test.cpp
@@ -193,5 +195,8 @@ foreach(source IN LISTS TEST_SOURCES)
     endif()
     if (test_name STREQUAL "atmega328p_voltmeter_test")
         add_dependencies(${target_name} voltmeter_hex)
+    endif()
+    if (test_name STREQUAL "atmega328p_sysmon_test")
+        add_dependencies(${target_name} sysmon_hex)
     endif()
 endforeach()
