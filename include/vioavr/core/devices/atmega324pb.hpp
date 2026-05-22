@@ -416,6 +416,9 @@ inline constexpr DeviceDescriptor atmega324pb {
     .dma_count = 0U,
     .dmas = {{  }},
 
+    .cfd_count = 1U,
+    .cfds = {{ { .xfdcsr_address = 0x62U, .vector_index = 38U } }},
+
     .fuse_address = 0x0U,
     .lockbit_address = 0x0U,
     .signature_address = 0x0U,

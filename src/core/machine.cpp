@@ -44,6 +44,7 @@
 #include "vioavr/core/lin.hpp"
 #include "vioavr/core/opamp.hpp"
 #include "vioavr/core/ptc.hpp"
+#include "vioavr/core/cfd.hpp"
 #include "vioavr/core/tcd.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
@@ -521,6 +522,13 @@ void Machine::initialize_peripherals()
         auto op = std::make_unique<Opamp>(device_.opamps[i]);
         bus_->attach_peripheral(*op);
         owned_peripherals_.push_back(std::move(op));
+    }
+
+    // 17a. CFD (Clock Failure Detection)
+    for (u8 i = 0; i < device_.cfd_count; ++i) {
+        auto cfd = std::make_unique<Cfd>(device_.cfds[i]);
+        bus_->attach_peripheral(*cfd);
+        owned_peripherals_.push_back(std::move(cfd));
     }
 
     // 17. PTC (Peripheral Touch Controller)

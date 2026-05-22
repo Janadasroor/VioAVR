@@ -66,6 +66,7 @@ target_sources(vioavr_core
         amplifier.cpp
         opamp.cpp
         ptc.cpp
+        cfd.cpp
         tcd.cpp
         vcd_writer.cpp
 )
