@@ -140,6 +140,7 @@ set(TEST_SOURCES
     peripherals/math_fidelity_test.cpp
     peripherals/nvm_stall_fidelity_test.cpp
     peripherals/opamp_fidelity_test.cpp
+    peripherals/ptc_fidelity_test.cpp
     peripherals/pin_mux_priority_test.cpp
     peripherals/pinmux_fidelity_test.cpp
     peripherals/pll_test.cpp
