@@ -167,6 +167,7 @@ set(TEST_SOURCES
     peripherals/opamp_fidelity_test.cpp
     peripherals/ptc_fidelity_test.cpp
     peripherals/tcd_fidelity_test.cpp
+    peripherals/performance_benchmark_test.cpp
     peripherals/pin_mux_priority_test.cpp
     peripherals/pinmux_fidelity_test.cpp
     peripherals/pll_test.cpp
@@ -279,5 +280,10 @@ foreach(source IN LISTS TEST_SOURCES)
     endif()
     if (test_name STREQUAL "psc_firmware_test")
         add_dependencies(${target_name} psc_test_hex)
+    endif()
+    if (test_name STREQUAL "performance_benchmark_test")
+        add_dependencies(${target_name} benchmark_hex)
+        add_dependencies(${target_name} integration_stress_hex)
+        set_tests_properties(${target_name} PROPERTIES TIMEOUT 120)
     endif()
 endforeach()
