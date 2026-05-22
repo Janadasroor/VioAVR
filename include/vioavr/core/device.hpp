@@ -437,6 +437,21 @@ struct TwiDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct UsiDescriptor {
+    u16 usicr_address {};
+    u16 usisr_address {};
+    u16 usidr_address {};
+    u16 usibr_address {};
+    u8 start_vector_index {};
+    u8 overflow_vector_index {};
+    u16 sda_pin_address {};
+    u8 sda_pin_bit {};
+    u16 scl_pin_address {};
+    u8 scl_pin_bit {};
+    u16 do_pin_address {};
+    u8 do_pin_bit {};
+};
+
 struct MappedMemoryDescriptor {
     u16 data_start {0U};
     u16 size {0U};
@@ -1150,6 +1165,9 @@ struct DeviceDescriptor {
 
     u8 twi_count {0U};
     std::array<TwiDescriptor, 4> twis {};
+
+    u8 usi_count {0U};
+    std::array<UsiDescriptor, 1> usis {};
 
     u8 twi8x_count {0U};
     std::array<Twi8xDescriptor, 4> twis8x {};

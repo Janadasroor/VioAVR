@@ -30,6 +30,7 @@
 #include "vioavr/core/uart8x.hpp"
 #include "vioavr/core/spi8x.hpp"
 #include "vioavr/core/twi8x.hpp"
+#include "vioavr/core/usi.hpp"
 #include "vioavr/core/wdt8x.hpp"
 #include "vioavr/core/crc8x.hpp"
 #include "vioavr/core/dma.hpp"
@@ -353,6 +354,13 @@ void Machine::initialize_peripherals()
         auto spi = std::make_unique<Spi>("SPI", device_.spis[i]);
         bus_->attach_peripheral(*spi);
         owned_peripherals_.push_back(std::move(spi));
+    }
+
+    // USI (Universal Serial Interface)
+    for (u8 i = 0; i < device_.usi_count; ++i) {
+        auto usi = std::make_unique<Usi>("USI", device_.usis[i]);
+        bus_->attach_peripheral(*usi);
+        owned_peripherals_.push_back(std::move(usi));
     }
 
     // 6. PSC

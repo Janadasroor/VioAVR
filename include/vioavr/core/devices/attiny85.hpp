@@ -23,7 +23,26 @@ inline constexpr DeviceDescriptor attiny85 {
     .sigrd_mask = 0x20U,
     .spmen_mask = 0x01U,
 
+    .usi_count = 1U,
+    .usis = {{
+        {
+            .usicr_address = 0x2DU,
+            .usisr_address = 0x2EU,
+            .usidr_address = 0x2FU,
+            .usibr_address = 0x30U,
+            .start_vector_index = 13U,
+            .overflow_vector_index = 14U,
+            .sda_pin_address = 0x38U,
+            .sda_pin_bit = 0U,
+            .scl_pin_address = 0x38U,
+            .scl_pin_bit = 2U,
+            .do_pin_address = 0x38U,
+            .do_pin_bit = 1U,
+        }
+    }},
+
     .signature = { 0x1EU, 0x93U, 0x0BU }, // ATtiny85 signature
+
     .operating_voltage_v = 5.0,
     .vil_factor = 0.3,
     .vih_factor = 0.6,
