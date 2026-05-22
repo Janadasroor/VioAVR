@@ -64,7 +64,7 @@ When adding support for a new AVR chip (e.g., `ATmega2560`):
     - Run `scripts/verify_against_simavr.py` with test programs to ensure cycle-accurate behavior.
 
 ## Verification Sources
-- **Primary**: Downloaded `.atdf` files in `build/_deps/atmega_dfp-src/atdf/`.
+- **Primary**: Downloaded `.atdf` files in `avr-pack/atmega/atdf/`.
 - **Secondary**: Official Microchip datasheets.
 - **Validation**: `simavr` trace comparisons (using `scripts/verify_against_simavr.py`).
 - **Hardware**: Logic analyzer traces from physical MCUs (when available).
