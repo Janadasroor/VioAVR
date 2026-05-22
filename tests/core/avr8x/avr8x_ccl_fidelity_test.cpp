@@ -88,8 +88,10 @@ TEST_CASE("AVR8X CCL and PORTMUX Signal Routing Fidelity") {
 
         bus.write_data(TCA0_BASE + 0x00, 0x01);
         bus.write_data(TCA0_BASE + 0x01, 0x10);
-        bus.write_data(TCA0_BASE + 0x29, 0);  // High
-        bus.write_data(TCA0_BASE + 0x28, 50); // Low
+        bus.write_data(TCA0_BASE + 0x26, 100); // PER low
+        bus.write_data(TCA0_BASE + 0x27, 0);   // PER high
+        bus.write_data(TCA0_BASE + 0x28, 50);  // CMP0 low
+        bus.write_data(TCA0_BASE + 0x29, 0);   // CMP0 high
 
         // Step 1: Default Routing (PORTA)
         bus.write_data(PORTMUX_TCAROUTEA, 0x00);
