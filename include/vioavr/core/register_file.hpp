@@ -12,7 +12,7 @@ class AvrCpu;
  */
 class RegisterFile final : public IoPeripheral {
 public:
-    explicit RegisterFile(AvrCpu& cpu) noexcept;
+    explicit RegisterFile(AvrCpu& cpu, AddressRange range) noexcept;
 
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;

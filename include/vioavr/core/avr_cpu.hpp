@@ -439,9 +439,10 @@ inline u8 AvrCpu::read_data_bus(const u16 address) noexcept
 {
     if (bus_ == nullptr) return 0U;
     
-    // Fast-path 1: GPR (0x0000 - 0x001F)
-    if (address < kRegisterFileSize) {
-        return gpr_[address];
+    // Fast-path 1: GPR (register_file_range)
+    auto reg_range = bus_->device().register_file_range;
+    if (address >= reg_range.begin && address <= reg_range.end) {
+        return gpr_[address - reg_range.begin];
     }
     
     // Fast-path 2: Standard SRAM (within sram_range)
@@ -463,9 +464,10 @@ inline void AvrCpu::write_data_bus(const u16 address, const u8 value) noexcept
 {
     if (bus_ == nullptr) return;
 
-    // Fast-path 1: GPR (0x0000 - 0x001F)
-    if (address < kRegisterFileSize) {
-        gpr_[address] = value;
+    // Fast-path 1: GPR (register_file_range)
+    auto reg_range = bus_->device().register_file_range;
+    if (address >= reg_range.begin && address <= reg_range.end) {
+        gpr_[address - reg_range.begin] = value;
         return;
     }
 
