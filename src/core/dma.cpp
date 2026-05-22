@@ -200,19 +200,24 @@ void Dma::perform_transfer(u8 channel_idx) noexcept {
     c.busy = true;
     
     // Transfer logic
-    // Mode 0: Burst transfer (move all at once)
-    // Mode 1: Single byte per trigger
-    bool burst = (c.ctrlb & 0x03) == 0; 
+    // CTRLB[1:0] = TRIGACT: 00=REPEAT(all), 01=BURST(block), 10=TRANSFERONE, 11=TRANSFERALL
+    u8 trigact = c.ctrlb & 0x03U;
+    bool burst = (trigact == 0x00U || trigact == 0x03U); // REPEAT or TRANSFERALL
 
     do {
         u8 data = bus_->read_data(c.srcaddr);
         bus_->write_data(c.dstaddr, data);
         Logger::debug("DMA Transfer: [0x" + Logger::hex(c.srcaddr) + "] -> [0x" + Logger::hex(c.dstaddr) + "] = 0x" + Logger::hex(data));
         
-        // Address increment logic
-        // CTRLA[3:2] = SRCINC, CTRLA[5:4] = DSTINC
-        if ((c.ctrla >> 2) & 0x01) c.srcaddr++; // Heuristic: bit 2 is SRCINC
-        if ((c.ctrla >> 4) & 0x01) c.dstaddr++; // Heuristic: bit 4 is DSTINC
+        // Address increment logic (2-bit fields)
+        // CTRLA[7:6] = SRCINC: 00=no inc, 01=+1, 10=+2, 11=+2
+        // CTRLA[5:4] = DSTINC: 00=no inc, 01=+1, 10=+2, 11=+2
+        u8 srcinc = (c.ctrla >> 6) & 0x03U;
+        u8 dstinc = (c.ctrla >> 4) & 0x03U;
+        if (srcinc == 0x01U) c.srcaddr++;
+        else if (srcinc >= 0x02U) c.srcaddr += 2;
+        if (dstinc == 0x01U) c.dstaddr++;
+        else if (dstinc >= 0x02U) c.dstaddr += 2;
 
         c.remaining_count--;
         
