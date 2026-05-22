@@ -49,6 +49,7 @@ public:
     void set_address(u32 address) noexcept { addr_ = static_cast<u16>(address); }
     [[nodiscard]] u16 address() const noexcept { return addr_; }
     [[nodiscard]] u16 data() const noexcept { return data_; }
+    void update_interrupt_state() noexcept;
 
 private:
     NvmCtrlDescriptor desc_;

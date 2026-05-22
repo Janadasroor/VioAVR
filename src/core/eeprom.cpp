@@ -36,7 +36,7 @@ Eeprom::Eeprom(std::string_view name, const EepromDescriptor& descriptor) noexce
 {
     storage_.resize(size_, 0xFFU);
     if (desc_.eecr_address != 0U) {
-        ranges_[0] = {desc_.eecr_address, static_cast<u16>(desc_.eearh_address > 0 ? desc_.eearh_address : desc_.eecr_address + 3U)};
+        ranges_[0] = {desc_.eecr_address, static_cast<u16>(desc_.eearh_address > 0 ? desc_.eearh_address : desc_.eecr_address + 2U)};
         ranges_count_ = 1U;
     } else {
         ranges_count_ = 0U;

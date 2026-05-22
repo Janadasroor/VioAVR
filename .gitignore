@@ -45,22 +45,9 @@ TODO_AVR_ACCURACY_ROADMAP.md
 TODO.md
 todo/
 
-# ATmega DFP Pruning 
-/atmega/simulator/
-/atmega/xc8/
-/atmega/gcc/
-/atmega/avrasm/
-/atmega/hwtools/
-/atmega/edc/
-/atmega/templates/
+# ATmega DFP
+/atmega/
 
-# Keep atdf and include as they are needed for the generator
-!/atmega/atdf/
-!/atmega/include/
-!/atmega/LICENSE.txt
-!/atmega/OVERVIEW.md
-!/atmega/package.content
-!/atmega/Microchip.ATmega_DFP.pdsc
 tests/programs/*.csv
 tmp/
 # avr-libc

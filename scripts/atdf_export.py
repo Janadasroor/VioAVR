@@ -179,9 +179,10 @@ def main():
     parser.add_argument('--out', help='Output JSON file')
     args = parser.parse_args()
 
-    atdf_path = Path(f"atmega/atdf/{args.mcu}.atdf")
+    dfp_dir = os.environ.get("ATMEGA_DFP_DIR", "build/_deps/atmega_dfp-src")
+    atdf_path = Path(dfp_dir) / "atdf" / f"{args.mcu}.atdf"
     if not atdf_path.exists():
-        print(f"Error: ATDF file not found for {args.mcu}")
+        print(f"Error: ATDF file not found for {args.mcu} at {atdf_path}")
         sys.exit(1)
 
     data = parse_atdf(atdf_path)

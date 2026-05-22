@@ -77,7 +77,7 @@ void LcdController::write(u16 address, u8 value) noexcept
             interrupt_pending_ = false;
         }
         const u8 old_lcdcra = lcdcra_;
-        lcdcra_ = (lcdcra_ & kLcdif) | (value & static_cast<u8>(~kLcdif));
+        lcdcra_ = (lcdcra_ & 0x70U) | (value & 0x8FU); // Preserve reserved bits 5-6, kLcdif handled above
         
         if ((old_lcdcra ^ lcdcra_) & kLcden) {
             update_pin_ownership();
@@ -176,8 +176,8 @@ void LcdController::recalculate_timing() noexcept
     static constexpr u16 kPrescalers[] = {16, 64, 128, 256, 512, 1024, 2048, 4096};
     const u16 P = kPrescalers[ps];
 
-    // Clock Divider K (LCDCD bits 2:0 in LCDFRR)
-    const u8 K = (lcdfrr_ & 0x07U) + 1;
+    // Clock Divider K (LCDCD bits 2:0 in LCDFRR) — hardware uses 2^(LCDCD+1)
+    const u16 K = static_cast<u16>(1U << ((lcdfrr_ & 0x07U) + 1U));
 
     // Frame frequency = f_clk / (P * K * D)
     // So cycles per frame (in LCD clock cycles) = P * K * D

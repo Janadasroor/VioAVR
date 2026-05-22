@@ -15,6 +15,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Fetch Microchip ATmega DFP
+include(FetchContent)
+FetchContent_Declare(
+    atmega_dfp
+    URL https://packs.download.microchip.com/Microchip.ATmega_DFP.3.6.299.atpack
+)
+FetchContent_MakeAvailable(atmega_dfp)
+set(ATMEGA_DFP_DIR ${atmega_dfp_SOURCE_DIR} CACHE PATH "Path to ATmega DFP")
+
 # Optimization and LTO
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)

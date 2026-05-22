@@ -128,7 +128,7 @@ u8 Usb::read(u16 address) noexcept {
         u8 flags = ep.interrupt_flags;
         auto& bank = ep.banks[ep.cpu_bank];
         // Calculate RWAL (Read/Write Allowed)
-        bool is_in = (ep.config0 & 0x80U) != 0;
+        bool is_in = is_in_endpoint(ep);
         bool rwal = false;
         if (is_in) {
             // IN: RWAL is 1 if current bank is not busy (CPU can write)
@@ -166,7 +166,7 @@ void Usb::write(u16 address, u8 value) noexcept {
     else if (address == desc_.usbsta_address) usbsta_ = value;
     else if (address == desc_.usbint_address) usbint_ = value;
     else if (address == desc_.udcon_address) udcon_ = value;
-    else if (address == desc_.udint_address) udint_ &= value; // Clear on write 0
+    else if (address == desc_.udint_address) udint_ &= ~value; // Write-1-to-clear
     else if (address == desc_.udien_address) udien_ = value;
     else if (address == desc_.udaddr_address) udaddr_ = value;
     else if (address == desc_.uenum_address) uenum_ = value;
@@ -228,7 +228,7 @@ void Usb::write(u16 address, u8 value) noexcept {
         
         // Handle FIFOCON (Bit 7) clearing — write-1-to-clear
         if (value & 0x80U) {
-            bool is_in = (ep.config0 & 0x80U) != 0;
+        bool is_in = is_in_endpoint(ep);
             auto& current_bank = ep.banks[ep.cpu_bank];
             if (is_in) {
                 // IN: FIFOCON cleared -> Current bank is full, ready to send
@@ -280,7 +280,7 @@ void Usb::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.uedatx_address) {
         // Only allow writes for IN endpoints with TXINI set
-        if ((ep.config0 & 0x80U) && (ep.interrupt_flags & desc_.ueintx_txini_mask)) {
+        if (is_in_endpoint(ep) && (ep.interrupt_flags & desc_.ueintx_txini_mask)) {
             auto& bank = ep.banks[ep.cpu_bank];
             if (bank.byte_count < bank.fifo.size()) {
                 bank.fifo[bank.write_idx] = value;
@@ -298,6 +298,16 @@ void Usb::update_ueint() noexcept {
             ueint_ |= (1U << i);
         }
     }
+}
+
+bool Usb::is_in_endpoint(const Endpoint& ep) noexcept {
+    u8 eptype = (ep.config0 >> 4) & 0x07U;
+    if (eptype == 0x01U) return true; // Control: bidirectional, default IN
+    if (eptype == 0x00U) {
+        // Disabled/no type: fall back to ALLOC heuristic for backward compat
+        return (ep.config0 & 0x80U) != 0;
+    }
+    return (ep.config0 & 0x04U) != 0; // DIR bit
 }
 
 bool Usb::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -419,15 +429,6 @@ void Usb::simulate_in_token(u8 ep_idx) noexcept {
         ep.sie_bank = (ep.sie_bank + 1) % ep.bank_count;
         ep.data_toggle = !ep.data_toggle;
         
-        // If CPU was waiting for a free bank (TXINI was 0), set it now
-        bool is_in = (ep.config0 & 0x80U) != 0;
-        if (is_in && !(ep.interrupt_flags & desc_.ueintx_txini_mask)) {
-            // Check if the bank we just freed is the one the CPU should use next
-            // In double banking, if TXINI is 0, it means all banks are busy.
-            // Freed bank becomes the next available.
-            ep.interrupt_flags |= desc_.ueintx_txini_mask;
-        }
-
         ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI (Handshake ACK)
         update_ueint();
     }
