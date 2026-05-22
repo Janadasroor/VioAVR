@@ -118,28 +118,28 @@ TEST_CASE("LCD Controller: Hardware-Accurate Timing") {
     Machine machine(desc);
     auto& bus = machine.bus();
 
-    SUBCASE("Default timing (P=16, K=1, D=1)") {
+    SUBCASE("Default timing (P=16, K=2, D=1)") {
         bus.write_data(0xE4, 0x80); // Enable
-        // Default LCDFRR is 0 (P=16, K=1)
+        // Default LCDFRR is 0 (P=16, LCDCD=0 => K=2^(0+1)=2)
         // Default LCDCRB is 0 (D=1)
-        // Cycles = 16 * 1 * 1 = 16
+        // Cycles = 16 * 2 * 1 = 32
         
-        bus.tick_peripherals(15);
+        bus.tick_peripherals(31);
         CHECK((bus.read_data(0xE4) & 0x10) == 0);
         
         bus.tick_peripherals(1);
         CHECK((bus.read_data(0xE4) & 0x10) != 0);
     }
 
-    SUBCASE("Custom timing (P=64, K=4, D=3)") {
-        // LCDFRR: PS=1 (64), CD=3 (K=4) -> 0x13
+    SUBCASE("Custom timing (P=64, K=16, D=3)") {
+        // LCDFRR: PS=1 (64), CD=3 (K=2^(3+1)=16) -> 0x13
         // LCDCRB: MUX=2 (1/3) -> 0x20
         bus.write_data(0xE6, 0x13);
         bus.write_data(0xE5, 0x20);
         bus.write_data(0xE4, 0x80); // Enable
         
-        // Cycles = 64 * 4 * 3 = 768
-        bus.tick_peripherals(767);
+        // Cycles = 64 * 16 * 3 = 3072
+        bus.tick_peripherals(3071);
         CHECK((bus.read_data(0xE4) & 0x10) == 0);
         
         bus.tick_peripherals(1);

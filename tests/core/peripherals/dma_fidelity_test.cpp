@@ -53,8 +53,8 @@ TEST_CASE("DMA: Manual Burst Transfer") {
     // CTRLB: Burst mode (bit 0 = 0 is single, 1 is burst? No, let's say 0x00 is burst in our mock)
     dma->write(0x111, 0x00); 
     
-    // CTRLA: ENABLE (bit 0) | SRCINC (bit 2) | DSTINC (bit 4)
-    dma->write(0x110, 0x15);
+    // CTRLA: ENABLE (bit 0) | SRCINC=01 (+1, bits 7:6) | DSTINC=01 (+1, bits 5:4)
+    dma->write(0x110, 0x51);
 
     // Global DMA Enable
     dma->write(0x100, 0x01);
@@ -122,7 +122,7 @@ TEST_CASE("DMA: Event Triggered Single Byte Transfer") {
     dma->write(0x117, 0);
     dma->write(0x111, 0x01); // Mode: Single byte per trigger
     dma->write(0x118, 1);    // TRIGSRC: Trigger ID 1
-    dma->write(0x110, 0x15); // ENABLE | SRCINC | DSTINC
+    dma->write(0x110, 0x51); // ENABLE | SRCINC=01 (+1) | DSTINC=01 (+1)
     dma->write(0x100, 0x01); // Global Enable
 
     // First trigger
