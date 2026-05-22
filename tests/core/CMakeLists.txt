@@ -125,6 +125,8 @@ set(TEST_SOURCES
     peripherals/atmega2560_timers_test.cpp
     peripherals/atmega328p_voltmeter_test.cpp
     peripherals/atmega328p_sysmon_test.cpp
+    peripherals/blinky_external_test.cpp
+    peripherals/uart_hello_external_test.cpp
     peripherals/dac_fidelity_test.cpp
     peripherals/dma_fidelity_test.cpp
     peripherals/eeprom_fidelity_test.cpp
