@@ -30,6 +30,7 @@ target_sources(vioavr_core
         can.cpp
         twi.cpp
         twi8x.cpp
+        usi.cpp
         sync_engine.cpp
         trace_buffer.cpp
         viospice.cpp

@@ -157,6 +157,7 @@ set(TEST_SOURCES
     peripherals/timer16_fidelity_test.cpp
     peripherals/timer2_async_fidelity_test.cpp
     peripherals/twi_fidelity_test.cpp
+    peripherals/usi_fidelity_test.cpp
     peripherals/uart_fidelity_test.cpp
     peripherals/uart_stress_test_runner.cpp
     peripherals/xmem_fidelity_test.cpp
