@@ -156,9 +156,6 @@ void Machine::initialize_peripherals()
         const auto& desc = device_.ports[i];
         auto port = std::make_unique<GpioPort>(desc, *pin_mux_);
         ports_.push_back(port.get());
-        pin_mux_->register_port(desc.pin_address, i);  // PIN address
-        pin_mux_->register_port(desc.ddr_address, i);  // DDR address
-        pin_mux_->register_port(desc.port_address, i); // PORT address
         bus_->attach_peripheral(*port);
         owned_peripherals_.push_back(std::move(port));
     }
