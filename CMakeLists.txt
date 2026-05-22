@@ -15,15 +15,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Fetch Microchip ATmega DFP
+# Fetch device family packs (each pack gets its own subdirectory under avr-pack/)
 include(FetchContent)
+
+# Microchip ATmega DFP
 FetchContent_Declare(
     atmega_dfp
     URL https://packs.download.microchip.com/Microchip.ATmega_DFP.3.6.299.atpack
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/atmega
 )
 FetchContent_MakeAvailable(atmega_dfp)
 set(ATMEGA_DFP_DIR ${atmega_dfp_SOURCE_DIR} CACHE PATH "Path to ATmega DFP")
+
+# To add another pack (e.g. ATtiny), follow the same pattern:
+# FetchContent_Declare(
+#     attiny_dfp
+#     URL https://packs.download.microchip.com/Microchip.ATtiny_DFP.X.Y.Z.atpack
+#     SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/attiny
+# )
+# FetchContent_MakeAvailable(attiny_dfp)
+# set(ATTINY_DFP_DIR ${attiny_dfp_SOURCE_DIR} CACHE PATH "Path to ATtiny DFP")
 
 # Optimization and LTO
 if(NOT CMAKE_BUILD_TYPE)
