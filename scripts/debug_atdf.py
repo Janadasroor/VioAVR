@@ -2,7 +2,7 @@ import sys, json, os
 from pathlib import Path
 from atdf_export import parse_atdf
 
-dfp_dir = os.environ.get("ATMEGA_DFP_DIR", "build/_deps/atmega_dfp-src")
+dfp_dir = os.environ.get("ATMEGA_DFP_DIR", "avr-pack/atmega")
 atdf_path = Path(dfp_dir) / "atdf" / "ATmega328P.atdf"
 data = parse_atdf(atdf_path)
 
