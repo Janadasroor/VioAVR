@@ -118,8 +118,22 @@ set(TEST_SOURCES
     cpu_bench_util.cpp
     cpu_trace_util.cpp
     peripherals/adc_fidelity_test.cpp
+    peripherals/atmega8_firmware_test.cpp
+    peripherals/atmega808_firmware_test.cpp
     peripherals/at90pwm316_adc_pwm_integration_test.cpp
     peripherals/at90pwm316_fidelity_test.cpp
+    peripherals/inverter_atmega328p_waveform_test.cpp
+    peripherals/inverter_atmega328p_firmware_test.cpp
+    peripherals/inverter_psc_firmware_test.cpp
+    peripherals/inverter_psc_waveform_test.cpp
+    peripherals/inverter_atmega16_firmware_test.cpp
+    peripherals/inverter_atmega16_waveform_test.cpp
+    peripherals/ext_int_firmware_test.cpp
+    peripherals/analog_comparator_firmware_test.cpp
+    peripherals/pin_change_firmware_test.cpp
+    peripherals/timer2_async_firmware_test.cpp
+    peripherals/twi_firmware_test.cpp
+    peripherals/i2c_scanner_firmware_test.cpp
     peripherals/at90pwm316_pid_test.cpp
     peripherals/at90pwm_cycle_by_cycle_test.cpp
     peripherals/atmega2560_timers_test.cpp
@@ -133,6 +147,7 @@ set(TEST_SOURCES
     peripherals/wdt_firmware_test.cpp
     peripherals/dac_fidelity_test.cpp
     peripherals/dma_fidelity_test.cpp
+    peripherals/eeprom_firmware_test.cpp
     peripherals/eeprom_fidelity_test.cpp
     peripherals/evsys_fidelity_test.cpp
     peripherals/ext_interrupt_fidelity_test.cpp
@@ -158,9 +173,12 @@ set(TEST_SOURCES
     peripherals/power_clock_fidelity_test.cpp
     peripherals/power_management_test.cpp
     peripherals/power_sleep_firmware_test.cpp
+    peripherals/psc_firmware_test.cpp
     peripherals/psc_fidelity_test.cpp
+    peripherals/signal_tracer_test.cpp
     peripherals/sleep_fidelity_test.cpp
     peripherals/soc_interconnect_test.cpp
+    peripherals/spi_firmware_test.cpp
     peripherals/spi_fidelity_test.cpp
     peripherals/spm_fidelity_test.cpp
     peripherals/spm_test.cpp
@@ -219,5 +237,47 @@ foreach(source IN LISTS TEST_SOURCES)
     endif()
     if (test_name STREQUAL "wdt_firmware_test")
         add_dependencies(${target_name} wdt_test_hex)
+    endif()
+    if (test_name STREQUAL "inverter_atmega328p_firmware_test")
+        add_dependencies(${target_name} atmega328p_inverter_pwm_hex)
+    endif()
+    if (test_name STREQUAL "inverter_psc_firmware_test")
+        add_dependencies(${target_name} inverter_psc_pwm_hex)
+    endif()
+    if (test_name STREQUAL "inverter_atmega16_firmware_test")
+        add_dependencies(${target_name} atmega16_inverter_pwm_hex)
+    endif()
+    if (test_name STREQUAL "atmega8_firmware_test")
+        add_dependencies(${target_name} atmega8_test_hex)
+    endif()
+    if (test_name STREQUAL "atmega808_firmware_test")
+        add_dependencies(${target_name} atmega808_test_hex)
+    endif()
+    if (test_name STREQUAL "ext_int_firmware_test")
+        add_dependencies(${target_name} ext_int_test_hex)
+    endif()
+    if (test_name STREQUAL "analog_comparator_firmware_test")
+        add_dependencies(${target_name} analog_comparator_test_hex)
+    endif()
+    if (test_name STREQUAL "pin_change_firmware_test")
+        add_dependencies(${target_name} pin_change_test_hex)
+    endif()
+    if (test_name STREQUAL "timer2_async_firmware_test")
+        add_dependencies(${target_name} timer2_async_test_hex)
+    endif()
+    if (test_name STREQUAL "twi_firmware_test")
+        add_dependencies(${target_name} twi_eeprom_test_hex)
+    endif()
+    if (test_name STREQUAL "i2c_scanner_firmware_test")
+        add_dependencies(${target_name} i2c_scanner_loopback_hex)
+    endif()
+    if (test_name STREQUAL "eeprom_firmware_test")
+        add_dependencies(${target_name} eeprom_test_hex)
+    endif()
+    if (test_name STREQUAL "spi_firmware_test")
+        add_dependencies(${target_name} spi_test_hex)
+    endif()
+    if (test_name STREQUAL "psc_firmware_test")
+        add_dependencies(${target_name} psc_test_hex)
     endif()
 endforeach()

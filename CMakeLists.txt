@@ -9,6 +9,9 @@ project(
 
 option(VIOAVR_BUILD_TESTS "Build unit tests" ON)
 option(VIOAVR_ENABLE_QT "Build Qt integration layer" OFF)
+option(VIOAVR_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(VIOAVR_ENABLE_COVERAGE "Enable code coverage instrumentation (GCC)" OFF)
+option(VIOAVR_ENABLE_WERROR "Treat compiler warnings as errors" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -55,6 +58,29 @@ endif()
 
 if(PROJECT_IS_TOP_LEVEL)
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+endif()
+
+# Sanitizers
+if(VIOAVR_ENABLE_SANITIZERS)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+endif()
+
+# Coverage
+if(VIOAVR_ENABLE_COVERAGE)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        add_compile_options(--coverage -fno-inline -fno-elide-constructors)
+        add_link_options(--coverage)
+    endif()
+endif()
+
+# Warnings
+if(VIOAVR_ENABLE_WERROR)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror)
+    endif()
 endif()
 
 add_subdirectory(src/core)

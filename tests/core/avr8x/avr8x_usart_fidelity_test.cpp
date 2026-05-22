@@ -91,8 +91,8 @@ TEST_CASE("AVR8X USART - Receiver Fidelity") {
     const auto& desc = uart->descriptor();
     auto drive_bit = [&](bool level) {
         // Use a high-priority owner to drive the pin despite UART claiming it as input
-        machine.pin_mux().claim_pin_by_address(desc.rxd_pin_address, desc.rxd_pin_bit, static_cast<PinOwner>(15));
-        machine.pin_mux().update_pin_by_address(desc.rxd_pin_address, desc.rxd_pin_bit, static_cast<PinOwner>(15), true, level);
+        machine.pin_mux().claim_pin_by_address(desc.rxd_pin_address, desc.rxd_pin_bit, PinOwner::external);
+        machine.pin_mux().update_pin_by_address(desc.rxd_pin_address, desc.rxd_pin_bit, PinOwner::external, true, level);
         bus.tick_peripherals(1667); // Use 1667 to ensure bit-duration (1666.75) is exceeded
     };
 

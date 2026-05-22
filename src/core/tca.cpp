@@ -209,36 +209,37 @@ void Tca::write(u16 address, u8 value) noexcept {
         else if (address == desc_.cmp2_address + 1) cmp2_h() = value;
     } else {
         // Normal (16-bit) mode with TEMP logic
-        if (address == desc_.tcnt_address + 1) temp_ = value;
-        else if (address == desc_.tcnt_address) norm_.tcnt = (static_cast<u16>(temp_) << 8U) | value;
-        else if (address == desc_.period_address + 1) temp_ = value;
-        else if (address == desc_.period_address) norm_.per = (static_cast<u16>(temp_) << 8U) | value;
-        else if (address == desc_.cmp0_address + 1) temp_ = value;
-        else if (address == desc_.cmp0_address) norm_.cmp0 = (static_cast<u16>(temp_) << 8U) | value;
-        else if (address == desc_.cmp1_address + 1) temp_ = value;
-        else if (address == desc_.cmp1_address) norm_.cmp1 = (static_cast<u16>(temp_) << 8U) | value;
-        else if (address == desc_.cmp2_address + 1) temp_ = value;
-        else if (address == desc_.cmp2_address) norm_.cmp2 = (static_cast<u16>(temp_) << 8U) | value;
+        // GCC writes low byte first, then high byte
+        if (address == desc_.tcnt_address) temp_ = value;
+        else if (address == desc_.tcnt_address + 1) norm_.tcnt = (static_cast<u16>(value) << 8U) | temp_;
+        else if (address == desc_.period_address) temp_ = value;
+        else if (address == desc_.period_address + 1) norm_.per = (static_cast<u16>(value) << 8U) | temp_;
+        else if (address == desc_.cmp0_address) temp_ = value;
+        else if (address == desc_.cmp0_address + 1) norm_.cmp0 = (static_cast<u16>(value) << 8U) | temp_;
+        else if (address == desc_.cmp1_address) temp_ = value;
+        else if (address == desc_.cmp1_address + 1) norm_.cmp1 = (static_cast<u16>(value) << 8U) | temp_;
+        else if (address == desc_.cmp2_address) temp_ = value;
+        else if (address == desc_.cmp2_address + 1) norm_.cmp2 = (static_cast<u16>(value) << 8U) | temp_;
         
         // BUF registers
-        else if (address == desc_.perbuf_address + 1) temp_ = value;
-        else if (address == desc_.perbuf_address) {
-            buf_.per = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.perbuf_address) temp_ = value;
+        else if (address == desc_.perbuf_address + 1) {
+            buf_.per = (static_cast<u16>(value) << 8U) | temp_;
             buf_.per_valid = true;
         }
-        else if (address == desc_.cmp0buf_address + 1) temp_ = value;
-        else if (address == desc_.cmp0buf_address) {
-            buf_.cmp0 = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.cmp0buf_address) temp_ = value;
+        else if (address == desc_.cmp0buf_address + 1) {
+            buf_.cmp0 = (static_cast<u16>(value) << 8U) | temp_;
             buf_.cmp0_valid = true;
         }
-        else if (address == desc_.cmp1buf_address + 1) temp_ = value;
-        else if (address == desc_.cmp1buf_address) {
-            buf_.cmp1 = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.cmp1buf_address) temp_ = value;
+        else if (address == desc_.cmp1buf_address + 1) {
+            buf_.cmp1 = (static_cast<u16>(value) << 8U) | temp_;
             buf_.cmp1_valid = true;
         }
-        else if (address == desc_.cmp2buf_address + 1) temp_ = value;
-        else if (address == desc_.cmp2buf_address) {
-            buf_.cmp2 = (static_cast<u16>(temp_) << 8U) | value;
+        else if (address == desc_.cmp2buf_address) temp_ = value;
+        else if (address == desc_.cmp2buf_address + 1) {
+            buf_.cmp2 = (static_cast<u16>(value) << 8U) | temp_;
             buf_.cmp2_valid = true;
         }
     }

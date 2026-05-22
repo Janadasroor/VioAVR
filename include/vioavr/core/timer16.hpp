@@ -58,7 +58,7 @@ private:
     void recalculate_event() noexcept;
     void handle_matches() noexcept;
     void handle_input_capture() noexcept;
-    void update_pwm_pins() noexcept;
+    void update_pwm_pins(bool is_match = false, u8 channel_mask = 0x07) noexcept;
     void update_mode() noexcept;
     void update_pin_ownership() noexcept;
 
