@@ -42,6 +42,7 @@
 #include "vioavr/core/zcd.hpp"
 #include "vioavr/core/lin.hpp"
 #include "vioavr/core/opamp.hpp"
+#include "vioavr/core/ptc.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
 #include "vioavr/core/eusart.hpp"
@@ -513,7 +514,14 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(op));
     }
 
-    // 17. CCL (Moved to end to ensure all other peripherals are on the bus)
+    // 17. PTC (Peripheral Touch Controller)
+    for (u8 i = 0; i < device_.ptc_count; ++i) {
+        auto ptc = std::make_unique<Ptc>(device_.ptcs[i]);
+        bus_->attach_peripheral(*ptc);
+        owned_peripherals_.push_back(std::move(ptc));
+    }
+
+    // 18. CCL (Moved to end to ensure all other peripherals are on the bus)
     if (device_.ccl.ctrla_address != 0) {
         auto c = std::make_unique<Ccl>(device_.ccl);
         c->set_memory_bus(bus_.get());
