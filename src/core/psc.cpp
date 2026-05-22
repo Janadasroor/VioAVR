@@ -61,6 +61,8 @@ void Psc::reset() noexcept {
     last_fault_level_ = false;
     last_fault_level_b_ = false;
     fault_pending_restart_ = false;
+    fault_a_.level = true;
+    fault_b_.level = true;
     fault_a_.blanking_counter = 0;
     fault_b_.blanking_counter = 0;
     last_pulse_a_ = false;
@@ -123,6 +125,8 @@ void Psc::write(u16 address, u8 value) noexcept {
             counter_ = 0;
             down_counting_ = false;
             fault_active_ = false;
+            fault_a_.level = true;
+            fault_b_.level = true;
         } else if (!run) {
             fault_active_ = false;
         }

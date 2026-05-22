@@ -337,8 +337,6 @@ TEST_CASE("AT90PWM316 - PSC Blanking Window") {
     REQUIRE(machine != nullptr);
 
     auto& bus = machine->bus();
-    bus.pin_mux()->register_port(0x23, 0); // Port B
-    bus.pin_mux()->register_port(0x29, 2); // Port D
 
     u16 pctl0 = 0xDB;
     u16 ocrsa0 = 0xD2;
@@ -388,9 +386,7 @@ TEST_CASE("AT90PWM316 - PSC Blanking Window") {
 TEST_CASE("AT90PWM316 - PSC PBFM Modulation") {
     auto machine = Machine::create_for_device("AT90PWM316");
     auto& bus = machine->bus();
-    bus.pin_mux()->register_port(0x23, 0); // Port B
-    bus.pin_mux()->register_port(0x29, 2); // Port D
-
+    
     u16 pctl0 = 0xDB;
     u16 ocrsa0 = 0xD2;
     u16 ocrra0 = 0xD4;
@@ -446,8 +442,7 @@ TEST_CASE("AT90PWM316 - PSC PBFM Modulation") {
 TEST_CASE("AT90PWM316 - EUSART Manchester Fidelity") {
     auto machine = Machine::create_for_device("AT90PWM316");
     auto& bus = machine->bus();
-    bus.pin_mux()->register_port(0x29, 2); // Port D (RXD is PD2, TXD is PD1)
-
+    
     u16 eucsra = 0xC8;
     u16 eucsrb = 0xC9;
     u16 eucsrc = 0xCA;
@@ -506,7 +501,6 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Fidelity") {
 TEST_CASE("AT90PWM316 - PSC High-Resolution 64MHz Fidelity") {
     auto machine = Machine::create_for_device("AT90PWM316");
     auto& bus = machine->bus();
-    bus.pin_mux()->register_port(0x29, 2);
 
     u16 pctl0 = 0xDB;
     u16 pcnf0 = 0xDA;
