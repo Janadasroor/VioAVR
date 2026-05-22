@@ -3,9 +3,9 @@
 
 namespace vioavr::core {
 
-RegisterFile::RegisterFile(AvrCpu& cpu) noexcept 
+RegisterFile::RegisterFile(AvrCpu& cpu, AddressRange range) noexcept 
     : cpu_(cpu), 
-      ranges_({AddressRange{0x0000, 0x001F}}) 
+      ranges_({range}) 
 {}
 
 std::string_view RegisterFile::name() const noexcept
@@ -20,7 +20,6 @@ std::span<const AddressRange> RegisterFile::mapped_ranges() const noexcept
 
 void RegisterFile::reset() noexcept
 {
-    // Reset handled by AvrCpu
 }
 
 void RegisterFile::tick(const u64 elapsed_cycles) noexcept
@@ -30,17 +29,19 @@ void RegisterFile::tick(const u64 elapsed_cycles) noexcept
 
 u8 RegisterFile::read(const u16 address) noexcept
 {
-    if (address < kRegisterFileSize) {
-        return cpu_.registers()[address];
+    auto range = ranges_[0];
+    if (address >= range.begin && address <= range.end) {
+        return cpu_.registers()[address - range.begin];
     }
     return 0U;
 }
 
 void RegisterFile::write(const u16 address, const u8 value) noexcept
 {
-    if (address < kRegisterFileSize) {
-        cpu_.write_register(static_cast<u8>(address), value);
+    auto range = ranges_[0];
+    if (address >= range.begin && address <= range.end) {
+        cpu_.write_register(static_cast<u8>(address - range.begin), value);
     }
 }
 
-}  // namespace vioavr::core
+} // namespace vioavr::core

@@ -56,7 +56,7 @@ GpioPort::GpioPort(const PortDescriptor& desc, PinMux& pin_mux) noexcept
         AddressRange prev = {0xFFFF, 0xFFFF};
         size_t ri = 0;
         for (u16 addr : addrs) {
-            if (addr == 0) continue;
+            if (addr == 0 && desc_.vport_base != 0) continue;
             
             // Register address in PinMux so claim_pin_by_address works
             pin_mux_->register_port(addr, port_idx_);

@@ -18,7 +18,7 @@ namespace vioavr::core {
 AvrCpu::AvrCpu(MemoryBus& bus) noexcept 
     : bus_(&bus), 
       control_regs_(std::make_unique<CpuControl>(*this, bus.device())),
-      register_file_(std::make_unique<RegisterFile>(*this))
+      register_file_(std::make_unique<RegisterFile>(*this, bus.device().register_file_range))
 {
     if (bus_ != nullptr) {
         bus_->attach_peripheral(*control_regs_);
