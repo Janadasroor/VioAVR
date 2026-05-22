@@ -130,6 +130,8 @@ set(TEST_SOURCES
     peripherals/evsys_fidelity_test.cpp
     peripherals/ext_interrupt_fidelity_test.cpp
     peripherals/fetch_metadata_test.cpp
+    peripherals/fuse_fidelity_test.cpp
+    peripherals/cfd_fidelity_test.cpp
     peripherals/gpio_fidelity_test.cpp
     peripherals/input_pin_fidelity_test.cpp
     peripherals/integration_stress_runner.cpp

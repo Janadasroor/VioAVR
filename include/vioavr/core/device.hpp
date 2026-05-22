@@ -769,6 +769,11 @@ struct OpampDescriptor {
     u8 out_pin_bit {0xFFU};
 };
 
+struct CfdDescriptor {
+    u16 xfdcsr_address {0U};
+    u8 vector_index {0U};
+};
+
 struct PtcDescriptor {
     u16 base_address {0U};
     u8 eoc_vector_index {0U};
@@ -1213,6 +1218,9 @@ struct DeviceDescriptor {
 
     u8 opamp_count {0U};
     std::array<OpampDescriptor, 3> opamps {};
+
+    u8 cfd_count {0U};
+    std::array<CfdDescriptor, 1> cfds {};
 
     u8 ptc_count {0U};
     std::array<PtcDescriptor, 1> ptcs {};
