@@ -62,7 +62,7 @@ TEST_CASE("System Integration Stress Test") {
             u64 now = machine.cpu().cycles();
             u32 d = static_cast<u32>(now - last_cycles);
             
-            if (machine.pin_mux().get_state(0, 1).drive_level) {
+            if (machine.pin_mux().get_state(1, 1).drive_level) {
                 pwm_high_counts += d;
             } else {
                 pwm_low_counts += d;

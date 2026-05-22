@@ -53,11 +53,27 @@
 
 namespace vioavr::core {
 
+// Compute the number of PinMux port slots needed: must cover the highest
+// port name letter (e.g. PORTJ → idx 9) since port_count may be smaller.
+static u8 compute_pin_mux_port_count(const DeviceDescriptor& device) noexcept
+{
+    u8 max_idx = 0;
+    for (u8 i = 0; i < device.port_count; ++i) {
+        const auto& p = device.ports[i];
+        if (p.name.size() >= 5) {
+            u8 idx = static_cast<u8>(p.name[4] - 'A');
+            if (idx > max_idx) max_idx = idx;
+        }
+    }
+    u8 needed = static_cast<u8>(max_idx + 1);
+    return (needed > device.port_count) ? needed : device.port_count;
+}
+
 Machine::Machine(const DeviceDescriptor& device)
     : device_(device),
       bus_(std::make_unique<MemoryBus>(device)),
       cpu_(std::make_unique<AvrCpu>(*bus_)),
-      pin_mux_(std::make_unique<PinMux>(device.port_count))
+      pin_mux_(std::make_unique<PinMux>(compute_pin_mux_port_count(device)))
 {
     bus_->set_pin_mux(pin_mux_.get());
     pin_mux_->set_memory_bus(bus_.get());
