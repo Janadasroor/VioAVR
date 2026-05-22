@@ -16,19 +16,16 @@ TEST_CASE("External blinky firmware - PORTB5 toggling") {
 
     std::string hex_path = "tests/blinky.hex";
     if (!std::filesystem::exists(hex_path)) {
-        hex_path = "../tests/blinky.hex";
+        hex_path = "../blinky.hex";
     }
     if (!std::filesystem::exists(hex_path)) {
-        hex_path = "../../tests/blinky.hex";
-    }
-    if (!std::filesystem::exists(hex_path)) {
-        hex_path = "../../../tests/blinky.hex";
+        hex_path = "../../blinky.hex";
     }
     if (!std::filesystem::exists(hex_path)) {
         hex_path = "build/tests/blinky.hex";
     }
     if (!std::filesystem::exists(hex_path)) {
-        FAIL("blinky.hex not found");
+        FAIL("blinky.hex not found. Run 'make blinky_hex' first.");
     }
 
     auto image = HexImageLoader::load_file(hex_path, machine->bus().device());
