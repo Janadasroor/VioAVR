@@ -547,6 +547,20 @@ struct TcbDescriptor {
     u8 capt_generator_id {};
 };
 
+struct TcdDescriptor {
+    u16 base_address {0U};
+    u8 ovf_vector_index {0U};
+    u8 trig_vector_index {0U};
+    u8 woa_pin_address {0U};
+    u8 woa_pin_bit {0xFFU};
+    u8 wob_pin_address {0U};
+    u8 wob_pin_bit {0xFFU};
+    u8 woc_pin_address {0U};
+    u8 woc_pin_bit {0xFFU};
+    u8 wod_pin_address {0U};
+    u8 wod_pin_bit {0xFFU};
+};
+
 struct RtcDescriptor {
     u16 ctrla_address {};
     u16 status_address {};
@@ -1091,6 +1105,9 @@ struct DeviceDescriptor {
 
     u8 tcb_count {0U};
     std::array<TcbDescriptor, 4> timers_tcb {};
+
+    u8 tcd_count {0U};
+    std::array<TcdDescriptor, 1> timers_tcd {};
 
     u8 rtc_count {0U};
     std::array<RtcDescriptor, 1> timers_rtc {};

@@ -43,6 +43,7 @@
 #include "vioavr/core/lin.hpp"
 #include "vioavr/core/opamp.hpp"
 #include "vioavr/core/ptc.hpp"
+#include "vioavr/core/tcd.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
 #include "vioavr/core/eusart.hpp"
@@ -519,6 +520,13 @@ void Machine::initialize_peripherals()
         auto ptc = std::make_unique<Ptc>(device_.ptcs[i]);
         bus_->attach_peripheral(*ptc);
         owned_peripherals_.push_back(std::move(ptc));
+    }
+
+    // TCD (Timer/Counter Type D)
+    for (u8 i = 0; i < device_.tcd_count; ++i) {
+        auto tcd = std::make_unique<Tcd>(device_.timers_tcd[i]);
+        bus_->attach_peripheral(*tcd);
+        owned_peripherals_.push_back(std::move(tcd));
     }
 
     // 18. CCL (Moved to end to ensure all other peripherals are on the bus)
