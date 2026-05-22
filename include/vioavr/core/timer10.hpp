@@ -66,7 +66,7 @@ private:
     MemoryBus* bus_ {};
     Adc* adc_ {};
 
-    u32 cycle_accumulator_ {0};
+    u64 cycle_accumulator_ {0};
     bool pll_enabled_ {false};
     u32 pck_frequency_ {64000000}; 
     u32 clock_ratio_ {1}; 

@@ -30,6 +30,7 @@ public:
     [[nodiscard]] const std::vector<u8>& tx_buffer() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
     [[nodiscard]] bool check_twi_address(u8 address) const noexcept override;
+    void on_twi_match(u8 address) noexcept override;
 
 private:
     void complete_step() noexcept;

@@ -239,7 +239,9 @@ bool Adc8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
 
 bool Adc8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
-        return true; 
+        intflags_ = 0;
+        update_interrupt_state();
+        return true;
     }
     return false;
 }
@@ -292,7 +294,7 @@ void Adc8x::complete_conversion() noexcept {
     }
 
     // Calculate 10-bit result
-    u32 raw_result = static_cast<u32>((input_voltage / vref) * 1023.0);
+    u32 raw_result = static_cast<u32>((input_voltage / vref) * 1024.0);
     if (raw_result > 1023) raw_result = 1023;
 
     // Handle Resolution (RESSEL)
@@ -324,6 +326,11 @@ void Adc8x::process_sample_result(u16 result) noexcept {
     if (evsys_ && desc_.resrd_generator_id != 0) {
         evsys_->trigger_event(desc_.resrd_generator_id);
     }
+}
+
+void Adc8x::update_interrupt_state() noexcept {
+    InterruptRequest req;
+    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 } // namespace vioavr::core

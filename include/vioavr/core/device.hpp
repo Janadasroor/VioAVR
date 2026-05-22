@@ -672,6 +672,7 @@ struct UsbDescriptor {
     u8 gen_vector_index {};
     u8 com_vector_index {};
     u16 pllcsr_address {};
+    u32 usb_pll_frequency_hz {48000000U}; // Standard USB PLL: 48MHz
     
     // Bitmasks
     u8 usbcon_usbe_mask {0x80U};

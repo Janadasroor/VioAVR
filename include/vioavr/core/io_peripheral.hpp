@@ -88,6 +88,11 @@ public:
         return false;
     }
 
+    virtual void on_twi_match(u8 address) noexcept
+    {
+        (void)address;
+    }
+
     [[nodiscard]] virtual bool supports_interrupt_mask() const noexcept { return false; }
 
 protected:

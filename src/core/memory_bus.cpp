@@ -587,9 +587,10 @@ void MemoryBus::on_reti() noexcept {
     }
 }
 
-bool MemoryBus::twi_broadcast(u8 address) const noexcept {
-    for (const auto* peripheral : peripherals_) {
+bool MemoryBus::twi_broadcast(u8 address) noexcept {
+    for (auto* peripheral : peripherals_) {
         if (peripheral != nullptr && peripheral->check_twi_address(address)) {
+            peripheral->on_twi_match(address);
             return true;
         }
     }

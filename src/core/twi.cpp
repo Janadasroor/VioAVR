@@ -161,7 +161,7 @@ void Twi::complete_step() noexcept
         mode_ = Mode::idle;
         twsr_ = kStatusNoInfo;
         twcr_ &= ~desc_.twsto_mask;
-        return; // STOP does not set TWINT
+        // Fall through to set TWINT (interrupt_pending_)
     } else {
         // Normal data/addr transfer
         switch (mode_) {
@@ -183,6 +183,8 @@ void Twi::complete_step() noexcept
     }
     
     interrupt_pending_ = true;
+    // Clock stretching is inherent: SCL is held low while interrupt_pending_ is set.
+    // The master cannot proceed until the CPU clears TWINT, which releases SCL.
     update_interrupt_state();
 }
 
@@ -215,10 +217,32 @@ void Twi::handle_master_step() noexcept
     }
 }
 
+void Twi::on_twi_match(u8 address) noexcept
+{
+    if (address & 0x01U) {
+        mode_ = Mode::slave_tx;
+        twsr_ = kStatusSlaveTxAddrAck;
+    } else {
+        mode_ = Mode::slave_rx;
+        twsr_ = (address == 0) ? kStatusSlaveRxGenAck : kStatusSlaveRxAddrAck;
+    }
+    sla_matched_ = true;
+    general_call_matched_ = (address == 0);
+    interrupt_pending_ = true;
+    update_interrupt_state();
+}
+
 void Twi::handle_slave_step() noexcept
 {
-    // Slave mode logic using TWAR and TWAMR
-    // Twi::check_slave_address is called by the bus simulation to addressed us
+    if (mode_ == Mode::slave_rx) {
+        tx_buffer_.push_back(twdr_);
+        twsr_ = kStatusSlaveRxDataAck;
+    } else if (mode_ == Mode::slave_tx) {
+        if (rx_idx_ < rx_buffer_.size()) {
+            twdr_ = rx_buffer_[rx_idx_++];
+        }
+        twsr_ = kStatusSlaveTxDataAck;
+    }
 }
 
 bool Twi::check_twi_address(u8 address) const noexcept

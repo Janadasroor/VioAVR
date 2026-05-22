@@ -311,7 +311,6 @@ void Timer8::update_mode() noexcept
 
 void Timer8::perform_tick() noexcept
 {
-    if (tcnt_ == 0) printf("Timer8 %s: tick tcnt=0\n", name_.c_str());
     const u8 top = get_top();
     const bool is_phase_correct = (mode_ == Mode::pc_pwm_ff || mode_ == Mode::pc_pwm_ocra);
     const bool is_fast_pwm = (mode_ == Mode::fast_pwm_ff || mode_ == Mode::fast_pwm_ocra);

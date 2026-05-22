@@ -20,7 +20,7 @@ TEST_CASE("AVR8X CCL + EVSYS Fidelity: AC0 -> EVSYS -> CCL -> EVSYS -> TCB0") {
     // AC0 Generator ID = 32 (0x20)
     // Positive Input = 0 (AIN0), Negative Input = 3 (DACREF)
     // DACREF = 0x80 (approx 0.5 * VDD)
-    bus.write_data(0x0680, 0x01); // AC0 CTRLA: ENABLE=1
+    bus.write_data(0x0680, 0x41); // AC0 CTRLA: ENABLE=1, OUTEN=1
     bus.write_data(0x0682, 0x03); // AC0 MUXCTRLA: POS=AIN0, NEG=DACREF
     bus.write_data(0x0684, 0x80); // AC0 DACREF: DACREF=0x80
     

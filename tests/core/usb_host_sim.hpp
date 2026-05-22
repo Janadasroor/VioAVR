@@ -30,8 +30,16 @@ public:
     }
 
     void send_out_packet(u8 ep_idx, std::span<const u8> data) {
-        usb_.simulate_out_packet(ep_idx, data);
+        bool data1_pid = ep_toggle_[ep_idx];
+        usb_.simulate_out_packet(ep_idx, data1_pid, data);
+        ep_toggle_[ep_idx] = !ep_toggle_[ep_idx];
     }
+
+    void reset_toggle(u8 ep_idx) {
+        ep_toggle_[ep_idx] = false;
+    }
+
+    std::array<bool, 7> ep_toggle_ {};
 
 private:
     Usb& usb_;

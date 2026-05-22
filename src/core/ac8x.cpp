@@ -51,7 +51,7 @@ void Ac8x::reset() noexcept {
     status_ = 0;
     pending_state_ = false;
     settle_counter_ = 0;
-    vref_ = 5.0;
+    vref_ = vdd_;
 }
 
 u8 Ac8x::read(u16 address) noexcept {
@@ -81,7 +81,7 @@ void Ac8x::write(u16 address, u8 value) noexcept {
 }
 
 void Ac8x::evaluate() noexcept {
-    double p_volts = 0.5;
+    double p_volts = 0.0;
     double n_volts = 0.0;
 
     if (signal_bank_) {

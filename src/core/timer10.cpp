@@ -68,8 +68,8 @@ void Timer10::tick(u64 elapsed_cycles) noexcept {
     if (cs <= 5) {
         static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
         const u16 divisor = prescalers[cs];
-        cycle_accumulator_ += static_cast<u32>(timer_ticks);
-        u32 ticks = cycle_accumulator_ / divisor;
+        cycle_accumulator_ += timer_ticks;
+        u64 ticks = cycle_accumulator_ / divisor;
         cycle_accumulator_ %= divisor;
         for (u32 i = 0; i < ticks; ++i) {
             perform_tick();
