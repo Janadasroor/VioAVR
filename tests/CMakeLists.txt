@@ -22,8 +22,8 @@ if(AVR_GCC AND AVR_OBJCOPY)
             set(TEST_MCU "atmega4809")
             # Point to DFP if not in standard gcc paths
             # Note: -B specifies where to find specs and crt files
-            list(APPEND EXTRA_FLAGS "-B${CMAKE_SOURCE_DIR}/atmega/gcc/dev/atmega4809")
-            list(APPEND EXTRA_FLAGS "-I${CMAKE_SOURCE_DIR}/atmega/include")
+            list(APPEND EXTRA_FLAGS "-B${ATMEGA_DFP_DIR}/gcc/dev/atmega4809")
+            list(APPEND EXTRA_FLAGS "-I${ATMEGA_DFP_DIR}/include")
         endif()
 
         # Detect AT90PWM tests

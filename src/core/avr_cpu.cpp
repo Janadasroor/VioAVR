@@ -177,8 +177,9 @@ void AvrCpu::run(const u64 cycle_budget)
         instruction.word_address = program_counter_;
         instruction.words[0] = opcode;
         
-        // Optimize 32-bit instruction fetch
-        if (descriptor.mask == 0xFE0EU || descriptor.mask == 0xFE0FU) {
+        // Optimize 32-bit instruction fetch: JMP (0x940C), CALL (0x940E), LDS (0x9000), STS (0x9200)
+        if ((opcode & 0xFE0EU) == 0x940CU || (opcode & 0xFE0EU) == 0x940EU ||
+            (opcode & 0xFE0FU) == 0x9000U || (opcode & 0xFE0FU) == 0x9200U) {
              instruction.word_size = 2U;
              if (program_counter_ + 1U < flash_size) {
                  instruction.words[1] = flash[program_counter_ + 1U];
@@ -502,9 +503,9 @@ void AvrCpu::step()
         instruction.word_address = program_counter_;
         instruction.words[0] = opcode;
         
-        // Check for 32-bit instructions: JMP, CALL, LDS, STS
-        // Masks: 0xFE0EU (JMP/CALL), 0xFE0FU (LDS/STS)
-        if (descriptor.mask == 0xFE0EU || descriptor.mask == 0xFE0FU) {
+        // Check for 32-bit instructions: JMP (0x940C), CALL (0x940E), LDS (0x9000), STS (0x9200)
+        if ((opcode & 0xFE0EU) == 0x940CU || (opcode & 0xFE0EU) == 0x940EU ||
+            (opcode & 0xFE0FU) == 0x9000U || (opcode & 0xFE0FU) == 0x9200U) {
              instruction.word_size = 2U;
              instruction.words[1] = static_cast<u16>(bus_->read_program_word(program_counter_ + 1U));
         } else {

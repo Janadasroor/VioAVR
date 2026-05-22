@@ -80,6 +80,8 @@ private:
         bool data_toggle {false};
     };
 
+    static bool is_in_endpoint(const Endpoint& ep) noexcept;
+
     std::string name_;
     UsbDescriptor desc_;
     MemoryBus* bus_ {};

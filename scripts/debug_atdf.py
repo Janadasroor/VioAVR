@@ -1,8 +1,9 @@
-import sys, json
+import sys, json, os
 from pathlib import Path
 from atdf_export import parse_atdf
 
-atdf_path = "atmega/atdf/ATmega328P.atdf"
+dfp_dir = os.environ.get("ATMEGA_DFP_DIR", "build/_deps/atmega_dfp-src")
+atdf_path = Path(dfp_dir) / "atdf" / "ATmega328P.atdf"
 data = parse_atdf(atdf_path)
 
 # Debug CPU registers
