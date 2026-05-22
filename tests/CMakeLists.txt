@@ -31,6 +31,23 @@ if(AVR_GCC AND AVR_OBJCOPY)
             set(TEST_MCU "at90pwm316")
         endif()
 
+        # Detect ATmega16 tests
+        if(name MATCHES "^atmega16_" OR name MATCHES "^atmega16$")
+            set(TEST_MCU "atmega16")
+        endif()
+
+        # Detect ATmega8 tests
+        if(name MATCHES "^atmega8_" OR name MATCHES "^atmega8$")
+            set(TEST_MCU "atmega8")
+        endif()
+
+        # Detect ATmega808 tests
+        if(name MATCHES "^atmega808_" OR name MATCHES "^atmega808$")
+            set(TEST_MCU "atmega808")
+            list(APPEND EXTRA_FLAGS "-B${ATMEGA_DFP_DIR}/gcc/dev/atmega808")
+            list(APPEND EXTRA_FLAGS "-I${ATMEGA_DFP_DIR}/include")
+        endif()
+
         add_custom_command(
             OUTPUT ${elf_file}
             COMMAND ${AVR_GCC} -mmcu=${TEST_MCU} ${EXTRA_FLAGS} -Os -DF_CPU=${AVR_F_CPU} -o ${elf_file} ${source}

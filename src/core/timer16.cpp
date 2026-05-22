@@ -10,6 +10,10 @@
 
 namespace vioavr::core {
 
+static constexpr u8 CH_A = 0x01;
+static constexpr u8 CH_B = 0x02;
+static constexpr u8 CH_C = 0x04;
+
 namespace {
 static void timer16_callback(u64 cycle, void* param) {
     static_cast<Timer16*>(param)->on_event(cycle);
@@ -167,6 +171,7 @@ void Timer16::perform_tick() noexcept {
         case 10: top = icr_; is_phase_correct = true; update_ocr_at_top = true; break;
         case 11: top = ocra_; is_phase_correct = true; update_ocr_at_top = true; break;
         case 12: top = icr_; break;
+        case 13: top = ocra_; update_ocr_at_top = true; break;
         case 14: top = icr_; update_ocr_at_top = true; break;
         case 15: top = ocra_; update_ocr_at_top = true; break;
     }
@@ -199,7 +204,7 @@ void Timer16::perform_tick() noexcept {
             tifr_ |= kTov1;
             if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocr_loaded_this_tick = true; }
             for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.overflow_trigger_source);
-            update_pwm_pins(); // Set pin HIGH at BOTTOM for Fast PWM non-inverting (COM=2)
+            update_pwm_pins(false); // Set pin HIGH at BOTTOM for Fast PWM non-inverting (COM=2)
         } else {
             tcnt_++;
         }
@@ -209,17 +214,17 @@ void Timer16::perform_tick() noexcept {
     if (!ocr_loaded_this_tick) {
     if (tcnt_ == ocra_) {
         tifr_ |= kOcf1a;
-        update_pwm_pins();
+        update_pwm_pins(true);
         for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.compare_a_trigger_source);
     }
     if (tcnt_ == ocrb_) {
         tifr_ |= kOcf1b;
-        update_pwm_pins();
+        update_pwm_pins(true);
         for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.compare_b_trigger_source);
     }
     if (tcnt_ == ocrc_ && desc_.ocrc_address != 0) {
         tifr_ |= kOcf1c;
-        update_pwm_pins();
+        update_pwm_pins(true);
         for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.compare_c_trigger_source);
     }
     }
@@ -280,7 +285,7 @@ u8 Timer16::read(u16 address) noexcept {
     if (address == desc_.icr_address + 1) return temp_;
     if (address == desc_.tccra_address) return tccra_;
     if (address == desc_.tccrb_address) return tccrb_;
-    if (address == desc_.tccrc_address) return tccrc_;
+    if (address == desc_.tccrc_address) return tccrc_ & ~(desc_.foca_mask | desc_.focb_mask | desc_.focc_mask);
     if (address == desc_.timsk_address) return timsk_;
     if (address == desc_.tifr_address) return tifr_;
     return 0;
@@ -290,7 +295,16 @@ void Timer16::write(u16 address, u8 value) noexcept {
     sync();
     if (address == desc_.tccra_address) { tccra_ = value; update_pin_ownership(); }
     else if (address == desc_.tccrb_address) { tccrb_ = value; update_pin_ownership(); }
-    else if (address == desc_.tccrc_address) { tccrc_ = value; }
+    else if (address == desc_.tccrc_address) {
+        tccrc_ = value;
+        u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
+        bool is_non_pwm = (wgm == 0 || wgm == 4 || wgm == 12);
+        if (is_non_pwm) {
+            if (value & desc_.foca_mask) update_pwm_pins(true, CH_A);
+            if (value & desc_.focb_mask) update_pwm_pins(true, CH_B);
+            if (value & desc_.focc_mask) update_pwm_pins(true, CH_C);
+        }
+    }
     else if (address == desc_.tcnt_address + 1) { temp_ = value; }
     else if (address == desc_.tcnt_address) { 
         tcnt_ = (static_cast<u16>(temp_) << 8) | value; 
@@ -392,27 +406,53 @@ void Timer16::update_pin_ownership() noexcept {
     update_ownership(pin_c_, (tccra_ >> 2) & 0x03);
 }
 
-void Timer16::update_pwm_pins() noexcept {
+void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
     if (!pin_mux_) return;
     u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
-    bool is_phase_correct = (wgm == 1 || wgm == 2 || wgm == 3 || wgm == 8 || wgm == 9 || wgm == 10 || wgm == 11);
+    bool is_phase_correct = (wgm >= 1 && wgm <= 3) || (wgm >= 8 && wgm <= 11);
+    bool is_non_pwm = (wgm == 0 || wgm == 4 || wgm == 12);
+    bool is_fast_pwm = (wgm >= 5 && wgm <= 7) || (wgm >= 13 && wgm <= 15);
+    bool com1_toggles = is_non_pwm
+        || (wgm == 9 || wgm == 11)
+        || (wgm == 14 || wgm == 15);
 
-    auto update = [&](const std::optional<BoundPin>& pin, u8 com, u16 ocr) {
+    auto update_pin = [&](const std::optional<BoundPin>& pin, u8 com, u16 ocr) {
         if (!pin || com == 0) return;
-        bool level = false;
-        if (is_phase_correct) {
-            if (com == 2) level = (tcnt_ < ocr) || (!counting_up_ && tcnt_ == ocr);
-            else if (com == 3) level = (tcnt_ > ocr) || (counting_up_ && tcnt_ == ocr);
-        } else {
-            // Fast PWM logic
-            if (com == 2) level = (tcnt_ < ocr);
-            else if (com == 3) level = (tcnt_ >= ocr);
+
+        if (is_non_pwm) {
+            if (!is_match) return;
+            if (com == 1) {
+                auto state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
+                pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, !state.drive_level);
+            } else if (com == 2) {
+                pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, false);
+            } else if (com == 3) {
+                pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, true);
+            }
+            return;
         }
-        pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, level);
+
+        if (com == 1) {
+            if (com1_toggles && is_match) {
+                auto state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
+                pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, !state.drive_level);
+            }
+            return;
+        }
+
+        if (is_phase_correct) {
+            bool level = (com == 2)
+                ? (tcnt_ < ocr) || (!counting_up_ && tcnt_ == ocr)
+                : (tcnt_ > ocr) || (counting_up_ && tcnt_ == ocr);
+            pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, level);
+        } else {
+            bool level = (com == 2) ? (tcnt_ < ocr) : (tcnt_ >= ocr);
+            pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, level);
+        }
     };
-    update(pin_a_, (tccra_ >> 6) & 0x03, ocra_);
-    update(pin_b_, (tccra_ >> 4) & 0x03, ocrb_);
-    update(pin_c_, (tccra_ >> 2) & 0x03, ocrc_);
+    if (channel_mask & CH_A) update_pin(pin_a_, (tccra_ >> 6) & 0x03, ocra_);
+    if (channel_mask & CH_B) update_pin(pin_b_, (tccra_ >> 4) & 0x03, ocrb_);
+    if (channel_mask & CH_C) update_pin(pin_c_, (tccra_ >> 2) & 0x03, ocrc_);
 }
 
 bool Timer16::pending_interrupt_request(InterruptRequest& request) const noexcept {

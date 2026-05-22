@@ -469,11 +469,24 @@ void Psc::update_outputs() noexcept {
         }
     }
 
+    // Apply POM Output Matrix routing for PSC2.
+    // POM2 register (0xF1): POMV2A (bits 3:0) selects which ramp drives OutA/OutB,
+    // POMV2B (bits 7:4) selects which ramp drives OutC/OutD.
+    // POME2 (bit 0 of PCNF2) must be set to enable the output matrix.
+    bool phys_a = output_a_, phys_b = output_b_;
+    bool phys_c = output_c_, phys_d = output_d_;
+    if (desc_.psc_index == 2 && (pconf_ & 0x01)) {
+        (void)phys_a; (void)phys_b; (void)phys_c; (void)phys_d;
+        // TODO: implement full ramp-select mux when four-ramp mode is supported.
+        // For single-ramp mode all ramps produce the same signal, so POM routing
+        // is a no-op.  The current code just passes through the default signals.
+    }
+
     // Update physical pins only if enabled in PSOC
     if (pin_mux_ && desc_.outa_pin_address) {
         if (psoc_ & 0x01) {
             pin_mux_->claim_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
-            pin_mux_->update_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc, true, output_a_);
+            pin_mux_->update_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc, true, phys_a);
         } else {
             pin_mux_->release_pin_by_address(desc_.outa_pin_address, desc_.outa_pin_bit, PinOwner::psc);
         }
@@ -481,7 +494,7 @@ void Psc::update_outputs() noexcept {
     if (pin_mux_ && desc_.outb_pin_address) {
         if (psoc_ & 0x04) {
             pin_mux_->claim_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
-            pin_mux_->update_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc, true, output_b_);
+            pin_mux_->update_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc, true, phys_b);
         } else {
             pin_mux_->release_pin_by_address(desc_.outb_pin_address, desc_.outb_pin_bit, PinOwner::psc);
         }
@@ -489,7 +502,7 @@ void Psc::update_outputs() noexcept {
     if (pin_mux_ && desc_.outc_pin_address) {
         if (psoc_ & 0x02) {
             pin_mux_->claim_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
-            pin_mux_->update_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc, true, output_c_); 
+            pin_mux_->update_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc, true, phys_c); 
         } else {
             pin_mux_->release_pin_by_address(desc_.outc_pin_address, desc_.outc_pin_bit, PinOwner::psc);
         }
@@ -497,7 +510,7 @@ void Psc::update_outputs() noexcept {
     if (pin_mux_ && desc_.outd_pin_address) {
         if (psoc_ & 0x08) {
             pin_mux_->claim_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc);
-            pin_mux_->update_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc, true, output_d_);
+            pin_mux_->update_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc, true, phys_d);
         } else {
             pin_mux_->release_pin_by_address(desc_.outd_pin_address, desc_.outd_pin_bit, PinOwner::psc);
         }

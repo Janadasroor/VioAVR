@@ -35,7 +35,26 @@ enum class PinOwner : u8 {
  * @brief Returns the priority of a pin owner. Higher is stronger.
  */
 [[nodiscard]] constexpr u8 get_pin_priority(PinOwner owner) noexcept {
-    return static_cast<u8>(owner);
+    switch (owner) {
+        case PinOwner::reset: return 100;
+        case PinOwner::jtag: return 95;
+        case PinOwner::external_clock: return 85;
+        case PinOwner::external: return 90;
+        case PinOwner::psc: return 80;
+        case PinOwner::spi: return 70;
+        case PinOwner::uart: return 60;
+        case PinOwner::twi: return 55;
+        case PinOwner::timer: return 50;
+        case PinOwner::ccl: return 45;
+        case PinOwner::amplifier: return 40;
+        case PinOwner::comparator: return 35;
+        case PinOwner::adc: return 30;
+        case PinOwner::dac: return 30;
+        case PinOwner::lcd: return 25;
+        case PinOwner::gpio: return 10;
+        default: return 0;
+    }
+    return 0;
 }
 
 /**

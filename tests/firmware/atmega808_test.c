@@ -1,0 +1,16 @@
+#include <avr/io.h>
+
+int main(void)
+{
+    PORTA_DIR = PIN0_bm;
+
+    TCA0_SINGLE_CTRLA = TCA_SINGLE_ENABLE_bm | TCA_SINGLE_CLKSEL_DIV1_gc;
+
+    TCA0_SINGLE_CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc | TCA_SINGLE_CMP0EN_bm;
+
+    TCA0_SINGLE_PER = 500;
+
+    TCA0_SINGLE_CMP0 = 250;
+
+    for (;;) { }
+}
