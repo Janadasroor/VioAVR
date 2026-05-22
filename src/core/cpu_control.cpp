@@ -25,6 +25,7 @@ CpuControl::CpuControl(AvrCpu& cpu, const DeviceDescriptor& desc) noexcept
             ranges_.push_back(AddressRange{desc.mcucr_address, desc.mcucr_address});
         }
     }
+    if (desc.mcusr_address != 0U) ranges_.push_back({desc.mcusr_address, desc.mcusr_address});
     if (desc.rampz_address != 0U) ranges_.push_back({desc.rampz_address, desc.rampz_address});
     if (desc.eind_address != 0U) ranges_.push_back({desc.eind_address, desc.eind_address});
     if (desc.ccp_address != 0U) ranges_.push_back({desc.ccp_address, desc.ccp_address});

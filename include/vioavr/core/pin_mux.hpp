@@ -110,6 +110,8 @@ private:
         u32 output_mask {0}; // Bitmask of who wants to be an output
         u32 pullup_mask {0}; // Bitmask of who wants pullup
         u32 wired_and_mask {0}; // Bitmask of who wants wired-and
+        u32 last_claims_for_owner_ {0}; // Cached: active_claims at last owner scan
+        u8 cached_owner_ {0}; // Cached: highest-priority owner index
     };
 
     std::vector<std::vector<PinEntry>> ports_;

@@ -265,6 +265,7 @@ private:
     bool in_rmw_ {false};
     bool interrupts_dirty_ {true};
     u8 current_active_domains_ {0xFFU};
+    mutable u64 last_catch_up_cycle_ {};
     void catch_up_all_peripherals(u64 target_cycle) const noexcept;
     EventScheduler scheduler_;
 };
