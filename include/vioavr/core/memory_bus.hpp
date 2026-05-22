@@ -166,7 +166,7 @@ public:
     void notify_interrupt_state_change(IoPeripheral* peripheral, bool pending) noexcept;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) noexcept;
     void on_reti() noexcept;
-    [[nodiscard]] bool twi_broadcast(u8 address) const noexcept;
+    [[nodiscard]] bool twi_broadcast(u8 address) noexcept;
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
     [[nodiscard]] bool should_stall_cpu(u32 pc_word) const noexcept;

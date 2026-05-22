@@ -298,7 +298,7 @@ Adc::MuxMapping Adc::resolve_mux() const noexcept {
     }
 
     // Default to single ended if unknown or unconfigured
-    return { static_cast<u8>(mux & 0x0FU), 0, 1.0f, false };
+    return { static_cast<u8>(mux & 0x3FU), 0, 1.0f, false };
 }
 
 void Adc::update_pin_ownership() noexcept {

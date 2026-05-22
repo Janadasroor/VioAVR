@@ -118,11 +118,13 @@ TEST_CASE("SPI Peripheral Functional Test")
         CHECK_FALSE(spi.busy()); // Should not be busy in slave mode just from SPDR write
         
         spi.inject_miso_byte(0x55);
-        spi.trigger_slave_transfer(); // Host triggers the clock
+        spi.trigger_slave_transfer(2); // Host triggers the clock, 2 CPU cycles per SCK bit
         
         CHECK(spi.busy());
         
-        // Advance 1 cycle (as implemented in trigger_slave_transfer)
+        // 8 SCK bits × 2 cycles/bit = 16 cycles total
+        bus.tick_peripherals(15);
+        CHECK(spi.busy());
         bus.tick_peripherals(1);
         
         CHECK_FALSE(spi.busy());

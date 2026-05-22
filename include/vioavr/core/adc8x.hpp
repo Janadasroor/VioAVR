@@ -46,6 +46,7 @@ private:
     void start_conversion() noexcept;
     void complete_conversion() noexcept;
     void process_sample_result(u16 result) noexcept;
+    void update_interrupt_state() noexcept;
 
     Adc8xDescriptor desc_;
     MemoryBus* bus_ {};

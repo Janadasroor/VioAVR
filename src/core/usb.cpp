@@ -37,13 +37,9 @@ void Usb::reset() noexcept {
     uerst_ = 0;
     ueint_ = 0;
     cycle_accumulator_ = 0;
+    frame_number_ = 0;
     
-    // SOF Timing: Trigger every 1ms relative to I/O clock
-    if (bus_) {
-        frame_cycles_ = bus_->device().cpu_frequency_hz / 1000;
-    } else {
-        frame_cycles_ = 16000; // Fallback
-    }
+    update_pll_timing();
 
     for (auto& ep : endpoints_) {
         ep.control = 0;
@@ -66,6 +62,17 @@ void Usb::reset() noexcept {
     }
 }
 
+void Usb::update_pll_timing() noexcept {
+    const u32 pll_freq = desc_.usb_pll_frequency_hz;
+    pll_cycles_per_sof_ = pll_freq / 1000;
+    if (bus_) {
+        const u32 cpu_freq = bus_->device().cpu_frequency_hz;
+        pll_scale_x256_ = static_cast<u32>((static_cast<u64>(pll_freq) * 256U) / cpu_freq);
+    } else {
+        pll_scale_x256_ = 256;
+    }
+}
+
 void Usb::tick(u64 elapsed_cycles) noexcept {
     if (!(usbcon_ & desc_.usbcon_usbe_mask)) return; // USBE must be 1
     if (usbcon_ & desc_.usbcon_frzclk_mask) return; // FRZCLK must be 0
@@ -75,10 +82,11 @@ void Usb::tick(u64 elapsed_cycles) noexcept {
         if (!(bus_->read_data(desc_.pllcsr_address) & 0x01U)) return; // PLOCK bit
     }
 
-    cycle_accumulator_ += elapsed_cycles;
-    if (frame_cycles_ == 0) return;
-    while (cycle_accumulator_ >= frame_cycles_) {
-        cycle_accumulator_ -= frame_cycles_;
+    cycle_accumulator_ += static_cast<u64>(elapsed_cycles) * pll_scale_x256_;
+    if (pll_cycles_per_sof_ == 0) return;
+    const u64 sof_threshold = static_cast<u64>(pll_cycles_per_sof_) * 256U;
+    while (cycle_accumulator_ >= sof_threshold) {
+        cycle_accumulator_ -= sof_threshold;
         
         frame_number_ = (frame_number_ + 1) & 0x7FFU;
         udint_ |= desc_.udint_sofi_mask; // SOFI
@@ -163,7 +171,7 @@ void Usb::write(u16 address, u8 value) noexcept {
     else if (address == desc_.udaddr_address) udaddr_ = value;
     else if (address == desc_.uenum_address) uenum_ = value;
     else if (address == desc_.uerst_address) {
-        uerst_ = value;
+        uerst_ = value; // Set requested reset bits
         for (u8 i = 0; i < endpoints_.size(); ++i) {
             if (value & (1U << i)) {
                 for (auto& bank : endpoints_[i].banks) {
@@ -174,7 +182,7 @@ void Usb::write(u16 address, u8 value) noexcept {
                 }
                 endpoints_[i].cpu_bank = 0;
                 endpoints_[i].sie_bank = 0;
-                // Note: bit is not automatically cleared by hardware
+                uerst_ &= ~(1U << i); // Auto-clear after reset
             }
         }
     }
@@ -350,7 +358,7 @@ void Usb::simulate_setup_packet(const SetupPacket& setup) noexcept {
     update_ueint();
 }
 
-void Usb::simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept {
+void Usb::simulate_out_packet(u8 ep_idx, bool data1_pid, std::span<const u8> data) noexcept {
     if (ep_idx >= endpoints_.size()) return;
     auto& ep = endpoints_[ep_idx];
     
@@ -383,7 +391,9 @@ void Usb::simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept {
     
     ep.sie_bank = (target_bank + 1) % ep.bank_count;
     ep.interrupt_flags |= desc_.ueintx_rxouti_mask; // RXOUTI
-    ep.data_toggle = !ep.data_toggle;
+    if (data1_pid == ep.data_toggle) {
+        ep.data_toggle = !ep.data_toggle;
+    }
     update_ueint();
 }
 

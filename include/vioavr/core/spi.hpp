@@ -29,7 +29,7 @@ public:
 
     // Host-side API for SPI simulation
     void inject_miso_byte(u8 value) noexcept;
-    void trigger_slave_transfer() noexcept;
+    void trigger_slave_transfer(u32 sck_bit_cycles = 2) noexcept;
     [[nodiscard]] u8 last_transmitted_byte() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
     void on_event(u64 cycle) noexcept;

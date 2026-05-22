@@ -12,7 +12,10 @@ class Usb final : public IoPeripheral {
 public:
     Usb(std::string_view name, const UsbDescriptor& desc) noexcept;
 
-    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+    void set_memory_bus(MemoryBus* bus) noexcept override {
+        bus_ = bus;
+        update_pll_timing();
+    }
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
 
@@ -43,13 +46,14 @@ public:
     void simulate_usb_reset() noexcept;
     void simulate_vbus_event(bool high) noexcept;
     void simulate_setup_packet(const SetupPacket& setup) noexcept;
-    void simulate_out_packet(u8 ep_idx, std::span<const u8> data) noexcept;
+    void simulate_out_packet(u8 ep_idx, bool data1_pid, std::span<const u8> data) noexcept;
     void simulate_in_token(u8 ep_idx) noexcept;
 
     [[nodiscard]] std::vector<u8> get_endpoint_data(u8 ep_idx) const noexcept;
 
 private:
     void update_ueint() noexcept;
+    void update_pll_timing() noexcept;
 
     struct Bank {
         std::vector<u8> fifo;
@@ -83,7 +87,8 @@ private:
     size_t num_ranges_ {0};
 
     u64 cycle_accumulator_ {0};
-    u32 frame_cycles_ {16000}; // 1ms worth of cycles for SOF
+    u32 pll_cycles_per_sof_ {48000}; // PLL cycles in 1ms (48000000/1000)
+    u32 pll_scale_x256_ {256}; // PLL cycles per CPU cycle * 256 (fixed-point)
     u16 frame_number_ {0};
 
     u8 uhwcon_ {};

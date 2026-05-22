@@ -204,7 +204,7 @@ bool GpioPort::consume_pin_change(PinStateChange& change) noexcept
             change.level = (port_ & (1U << i)) != 0U;
             change.cycle_stamp = bus_ ? bus_->cpu_cycles() : 0;
             change.change_mask = mask;
-            pending_changes_mask_ = 0;
+            pending_changes_mask_ &= ~(1U << i);
             return true;
         }
     }

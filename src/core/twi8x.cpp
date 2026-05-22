@@ -250,7 +250,7 @@ void Twi8x::tick_master_core() noexcept {
                 mstatus_ |= (maddr_ & 0x01U) ? MSTATUS_RIF : MSTATUS_WIF;
                 if (maddr_ & 0x01U) {
                     host_phase_ = TwiPhase::read_data;
-                    bits_left_ = 8; // Prepare to receive 8 bits of first byte
+                    bits_left_ = 9; // 8 data bits + 1 ACK bit
                 }
             } else if (host_phase_ == TwiPhase::read_data) {
                 mdata_ = data_read_accumulator_;

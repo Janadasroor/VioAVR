@@ -172,13 +172,14 @@ void Spi::inject_miso_byte(const u8 value) noexcept
     miso_buffer_ = value;
 }
 
-void Spi::trigger_slave_transfer() noexcept
+void Spi::trigger_slave_transfer(const u32 sck_bit_cycles) noexcept
 {
     if ((spcr_ & kSpiEnable) != 0U && (spcr_ & kSpiMaster) == 0U) {
-        // Slave transfer: completion is externally clocked, fire callback after 1 cycle
-        transfer_cycles_left_ = 1U;
+        // Slave transfer: 8 SCK cycles, each sck_bit_cycles CPU cycles long
+        const u32 total_cycles = 8U * sck_bit_cycles;
+        transfer_cycles_left_ = total_cycles;
         if (bus_) {
-            bus_->scheduler().schedule(transfer_cycles_left_, spi_callback, this);
+            bus_->scheduler().schedule(total_cycles, spi_callback, this);
         }
     }
 }
