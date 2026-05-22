@@ -127,6 +127,10 @@ set(TEST_SOURCES
     peripherals/atmega328p_sysmon_test.cpp
     peripherals/blinky_external_test.cpp
     peripherals/uart_hello_external_test.cpp
+    peripherals/test0_firmware_test.cpp
+    peripherals/test_interrupt_firmware_test.cpp
+    peripherals/spi_loopback_test.cpp
+    peripherals/wdt_firmware_test.cpp
     peripherals/dac_fidelity_test.cpp
     peripherals/dma_fidelity_test.cpp
     peripherals/eeprom_fidelity_test.cpp
@@ -203,5 +207,17 @@ foreach(source IN LISTS TEST_SOURCES)
     endif()
     if (test_name STREQUAL "blinky_external_test")
         add_dependencies(${target_name} blinky_hex)
+    endif()
+    if (test_name STREQUAL "test0_firmware_test")
+        add_dependencies(${target_name} test0_hex)
+    endif()
+    if (test_name STREQUAL "test_interrupt_firmware_test")
+        add_dependencies(${target_name} test_interrupt_hex)
+    endif()
+    if (test_name STREQUAL "spi_loopback_test")
+        add_dependencies(${target_name} spi_loopback_hex)
+    endif()
+    if (test_name STREQUAL "wdt_firmware_test")
+        add_dependencies(${target_name} wdt_test_hex)
     endif()
 endforeach()

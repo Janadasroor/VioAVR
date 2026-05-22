@@ -160,19 +160,25 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
 {
     auto& entry = ports_[port_idx][bit_idx];
     PinOwner highest_owner = PinOwner::gpio;
-    u8 highest_prio = 0;
 
-    // Find the claimant with the highest priority
-    for (u8 i = 0; i < 32; ++i) {
-        if (entry.active_claims & (1U << i)) {
-            PinOwner owner = static_cast<PinOwner>(i);
-            u8 prio = get_pin_priority(owner);
-            if (prio >= highest_prio) {
-                highest_prio = prio;
-                highest_owner = owner;
+    if (entry.active_claims == entry.last_claims_for_owner_) {
+        highest_owner = static_cast<PinOwner>(entry.cached_owner_);
+    } else {
+        entry.last_claims_for_owner_ = entry.active_claims;
+        u8 highest_prio = 0;
+        for (u8 i = 0; i < 32; ++i) {
+            if (entry.active_claims & (1U << i)) {
+                PinOwner owner = static_cast<PinOwner>(i);
+                u8 prio = get_pin_priority(owner);
+                if (prio >= highest_prio) {
+                    highest_prio = prio;
+                    highest_owner = owner;
+                }
             }
         }
+        entry.cached_owner_ = static_cast<u8>(highest_owner);
     }
+
     entry.state.owner = highest_owner;
     const u32 highest_owner_bit = (1U << static_cast<u32>(highest_owner));
 

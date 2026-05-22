@@ -7,6 +7,7 @@
 #include "vioavr/core/cpu_int.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <stdexcept>
 
 namespace vioavr::core {
@@ -62,6 +63,7 @@ void MemoryBus::reset() noexcept
         }
     }
     interrupts_dirty_ = true;
+    last_catch_up_cycle_ = 0U;
 }
 
 void MemoryBus::set_trace_hook(ITraceHook* trace_hook) noexcept
@@ -184,6 +186,8 @@ void MemoryBus::load_image(const HexImage& image)
 
 
 void MemoryBus::catch_up_all_peripherals(u64 target_cycle) const noexcept {
+    if (target_cycle <= last_catch_up_cycle_) return;
+    last_catch_up_cycle_ = target_cycle;
     for (auto* peripheral : active_ticking_peripherals_) {
         u64 start = peripheral->last_update_cycle_;
         if (start < target_cycle) {
@@ -199,10 +203,14 @@ void MemoryBus::catch_up_all_peripherals(u64 target_cycle) const noexcept {
 void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept {
     if (elapsed_cycles == 0) return;
 
-    for (size_t i = 1; i < 256; ++i) {
-        if ((active_domains & i) == 0U) {
-            domain_gated_cycles_[i] += elapsed_cycles;
-        }
+    if (active_domains != 0xFF) {
+        u8 gated = static_cast<u8>(~active_domains);
+        do {
+            int bit = std::countr_zero(static_cast<unsigned>(gated));
+            u8 mask = static_cast<u8>(1U << bit);
+            domain_gated_cycles_[mask] += elapsed_cycles;
+            gated = static_cast<u8>(gated & static_cast<u8>(gated - 1U));
+        } while (gated != 0U);
     }
 
     if (io_stall_cycles_ > 0U) {
