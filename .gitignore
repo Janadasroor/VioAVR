@@ -45,8 +45,8 @@ TODO_AVR_ACCURACY_ROADMAP.md
 TODO.md
 todo/
 
-# ATmega DFP
-/atmega/
+# Device family packs (fetched at build time)
+/avr-pack/
 
 tests/programs/*.csv
 tmp/

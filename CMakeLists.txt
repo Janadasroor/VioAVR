@@ -20,6 +20,7 @@ include(FetchContent)
 FetchContent_Declare(
     atmega_dfp
     URL https://packs.download.microchip.com/Microchip.ATmega_DFP.3.6.299.atpack
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack
 )
 FetchContent_MakeAvailable(atmega_dfp)
 set(ATMEGA_DFP_DIR ${atmega_dfp_SOURCE_DIR} CACHE PATH "Path to ATmega DFP")
