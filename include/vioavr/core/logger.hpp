@@ -2,7 +2,6 @@
 
 #include <string_view>
 #include <string>
-#include <iostream>
 #include <cstdio>
 
 namespace vioavr::core {
@@ -31,10 +30,8 @@ public:
 
     static void log(LogLevel level, std::string_view message)
     {
-        if (callback_) {
+        if (callback_) [[likely]] {
             callback_(level, message);
-        } else {
-            default_log(level, message);
         }
     }
 
@@ -50,18 +47,6 @@ public:
     }
 
 private:
-    static void default_log(LogLevel level, std::string_view message)
-    {
-        const char* level_str = "INFO";
-        switch (level) {
-            case LogLevel::debug: level_str = "DEBUG"; break;
-            case LogLevel::info: level_str = "INFO"; break;
-            case LogLevel::warning: level_str = "WARN"; break;
-            case LogLevel::error: level_str = "ERROR"; break;
-        }
-        std::cerr << "[" << level_str << "] " << message << std::endl;
-    }
-
     inline static LogCallback callback_ = nullptr;
 };
 

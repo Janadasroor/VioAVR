@@ -476,18 +476,10 @@ bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 ac
 bool MemoryBus::should_stall_cpu(u32 pc_word) const noexcept {
     if (io_stall_cycles_ > 0U) return true;
     if (spm_busy_cycles_left_ == 0U) return false;
-
-    // Non-RWW devices (e.g., ATmega328P) always halt during SPM operations.
     if (device_.flash_rww_end_word == 0U) return true;
-
-    // Programming the NRWW (typically bootloader) section always halts the CPU.
     const u32 program_word = spm_address_ >> 1U;
     if (program_word > device_.flash_rww_end_word) return true;
-
-    // Programming the RWW (typically application) section only halts the CPU if it's
-    // executing from within that same RWW section.
     if (pc_word <= device_.flash_rww_end_word) return true;
-
     return false;
 }
 
