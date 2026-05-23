@@ -81,3 +81,4 @@ TODO.md
 
 # Debug artifacts
 *.vcd
+external_projects/

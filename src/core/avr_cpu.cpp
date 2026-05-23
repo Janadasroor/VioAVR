@@ -109,6 +109,9 @@ void AvrCpu::reset(ResetCause cause) noexcept
 void AvrCpu::set_sync_engine(SyncEngine* sync_engine) noexcept
 {
     sync_engine_ = sync_engine;
+    if (sync_engine != nullptr) {
+        interrupt_check_interval_ = 1;
+    }
 }
 
 void AvrCpu::set_trace_hook(ITraceHook* trace_hook) noexcept
@@ -141,6 +144,7 @@ void AvrCpu::run(const u64 cycle_budget)
 
     DecodedInstruction instruction;
     u32 pending_cycles = 0;
+    const u64 check_interval = interrupt_check_interval_;
 
     while (state_ == CpuState::running && cycles_ + pending_cycles < cycle_target && !interrupt_pending_) {
         // Handle CPU Stall (e.g. during EEPROM write or SPM)
@@ -350,7 +354,7 @@ void AvrCpu::run(const u64 cycle_budget)
             break;
         }
 
-        if (pending_cycles >= 1) {
+        if (pending_cycles >= check_interval) {
             advance_cycles(pending_cycles);
             pending_cycles = 0;
             synchronize_if_needed();
