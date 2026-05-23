@@ -201,6 +201,9 @@ public:
         return state_;
     }
 
+    [[nodiscard]] u64 interrupt_check_interval() const noexcept { return interrupt_check_interval_; }
+    void set_interrupt_check_interval(u64 cycles) noexcept { interrupt_check_interval_ = cycles; }
+
 private:
     using InstructionHandler = void (AvrCpu::*)(const DecodedInstruction&);
 
@@ -404,6 +407,7 @@ private:
     u8 spm_lock_timeout_ {};
     CpuState state_ {CpuState::halted};
     bool reset_triggered_ {false};
+    u64 interrupt_check_interval_ {64};
 };
 
 }  // namespace vioavr::core
