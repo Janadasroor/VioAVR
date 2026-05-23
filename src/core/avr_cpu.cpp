@@ -141,12 +141,31 @@ void AvrCpu::run(const u64 cycle_budget)
     const size_t flash_size = bus_->flash_size_words();
     const auto table = instruction_table();
     u8* regs = gpr_.data();
+    u8* bus_data = bus_->data_space().data();
+    const u16 sram_begin = bus_->device().sram_range().begin;
+    const u16 sram_end = bus_->device().sram_range().end;
 
-    DecodedInstruction instruction;
     u32 pending_cycles = 0;
     const u64 check_interval = interrupt_check_interval_;
 
-    while (state_ == CpuState::running && cycles_ + pending_cycles < cycle_target && !interrupt_pending_) {
+    while (state_ == CpuState::running && cycles_ + pending_cycles < cycle_target) {
+        // Handle pending interrupt before fetching next instruction
+        if (__builtin_expect(interrupt_pending_ != 0, 0)) {
+            if (pending_cycles > 0) {
+                advance_cycles(pending_cycles);
+                pending_cycles = 0;
+            }
+            if (interrupt_delay_ > 0U) {
+                --interrupt_delay_;
+            }
+            refresh_interrupt_pending();
+            if (interrupt_pending_) {
+                service_interrupt_if_needed();
+            }
+            if (state_ != CpuState::running) break;
+            continue;
+        }
+
         // Handle CPU Stall (e.g. during EEPROM write or SPM)
         if (bus_->should_stall_cpu(program_counter_)) {
             if (pending_cycles > 0) {
@@ -155,7 +174,6 @@ void AvrCpu::run(const u64 cycle_budget)
             }
             bus_->consume_stall_cycle();
             advance_cycles(1U);
-            if (interrupt_pending_) break;
             continue;
         }
 
@@ -169,196 +187,765 @@ void AvrCpu::run(const u64 cycle_budget)
         }
 
         const u16 opcode = flash[program_counter_];
-        const u16 descriptor_index = fast_decode_table_[opcode];
         
-        if (descriptor_index == 0xFFFFU) {
-            state_ = CpuState::halted;
-            break;
-        }
-
-        const auto& descriptor = table[descriptor_index];
-        instruction.opcode = opcode;
-        instruction.word_address = program_counter_;
-        instruction.words[0] = opcode;
-        
-        // Optimize 32-bit instruction fetch: JMP (0x940C), CALL (0x940E), LDS (0x9000), STS (0x9200)
-        if ((opcode & 0xFE0EU) == 0x940CU || (opcode & 0xFE0EU) == 0x940EU ||
-            (opcode & 0xFE0FU) == 0x9000U || (opcode & 0xFE0FU) == 0x9200U) {
-             instruction.word_size = 2U;
-             if (program_counter_ + 1U < flash_size) {
-                 instruction.words[1] = flash[program_counter_ + 1U];
-             } else {
-                 instruction.words[1] = 0xFFFFU;
-             }
-        } else {
-             instruction.word_size = 1U;
-        }
-        
-        if (trace_hook_ != nullptr) {
-            if (pending_cycles > 0) {
-                advance_cycles(pending_cycles);
-                pending_cycles = 0;
-            }
-            std::string_view mnemonic = descriptor.mnemonic;
-            if (mnemonic == "AND" && 
-                decode_destination_register(opcode) == decode_source_register(opcode)) {
-                mnemonic = "TST";
-            }
-            trace_hook_->on_instruction(instruction.word_address, instruction.opcode, mnemonic);
-            if (state_ == CpuState::paused) {
+        // Fast dispatch by opcode bits (no LUT access for common instructions)
+        switch (opcode >> 10) {
+        case 0: // 0x0000-0x03FF: NOP
+            if (__builtin_expect(opcode == 0x0000, 1)) {
+                program_counter_ += 1U;
+                pending_cycles += 1;
                 break;
             }
-        }
-        
-        switch (descriptor_index) {
-        case 0: // NOP
-            program_counter_ = instruction.word_address + 1U;
-            pending_cycles += 1;
-            break;
-        case 1: // LDI
-            {
-                const u8 destination = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
-                const u8 immediate = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
-                regs[destination] = immediate;
-                program_counter_ = instruction.word_address + 1U;
-                pending_cycles += 1;
-            }
-            break;
-        case 8: // MOV
-            {
-                const u8 destination = decode_destination_register(opcode);
-                const u8 source = decode_source_register(opcode);
-                regs[destination] = regs[source];
-                program_counter_ = instruction.word_address + 1U;
-                pending_cycles += 1;
-            }
-            break;
-        case 80: // RJMP
-            {
-                i32 displacement = static_cast<i32>(opcode & 0x0FFFU);
-                if ((displacement & 0x0800) != 0) {
-                    displacement -= 0x1000;
-                }
-                program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
-                pending_cycles += 2;
-            }
-            break;
-        case 14: // ADD
-            {
-                const u8 destination = decode_destination_register(opcode);
-                const u8 source = decode_source_register(opcode);
-                const u8 lhs = regs[destination];
-                const u8 rhs = regs[source];
+            goto slow;
+        case 3: // 0x0C00-0x0FFF: ADD
+            if (__builtin_expect((opcode & 0xFC00) == 0x0C00, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const u8 lhs = regs[dest];
+                const u8 rhs = regs[src];
                 const u8 res = static_cast<u8>(lhs + rhs);
-                regs[destination] = res;
-                
-                // Bitwise flag update
+                regs[dest] = res;
                 flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
                 flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
                 flag_n_ = (res & 0x80);
                 flag_z_ = (res == 0);
                 flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
                 flag_s_ = flag_n_ ^ flag_v_;
-
-                program_counter_ = instruction.word_address + 1U;
+                program_counter_ += 1U;
                 pending_cycles += 1;
+                break;
             }
-            break;
-        case 22: // SUB
-        case 25: // CPI
-            {
-                const u8 destination = (descriptor_index == 25) ? 
-                    static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU)) :
-                    decode_destination_register(opcode);
-                const u8 rhs = (descriptor_index == 25) ?
-                    static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU)) :
-                    regs[decode_source_register(opcode)];
-                
-                const u8 lhs = regs[destination];
+            goto slow;
+        case 7: // 0x1C00-0x1FFF: ADC
+            if (__builtin_expect((opcode & 0xFC00) == 0x1C00, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const u8 lhs = regs[dest];
+                const u8 rhs = regs[src];
+                const bool carry_in = flag_c_;
+                const u8 res = static_cast<u8>(lhs + rhs + (carry_in ? 1U : 0U));
+                regs[dest] = res;
+                const bool prev_zero = flag_z_;
+                flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
+                flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
+                flag_z_ = prev_zero && (res == 0);
+                flag_s_ = flag_n_ ^ flag_v_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 5: // 0x1400-0x17FF: CP
+            if (__builtin_expect((opcode & 0xFC00) == 0x1400, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const u8 lhs = regs[dest];
+                const u8 rhs = regs[src];
                 const u8 res = static_cast<u8>(lhs - rhs);
-                if (descriptor_index == 22) regs[destination] = res;
-                
-                // Bitwise flag update (SUB)
                 flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
                 flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
                 flag_n_ = (res & 0x80);
                 flag_z_ = (res == 0);
                 flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
                 flag_s_ = flag_n_ ^ flag_v_;
-
-                program_counter_ = instruction.word_address + 1U;
+                program_counter_ += 1U;
                 pending_cycles += 1;
+                break;
             }
-            break;
-        case 27: // ANDI
-        case 38: // ORI (wait, ORI is 513-475=38)
-            {
-                const u8 destination = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
-                const u8 immediate = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
-                if (descriptor_index == 27) regs[destination] &= immediate;
-                else regs[destination] |= immediate;
-                
-                const u8 res = regs[destination];
+            goto slow;
+        case 6: // 0x1800-0x1BFF: SUB
+            if (__builtin_expect((opcode & 0xFC00) == 0x1800, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const u8 lhs = regs[dest];
+                const u8 rhs = regs[src];
+                const u8 res = static_cast<u8>(lhs - rhs);
+                regs[dest] = res;
+                flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+                flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+                flag_s_ = flag_n_ ^ flag_v_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 8: // 0x2000-0x23FF: AND
+            if (__builtin_expect((opcode & 0xFC00) == 0x2000, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const u8 res = static_cast<u8>(regs[dest] & regs[src]);
+                regs[dest] = res;
                 flag_v_ = false;
                 flag_n_ = (res & 0x80);
                 flag_z_ = (res == 0);
                 flag_s_ = flag_n_;
-                
-                program_counter_ = instruction.word_address + 1U;
+                program_counter_ += 1U;
                 pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 9: // 0x2400-0x27FF: EOR
+            if (__builtin_expect((opcode & 0xFC00) == 0x2400, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const u8 res = static_cast<u8>(regs[dest] ^ regs[src]);
+                regs[dest] = res;
+                flag_v_ = false;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_s_ = flag_n_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 11: // 0x2C00-0x2FFF: MOV
+            if (__builtin_expect((opcode & 0xFC00) == 0x2C00, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                regs[dest] = regs[src];
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 1: // 0x0400-0x07FF: CPC
+            if (__builtin_expect((opcode & 0xFC00) == 0x0400, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const bool carry_in = flag_c_;
+                const u8 lhs = regs[dest];
+                const u8 rhs = regs[src];
+                const u8 res = static_cast<u8>(lhs - rhs - (carry_in ? 1U : 0U));
+                const bool prev_zero = flag_z_;
+                flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+                flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+                flag_z_ = prev_zero && (res == 0);
+                flag_s_ = flag_n_ ^ flag_v_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 2: // 0x0800-0x0BFF: SBC
+            if (__builtin_expect((opcode & 0xFC00) == 0x0800, 1)) {
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                const bool carry_in = flag_c_;
+                const u8 lhs = regs[dest];
+                const u8 rhs = regs[src];
+                const u8 res = static_cast<u8>(lhs - rhs - (carry_in ? 1U : 0U));
+                regs[dest] = res;
+                const bool prev_zero = flag_z_;
+                flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+                flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+                flag_z_ = prev_zero && (res == 0);
+                flag_s_ = flag_n_ ^ flag_v_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 12: // 0x3000-0x3FFF: CPI
+            if (__builtin_expect((opcode & 0xF000) == 0x3000, 1)) {
+                const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                const u8 lhs = regs[dest];
+                const u8 res = static_cast<u8>(lhs - imm);
+                flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+                flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+                flag_s_ = flag_n_ ^ flag_v_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 16: // 0x4000-0x4FFF: SBCI
+            if (__builtin_expect((opcode & 0xF000) == 0x4000, 1)) {
+                const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                const bool carry_in = flag_c_;
+                const u8 lhs = regs[dest];
+                const u8 res = static_cast<u8>(lhs - imm - (carry_in ? 1U : 0U));
+                regs[dest] = res;
+                const bool prev_zero = flag_z_;
+                flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+                flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+                flag_z_ = prev_zero && (res == 0);
+                flag_s_ = flag_n_ ^ flag_v_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 20: // 0x5000-0x5FFF: SUBI
+            if (__builtin_expect((opcode & 0xF000) == 0x5000, 1)) {
+                const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                const u8 lhs = regs[dest];
+                const u8 res = static_cast<u8>(lhs - imm);
+                regs[dest] = res;
+                flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+                flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+                flag_s_ = flag_n_ ^ flag_v_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 24: // 0x6000-0x6FFF: ORI
+            if (__builtin_expect((opcode & 0xF000) == 0x6000, 1)) {
+                const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                regs[dest] |= imm;
+                const u8 res = regs[dest];
+                flag_v_ = false;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_s_ = flag_n_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 28: // 0x7000-0x7FFF: ANDI
+            if (__builtin_expect((opcode & 0xF000) == 0x7000, 1)) {
+                const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                regs[dest] &= imm;
+                const u8 res = regs[dest];
+                flag_v_ = false;
+                flag_n_ = (res & 0x80);
+                flag_z_ = (res == 0);
+                flag_s_ = flag_n_;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 32: case 33: case 34: case 35:
+        case 36: case 37: case 38: case 39:
+        case 40: case 41: case 42: case 43:
+        case 44: case 45: case 46: case 47: // 0x8000-0xBFFF: LDD, STD, IN, OUT
+            if ((opcode & 0xD208) == 0x8008) { // LDD Y+q
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                    regs[dest] = bus_data[addr];
+                else
+                    regs[dest] = read_data_bus(addr);
+                program_counter_ += 1U;
+                pending_cycles += 2;
+                break;
+            }
+            if ((opcode & 0xD208) == 0x8000) { // LDD Z+q
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                    regs[dest] = bus_data[addr];
+                else
+                    regs[dest] = read_data_bus(addr);
+                program_counter_ += 1U;
+                pending_cycles += 2;
+                break;
+            }
+            if ((opcode & 0xD208) == 0x8208) { // STD Y+q
+                const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                    bus_data[addr] = regs[src];
+                else
+                    write_data_bus(addr, regs[src]);
+                program_counter_ += 1U;
+                pending_cycles += 2;
+                break;
+            }
+            if ((opcode & 0xD208) == 0x8200) { // STD Z+q
+                const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                    bus_data[addr] = regs[src];
+                else
+                    write_data_bus(addr, regs[src]);
+                program_counter_ += 1U;
+                pending_cycles += 2;
+                break;
+            }
+            if ((opcode & 0xF800) == 0xB000) { // IN
+                const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
+                regs[reg] = read_data_bus(MemoryBus::low_io_address(io_offset));
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            if ((opcode & 0xF800) == 0xB800) { // OUT
+                const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
+                write_data_bus(MemoryBus::low_io_address(io_offset), regs[reg]);
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            if ((opcode & 0xFE0F) == 0x9000) { // LDS
+                const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                if (program_counter_ + 1U >= flash_size) {
+                    state_ = CpuState::halted; break;
+                }
+                const u16 addr = flash[program_counter_ + 1U];
+                regs[dest] = read_data_bus(addr);
+                program_counter_ += 2U;
+                pending_cycles += 2;
+                break;
+            }
+            if ((opcode & 0xFE0F) == 0x9200) { // STS
+                const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                if (program_counter_ + 1U >= flash_size) {
+                    state_ = CpuState::halted; break;
+                }
+                const u16 addr = flash[program_counter_ + 1U];
+                write_data_bus(addr, regs[src]);
+                program_counter_ += 2U;
+                pending_cycles += 2;
+                break;
+            }
+            if ((opcode | 0x0010) == 0x95F8) [[unlikely]] { // SPM & SPM Z+
+                const u16 spmcsr_addr = bus_->device().spmcsr_address;
+                if (spmcsr_addr != 0) {
+                    const u8 spmcsr = bus_->read_data(spmcsr_addr);
+                    if ((spmcsr & 0x01) != 0 && spm_lock_timeout_ > 0) {
+                        if ((spmcsr & 0x40) == 0 || (spmcsr & 0x10) != 0) {
+                            bus_->execute_spm(
+                                static_cast<u8>(spmcsr & 0x1FU),
+                                z_pointer(),
+                                static_cast<u16>(regs[0] | (static_cast<u16>(regs[1]) << 8)),
+                                program_counter_
+                            );
+                            write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xE0U));
+                        }
+                    }
+                }
+                spm_lock_timeout_ = 0;
+                if ((opcode & 0x0001) != 0) {
+                    const u16 z = static_cast<u16>((static_cast<u16>(regs[31]) << 8) | regs[30]);
+                    regs[30] = static_cast<u8>((z + 2) & 0xFF);
+                    regs[31] = static_cast<u8>(((z + 2) >> 8) & 0xFF);
+                }
+                program_counter_ += 1U;
+                advance_cycles(1);
+                break;
+            }
+            goto slow;
+        case 48: case 49: case 50: case 51: // 0xC000-0xFFFF: RJMP
+            if (__builtin_expect((opcode & 0xF000) == 0xC000, 1)) {
+                i32 displacement = static_cast<i32>(opcode & 0x0FFFU);
+                if ((displacement & 0x0800) != 0) {
+                    displacement -= 0x1000;
+                }
+                program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + displacement);
+                pending_cycles += 2;
+                break;
+            }
+            goto slow;
+        case 56: case 57: case 58: case 59: // 0xE000-0xFFFF: LDI / SER
+            if (__builtin_expect((opcode & 0xF000) == 0xE000, 1)) {
+                if ((opcode & 0xFF0F) == 0xEF0F) goto slow; // SER, not inlined
+                const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                regs[dest] = imm;
+                program_counter_ += 1U;
+                pending_cycles += 1;
+                break;
+            }
+            goto slow;
+        case 60: case 61: case 62: case 63: // 0xF000-0xFFFF: branches, SBRS, SBRC
+            if (__builtin_expect((opcode & 0xFE08) == 0xFE00 || (opcode & 0xFE08) == 0xFC00, 0)) {
+                const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                const u8 bit = static_cast<u8>(opcode & 0x07U);
+                const bool bit_set = (regs[reg] >> bit) & 1U;
+                // SBRS (bit9=1): skip if set; SBRC (bit9=0): skip if clear
+                const bool should_skip = (opcode & 0x0200) ? bit_set : !bit_set;
+                if (should_skip) {
+                    if (program_counter_ + 1U >= flash_size) {
+                        state_ = CpuState::halted; break;
+                    }
+                    const u16 next_opcode = flash[program_counter_ + 1U];
+                    const bool is_2word = (next_opcode & 0xFE0EU) == 0x940CU ||
+                                          (next_opcode & 0xFE0EU) == 0x940EU ||
+                                          (next_opcode & 0xFE0FU) == 0x9000U ||
+                                          (next_opcode & 0xFE0FU) == 0x9200U;
+                    program_counter_ += is_2word ? 3U : 2U;
+                    pending_cycles += is_2word ? 3U : 2U;
+                } else {
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            }
+            switch (opcode & 0xFC07) {
+            case 0xF001: // BREQ
+                if (flag_z_) {
+                    i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                    if (d & 0x40) d -= 0x80;
+                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pending_cycles += 2;
+                } else {
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 0xF401: // BRNE
+                if (!flag_z_) {
+                    i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                    if (d & 0x40) d -= 0x80;
+                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pending_cycles += 2;
+                } else {
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 0xF000: // BRCS / BRLO
+                if (flag_c_) {
+                    i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                    if (d & 0x40) d -= 0x80;
+                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pending_cycles += 2;
+                } else {
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 0xF400: // BRCC / BRSH
+                if (!flag_c_) {
+                    i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                    if (d & 0x40) d -= 0x80;
+                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pending_cycles += 2;
+                } else {
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            default:
+                goto slow;
             }
             break;
-        case 44: // IN
-        case 45: // OUT
-            {
+        default:
+            goto slow;
+        }
+        
+        goto fast_done;
+        
+        slow:
+        {
+            const u16 descriptor_index = fast_decode_table_[opcode];
+            if (__builtin_expect(descriptor_index == 0xFFFFU, 0)) {
+                state_ = CpuState::halted;
+                break;
+            }
+            if (__builtin_expect(trace_hook_ != nullptr, 0)) {
                 if (pending_cycles > 0) {
                     advance_cycles(pending_cycles);
                     pending_cycles = 0;
                 }
-                const u8 reg = (descriptor_index == 44) ? 
-                    decode_destination_register(opcode) : 
-                    static_cast<u8>((opcode >> 4U) & 0x1FU);
-                const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
-                const u16 addr = MemoryBus::low_io_address(io_offset);
-
-                if (descriptor_index == 44) regs[reg] = bus_->read_data(addr);
-                else bus_->write_data(addr, regs[reg]);
-                
-                program_counter_ = instruction.word_address + 1U;
-                advance_cycles(1U);
-                if (interrupt_pending_) break;
-                continue; // Re-check stall after I/O
-            }
-            break;
-        case 100: // BREQ
-        case 101: // BRNE
-            {
-                bool cond = (descriptor_index == 100) ? flag_z_ : !flag_z_;
-                if (cond) {
-                    i32 displacement = static_cast<i32>((opcode >> 3U) & 0x7FU);
-                    if (displacement & 0x40) displacement -= 0x80;
-                    program_counter_ = static_cast<u32>(static_cast<i32>(instruction.word_address) + 1 + displacement);
-                    pending_cycles += 2;
-                } else {
-                    program_counter_ = instruction.word_address + 1U;
-                    pending_cycles += 1;
+                const auto& desc = table[descriptor_index];
+                std::string_view mnemonic = desc.mnemonic;
+                if (mnemonic == "AND" && 
+                    decode_destination_register(opcode) == decode_source_register(opcode)) {
+                    mnemonic = "TST";
+                }
+                trace_hook_->on_instruction(program_counter_, opcode, mnemonic);
+                if (state_ == CpuState::paused) {
+                    break;
                 }
             }
-            break;
-        default:
-            if (pending_cycles > 0) {
-                advance_cycles(pending_cycles);
-                pending_cycles = 0;
+
+            switch (descriptor_index) {
+            case 22: case 25: // SUB, CPI
+                {
+                    const u8 destination = (descriptor_index == 25) ? 
+                        static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU)) :
+                        decode_destination_register(opcode);
+                    const u8 rhs = (descriptor_index == 25) ?
+                        static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU)) :
+                        regs[decode_source_register(opcode)];
+                    const u8 lhs = regs[destination];
+                    const u8 res = static_cast<u8>(lhs - rhs);
+                    if (descriptor_index == 22) regs[destination] = res;
+                    flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+                    flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+                    flag_n_ = (res & 0x80);
+                    flag_z_ = (res == 0);
+                    flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+                    flag_s_ = flag_n_ ^ flag_v_;
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 26: // SUBI
+                {
+                    const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                    const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                    const u8 lhs = regs[dest];
+                    const u8 res = static_cast<u8>(lhs - imm);
+                    regs[dest] = res;
+                    flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+                    flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+                    flag_n_ = (res & 0x80);
+                    flag_z_ = (res == 0);
+                    flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+                    flag_s_ = flag_n_ ^ flag_v_;
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 27: case 38: // ANDI, ORI
+                {
+                    const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                    const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                    if (descriptor_index == 27) regs[dest] &= imm;
+                    else regs[dest] |= imm;
+                    const u8 res = regs[dest];
+                    flag_v_ = false;
+                    flag_n_ = (res & 0x80);
+                    flag_z_ = (res == 0);
+                    flag_s_ = flag_n_;
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 44: case 45: // IN, OUT
+                {
+                    const u8 reg = (descriptor_index == 44) ? 
+                        decode_destination_register(opcode) : 
+                        static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
+                    const u16 addr = MemoryBus::low_io_address(io_offset);
+                    if (descriptor_index == 44) regs[reg] = bus_->read_data(addr);
+                    else bus_->write_data(addr, regs[reg]);
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 100: case 101: // BREQ, BRNE
+                {
+                    bool cond = (descriptor_index == 100) ? flag_z_ : !flag_z_;
+                    if (cond) {
+                        i32 disp = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                        if (disp & 0x40) disp -= 0x80;
+                        program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + disp);
+                        pending_cycles += 2;
+                    } else {
+                        program_counter_ += 1U;
+                        pending_cycles += 1;
+                    }
+                }
+                break;
+            case 15: // ADC
+                {
+                    const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                    const u8 lhs = regs[dest];
+                    const u8 rhs = regs[src];
+                    const bool carry_in = flag_c_;
+                    const u8 res = static_cast<u8>(lhs + rhs + (carry_in ? 1U : 0U));
+                    regs[dest] = res;
+                    const bool prev_zero = flag_z_;
+                    flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
+                    flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
+                    flag_n_ = (res & 0x80);
+                    flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
+                    flag_z_ = prev_zero && (res == 0);
+                    flag_s_ = flag_n_ ^ flag_v_;
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 20: // SBC
+                {
+                    const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                    const bool carry_in = flag_c_;
+                    const u8 lhs = regs[dest];
+                    const u8 rhs = regs[src];
+                    const u8 res = static_cast<u8>(lhs - rhs - (carry_in ? 1U : 0U));
+                    regs[dest] = res;
+                    const bool prev_zero = flag_z_;
+                    flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+                    flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+                    flag_n_ = (res & 0x80);
+                    flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+                    flag_z_ = prev_zero && (res == 0);
+                    flag_s_ = flag_n_ ^ flag_v_;
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 21: // SBCI
+                {
+                    const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+                    const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+                    const bool carry_in = flag_c_;
+                    const u8 lhs = regs[dest];
+                    const u8 res = static_cast<u8>(lhs - imm - (carry_in ? 1U : 0U));
+                    regs[dest] = res;
+                    const bool prev_zero = flag_z_;
+                    flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+                    flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+                    flag_n_ = (res & 0x80);
+                    flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+                    flag_z_ = prev_zero && (res == 0);
+                    flag_s_ = flag_n_ ^ flag_v_;
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 39: // EOR
+                {
+                    const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+                    const u8 res = static_cast<u8>(regs[dest] ^ regs[src]);
+                    regs[dest] = res;
+                    flag_v_ = false;
+                    flag_n_ = (res & 0x80);
+                    flag_z_ = (res == 0);
+                    flag_s_ = flag_n_;
+                    program_counter_ += 1U;
+                    pending_cycles += 1;
+                }
+                break;
+            case 52: // LDD Y+q
+                {
+                    const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                    if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                        regs[dest] = bus_data[addr];
+                    else
+                        regs[dest] = read_data_bus(addr);
+                    program_counter_ += 1U;
+                    pending_cycles += 2;
+                }
+                break;
+            case 56: // LDD Z+q
+                {
+                    const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                    if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                        regs[dest] = bus_data[addr];
+                    else
+                        regs[dest] = read_data_bus(addr);
+                    program_counter_ += 1U;
+                    pending_cycles += 2;
+                }
+                break;
+            case 71: // STD Y+q
+                {
+                    const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                    if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                        bus_data[addr] = regs[src];
+                    else
+                        write_data_bus(addr, regs[src]);
+                    program_counter_ += 1U;
+                    pending_cycles += 2;
+                }
+                break;
+            case 75: // STD Z+q
+                {
+                    const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                    if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                        bus_data[addr] = regs[src];
+                    else
+                        write_data_bus(addr, regs[src]);
+                    program_counter_ += 1U;
+                    pending_cycles += 2;
+                }
+                break;
+            case 96: // BRCS / BRLO
+                {
+                    if (flag_c_) {
+                        i32 displacement = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                        if (displacement & 0x40) displacement -= 0x80;
+                        program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + displacement);
+                        pending_cycles += 2;
+                    } else {
+                        program_counter_ += 1U;
+                        pending_cycles += 1;
+                    }
+                }
+                break;
+            case 97: // BRCC / BRSH
+                {
+                    if (!flag_c_) {
+                        i32 disp = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                        if (disp & 0x40) disp -= 0x80;
+                        program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + disp);
+                        pending_cycles += 2;
+                    } else {
+                        program_counter_ += 1U;
+                        pending_cycles += 1;
+                    }
+                }
+                break;
+            default:
+                {
+                    const auto& desc = table[descriptor_index];
+                    DecodedInstruction inst;
+                    inst.opcode = opcode;
+                    inst.word_address = program_counter_;
+                    inst.words[0] = opcode;
+                    if ((opcode & 0xFE0EU) == 0x940CU || (opcode & 0xFE0EU) == 0x940EU ||
+                        (opcode & 0xFE0FU) == 0x9000U || (opcode & 0xFE0FU) == 0x9200U) {
+                        inst.word_size = 2U;
+                        if (program_counter_ + 1U < flash_size)
+                            inst.words[1] = flash[program_counter_ + 1U];
+                        else
+                            inst.words[1] = 0xFFFFU;
+                    } else {
+                        inst.word_size = 1U;
+                    }
+                    if (pending_cycles > 0) {
+                        advance_cycles(pending_cycles);
+                        pending_cycles = 0;
+                    }
+                    (this->*desc.handler)(inst);
+                }
+                break;
             }
-            (this->*descriptor.handler)(instruction);
-            break;
         }
+        fast_done:
 
         if (pending_cycles >= check_interval) {
             advance_cycles(pending_cycles);
             pending_cycles = 0;
             synchronize_if_needed();
-            if (interrupt_pending_) break;
         }
     }
 
@@ -497,43 +1084,436 @@ void AvrCpu::step()
 
     reset_triggered_ = false;
     const u16 opcode = static_cast<u16>(bus_->read_program_word(program_counter_));
-    const u16 descriptor_index = fast_decode_table_[opcode];
+    u8* regs = gpr_.data();
+    const auto sram = bus_->device().sram_range();
+    const u16 sram_begin = sram.begin;
+    const u16 sram_end = sram.end;
+    u8* bus_data = bus_->data_space().data();
+    const u16* flash = bus_->flash_ptr();
+    const size_t flash_size = bus_->flash_size_words();
     
-    if (descriptor_index != 0xFFFFU) {
-        const auto& descriptor = instruction_table()[descriptor_index];
-        
-        DecodedInstruction instruction;
-        instruction.opcode = opcode;
-        instruction.word_address = program_counter_;
-        instruction.words[0] = opcode;
-        
-        // Check for 32-bit instructions: JMP (0x940C), CALL (0x940E), LDS (0x9000), STS (0x9200)
-        if ((opcode & 0xFE0EU) == 0x940CU || (opcode & 0xFE0EU) == 0x940EU ||
-            (opcode & 0xFE0FU) == 0x9000U || (opcode & 0xFE0FU) == 0x9200U) {
-             instruction.word_size = 2U;
-             instruction.words[1] = static_cast<u16>(bus_->read_program_word(program_counter_ + 1U));
-        } else {
-             instruction.word_size = 1U;
+    switch (opcode >> 10) {
+    case 0: // NOP
+        if (__builtin_expect(opcode == 0x0000, 1)) {
+            program_counter_ += 1U; advance_cycles(1U); return;
         }
-        
-        if (trace_hook_ != nullptr) {
-            std::string_view mnemonic = descriptor.mnemonic;
-            if (mnemonic == "AND" && 
-                decode_destination_register(opcode) == decode_source_register(opcode)) {
-                mnemonic = "TST";
-            }
-            trace_hook_->on_instruction(instruction.word_address, instruction.opcode, mnemonic);
-            if (state_ == CpuState::paused) {
-                return;
-            }
+        break;
+    case 3: // ADD
+        if (__builtin_expect((opcode & 0xFC00) == 0x0C00, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const u8 lhs = regs[dest];
+            const u8 rhs = regs[src];
+            const u8 res = static_cast<u8>(lhs + rhs);
+            regs[dest] = res;
+            flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
+            flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
         }
-        
-        (this->*descriptor.handler)(instruction);
-        synchronize_if_needed();
-        return;
+        break;
+    case 7: // ADC
+        if (__builtin_expect((opcode & 0xFC00) == 0x1C00, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const u8 lhs = regs[dest];
+            const u8 rhs = regs[src];
+            const bool carry_in = flag_c_;
+            const u8 res = static_cast<u8>(lhs + rhs + (carry_in ? 1U : 0U));
+            regs[dest] = res;
+            const bool prev_zero = flag_z_;
+            flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
+            flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
+            flag_z_ = prev_zero && (res == 0);
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 5: // CP
+        if (__builtin_expect((opcode & 0xFC00) == 0x1400, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const u8 lhs = regs[dest];
+            const u8 rhs = regs[src];
+            const u8 res = static_cast<u8>(lhs - rhs);
+            flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+            flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 6: // SUB
+        if (__builtin_expect((opcode & 0xFC00) == 0x1800, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const u8 lhs = regs[dest];
+            const u8 rhs = regs[src];
+            const u8 res = static_cast<u8>(lhs - rhs);
+            regs[dest] = res;
+            flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+            flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 8: // AND
+        if (__builtin_expect((opcode & 0xFC00) == 0x2000, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const u8 res = static_cast<u8>(regs[dest] & regs[src]);
+            regs[dest] = res;
+            flag_v_ = false;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_s_ = flag_n_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 9: // EOR
+        if (__builtin_expect((opcode & 0xFC00) == 0x2400, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const u8 res = static_cast<u8>(regs[dest] ^ regs[src]);
+            regs[dest] = res;
+            flag_v_ = false;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_s_ = flag_n_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 11: // MOV
+        if (__builtin_expect((opcode & 0xFC00) == 0x2C00, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            regs[dest] = regs[src];
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 1: // CPC
+        if (__builtin_expect((opcode & 0xFC00) == 0x0400, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const bool carry_in = flag_c_;
+            const u8 lhs = regs[dest];
+            const u8 rhs = regs[src];
+            const u8 res = static_cast<u8>(lhs - rhs - (carry_in ? 1U : 0U));
+            const bool prev_zero = flag_z_;
+            flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+            flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+            flag_z_ = prev_zero && (res == 0);
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 2: // SBC
+        if (__builtin_expect((opcode & 0xFC00) == 0x0800, 1)) {
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
+            const bool carry_in = flag_c_;
+            const u8 lhs = regs[dest];
+            const u8 rhs = regs[src];
+            const u8 res = static_cast<u8>(lhs - rhs - (carry_in ? 1U : 0U));
+            regs[dest] = res;
+            const bool prev_zero = flag_z_;
+            flag_h_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x08;
+            flag_v_ = ((lhs & ~rhs & ~res) | (~lhs & rhs & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
+            flag_z_ = prev_zero && (res == 0);
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 12: // CPI
+        if (__builtin_expect((opcode & 0xF000) == 0x3000, 1)) {
+            const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+            const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+            const u8 lhs = regs[dest];
+            const u8 res = static_cast<u8>(lhs - imm);
+            flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+            flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 16: // SBCI
+        if (__builtin_expect((opcode & 0xF000) == 0x4000, 1)) {
+            const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+            const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+            const bool carry_in = flag_c_;
+            const u8 lhs = regs[dest];
+            const u8 res = static_cast<u8>(lhs - imm - (carry_in ? 1U : 0U));
+            regs[dest] = res;
+            const bool prev_zero = flag_z_;
+            flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+            flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+            flag_z_ = prev_zero && (res == 0);
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 20: // SUBI
+        if (__builtin_expect((opcode & 0xF000) == 0x5000, 1)) {
+            const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+            const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+            const u8 lhs = regs[dest];
+            const u8 res = static_cast<u8>(lhs - imm);
+            regs[dest] = res;
+            flag_h_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x08;
+            flag_v_ = ((lhs & ~imm & ~res) | (~lhs & imm & res)) & 0x80;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
+            flag_s_ = flag_n_ ^ flag_v_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 24: // ORI
+        if (__builtin_expect((opcode & 0xF000) == 0x6000, 1)) {
+            const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+            const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+            regs[dest] |= imm;
+            const u8 res = regs[dest];
+            flag_v_ = false;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_s_ = flag_n_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 28: // ANDI
+        if (__builtin_expect((opcode & 0xF000) == 0x7000, 1)) {
+            const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+            const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+            regs[dest] &= imm;
+            const u8 res = regs[dest];
+            flag_v_ = false;
+            flag_n_ = (res & 0x80);
+            flag_z_ = (res == 0);
+            flag_s_ = flag_n_;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 32: case 33: case 34: case 35:
+    case 36: case 37: case 38: case 39:
+    case 40: case 41: case 42: case 43:
+    case 44: case 45: case 46: case 47: // 0x8000-0xBFFF: LDD, STD, IN, OUT, LDS, STS
+        if ((opcode & 0xD208) == 0x8008) { // LDD Y+q
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+            if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                regs[dest] = bus_data[addr];
+            else
+                regs[dest] = read_data_bus(addr);
+            program_counter_ += 1U; advance_cycles(2U); return;
+        }
+        if ((opcode & 0xD208) == 0x8000) { // LDD Z+q
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+            if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                regs[dest] = bus_data[addr];
+            else
+                regs[dest] = read_data_bus(addr);
+            program_counter_ += 1U; advance_cycles(2U); return;
+        }
+        if ((opcode & 0xD208) == 0x8208) { // STD Y+q
+            const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+            if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                bus_data[addr] = regs[src];
+            else
+                write_data_bus(addr, regs[src]);
+            program_counter_ += 1U; advance_cycles(2U); return;
+        }
+        if ((opcode & 0xD208) == 0x8200) { // STD Z+q
+            const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+            if (addr >= sram_begin && addr <= sram_end) [[likely]]
+                bus_data[addr] = regs[src];
+            else
+                write_data_bus(addr, regs[src]);
+            program_counter_ += 1U; advance_cycles(2U); return;
+        }
+        if ((opcode & 0xF800) == 0xB000) { // IN
+            const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
+            regs[reg] = read_data_bus(MemoryBus::low_io_address(io_offset));
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        if ((opcode & 0xF800) == 0xB800) { // OUT
+            const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
+            write_data_bus(MemoryBus::low_io_address(io_offset), regs[reg]);
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        if ((opcode & 0xFE0F) == 0x9000) { // LDS
+            const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            if (program_counter_ + 1U >= flash_size) { state_ = CpuState::halted; return; }
+            const u16 addr = bus_->read_program_word(program_counter_ + 1U);
+            regs[dest] = read_data_bus(addr);
+            program_counter_ += 2U; advance_cycles(2U); return;
+        }
+        if ((opcode & 0xFE0F) == 0x9200) { // STS
+            const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            if (program_counter_ + 1U >= flash_size) { state_ = CpuState::halted; return; }
+            const u16 addr = bus_->read_program_word(program_counter_ + 1U);
+            write_data_bus(addr, regs[src]);
+            program_counter_ += 2U; advance_cycles(2U); return;
+        }
+        break;
+    case 48: case 49: case 50: case 51: // RJMP
+        if (__builtin_expect((opcode & 0xF000) == 0xC000, 1)) {
+            i32 displacement = static_cast<i32>(opcode & 0x0FFFU);
+            if ((displacement & 0x0800) != 0) displacement -= 0x1000;
+            program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + displacement);
+            advance_cycles(2U); return;
+        }
+        break;
+    case 56: case 57: case 58: case 59: // LDI / SER
+        if (__builtin_expect((opcode & 0xF000) == 0xE000, 1)) {
+            if ((opcode & 0xFF0F) == 0xEF0F) break; // SER, not inlined
+            const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
+            const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
+            regs[dest] = imm;
+            program_counter_ += 1U; advance_cycles(1U); return;
+        }
+        break;
+    case 60: case 61: case 62: case 63: // Branches (BREQ, BRNE, BRCS, BRCC) + SBRS, SBRC
+        if ((opcode & 0xFE08) == 0xFE00 || (opcode & 0xFE08) == 0xFC00) {
+            const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
+            const u8 bit = static_cast<u8>(opcode & 0x07U);
+            const bool bit_set = (regs[reg] >> bit) & 1U;
+            const bool should_skip = (opcode & 0x0200) ? bit_set : !bit_set;
+            if (should_skip) {
+                if (program_counter_ + 1U >= flash_size) {
+                    state_ = CpuState::halted; return;
+                }
+                const u16 next_opcode = flash[program_counter_ + 1U];
+                const bool is_2word = (next_opcode & 0xFE0EU) == 0x940CU ||
+                                      (next_opcode & 0xFE0EU) == 0x940EU ||
+                                      (next_opcode & 0xFE0FU) == 0x9000U ||
+                                      (next_opcode & 0xFE0FU) == 0x9200U;
+                program_counter_ += is_2word ? 3U : 2U;
+                advance_cycles(is_2word ? 3U : 2U);
+            } else {
+                program_counter_ += 1U;
+                advance_cycles(1U);
+            }
+            return;
+        }
+        switch (opcode & 0xFC07) {
+        case 0xF001: // BREQ
+            if (flag_z_) {
+                i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                if (d & 0x40) d -= 0x80;
+                program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                advance_cycles(2U);
+            } else {
+                program_counter_ += 1U;
+                advance_cycles(1U);
+            }
+            return;
+        case 0xF401: // BRNE
+            if (!flag_z_) {
+                i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                if (d & 0x40) d -= 0x80;
+                program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                advance_cycles(2U);
+            } else {
+                program_counter_ += 1U;
+                advance_cycles(1U);
+            }
+            return;
+        case 0xF000: // BRCS / BRLO
+            if (flag_c_) {
+                i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                if (d & 0x40) d -= 0x80;
+                program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                advance_cycles(2U);
+            } else {
+                program_counter_ += 1U;
+                advance_cycles(1U);
+            }
+            return;
+        case 0xF400: // BRCC / BRSH
+            if (!flag_c_) {
+                i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
+                if (d & 0x40) d -= 0x80;
+                program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                advance_cycles(2U);
+            } else {
+                program_counter_ += 1U;
+                advance_cycles(1U);
+            }
+            return;
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
     }
-
-    state_ = CpuState::halted;
+    
+    // Slow path: LUT-based dispatch for rare instructions
+    {
+        const u16 descriptor_index = fast_decode_table_[opcode];
+        if (descriptor_index != 0xFFFFU) {
+            const auto& descriptor = instruction_table()[descriptor_index];
+            
+            DecodedInstruction instruction;
+            instruction.opcode = opcode;
+            instruction.word_address = program_counter_;
+            instruction.words[0] = opcode;
+            
+            if ((opcode & 0xFE0EU) == 0x940CU || (opcode & 0xFE0EU) == 0x940EU ||
+                (opcode & 0xFE0FU) == 0x9000U || (opcode & 0xFE0FU) == 0x9200U) {
+                instruction.word_size = 2U;
+                instruction.words[1] = static_cast<u16>(bus_->read_program_word(program_counter_ + 1U));
+            } else {
+                instruction.word_size = 1U;
+            }
+            
+            if (trace_hook_ != nullptr) {
+                std::string_view mnemonic = descriptor.mnemonic;
+                if (mnemonic == "AND" && 
+                    decode_destination_register(opcode) == decode_source_register(opcode)) {
+                    mnemonic = "TST";
+                }
+                trace_hook_->on_instruction(instruction.word_address, instruction.opcode, mnemonic);
+                if (state_ == CpuState::paused) {
+                    return;
+                }
+            }
+            
+            (this->*descriptor.handler)(instruction);
+            synchronize_if_needed();
+            return;
+        }
+        state_ = CpuState::halted;
+    }
 }
 
 DecodedInstruction AvrCpu::fetch() const noexcept
