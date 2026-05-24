@@ -209,9 +209,9 @@ void AvrCpu::run(const u64 cycle_budget)
                 pending_cycles = 0;
             }
 
-            bool jit_ok = jit_->has_block(program_counter_);
+                bool jit_ok = jit_->has_block(program_counter_);
             if (!jit_ok) {
-                jit_ok = jit_->translate(program_counter_, flash, flash_size);
+                jit_ok = jit_->translate(program_counter_, flash, loaded_words);
             }
 
             if (jit_ok) {
