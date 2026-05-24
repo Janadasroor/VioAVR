@@ -7,22 +7,48 @@ extern "C" {
 
 using namespace vioavr::core;
 
+static const char* get_string_param(const Mif_Private_t* mp, int idx, const char* fallback) {
+    if (mp->num_param > idx && mp->param[idx] && mp->param[idx]->element &&
+        mp->param[idx]->element[0].svalue && mp->param[idx]->element[0].svalue[0]) {
+        return mp->param[idx]->element[0].svalue;
+    }
+    return fallback;
+}
+
+static double get_real_param(const Mif_Private_t* mp, int idx, double fallback) {
+    if (mp->num_param > idx && mp->param[idx] && mp->param[idx]->element) {
+        return mp->param[idx]->element[0].rvalue;
+    }
+    return fallback;
+}
+
+static int get_int_param(const Mif_Private_t* mp, int idx, int fallback) {
+    if (mp->num_param > idx && mp->param[idx] && mp->param[idx]->element) {
+        return mp->param[idx]->element[0].ivalue;
+    }
+    return fallback;
+}
+
 extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     BridgeShmClient* bridge = nullptr;
-    double vref = 5.0;
+    
+    // Parameter indices (matches ifspec.ifs order):
+    //   0 = hex_file, 1 = instance, 2 = mcu_type,
+    //   3 = frequency, 4 = vref, 5 = quantum_cycles
+    enum { P_HEX_FILE = 0, P_INSTANCE, P_MCU_TYPE,
+           P_FREQ, P_VREF, P_QUANTUM };
     
     if (mif_private->circuit.init) {
-        const char* mcu_instance = "default";
-        if (mif_private->num_param > 1 && mif_private->param[1] && 
-            mif_private->param[1]->element && mif_private->param[1]->element[0].svalue) {
-            mcu_instance = mif_private->param[1]->element[0].svalue;
-        }
+        // Instance name: use explicit 'instance' param, fall back to mcu_type
+        const char* mcu_type = get_string_param(mif_private, P_MCU_TYPE, "atmega328");
+        const char* instance = get_string_param(mif_private, P_INSTANCE, mcu_type);
         
-        bridge = new BridgeShmClient(mcu_instance);
+        bridge = new BridgeShmClient(instance);
         
         if (!bridge->connect()) {
-            fprintf(stderr, "VioAVR Block Error: Could not connect to SHM Bridge. "
-                    "Make sure 'vioavr-daemon' is running.\n");
+            fprintf(stderr, "VioAVR Block Error: Could not connect to SHM Bridge "
+                    "\"%s\". Make sure 'vioavr-bridge-daemon --instance %s' is running.\n",
+                    instance, instance);
             delete bridge;
             return;
         }
@@ -32,24 +58,14 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
             mif_private->inst_var[0]->element[0].pvalue = (void*)bridge;
         }
         
-        double freq = 16e6;
-        if (mif_private->num_param > 2 && mif_private->param[2] && mif_private->param[2]->element) {
-            freq = mif_private->param[2]->element[0].rvalue;
-        }
+        double freq = get_real_param(mif_private, P_FREQ, 16e6);
         bridge->set_frequency(freq);
         
-        const char* hex_file = "firmware.hex";
-        if (mif_private->num_param > 0 && mif_private->param[0] && 
-            mif_private->param[0]->element && mif_private->param[0]->element[0].svalue) {
-            hex_file = mif_private->param[0]->element[0].svalue;
-        }
+        const char* hex_file = get_string_param(mif_private, P_HEX_FILE, "firmware.hex");
         bridge->load_hex(hex_file);
         bridge->reset();
         
-        int quantum_cycles = 1000;
-        if (mif_private->num_param > 4 && mif_private->param[4] && mif_private->param[4]->element) {
-            quantum_cycles = mif_private->param[4]->element[0].ivalue;
-        }
+        int quantum_cycles = get_int_param(mif_private, P_QUANTUM, 1000);
         double event_step = (double)quantum_cycles / freq;
         cm_event_queue(mif_private->circuit.time + event_step);
         return;
@@ -59,12 +75,11 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
         mif_private->inst_var[0] && mif_private->inst_var[0]->element) {
         bridge = (BridgeShmClient *)mif_private->inst_var[0]->element[0].pvalue;
     }
-    // fprintf(stderr, "[VioSpice step] num_inst_var=%d, inst_var=%p, bridge=%p, connected=%d\n", 
-    //        mif_private->num_inst_var, (void*)mif_private->inst_var, (void*)bridge, bridge ? (bridge->is_connected() ? 1 : 0) : 0);
     
     if (!bridge || !bridge->is_connected()) return;
     
-    vref = mif_private->param[3]->element[0].rvalue;
+    double vref = get_real_param(mif_private, P_VREF, 5.0);
+    double freq = get_real_param(mif_private, P_FREQ, 16e6);
     
     uint32_t digital_vec_size = mif_private->conn[0]->size;
     for (uint32_t i = 0; i < digital_vec_size; i++) {
@@ -84,7 +99,6 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
         bridge->set_analog_input(i, norm_v);
     }
     
-    double freq = mif_private->param[2]->element[0].rvalue;
     uint64_t target_cycles = (uint64_t)(mif_private->circuit.time * freq);
     uint64_t last_cycles = bridge->get_last_target_cycles();
     
@@ -97,7 +111,6 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
     for (uint32_t i = 0; i < digital_vec_size; i++) {
         Mif_Port_Data_t *port_data = mif_private->conn[0]->port[i];
         bool level = bridge->get_digital_output(i);
-        // fprintf(stderr, "[VioSpice Output] i=%u, level=%d\n", i, level ? 1 : 0);
         
         Digital_t *digital_val = (Digital_t *)(port_data->output.pvalue);
         if (digital_val) {
@@ -119,7 +132,7 @@ extern "C" void cm_d_vioavr(Mif_Private_t *mif_private) {
         }
      }
      
-     int quantum_cycles = mif_private->param[4]->element[0].ivalue;
+     int quantum_cycles = get_int_param(mif_private, P_QUANTUM, 1000);
      double event_step = (double)quantum_cycles / freq;
      cm_event_queue(mif_private->circuit.time + event_step);
  }
