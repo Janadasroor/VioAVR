@@ -1,7 +1,7 @@
 # Makefile for VioAVR XSpice Code Model (Bridge Client)
 
 CXX = g++
-CXXFLAGS = -fPIC -O3 -std=c++17 -I../include -I/usr/include/ngspice
+CXXFLAGS = -fPIC -O3 -std=c++17 -I../include -I/home/jnd/cpp_projects/VioMATRIXC/src/include
 LDFLAGS = -shared -fPIC -lrt -lpthread
 
 OBJECTS = viospice_bridge.o ../src/core/bridge_shm_client.o

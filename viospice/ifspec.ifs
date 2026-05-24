@@ -41,6 +41,13 @@ Default_Value:         "firmware.hex"
 Null_Allowed:          no
 
 PARAMETER_TABLE:
+Parameter_Name:        instance
+Description:           "SHM bridge instance name (default: mcu_type value)"
+Data_Type:             string
+Default_Value:         ""
+Null_Allowed:          yes
+
+PARAMETER_TABLE:
 Parameter_Name:        mcu_type
 Description:           "Target MCU (main_mcu)"
 Data_Type:             string

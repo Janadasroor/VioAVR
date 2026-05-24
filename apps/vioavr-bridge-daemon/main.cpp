@@ -22,25 +22,30 @@ void print_help(const char* prog) {
     std::cout << "Usage: " << prog << " [options]\n"
               << "Options:\n"
               << "  --mcu <name>      Select MCU (default: atmega328p)\n"
-              << "  --instance <id>   SHM instance name (default: default)\n"
+              << "  --instance <id>   SHM instance name (default: MCU name)\n"
+              << "                    Must match the mcu_type/instance param in the netlist's\n"
+              << "                    .model d_vioavr(...) line (the code model uses the\n"
+              << "                    mcu_type value as the SHM instance name)\n"
               << "  --gdb <port>      Start GDB stub on port\n"
               << "  --help            Show this help\n";
 }
 
 int main(int argc, char** argv) {
     std::string mcu_name = "atmega328p";
-    std::string instance_name = "default";
+    std::string instance_name = "";  // Default to mcu_name if not set
+    bool instance_explicit = false;
     int gdb_port = -1;
     uint32_t frequency = 16000000;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--mcu" && i + 1 < argc) mcu_name = argv[++i];
-        else if (arg == "--instance" && i + 1 < argc) instance_name = argv[++i];
+        if (arg == "--mcu" && i + 1 < argc) { mcu_name = argv[++i]; }
+        else if (arg == "--instance" && i + 1 < argc) { instance_name = argv[++i]; instance_explicit = true; }
         else if (arg == "--gdb" && i + 1 < argc) gdb_port = std::stoi(argv[++i]);
         else if (arg == "--freq" && i + 1 < argc) frequency = std::stoul(argv[++i]);
         else if (arg == "--help") { print_help(argv[0]); return 0; }
     }
+    if (!instance_explicit) instance_name = mcu_name;
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
