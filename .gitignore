@@ -75,10 +75,13 @@ scratch/test_shm.py
 tests/programs/simavr_tracer
 TODO.md
 *_TODO.md
-
+AGENTS.md
 
 *_output_*.txt
 
 # Debug artifacts
 *.vcd
 external_projects/
+
+# Profiling artifacts
+gmon.out

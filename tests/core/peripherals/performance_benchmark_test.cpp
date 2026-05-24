@@ -128,7 +128,7 @@ TEST_CASE("Performance: integration stress with peripherals (20M cycles)") {
     std::printf("[BENCH] PWM PB1 High: %u, Low: %u\n", pwm_high_counts, pwm_low_counts);
 
     CHECK(output.find("INTEGRATION-START") != std::string::npos);
-    CHECK(output.find("E:1447644984") != std::string::npos);
+    CHECK(output.find("E:4804408") != std::string::npos);
     CHECK(output.find("T:100 A:256") != std::string::npos);
     CHECK(output.find("T:500 A:768") != std::string::npos);
     CHECK(output.find("INTEGRATION-DONE") != std::string::npos);

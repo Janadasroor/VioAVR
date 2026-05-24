@@ -473,16 +473,6 @@ bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 ac
 
 
 
-bool MemoryBus::should_stall_cpu(u32 pc_word) const noexcept {
-    if (io_stall_cycles_ > 0U) return true;
-    if (spm_busy_cycles_left_ == 0U) return false;
-    if (device_.flash_rww_end_word == 0U) return true;
-    const u32 program_word = spm_address_ >> 1U;
-    if (program_word > device_.flash_rww_end_word) return true;
-    if (pc_word <= device_.flash_rww_end_word) return true;
-    return false;
-}
-
 void MemoryBus::request_cpu_stall(u32 cycles) const noexcept {
     io_stall_cycles_ = std::max(io_stall_cycles_, cycles);
 }
