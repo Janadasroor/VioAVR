@@ -64,6 +64,7 @@ set(TEST_SOURCES
     cpu/cpu_fmul_test.cpp
     cpu/cpu_gpio_sync_test.cpp
     cpu/cpu_gpio_threshold_test.cpp
+    cpu/cpu_jit_test.cpp
     cpu/cpu_indirect_control_test.cpp
     cpu/cpu_int_arbitration_test.cpp
     cpu/cpu_interrupt_chaining_test.cpp
@@ -168,6 +169,9 @@ set(TEST_SOURCES
     peripherals/ptc_fidelity_test.cpp
     peripherals/tcd_fidelity_test.cpp
     peripherals/performance_benchmark_test.cpp
+    peripherals/jit_benchmark_test.cpp
+    peripherals/jit_debug.cpp
+    peripherals/jit_divergence_test.cpp
     peripherals/pin_mux_priority_test.cpp
     peripherals/pinmux_fidelity_test.cpp
     peripherals/pll_test.cpp
@@ -280,6 +284,19 @@ foreach(source IN LISTS TEST_SOURCES)
     endif()
     if (test_name STREQUAL "psc_firmware_test")
         add_dependencies(${target_name} psc_test_hex)
+    endif()
+    if (test_name STREQUAL "math_fidelity_test")
+        add_dependencies(${target_name} test_math_advanced_hex)
+    endif()
+    if (test_name STREQUAL "jit_benchmark_test")
+        add_dependencies(${target_name} benchmark_hex)
+    endif()
+    if (test_name STREQUAL "jit_debug")
+        add_dependencies(${target_name} benchmark_hex)
+        add_dependencies(${target_name} integration_stress_hex)
+    endif()
+    if (test_name STREQUAL "jit_divergence_test")
+        add_dependencies(${target_name} integration_stress_hex)
     endif()
     if (test_name STREQUAL "performance_benchmark_test")
         add_dependencies(${target_name} benchmark_hex)

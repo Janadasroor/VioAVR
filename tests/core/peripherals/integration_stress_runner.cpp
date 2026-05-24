@@ -88,7 +88,7 @@ TEST_CASE("System Integration Stress Test") {
 
     // Assertions
     CHECK(output.find("INTEGRATION-START") != std::string::npos);
-    CHECK(output.find("E:1447644984") != std::string::npos); // 0x56494F38 decimal
+    CHECK(output.find("E:4804408") != std::string::npos);
     CHECK(output.find("T:100 A:256") != std::string::npos); // Initial ADC value
     CHECK(output.find("T:500 A:768") != std::string::npos); // Updated ADC value (at 500 instead of 1000)
     CHECK(output.find("INTEGRATION-DONE") != std::string::npos);

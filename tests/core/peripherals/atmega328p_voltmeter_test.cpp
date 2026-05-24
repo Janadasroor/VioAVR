@@ -64,6 +64,7 @@ TEST_CASE("ATmega328P Voltmeter Integration Test") {
     while (uart->consume_transmitted_byte(data)) {
         output += static_cast<char>(data);
     }
+    std::printf("[DEBUG] Voltmeter UART output at 2.5V: %s\n", output.c_str());
     
     // Verify output contains the expected voltage string
     // ADC 512 -> millivolts ~2500 -> "V: 2.500"

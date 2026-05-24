@@ -1,4 +1,5 @@
 #include "vioavr/core/avr_cpu.hpp"
+#include "vioavr/core/avr_jit.hpp"
 #include "vioavr/core/wdt8x.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/watchdog_timer.hpp"
@@ -12,13 +13,15 @@
 
 #include <array>
 #include <cstddef>
+#include <algorithm>
 
 namespace vioavr::core {
 
 AvrCpu::AvrCpu(MemoryBus& bus) noexcept 
     : bus_(&bus), 
       control_regs_(std::make_unique<CpuControl>(*this, bus.device())),
-      register_file_(std::make_unique<RegisterFile>(*this, bus.device().register_file_range))
+      register_file_(std::make_unique<RegisterFile>(*this, bus.device().register_file_range)),
+      jit_(std::make_unique<jit::AvrJit>())
 {
     if (bus_ != nullptr) {
         bus_->attach_peripheral(*control_regs_);
@@ -59,6 +62,9 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
     reset();
 }
 
+AvrCpu::~AvrCpu() = default;
+
+
 void AvrCpu::reset(ResetCause cause) noexcept
 {
     Logger::info("Resetting AVR CPU");
@@ -85,6 +91,7 @@ void AvrCpu::reset(ResetCause cause) noexcept
     reset_triggered_ = true;
     interrupt_pending_ = false;
     interrupt_depth_ = 0U;
+    if (jit_) jit_->invalidate_all();
     state_ = (bus_ != nullptr && bus_->loaded_program_words() > 0U) ? CpuState::running : CpuState::halted;
 
     if (rst_ctrl_) {
@@ -104,6 +111,13 @@ void AvrCpu::reset(ResetCause cause) noexcept
     if (sync_engine_ != nullptr) {
         sync_engine_->on_reset();
     }
+}
+
+jit::JitDebugStats AvrCpu::jit_debug_stats() const noexcept
+{
+    if (!jit_) return {0, 0, 0};
+    auto s = jit_->debug_stats();
+    return {s.translate_count, s.execute_count, s.execute_cycles};
 }
 
 void AvrCpu::set_sync_engine(SyncEngine* sync_engine) noexcept
@@ -140,8 +154,8 @@ void AvrCpu::run(const u64 cycle_budget)
     const size_t loaded_words = bus_->loaded_program_words();
     const size_t flash_size = bus_->flash_size_words();
     const auto table = instruction_table();
-    u8* regs = gpr_.data();
-    u8* bus_data = bus_->data_space().data();
+    u8* __restrict__ regs = gpr_.data();
+    u8* __restrict__ bus_data = bus_->data_space().data();
     const u16 sram_begin = bus_->device().sram_range().begin;
     const u16 sram_end = bus_->device().sram_range().end;
 
@@ -160,14 +174,16 @@ void AvrCpu::run(const u64 cycle_budget)
             }
             refresh_interrupt_pending();
             if (interrupt_pending_) {
-                service_interrupt_if_needed();
+                if (service_interrupt_if_needed()) {
+                    if (state_ != CpuState::running) break;
+                    continue;
+                }
             }
             if (state_ != CpuState::running) break;
-            continue;
         }
 
         // Handle CPU Stall (e.g. during EEPROM write or SPM)
-        if (bus_->should_stall_cpu(program_counter_)) {
+        if (__builtin_expect(bus_->should_stall_cpu(program_counter_), 0)) {
             if (pending_cycles > 0) {
                 advance_cycles(pending_cycles);
                 pending_cycles = 0;
@@ -177,7 +193,7 @@ void AvrCpu::run(const u64 cycle_budget)
             continue;
         }
 
-        if (program_counter_ >= loaded_words) {
+        if (__builtin_expect(program_counter_ >= loaded_words, 0)) {
             if (pending_cycles > 0) {
                 advance_cycles(pending_cycles);
                 pending_cycles = 0;
@@ -186,17 +202,72 @@ void AvrCpu::run(const u64 cycle_budget)
             break;
         }
 
-        const u16 opcode = flash[program_counter_];
+        // JIT execution path
+        if (__builtin_expect(jit_enabled_ && jit_ && trace_hook_ == nullptr, 0)) {
+            if (pending_cycles > 0) {
+                advance_cycles(pending_cycles);
+                pending_cycles = 0;
+            }
+
+            bool jit_ok = jit_->has_block(program_counter_);
+            if (!jit_ok) {
+                jit_ok = jit_->translate(program_counter_, flash, flash_size);
+            }
+
+            if (jit_ok) {
+                jit::JitState state;
+                std::copy(gpr_.begin(), gpr_.end(), state.gpr);
+                state.pc = program_counter_;
+                state.sp = stack_pointer_;
+                state.sreg = sreg_;
+                state.cycles = cycles_;
+                state.bus = bus_;
+
+                const u64 cycles_before = cycles_;
+
+                jit_->execute(program_counter_, &state);
+
+                std::copy(state.gpr, state.gpr + 32, gpr_.begin());
+                program_counter_ = state.pc;
+                stack_pointer_ = state.sp;
+                write_sreg(state.sreg);
+
+                const u64 delta = state.cycles - cycles_before;
+                cycles_ = state.cycles;
+
+                if (bus_ != nullptr) {
+                    bus_->tick_peripherals(delta, active_clock_domains());
+                    if (bus_->has_pending_pin_changes())
+                        publish_pending_pin_changes();
+                }
+                if (spm_lock_timeout_ > 0U) {
+                    spm_lock_timeout_ = (delta >= spm_lock_timeout_) ? 0U : static_cast<u8>(spm_lock_timeout_ - delta);
+                }
+                if (sync_engine_ != nullptr)
+                    sync_engine_->on_cycles_advanced(cycles_, delta);
+                refresh_interrupt_pending();
+
+                continue;
+            }
+        }
+
+        u32 pc = program_counter_;
+        const u16 opcode = flash[pc];
         
-        // Fast dispatch by opcode bits (no LUT access for common instructions)
-        switch (opcode >> 10) {
+        // Trace hook / GDB breakpoint support: fall through to slow path when active
+        bool slow_path_needed = false;
+        if (__builtin_expect(trace_hook_ != nullptr, 0)) {
+            slow_path_needed = true;
+        } else {
+            // Fast dispatch by opcode bits (no LUT access for common instructions)
+            switch (opcode >> 10) {
         case 0: // 0x0000-0x03FF: NOP
             if (__builtin_expect(opcode == 0x0000, 1)) {
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 3: // 0x0C00-0x0FFF: ADD
             if (__builtin_expect((opcode & 0xFC00) == 0x0C00, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -211,11 +282,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_z_ = (res == 0);
                 flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 7: // 0x1C00-0x1FFF: ADC
             if (__builtin_expect((opcode & 0xFC00) == 0x1C00, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -232,11 +303,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
                 flag_z_ = prev_zero && (res == 0);
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 5: // 0x1400-0x17FF: CP
             if (__builtin_expect((opcode & 0xFC00) == 0x1400, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -250,11 +321,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_z_ = (res == 0);
                 flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 6: // 0x1800-0x1BFF: SUB
             if (__builtin_expect((opcode & 0xFC00) == 0x1800, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -269,11 +340,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_z_ = (res == 0);
                 flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 8: // 0x2000-0x23FF: AND
             if (__builtin_expect((opcode & 0xFC00) == 0x2000, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -284,11 +355,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_n_ = (res & 0x80);
                 flag_z_ = (res == 0);
                 flag_s_ = flag_n_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 9: // 0x2400-0x27FF: EOR
             if (__builtin_expect((opcode & 0xFC00) == 0x2400, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -299,21 +370,21 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_n_ = (res & 0x80);
                 flag_z_ = (res == 0);
                 flag_s_ = flag_n_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 11: // 0x2C00-0x2FFF: MOV
             if (__builtin_expect((opcode & 0xFC00) == 0x2C00, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
                 const u8 src = static_cast<u8>((opcode & 0x0FU) | ((opcode >> 5U) & 0x10U));
                 regs[dest] = regs[src];
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 1: // 0x0400-0x07FF: CPC
             if (__builtin_expect((opcode & 0xFC00) == 0x0400, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -329,11 +400,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
                 flag_z_ = prev_zero && (res == 0);
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 2: // 0x0800-0x0BFF: SBC
             if (__builtin_expect((opcode & 0xFC00) == 0x0800, 1)) {
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -350,11 +421,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_c_ = ((~lhs & rhs) | (rhs & res) | (res & ~lhs)) & 0x80;
                 flag_z_ = prev_zero && (res == 0);
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 12: // 0x3000-0x3FFF: CPI
             if (__builtin_expect((opcode & 0xF000) == 0x3000, 1)) {
                 const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
@@ -367,11 +438,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_z_ = (res == 0);
                 flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 16: // 0x4000-0x4FFF: SBCI
             if (__builtin_expect((opcode & 0xF000) == 0x4000, 1)) {
                 const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
@@ -387,11 +458,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
                 flag_z_ = prev_zero && (res == 0);
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 20: // 0x5000-0x5FFF: SUBI
             if (__builtin_expect((opcode & 0xF000) == 0x5000, 1)) {
                 const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
@@ -405,11 +476,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_z_ = (res == 0);
                 flag_c_ = ((~lhs & imm) | (imm & res) | (res & ~lhs)) & 0x80;
                 flag_s_ = flag_n_ ^ flag_v_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 24: // 0x6000-0x6FFF: ORI
             if (__builtin_expect((opcode & 0xF000) == 0x6000, 1)) {
                 const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
@@ -420,11 +491,11 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_n_ = (res & 0x80);
                 flag_z_ = (res == 0);
                 flag_s_ = flag_n_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 28: // 0x7000-0x7FFF: ANDI
             if (__builtin_expect((opcode & 0xF000) == 0x7000, 1)) {
                 const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
@@ -435,98 +506,114 @@ void AvrCpu::run(const u64 cycle_budget)
                 flag_n_ = (res & 0x80);
                 flag_z_ = (res == 0);
                 flag_s_ = flag_n_;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 32: case 33: case 34: case 35:
         case 36: case 37: case 38: case 39:
         case 40: case 41: case 42: case 43:
         case 44: case 45: case 46: case 47: // 0x8000-0xBFFF: LDD, STD, IN, OUT
             if ((opcode & 0xD208) == 0x8008) { // LDD Y+q
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     regs[dest] = bus_data[addr];
                 else
                     regs[dest] = read_data_bus(addr);
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 2;
                 break;
             }
             if ((opcode & 0xD208) == 0x8000) { // LDD Z+q
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     regs[dest] = bus_data[addr];
                 else
                     regs[dest] = read_data_bus(addr);
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 2;
                 break;
             }
             if ((opcode & 0xD208) == 0x8208) { // STD Y+q
                 const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     bus_data[addr] = regs[src];
                 else
                     write_data_bus(addr, regs[src]);
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 2;
                 break;
             }
             if ((opcode & 0xD208) == 0x8200) { // STD Z+q
                 const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     bus_data[addr] = regs[src];
                 else
                     write_data_bus(addr, regs[src]);
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 2;
                 break;
             }
             if ((opcode & 0xF800) == 0xB000) { // IN
+                if (pending_cycles > 0) {
+                    advance_cycles(pending_cycles);
+                    pending_cycles = 0;
+                }
                 const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
                 const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
                 regs[reg] = read_data_bus(MemoryBus::low_io_address(io_offset));
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
             if ((opcode & 0xF800) == 0xB800) { // OUT
+                if (pending_cycles > 0) {
+                    advance_cycles(pending_cycles);
+                    pending_cycles = 0;
+                }
                 const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
                 const u8 io_offset = static_cast<u8>(((opcode >> 5U) & 0x30U) | (opcode & 0x0FU));
                 write_data_bus(MemoryBus::low_io_address(io_offset), regs[reg]);
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
             if ((opcode & 0xFE0F) == 0x9000) { // LDS
+                if (pending_cycles > 0) {
+                    advance_cycles(pending_cycles);
+                    pending_cycles = 0;
+                }
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                if (program_counter_ + 1U >= flash_size) {
+                if (pc + 1U >= flash_size) {
                     state_ = CpuState::halted; break;
                 }
-                const u16 addr = flash[program_counter_ + 1U];
+                const u16 addr = flash[pc + 1U];
                 regs[dest] = read_data_bus(addr);
-                program_counter_ += 2U;
+                pc += 2U;
                 pending_cycles += 2;
                 break;
             }
             if ((opcode & 0xFE0F) == 0x9200) { // STS
+                if (pending_cycles > 0) {
+                    advance_cycles(pending_cycles);
+                    pending_cycles = 0;
+                }
                 const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                if (program_counter_ + 1U >= flash_size) {
+                if (pc + 1U >= flash_size) {
                     state_ = CpuState::halted; break;
                 }
-                const u16 addr = flash[program_counter_ + 1U];
+                const u16 addr = flash[pc + 1U];
                 write_data_bus(addr, regs[src]);
-                program_counter_ += 2U;
+                pc += 2U;
                 pending_cycles += 2;
                 break;
             }
@@ -540,7 +627,7 @@ void AvrCpu::run(const u64 cycle_budget)
                                 static_cast<u8>(spmcsr & 0x1FU),
                                 z_pointer(),
                                 static_cast<u16>(regs[0] | (static_cast<u16>(regs[1]) << 8)),
-                                program_counter_
+                                pc
                             );
                             write_data_bus(spmcsr_addr, static_cast<u8>(spmcsr & 0xE0U));
                         }
@@ -552,33 +639,33 @@ void AvrCpu::run(const u64 cycle_budget)
                     regs[30] = static_cast<u8>((z + 2) & 0xFF);
                     regs[31] = static_cast<u8>(((z + 2) >> 8) & 0xFF);
                 }
-                program_counter_ += 1U;
+                pc += 1U;
                 advance_cycles(1);
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 48: case 49: case 50: case 51: // 0xC000-0xFFFF: RJMP
             if (__builtin_expect((opcode & 0xF000) == 0xC000, 1)) {
                 i32 displacement = static_cast<i32>(opcode & 0x0FFFU);
                 if ((displacement & 0x0800) != 0) {
                     displacement -= 0x1000;
                 }
-                program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + displacement);
+                pc = static_cast<u32>(static_cast<i32>(pc) + 1 + displacement);
                 pending_cycles += 2;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 56: case 57: case 58: case 59: // 0xE000-0xFFFF: LDI / SER
             if (__builtin_expect((opcode & 0xF000) == 0xE000, 1)) {
-                if ((opcode & 0xFF0F) == 0xEF0F) goto slow; // SER, not inlined
+                if ((opcode & 0xFF0F) == 0xEF0F) { slow_path_needed = true; break; } // SER, not inlined
                 const u8 dest = static_cast<u8>(16U + ((opcode >> 4U) & 0x0FU));
                 const u8 imm = static_cast<u8>(((opcode >> 4U) & 0xF0U) | (opcode & 0x0FU));
                 regs[dest] = imm;
-                program_counter_ += 1U;
+                pc += 1U;
                 pending_cycles += 1;
                 break;
             }
-            goto slow;
+            slow_path_needed = true; break;
         case 60: case 61: case 62: case 63: // 0xF000-0xFFFF: branches, SBRS, SBRC
             if (__builtin_expect((opcode & 0xFE08) == 0xFE00 || (opcode & 0xFE08) == 0xFC00, 0)) {
                 const u8 reg = static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -587,18 +674,18 @@ void AvrCpu::run(const u64 cycle_budget)
                 // SBRS (bit9=1): skip if set; SBRC (bit9=0): skip if clear
                 const bool should_skip = (opcode & 0x0200) ? bit_set : !bit_set;
                 if (should_skip) {
-                    if (program_counter_ + 1U >= flash_size) {
+                    if (pc + 1U >= flash_size) {
                         state_ = CpuState::halted; break;
                     }
-                    const u16 next_opcode = flash[program_counter_ + 1U];
+                    const u16 next_opcode = flash[pc + 1U];
                     const bool is_2word = (next_opcode & 0xFE0EU) == 0x940CU ||
                                           (next_opcode & 0xFE0EU) == 0x940EU ||
                                           (next_opcode & 0xFE0FU) == 0x9000U ||
                                           (next_opcode & 0xFE0FU) == 0x9200U;
-                    program_counter_ += is_2word ? 3U : 2U;
+                    pc += is_2word ? 3U : 2U;
                     pending_cycles += is_2word ? 3U : 2U;
                 } else {
-                    program_counter_ += 1U;
+                    pc += 1U;
                     pending_cycles += 1;
                 }
                 break;
@@ -608,10 +695,10 @@ void AvrCpu::run(const u64 cycle_budget)
                 if (flag_z_) {
                     i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
                     if (d & 0x40) d -= 0x80;
-                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pc = static_cast<u32>(static_cast<i32>(pc) + 1 + d);
                     pending_cycles += 2;
                 } else {
-                    program_counter_ += 1U;
+                    pc += 1U;
                     pending_cycles += 1;
                 }
                 break;
@@ -619,10 +706,10 @@ void AvrCpu::run(const u64 cycle_budget)
                 if (!flag_z_) {
                     i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
                     if (d & 0x40) d -= 0x80;
-                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pc = static_cast<u32>(static_cast<i32>(pc) + 1 + d);
                     pending_cycles += 2;
                 } else {
-                    program_counter_ += 1U;
+                    pc += 1U;
                     pending_cycles += 1;
                 }
                 break;
@@ -630,10 +717,10 @@ void AvrCpu::run(const u64 cycle_budget)
                 if (flag_c_) {
                     i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
                     if (d & 0x40) d -= 0x80;
-                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pc = static_cast<u32>(static_cast<i32>(pc) + 1 + d);
                     pending_cycles += 2;
                 } else {
-                    program_counter_ += 1U;
+                    pc += 1U;
                     pending_cycles += 1;
                 }
                 break;
@@ -641,36 +728,59 @@ void AvrCpu::run(const u64 cycle_budget)
                 if (!flag_c_) {
                     i32 d = static_cast<i32>((opcode >> 3U) & 0x7FU);
                     if (d & 0x40) d -= 0x80;
-                    program_counter_ = static_cast<u32>(static_cast<i32>(program_counter_) + 1 + d);
+                    pc = static_cast<u32>(static_cast<i32>(pc) + 1 + d);
                     pending_cycles += 2;
                 } else {
-                    program_counter_ += 1U;
+                    pc += 1U;
                     pending_cycles += 1;
                 }
                 break;
             default:
-                goto slow;
+                slow_path_needed = true; break;
             }
             break;
         default:
-            goto slow;
+            slow_path_needed = true; break;
+        }
         }
         
-        goto fast_done;
-        
-        slow:
+        if (__builtin_expect(slow_path_needed, 0)) {
+            program_counter_ = pc;
+            if (handle_slow_path(opcode, pending_cycles, regs, flash, flash_size, bus_data, sram_begin, sram_end)) break;
+            pc = program_counter_;
+        }
+        program_counter_ = pc;
+
+        if (pending_cycles >= check_interval) {
+            advance_cycles(pending_cycles);
+            pending_cycles = 0;
+            synchronize_if_needed();
+        }
+    }
+
+    if (pending_cycles > 0) {
+        advance_cycles(pending_cycles);
+    }
+
+    // Fallback to standard step for complex states or pending interrupts
+    while ((state_ == CpuState::running || state_ == CpuState::sleeping) && cycles_ < cycle_target) {
+        step();
+    }
+}
+bool AvrCpu::handle_slow_path(const u16 opcode, u32& pending_cycles, u8* regs, const u16* flash, const size_t flash_size, u8* bus_data, const u16 sram_begin, const u16 sram_end) noexcept
+{
         {
             const u16 descriptor_index = fast_decode_table_[opcode];
             if (__builtin_expect(descriptor_index == 0xFFFFU, 0)) {
                 state_ = CpuState::halted;
-                break;
+                return true;
             }
             if (__builtin_expect(trace_hook_ != nullptr, 0)) {
                 if (pending_cycles > 0) {
                     advance_cycles(pending_cycles);
                     pending_cycles = 0;
                 }
-                const auto& desc = table[descriptor_index];
+                const auto& desc = instruction_table()[descriptor_index];
                 std::string_view mnemonic = desc.mnemonic;
                 if (mnemonic == "AND" && 
                     decode_destination_register(opcode) == decode_source_register(opcode)) {
@@ -678,7 +788,7 @@ void AvrCpu::run(const u64 cycle_budget)
                 }
                 trace_hook_->on_instruction(program_counter_, opcode, mnemonic);
                 if (state_ == CpuState::paused) {
-                    break;
+                    return true;
                 }
             }
 
@@ -736,8 +846,12 @@ void AvrCpu::run(const u64 cycle_budget)
                     pending_cycles += 1;
                 }
                 break;
-            case 44: case 45: // IN, OUT
+             case 44: case 45: // IN, OUT
                 {
+                    if (pending_cycles > 0) {
+                        advance_cycles(pending_cycles);
+                        pending_cycles = 0;
+                    }
                     const u8 reg = (descriptor_index == 44) ? 
                         decode_destination_register(opcode) : 
                         static_cast<u8>((opcode >> 4U) & 0x1FU);
@@ -839,8 +953,8 @@ void AvrCpu::run(const u64 cycle_budget)
             case 54: // LDD Y+q
                 {
                     const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         regs[dest] = bus_data[addr];
                     else
@@ -852,8 +966,8 @@ void AvrCpu::run(const u64 cycle_budget)
             case 58: // LDD Z+q
                 {
                     const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         regs[dest] = bus_data[addr];
                     else
@@ -865,8 +979,8 @@ void AvrCpu::run(const u64 cycle_budget)
             case 75: // STD Y+q
                 {
                     const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         bus_data[addr] = regs[src];
                     else
@@ -878,8 +992,8 @@ void AvrCpu::run(const u64 cycle_budget)
             case 79: // STD Z+q
                 {
                     const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
-                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+                    const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         bus_data[addr] = regs[src];
                     else
@@ -916,7 +1030,7 @@ void AvrCpu::run(const u64 cycle_budget)
                 break;
             default:
                 {
-                    const auto& desc = table[descriptor_index];
+                    const auto& desc = instruction_table()[descriptor_index];
                     DecodedInstruction inst;
                     inst.opcode = opcode;
                     inst.word_address = program_counter_;
@@ -940,23 +1054,7 @@ void AvrCpu::run(const u64 cycle_budget)
                 break;
             }
         }
-        fast_done:
-
-        if (pending_cycles >= check_interval) {
-            advance_cycles(pending_cycles);
-            pending_cycles = 0;
-            synchronize_if_needed();
-        }
-    }
-
-    if (pending_cycles > 0) {
-        advance_cycles(pending_cycles);
-    }
-
-    // Fallback to standard step for complex states or pending interrupts
-    while ((state_ == CpuState::running || state_ == CpuState::sleeping) && cycles_ < cycle_target) {
-        step();
-    }
+    return false;
 }
 
 void AvrCpu::dispatch_instruction(const DecodedInstruction& instruction)
@@ -1035,13 +1133,13 @@ void AvrCpu::step()
         return;
     }
 
-    if (bus_->should_stall_cpu(program_counter_)) {
+    if (__builtin_expect(bus_->should_stall_cpu(program_counter_), 0)) {
         advance_cycles(1U);
         return;
     }
 
     // Halt if PC is beyond the loaded program boundary
-    if (program_counter_ >= bus_->loaded_program_words()) {
+    if (__builtin_expect(program_counter_ >= bus_->loaded_program_words(), 0)) {
         state_ = CpuState::halted;
         return;
     }
@@ -1319,8 +1417,8 @@ void AvrCpu::step()
     case 44: case 45: case 46: case 47: // 0x8000-0xBFFF: LDD, STD, IN, OUT, LDS, STS
         if ((opcode & 0xD208) == 0x8008) { // LDD Y+q
             const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
-            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 regs[dest] = bus_data[addr];
             else
@@ -1329,8 +1427,8 @@ void AvrCpu::step()
         }
         if ((opcode & 0xD208) == 0x8000) { // LDD Z+q
             const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
-            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 regs[dest] = bus_data[addr];
             else
@@ -1339,8 +1437,8 @@ void AvrCpu::step()
         }
         if ((opcode & 0xD208) == 0x8208) { // STD Y+q
             const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
-            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | regs[28] + q);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 bus_data[addr] = regs[src];
             else
@@ -1349,8 +1447,8 @@ void AvrCpu::step()
         }
         if ((opcode & 0xD208) == 0x8200) { // STD Z+q
             const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
-            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | regs[30] + q);
+            const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
+            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 bus_data[addr] = regs[src];
             else
@@ -1759,7 +1857,7 @@ constexpr u16 AvrCpu::z_pointer() const noexcept
 
 constexpr u8 AvrCpu::decode_displacement_q(const u16 opcode) noexcept
 {
-    return static_cast<u8>(((opcode >> 8U) & 0x38U) | (opcode & 0x07U));
+    return static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
 }
 
 void AvrCpu::set_x_pointer(const u16 value) noexcept

@@ -28,6 +28,15 @@ class ClkCtrl;
 class SlpCtrl;
 class RstCtrl;
 
+namespace jit {
+class AvrJit;
+struct JitDebugStats {
+    uint64_t translate_count;
+    uint64_t execute_count;
+    uint64_t execute_cycles;
+};
+} // namespace jit
+
 struct DecodedInstruction {
     std::array<u16, 2> words {};
     u16 opcode {};
@@ -49,6 +58,7 @@ struct CpuSnapshot {
 class AvrCpu {
 public:
     explicit AvrCpu(MemoryBus& bus) noexcept;
+    ~AvrCpu();
 
     void reset(ResetCause cause = ResetCause::power_on) noexcept;
     void set_sync_engine(SyncEngine* sync_engine) noexcept;
@@ -111,16 +121,7 @@ public:
 
     [[nodiscard]] constexpr u8 sreg() const noexcept
     {
-        u8 val = 0;
-        if (flag_c_) val |= 0x01U;
-        if (flag_z_) val |= 0x02U;
-        if (flag_n_) val |= 0x04U;
-        if (flag_v_) val |= 0x08U;
-        if (flag_s_) val |= 0x10U;
-        if (flag_h_) val |= 0x20U;
-        if (flag_t_) val |= 0x40U;
-        if (flag_i_) val |= 0x80U;
-        return val;
+        return sreg_;
     }
 
     void set_sreg(u8 value) noexcept
@@ -204,6 +205,10 @@ public:
     [[nodiscard]] u64 interrupt_check_interval() const noexcept { return interrupt_check_interval_; }
     void set_interrupt_check_interval(u64 cycles) noexcept { interrupt_check_interval_ = cycles; }
 
+    void enable_jit(bool enabled) noexcept { jit_enabled_ = enabled; }
+    [[nodiscard]] bool jit_enabled() const noexcept { return jit_enabled_; }
+    [[nodiscard]] jit::JitDebugStats jit_debug_stats() const noexcept;
+
 private:
     using InstructionHandler = void (AvrCpu::*)(const DecodedInstruction&);
 
@@ -259,6 +264,7 @@ private:
     void update_logic_flags(u8 result) noexcept;
     void update_adiw_flags(u16 lhs, u16 result) noexcept;
     void update_sbiw_flags(u16 lhs, u16 result) noexcept;
+    [[nodiscard]]     bool handle_slow_path(u16 opcode, u32& pending_cycles, u8* regs, const u16* flash, size_t flash_size, u8* bus_data, u16 sram_begin, u16 sram_end) noexcept;
     void push_byte(u8 value) noexcept;
     [[nodiscard]] u8 pop_byte() noexcept;
     void push_word(u16 value) noexcept;
@@ -383,15 +389,22 @@ private:
     std::array<u8, kRegisterFileSize> gpr_ {};
     u32 program_counter_ {};
     u16 stack_pointer_ {};
-    u8 sreg_ {};
-    bool flag_c_ {false};
-    bool flag_z_ {false};
-    bool flag_n_ {false};
-    bool flag_v_ {false};
-    bool flag_s_ {false};
-    bool flag_h_ {false};
-    bool flag_t_ {false};
-    bool flag_i_ {false};
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+    union {
+        u8 sreg_ {};
+        struct {
+            bool flag_c_ : 1;
+            bool flag_z_ : 1;
+            bool flag_n_ : 1;
+            bool flag_v_ : 1;
+            bool flag_s_ : 1;
+            bool flag_h_ : 1;
+            bool flag_t_ : 1;
+            bool flag_i_ : 1;
+        };
+    };
+#pragma GCC diagnostic pop
     u8 rampz_ {};
     u8 eind_ {};
     ClkCtrl* clk_ctrl_ {nullptr};
@@ -408,6 +421,8 @@ private:
     CpuState state_ {CpuState::halted};
     bool reset_triggered_ {false};
     u64 interrupt_check_interval_ {64};
+    bool jit_enabled_ {false};
+    std::unique_ptr<jit::AvrJit> jit_ {};
 };
 
 }  // namespace vioavr::core
@@ -512,17 +527,8 @@ inline void AvrCpu::set_flag(const SregFlag flag_bit, const bool value) noexcept
 
 inline void AvrCpu::write_sreg(const u8 value) noexcept
 {
-    sreg_ = value;
-    flag_c_ = (value & 0x01U) != 0U;
-    flag_z_ = (value & 0x02U) != 0U;
-    flag_n_ = (value & 0x04U) != 0U;
-    flag_v_ = (value & 0x08U) != 0U;
-    flag_s_ = (value & 0x10U) != 0U;
-    flag_h_ = (value & 0x20U) != 0U;
-    flag_t_ = (value & 0x40U) != 0U;
-
     const bool old_i = flag_i_;
-    flag_i_ = (value & 0x80U) != 0U;
+    sreg_ = value;
     if (flag_i_ && !old_i) {
         interrupt_delay_ = 1U;
     }

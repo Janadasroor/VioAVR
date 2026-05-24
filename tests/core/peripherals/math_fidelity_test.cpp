@@ -6,6 +6,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
+#include <filesystem>
 
 using namespace vioavr::core;
 using namespace vioavr::core::devices;
@@ -19,7 +20,14 @@ TEST_CASE("AVR Math Fidelity Test") {
     bus.attach_peripheral(portb);
     bus.attach_peripheral(portc);
 
-    const auto image = HexImageLoader::load_file("../test_math_advanced.hex", atmega328p);
+    std::string hex_path = "tests/test_math_advanced.hex";
+    if (!std::filesystem::exists(hex_path))
+        hex_path = "../test_math_advanced.hex";
+    if (!std::filesystem::exists(hex_path))
+        hex_path = "../../tests/test_math_advanced.hex";
+    if (!std::filesystem::exists(hex_path))
+        FAIL("test_math_advanced.hex not found");
+    const auto image = HexImageLoader::load_file(hex_path, atmega328p);
     bus.load_image(image);
     cpu.reset();
 

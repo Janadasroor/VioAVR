@@ -169,7 +169,16 @@ public:
     [[nodiscard]] bool twi_broadcast(u8 address) noexcept;
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
-    [[nodiscard]] bool should_stall_cpu(u32 pc_word) const noexcept;
+    [[nodiscard]] inline bool should_stall_cpu(u32 pc_word) const noexcept
+    {
+        if (io_stall_cycles_ > 0U) return true;
+        if (spm_busy_cycles_left_ == 0U) return false;
+        if (device_.flash_rww_end_word == 0U) return true;
+        const u32 program_word = spm_address_ >> 1U;
+        if (program_word > device_.flash_rww_end_word) return true;
+        if (pc_word <= device_.flash_rww_end_word) return true;
+        return false;
+    }
     void request_cpu_stall(u32 cycles) const noexcept;
     void consume_stall_cycle() const noexcept;
 
