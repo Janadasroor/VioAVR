@@ -183,7 +183,8 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                         }
                     } else {
                         slave_phase_ = TwiSlavePhase::rx_data;
-                        slave_bits_left_ = 7;
+                        slave_bits_left_ = 7; // Off-by-one: counter reaches 0 on 7th falling edge,
+                                              // 8th rising edge triggers DIF (bits_left_==0 check)
                         slave_shift_register_ = 0;
                     }
                 }
@@ -403,6 +404,17 @@ bool Twi8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
 }
 
 bool Twi8x::consume_interrupt_request(InterruptRequest& request) noexcept {
+    if (!pending_interrupt_request(request)) return false;
+    if (request.vector_index == desc_.master_vector_index) {
+        if (mstatus_ & MSTATUS_RIF) mstatus_ &= ~MSTATUS_RIF;
+        if (mstatus_ & MSTATUS_WIF) mstatus_ &= ~MSTATUS_WIF;
+        mstatus_ &= ~MSTATUS_CLKHOLD;
+    } else {
+        if (sstatus_ & SSTATUS_DIF) sstatus_ &= ~SSTATUS_DIF;
+        if (sstatus_ & SSTATUS_APIF) sstatus_ &= ~SSTATUS_APIF;
+        if (sstatus_ & SSTATUS_CLKHOLD) sstatus_ &= ~SSTATUS_CLKHOLD;
+    }
+    update_interrupt_state();
     return true;
 }
 

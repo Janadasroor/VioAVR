@@ -21,6 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedNetlist = null;
     let chartInstance = null;
     let gridVisible = true;
+    let zoomMode = false;
+
+    // Register Chart.js Zoom plugin
+    if (typeof ChartZoom !== 'undefined') {
+        Chart.register(ChartZoom);
+    }
 
     // Harmonious neon colors for the 10-LED matrix pins and ADC/DAC nodes
     const pinColors = {
@@ -39,7 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
         'pa0_an': '#00d2ff',   // Neon Electric Cyan (COM0)
         'pa4_an': '#ff4757',   // Neon Coral Red (SEG0)
         'pc5_an': '#39ff14',   // Neon Electric Green (SEG11)
-        'pd7_an': '#ffa502'    // Neon Orange (SEG19)
+        'pd7_an': '#ffa502',   // Neon Orange (SEG19)
+        'out_plus': '#00ff88',  // Neon Green (inverter positive output)
+        'out_minus': '#ff4488'  // Hot Pink (inverter negative output)
     };
 
     // Load available netlists on startup
@@ -167,6 +175,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Auto-scale y-axis based on data range
+        const allVals = Object.values(data.nodes).flat();
+        const dMin = Math.min(...allVals);
+        const dMax = Math.max(...allVals);
+        let yMin = -0.5, yMax = 5.5;
+        if (dMax > 5.5 || dMin < -0.5) {
+            const pad = (dMax - dMin) * 0.1;
+            yMin = Math.floor((dMin - pad) * 2) / 2;
+            yMax = Math.ceil((dMax + pad) * 2) / 2;
+        }
+
         const ctx = document.getElementById('waveform-chart').getContext('2d');
         const datasets = [];
 
@@ -215,6 +234,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         borderColor: 'rgba(255, 255, 255, 0.1)',
                         borderWidth: 1,
                         padding: 10
+                    },
+                    zoom: {
+                        zoom: {
+                            drag: {
+                                enabled: true,
+                                backgroundColor: 'rgba(0, 242, 254, 0.12)',
+                                borderColor: '#00f2fe',
+                                borderWidth: 1,
+                                threshold: 8
+                            },
+                            mode: 'xy',
+                            onZoomComplete: function() {
+                                logTerminal("system", "[ZOOM] Zoomed to selection area.");
+                            }
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'xy',
+                            modifierKey: 'shift'
+                        }
                     }
                 },
                 scales: {
@@ -243,8 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             display: gridVisible
                         },
                         ticks: { color: '#94a3b8', font: { family: 'Outfit' } },
-                        min: -0.5,
-                        max: 5.5
+                        min: yMin,
+                        max: yMax
                     }
                 }
             }
@@ -265,9 +304,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset Zoom / view
     resetZoomBtn.addEventListener('click', () => {
         if (chartInstance) {
-            chartInstance.reset();
+            if (typeof chartInstance.resetZoom === 'function') {
+                chartInstance.resetZoom('default');
+            } else {
+                chartInstance.reset();
+            }
             chartInstance.update();
-            logTerminal("system", "[SYSTEM] View reset.");
+            logTerminal("system", "[SYSTEM] View reset to full range.");
         }
     });
 

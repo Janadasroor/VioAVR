@@ -156,7 +156,6 @@ void Timer16::perform_tick() noexcept {
     bool is_phase_correct = false;
 
     u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
-    // printf("[Timer16 perform_tick] tcnt=%u, ocra=%u, wgm=%u, tccra=0x%02X, tccrb=0x%02X\n", tcnt_, ocra_, wgm, tccra_, tccrb_);
     switch (wgm) {
         case 0:  top = 0xFFFFU; break;
         case 1:  top = 0x00FFU; is_phase_correct = true; update_ocr_at_top = true; break;
@@ -281,6 +280,8 @@ u8 Timer16::read(u16 address) noexcept {
     if (address == desc_.ocra_address + 1) return temp_;
     if (address == desc_.ocrb_address) { temp_ = static_cast<u8>(ocrb_buffer_ >> 8); return static_cast<u8>(ocrb_buffer_ & 0xFF); }
     if (address == desc_.ocrb_address + 1) return temp_;
+    if (address == desc_.ocrc_address && desc_.ocrc_address != 0) { temp_ = static_cast<u8>(ocrc_buffer_ >> 8); return static_cast<u8>(ocrc_buffer_ & 0xFF); }
+    if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0) return temp_;
     if (address == desc_.icr_address) { temp_ = static_cast<u8>(icr_ >> 8); return static_cast<u8>(icr_ & 0xFF); }
     if (address == desc_.icr_address + 1) return temp_;
     if (address == desc_.tccra_address) return tccra_;
@@ -314,6 +315,8 @@ void Timer16::write(u16 address, u8 value) noexcept {
     else if (address == desc_.ocra_address) { ocra_buffer_ = (static_cast<u16>(temp_) << 8) | value; }
     else if (address == desc_.ocrb_address + 1) { temp_ = value; }
     else if (address == desc_.ocrb_address) { ocrb_buffer_ = (static_cast<u16>(temp_) << 8) | value; }
+    else if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0) { temp_ = value; }
+    else if (address == desc_.ocrc_address && desc_.ocrc_address != 0) { ocrc_buffer_ = (static_cast<u16>(temp_) << 8) | value; }
     else if (address == desc_.icr_address + 1) { temp_ = value; }
     else if (address == desc_.icr_address) { icr_ = (static_cast<u16>(temp_) << 8) | value; }
     else if (address == desc_.timsk_address) { timsk_ = value; update_interrupt_state(); }
@@ -407,6 +410,8 @@ void Timer16::update_pin_ownership() noexcept {
 }
 
 void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
+    fprintf(stderr, "[PWM_CALLED] is_match=%d channel_mask=%u name=%s\n", (int)is_match, (unsigned)channel_mask, name_.data());
+    fflush(stderr);
     if (!pin_mux_) return;
     u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
     bool is_phase_correct = (wgm >= 1 && wgm <= 3) || (wgm >= 8 && wgm <= 11);
@@ -417,7 +422,11 @@ void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
         || (wgm == 14 || wgm == 15);
 
     auto update_pin = [&](const std::optional<BoundPin>& pin, u8 com, u16 ocr) {
-        if (!pin || com == 0) return;
+        if (!pin || com == 0) {
+            u64 cyc = bus_ ? bus_->domain_cycles(clock_domain()) : 0;
+            fprintf(stderr, "[PWM_SKIP] no_pin=%d com=%d is_match=%d cyc=%lu\n", !pin.has_value(), (int)com, (int)is_match, (unsigned long)cyc);
+            return;
+        }
 
         if (is_non_pwm) {
             if (!is_match) return;
@@ -432,23 +441,36 @@ void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
             return;
         }
 
+        bool old_level = false, new_level = false;
+        if (pin_mux_) {
+            auto old_state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
+            old_level = old_state.drive_level;
+        }
+
         if (com == 1) {
             if (com1_toggles && is_match) {
                 auto state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
-                pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, !state.drive_level);
+                new_level = !state.drive_level;
+                pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, new_level);
             }
+            u64 cyc = bus_ ? bus_->domain_cycles(clock_domain()) : 0;
+            fprintf(stderr, "[PWM_COM1] tcnt=%u ocr=%u is_match=%d new_level=%d cyc=%lu\n", (unsigned)tcnt_, (unsigned)ocr, (int)is_match, (int)new_level, (unsigned long)cyc);
             return;
         }
 
         if (is_phase_correct) {
-            bool level = (com == 2)
+            new_level = (com == 2)
                 ? (tcnt_ < ocr) || (!counting_up_ && tcnt_ == ocr)
                 : (tcnt_ > ocr) || (counting_up_ && tcnt_ == ocr);
-            pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, level);
+            pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, new_level);
         } else {
-            bool level = (com == 2) ? (tcnt_ < ocr) : (tcnt_ >= ocr);
-            pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, level);
+            new_level = (com == 2) ? (tcnt_ < ocr) : (tcnt_ >= ocr);
+            pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, new_level);
         }
+
+        u64 cyc = bus_ ? bus_->domain_cycles(clock_domain()) : 0;
+        fprintf(stderr, "[PWM_PIN] %s level=%d tcnt=%u ocr=%u is_match=%d changed=%d cyc=%lu\n",
+                is_match ? "MATCH" : "BOTTOM", (int)new_level, (unsigned)tcnt_, (unsigned)ocr, (int)is_match, (int)(new_level != old_level), (unsigned long)cyc);
     };
     if (channel_mask & CH_A) update_pin(pin_a_, (tccra_ >> 6) & 0x03, ocra_);
     if (channel_mask & CH_B) update_pin(pin_b_, (tccra_ >> 4) & 0x03, ocrb_);

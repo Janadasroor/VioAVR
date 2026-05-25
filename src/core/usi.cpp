@@ -49,8 +49,8 @@ void Usi::reset() noexcept {
 }
 
 void Usi::tick(u64 /*elapsed_cycles*/) noexcept {
-    // External clock detection would go here
-    // For now, USI responds to software clock strobes only
+    // External pin monitoring deferred (requires PortMux integration)
+    // USI responds to software clock strobes only
 }
 
 u8 Usi::reg_offset(u16 address) const noexcept {
@@ -63,7 +63,7 @@ u8 Usi::reg_offset(u16 address) const noexcept {
 
 u8 Usi::read(u16 address) noexcept {
     switch (reg_offset(address)) {
-    case 0: return usicr_;
+    case 0: return usicr_ & ~(USICLK | USITC); // USICLK and USITC read as 0
     case 1: return usisr_;
     case 2: return usidr_;
     case 3: return usibr_;
@@ -103,7 +103,7 @@ void Usi::write(u16 address, u8 value) noexcept {
                     usisr_ |= USIOIF;
                 }
             } else {
-                // 3-wire / normal mode: shift MSB out, shift new bit in from DO
+                // 3-wire / normal mode: shift MSB out, shift new bit in from DI
                 u8 bit_out = (usidr_ & 0x80) ? 1 : 0;
                 u8 bit_in = 0;
                 usidr_ = (usidr_ << 1) | bit_in;
@@ -140,6 +140,8 @@ void Usi::write(u16 address, u8 value) noexcept {
 
         usisr_ = (usisr_ & ~flag_clear); // Clear flags written as 1
         usisr_ = (usisr_ & ~USICNT_MASK) | cnt_set; // Set counter
+        // Loading USICNT with non-zero clears USISIF per datasheet
+        if (cnt_set > 0) usisr_ &= ~USISIF;
         update_interrupt_pending();
         break;
     }
@@ -186,12 +188,6 @@ void Usi::update_interrupt_pending() noexcept {
     int_pending_ = false;
     if ((usicr_ & USISIE) && (usisr_ & USISIF)) int_pending_ = true;
     if ((usicr_ & USIOIE) && (usisr_ & USIOIF)) int_pending_ = true;
-}
-
-void Usi::update_pins() noexcept {
-    // Update DO pin output in 3-wire mode
-    // Update SDA pin output in 2-wire mode
-    // Update USCK/SCL pin output
 }
 
 } // namespace vioavr::core

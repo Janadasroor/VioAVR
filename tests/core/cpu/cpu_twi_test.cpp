@@ -61,7 +61,8 @@ TEST_CASE("TWI (I2C) Peripheral Master Mode Test")
         .entry_word = 0U
     });
     cpu.reset();
-    twi.set_rx_buffer({0x00});
+    // Configure TWI to respond as slave to address 0x50
+    bus.write_data(atmega328p.twis[0].twar_address, 0xA0);
 
     SUBCASE("Master Transmission Sequence") {
         // 1. Send START

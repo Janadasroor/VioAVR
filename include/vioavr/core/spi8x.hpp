@@ -46,6 +46,7 @@ private:
 
     u8 tx_buffer_{0U};
     u8 shift_register_{0U};
+    u8 rx_byte_{0U};
     bool tx_buffer_full_{false};
 
     static constexpr u8 CTRLA_ENABLE = 0x01U;

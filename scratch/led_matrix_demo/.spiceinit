@@ -1,2 +1,2 @@
-* VioSpice local init configuration
-codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+* Load digital code models (contains d_cosim)
+codemodel /home/jnd/cpp_projects/VioMATRIXC/release/src/xspice/icm/digital/digital.cm

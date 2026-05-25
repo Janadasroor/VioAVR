@@ -193,7 +193,7 @@ void Twi::handle_master_step() noexcept
     if (twsr_ == kStatusStart || twsr_ == kStatusRepStart) {
         // SLA+W/R just sent
         const bool is_read = (twdr_ & 0x01U);
-        const bool acked = (bus_ && bus_->twi_broadcast(twdr_)) || (rx_idx_ < rx_buffer_.size());
+        const bool acked = (bus_ && bus_->twi_broadcast(twdr_));
         
         if (is_read) {
             mode_ = Mode::master_rx;
@@ -236,12 +236,12 @@ void Twi::handle_slave_step() noexcept
 {
     if (mode_ == Mode::slave_rx) {
         tx_buffer_.push_back(twdr_);
-        twsr_ = kStatusSlaveRxDataAck;
+        twsr_ = (twcr_ & desc_.twea_mask) ? kStatusSlaveRxDataAck : kStatusSlaveRxDataNack;
     } else if (mode_ == Mode::slave_tx) {
         if (rx_idx_ < rx_buffer_.size()) {
             twdr_ = rx_buffer_[rx_idx_++];
         }
-        twsr_ = kStatusSlaveTxDataAck;
+        twsr_ = (twcr_ & desc_.twea_mask) ? kStatusSlaveTxDataAck : kStatusSlaveTxDataNack;
     }
 }
 

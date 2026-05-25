@@ -178,7 +178,14 @@ void Rtc::tick(u64 elapsed_cycles) noexcept {
 
 void Rtc::handle_rtc_tick() {
     Logger::debug("RTC: tick cnt=" + std::to_string(cnt_) + " per=" + std::to_string(per_));
-    if (cnt_ == per_) {
+    const u16 old_cnt = cnt_;
+    if (old_cnt == cmp_) {
+        intflags_ |= 0x02; // CMP
+        if (evsys_ && desc_.cmp_generator_id != 0) {
+            evsys_->trigger_event(desc_.cmp_generator_id);
+        }
+    }
+    if (old_cnt == per_) {
         cnt_ = 0;
         intflags_ |= 0x01; // OVF
         if (evsys_ && desc_.ovf_generator_id != 0) {
@@ -186,13 +193,6 @@ void Rtc::handle_rtc_tick() {
         }
     } else {
         cnt_++;
-    }
-    
-    if (cnt_ == cmp_) {
-        intflags_ |= 0x02; // CMP
-        if (evsys_ && desc_.cmp_generator_id != 0) {
-            evsys_->trigger_event(desc_.cmp_generator_id);
-        }
     }
 }
 

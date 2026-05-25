@@ -8,8 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js + Zoom Plugin CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0"></script>
     <link rel="stylesheet" href="style.css">
     <script src="app.js" defer></script>
 </head>
@@ -58,6 +59,7 @@
                     <p>Real-time mixed-signal pin voltage outputs</p>
                 </div>
                 <div class="header-controls">
+                    <span class="zoom-hint">Drag to zoom · Shift+drag to pan</span>
                     <button class="icon-button" id="toggle-grid" title="Toggle Grid Lines">🌐 Grid</button>
                     <button class="icon-button" id="reset-zoom" title="Reset View">🔄 Reset</button>
                 </div>

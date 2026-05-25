@@ -99,13 +99,13 @@ void Tcb::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.temp_address) {
         temp_ = value;
     } else if (address == desc_.cnt_address + 1) {
-        temp_ = value;
+        cnt_ = (cnt_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
     } else if (address == desc_.cnt_address) {
-        cnt_ = (static_cast<u16>(temp_) << 8U) | value;
+        cnt_ = (cnt_ & 0xFF00U) | value;
     } else if (address == desc_.ccmp_address + 1) {
-        temp_ = value;
+        ccmp_ = (ccmp_ & 0x00FFU) | (static_cast<u16>(value) << 8U);
     } else if (address == desc_.ccmp_address) {
-        ccmp_ = (static_cast<u16>(temp_) << 8U) | value;
+        ccmp_ = (ccmp_ & 0xFF00U) | value;
     }
     update_outputs();
 }

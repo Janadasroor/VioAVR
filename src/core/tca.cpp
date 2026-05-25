@@ -47,9 +47,12 @@ void Tca::reset() noexcept {
     intflags_ = 0;
     dbgctrl_ = 0;
     temp_ = 0;
+    ctrle_ = 0;
+    ctrlf_ = 0;
     norm_ = { .tcnt = 0x0000, .per = 0xFFFF, .cmp0 = 0, .cmp1 = 0, .cmp2 = 0 };
     buf_ = { .per = 0xFFFF, .cmp0 = 0, .cmp1 = 0, .cmp2 = 0, .per_valid = false, .cmp0_valid = false, .cmp1_valid = false, .cmp2_valid = false };
     counting_up_ = true;
+    last_event_level_ = false;
     prescaler_counter_ = 0;
     prescaler_limit_ = 1;
     wo_states_.fill(false);
@@ -69,17 +72,20 @@ void Tca::set_event_system(EventSystem* evsys) noexcept {
         u16 base = evsys_->users_base();
         if (desc_.user_event_address >= base) {
             u8 idx = static_cast<u8>(desc_.user_event_address - base);
-            evsys_->register_user_callback(idx, [this](bool) {
-                this->on_event();
+            evsys_->register_user_callback(idx, [this](bool level) {
+                this->on_event(level);
             });
         }
     }
 }
 
-void Tca::on_event() noexcept {
-    if (is_enabled()) {
-        perform_tick();
+void Tca::on_event(bool level) noexcept {
+    if (level && !last_event_level_) {
+        if (is_enabled()) {
+            perform_tick();
+        }
     }
+    last_event_level_ = level;
 }
 
 u8 Tca::read(u16 address) noexcept {
@@ -92,6 +98,12 @@ u8 Tca::read(u16 address) noexcept {
     if (address == desc_.intflags_address) return intflags_;
     if (address == desc_.dbgctrl_address) return dbgctrl_;
     if (address == desc_.temp_address) return temp_;
+    if (address == desc_.ctrleclr_address || address == desc_.ctrleset_address) {
+        return ctrle_ & 0x18U; // DIR and LUPD only; CMD reads as 0
+    }
+    if (address == desc_.ctrlfclr_address || address == desc_.ctrlfset_address) {
+        return ctrlf_;
+    }
 
     if (is_split_mode()) {
         // Split Mode Aliases skip TEMP
@@ -105,9 +117,12 @@ u8 Tca::read(u16 address) noexcept {
         if (address == desc_.cmp1_address + 1) return cmp1_h();
         if (address == desc_.cmp2_address) return cmp2_l();
         if (address == desc_.cmp2_address + 1) return cmp2_h();
+        // Split mode: BUF addresses map to H-timer registers
+        if (address == desc_.perbuf_address) return per_h() & 0x0FU;
+        if (address == desc_.cmp0buf_address) return cmp0_h();
+        if (address == desc_.cmp1buf_address) return cmp1_h();
+        if (address == desc_.cmp2buf_address) return cmp2_h();
         
-        // BUFFER registers not used in split mode according to some docs, 
-        // but let's just return 0 for safety or follow mapping
         return 0;
     }
 
@@ -194,6 +209,18 @@ void Tca::write(u16 address, u8 value) noexcept {
         update_interrupt_state();
     } else if (address == desc_.temp_address) {
         temp_ = value;
+    } else if (address == desc_.ctrleclr_address) {
+        if (value & 0x08U) ctrle_ &= ~0x08U; // Clear DIR
+        if (value & 0x10U) ctrle_ &= ~0x10U; // Clear LUPD
+        handle_cmd(value & 0x07U);
+    } else if (address == desc_.ctrleset_address) {
+        if (value & 0x08U) ctrle_ |= 0x08U; // Set DIR
+        if (value & 0x10U) ctrle_ |= 0x10U; // Set LUPD
+        handle_cmd(value & 0x07U);
+    } else if (address == desc_.ctrlfclr_address) {
+        ctrlf_ &= ~value;
+    } else if (address == desc_.ctrlfset_address) {
+        ctrlf_ |= value;
     }
     // Data Registers
     else if (is_split_mode()) {
@@ -207,6 +234,11 @@ void Tca::write(u16 address, u8 value) noexcept {
         else if (address == desc_.cmp1_address + 1) cmp1_h() = value;
         else if (address == desc_.cmp2_address) cmp2_l() = value;
         else if (address == desc_.cmp2_address + 1) cmp2_h() = value;
+        // Split mode: BUF addresses map to H-timer registers (HPER, HCMP0-2)
+        else if (address == desc_.perbuf_address) { per_h() = (per_h() & 0xF0U) | (value & 0x0FU); }
+        else if (address == desc_.cmp0buf_address) { cmp0_h() = value; }
+        else if (address == desc_.cmp1buf_address) { cmp1_h() = value; }
+        else if (address == desc_.cmp2buf_address) { cmp2_h() = value; }
     } else {
         // Normal (16-bit) mode with TEMP logic
         // GCC writes low byte first, then high byte
@@ -226,21 +258,25 @@ void Tca::write(u16 address, u8 value) noexcept {
         else if (address == desc_.perbuf_address + 1) {
             buf_.per = (static_cast<u16>(value) << 8U) | temp_;
             buf_.per_valid = true;
+            ctrlf_ |= 0x01U; // PERBV
         }
         else if (address == desc_.cmp0buf_address) temp_ = value;
         else if (address == desc_.cmp0buf_address + 1) {
             buf_.cmp0 = (static_cast<u16>(value) << 8U) | temp_;
             buf_.cmp0_valid = true;
+            ctrlf_ |= 0x02U; // CMP0BV
         }
         else if (address == desc_.cmp1buf_address) temp_ = value;
         else if (address == desc_.cmp1buf_address + 1) {
             buf_.cmp1 = (static_cast<u16>(value) << 8U) | temp_;
             buf_.cmp1_valid = true;
+            ctrlf_ |= 0x04U; // CMP1BV
         }
         else if (address == desc_.cmp2buf_address) temp_ = value;
         else if (address == desc_.cmp2buf_address + 1) {
             buf_.cmp2 = (static_cast<u16>(value) << 8U) | temp_;
             buf_.cmp2_valid = true;
+            ctrlf_ |= 0x08U; // CMP2BV
         }
     }
     update_outputs();
@@ -363,15 +399,45 @@ bool Tca::consume_interrupt_request(InterruptRequest& request) noexcept {
     return false;
 }
 
+void Tca::handle_cmd(u8 cmd) noexcept {
+    switch (cmd) {
+    case 1: // UPDATE
+        if (!(ctrle_ & 0x10U)) { // LUPD not set
+            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= ~0x01U; }
+            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
+            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
+            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= ~0x08U; }
+        }
+        break;
+    case 2: // RESET
+        reset();
+        break;
+    case 3: // RESTART
+        norm_.tcnt = 0;
+        counting_up_ = true;
+        intflags_ = 0;
+        if (!(ctrle_ & 0x10U)) {
+            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= ~0x01U; }
+            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
+            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
+            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= ~0x08U; }
+        }
+        update_interrupt_state();
+        update_outputs();
+        break;
+    }
+}
+
 void Tca::perform_tick() {
     u8 wgmode = ctrlb_ & 0x07;
     bool update_cond = false;
+    bool ovf_at_bottom = false;
+    const u16 old_tcnt = norm_.tcnt;
 
     if (wgmode == 0x01) { // FRQ
         if (norm_.tcnt >= norm_.cmp0) {
             norm_.tcnt = 0;
             update_cond = true;
-            // FRQ mode toggles WO0 on every match
             wo_states_[0] = !wo_states_[0];
         } else {
             norm_.tcnt++;
@@ -388,7 +454,8 @@ void Tca::perform_tick() {
         } else {
             if (norm_.tcnt == 0) {
                 counting_up_ = true;
-                update_cond = true; // H10: UPDATE also at BOTTOM for dual slope
+                ovf_at_bottom = true;
+                update_cond = true; // UPDATE at BOTTOM for dual slope
                 norm_.tcnt++;
             } else {
                 norm_.tcnt--;
@@ -398,22 +465,26 @@ void Tca::perform_tick() {
         if (norm_.tcnt >= norm_.per) {
             norm_.tcnt = 0;
             update_cond = true;
+            ovf_at_bottom = true;
         } else {
             norm_.tcnt++;
         }
     }
 
-    if (update_cond) {
-        if (wgmode != 0x01) intflags_ |= 0x01; // OVF (not in FRQ mode)
-        if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
+    handle_matches();
 
-        if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; }
-        if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; }
-        if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; }
-        if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; }
+    if (update_cond) {
+        if (ovf_at_bottom) {
+            intflags_ |= 0x01; // OVF
+            if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
+        }
+
+        if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= ~0x01U; }
+        if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
+        if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
+        if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= ~0x08U; }
     }
 
-    handle_matches();
     update_outputs();
 }
 
