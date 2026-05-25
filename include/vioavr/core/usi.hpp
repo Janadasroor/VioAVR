@@ -23,7 +23,6 @@ public:
 
 private:
     void update_interrupt_pending() noexcept;
-    void update_pins() noexcept;
     bool is_twowire() const noexcept;
     u8 reg_offset(u16 address) const noexcept;
 

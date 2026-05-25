@@ -26,6 +26,7 @@ TEST_CASE("TWI: Master State Machine and Status Codes") {
     CHECK(bus.read_data(desc.twsr_address) == 0x08); // START Transmitted
     
     // 2. SLA+W Transmit
+    bus.write_data(desc.twar_address, 0x40); // Enable slave response to 0x20
     bus.write_data(desc.twdr_address, 0x40); // Addr 0x20 + Write (0)
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
     
@@ -101,6 +102,7 @@ TEST_CASE("TWI: Repeated START Condition") {
     bus.write_data(desc.twbr_address, 10);
     
     // First transaction: Write to address 0x20
+    bus.write_data(desc.twar_address, 0x40); // Enable slave response
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
     bus.tick_peripherals(36);
     
@@ -121,6 +123,7 @@ TEST_CASE("TWI: Repeated START Condition") {
     CHECK(bus.read_data(desc.twsr_address) == 0x10); // Repeated START
     
     // SLA+R (read from same device)
+    bus.write_data(desc.twar_address, 0x41); // Enable slave response for read
     bus.write_data(desc.twdr_address, 0x41); // SLA+R
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
     bus.tick_peripherals(36);

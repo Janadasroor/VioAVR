@@ -56,6 +56,8 @@ private:
     u8 intflags_ {0x00};
     u8 dbgctrl_ {0x00};
     u8 temp_ {0x00};
+    u8 ctrle_ {0x00};  // CMD, DIR, LUPD
+    u8 ctrlf_ {0x00};  // PERBV, CMP0BV, CMP1BV, CMP2BV
 
     // Register State
     struct {
@@ -107,13 +109,15 @@ private:
 
     // Buffers and Status
     bool counting_up_ {true};
+    bool last_event_level_ {false};
 
     // Internal logic
     void handle_matches();
     void perform_tick();
     void perform_tick_split();
     void update_outputs();
-    void on_event() noexcept;
+    void handle_cmd(u8 cmd) noexcept;
+    void on_event(bool level) noexcept;
     
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     [[nodiscard]] bool is_split_mode() const noexcept { return ctrld_ & 0x01; }

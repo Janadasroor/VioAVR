@@ -1,0 +1,26 @@
+* ATmega4809 Blinky — d_cosim co-simulation test
+* AVR runs in-process via libavr_cosim.so
+
+* DAC bridges (digital -> analog)
+A_mcu_bridge [pb0_dig pb1_dig pb2_dig pc0_dig pd0_dig] [pb0_an pb1_an pb2_an pc0_an pd0_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* AVR MCU via d_cosim (24 pins)
+* Pin map: PORTB[0..7]=idx 0..7, PORTC[0..7]=idx 8..15, PORTD[0..7]=idx 16..23
+A_AVR [pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega4809"] queue_size=1024 irreversible=1 delay=1e-9)
+
+* Load resistors on PB0, PC0, PD0
+R_b0 pb0_an 0 1k
+R_c0 pc0_an 0 1k
+R_d0 pd0_an 0 1k
+
+* Solver options
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 1us 500us
+
+.control
+run
+print v(pb0_an) v(pc0_an) v(pd0_an)
+.endc
+.end

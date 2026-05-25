@@ -84,4 +84,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     target_compile_options(vioavr_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+set_target_properties(vioavr_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_link_libraries(vioavr_core PRIVATE rt Threads::Threads)

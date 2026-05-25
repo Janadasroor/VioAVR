@@ -21,6 +21,7 @@ set(TEST_SOURCES
     avr8x/avr8x_spi_fidelity_test.cpp
     avr8x/avr8x_sysctrl_fidelity_test.cpp
     avr8x/avr8x_tca_fidelity_test.cpp
+    avr8x/avr8x_tca_pwm_period_test.cpp
     avr8x/avr8x_tcb_fidelity_test.cpp
     avr8x/avr8x_tcb_pulse_width_test.cpp
     avr8x/avr8x_twi_fidelity_test.cpp

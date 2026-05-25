@@ -315,6 +315,16 @@ body {
 .header-controls {
     display: flex;
     gap: 8px;
+    align-items: center;
+}
+
+.zoom-hint {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    letter-spacing: 0.02em;
+    margin-right: 8px;
+    white-space: nowrap;
 }
 
 .icon-button {
@@ -347,6 +357,7 @@ body {
 #waveform-chart {
     width: 100% !important;
     height: 100% !important;
+    cursor: crosshair;
 }
 
 .chart-placeholder {

@@ -162,6 +162,8 @@ void AvrCpu::run(const u64 cycle_budget)
     u32 pending_cycles = 0;
     const u64 check_interval = interrupt_check_interval_;
 
+    jit::JitState jit_state;
+
     while (state_ == CpuState::running && cycles_ + pending_cycles < cycle_target) {
         // Handle pending interrupt before fetching next instruction
         if (__builtin_expect(interrupt_pending_ != 0, 0)) {
@@ -215,25 +217,24 @@ void AvrCpu::run(const u64 cycle_budget)
             }
 
             if (jit_ok) {
-                jit::JitState state;
-                std::copy(gpr_.begin(), gpr_.end(), state.gpr);
-                state.pc = program_counter_;
-                state.sp = stack_pointer_;
-                state.sreg = sreg_;
-                state.cycles = cycles_;
-                state.bus = bus_;
+                std::copy(gpr_.begin(), gpr_.end(), jit_state.gpr);
+                jit_state.pc = program_counter_;
+                jit_state.sp = stack_pointer_;
+                jit_state.sreg = sreg_;
+                jit_state.cycles = cycles_;
+                jit_state.bus = bus_;
 
                 const u64 cycles_before = cycles_;
 
-                jit_->execute(program_counter_, &state);
+                jit_->execute(program_counter_, &jit_state);
 
-                std::copy(state.gpr, state.gpr + 32, gpr_.begin());
-                program_counter_ = state.pc;
-                stack_pointer_ = state.sp;
-                write_sreg(state.sreg);
+                std::copy(jit_state.gpr, jit_state.gpr + 32, gpr_.begin());
+                program_counter_ = jit_state.pc;
+                stack_pointer_ = jit_state.sp;
+                write_sreg(jit_state.sreg);
 
-                const u64 delta = state.cycles - cycles_before;
-                cycles_ = state.cycles;
+                const u64 delta = jit_state.cycles - cycles_before;
+                cycles_ = jit_state.cycles;
 
                 if (bus_ != nullptr) {
                     bus_->tick_peripherals(delta, active_clock_domains());
@@ -1091,11 +1092,11 @@ void AvrCpu::run_duration(const double seconds)
     }
 
     const double cycles_to_run = (seconds * static_cast<double>(cycles_per_second())) + cycle_accumulator_;
-    const u64 integral_cycles = static_cast<u64>(cycles_to_run);
-    cycle_accumulator_ = cycles_to_run - static_cast<double>(integral_cycles);
+    const u64 budget = static_cast<u64>(cycles_to_run);
+    cycle_accumulator_ = cycles_to_run - static_cast<double>(budget);
 
-    if (integral_cycles > 0U) {
-        run(integral_cycles);
+    if (budget > 0U) {
+        run(budget);
     }
 }
 

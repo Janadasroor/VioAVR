@@ -44,6 +44,7 @@ void Spi8x::reset() noexcept {
     data_ = 0x00U;
     tx_buffer_ = 0x00U;
     shift_register_ = 0x00U;
+    rx_byte_ = 0x00U;
     tx_buffer_full_ = false;
     transfer_in_progress_ = false;
     transfer_cycles_elapsed_ = 0;
@@ -67,8 +68,14 @@ void Spi8x::tick(u64 elapsed_cycles) noexcept {
                 
                 // SCK toggle (simplified)
                 bool sck = (transfer_cycles_elapsed_ % bit_duration) < (bit_duration / 2);
-                if (ctrla_ & 0x10) sck = !sck; // CPOL
+                if (ctrla_ & 0x04) sck = !sck; // CPOL at bit 2
                 port_mux_->drive_spi_sck(desc_.index, sck ? PinLevel::high : PinLevel::low);
+
+                // Sample MISO on opposite SCK edge (mid-bit)
+                if ((transfer_cycles_elapsed_ % bit_duration) == bit_duration / 2) {
+                    bool miso = port_mux_->get_spi_miso_level(desc_.index) == PinLevel::high;
+                    if (miso) rx_byte_ |= (1 << (7 - bit_idx));
+                }
                 
                 // SS Active Low
                 port_mux_->drive_spi_ss(desc_.index, PinLevel::low);
@@ -83,16 +90,12 @@ void Spi8x::tick(u64 elapsed_cycles) noexcept {
                     port_mux_->drive_spi_ss(desc_.index, PinLevel::high);
                 }
 
-                // For now, simulate loopback by loading data_ with shift_register_
-                // Or if MISO is driven, read it.
-                if (port_mux_ && (ctrla_ & CTRLA_MASTER)) {
-                    // Logic to read MISO bit-by-bit would be in the loop above
-                }
-                data_ = shift_register_;
+                data_ = rx_byte_;
                 
                 // Auto-load next byte if available
                 if (tx_buffer_full_) {
                     shift_register_ = tx_buffer_;
+                    rx_byte_ = 0;
                     tx_buffer_full_ = false;
                     transfer_in_progress_ = true;
                     transfer_cycles_elapsed_ = 0;
@@ -101,6 +104,7 @@ void Spi8x::tick(u64 elapsed_cycles) noexcept {
         } else if (tx_buffer_full_) {
             // Start delayed transfer
             shift_register_ = tx_buffer_;
+            rx_byte_ = 0;
             tx_buffer_full_ = false;
             transfer_in_progress_ = true;
             transfer_cycles_elapsed_ = 0;
@@ -157,6 +161,7 @@ void Spi8x::write(u16 address, u8 value) noexcept {
         if (!transfer_in_progress_) {
             // Start immediately if idle
             shift_register_ = tx_buffer_;
+            rx_byte_ = 0;
             tx_buffer_full_ = false;
             transfer_in_progress_ = true;
             transfer_cycles_elapsed_ = 0;

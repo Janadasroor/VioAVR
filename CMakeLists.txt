@@ -86,6 +86,7 @@ endif()
 add_subdirectory(src/core)
 add_subdirectory(apps/vioavr-cli)
 add_subdirectory(apps/viospice-poc)
+add_subdirectory(cosim)
 
 if(VIOAVR_ENABLE_QT)
     add_subdirectory(src/qt)

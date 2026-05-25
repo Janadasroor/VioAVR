@@ -155,7 +155,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                 
                 if (tx_bit_count_ == 0) {
                     tx_active_ = false;
-                    eucsra_ |= 0x80; // TX Complete
+                    eucsra_ |= desc_.txc_mask; // TX Complete
                     cycles_to_next_bit_ = 0;
                 } else {
                     cycles_to_next_bit_ = manchester ? cycles_per_half : cycles_per_bit;
@@ -234,6 +234,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                         if (rx_bit_count_ == 0) {
                             rx_active_ = false;
                             rx_queue_.push_back(rx_shift_reg_);
+                            eucsra_ |= desc_.rxc_mask; // RXCIF
                             rx_cycles_to_sample_ = 0;
                         } else {
                             rx_cycles_to_sample_ = cycles_per_half; // Back to 1/4 of next bit
@@ -251,6 +252,8 @@ u8 Eusart::read(u16 address) noexcept {
         if (rx_queue_.empty()) return 0;
         u32 val = rx_queue_.front();
         rx_queue_.pop_front();
+        eucsra_ &= ~desc_.rxc_mask;
+        if (!rx_queue_.empty()) eucsra_ |= desc_.rxc_mask;
         
         rx_temp_ = (val >> 8);
         return static_cast<u8>(val & 0xFF);
@@ -274,8 +277,8 @@ void Eusart::write(u16 address, u8 value) noexcept {
         tx_queue_.push_back(full);
         tx_temp_ = 0; // Reset for next use
     } else if (address == desc_.eucsra_address) {
-        // TXC (bit 6) is write-1-to-clear; other bits are writable
-        eucsra_ = (value & ~0x40U) | (eucsra_ & 0x40U & ~value);
+        // TXC is write-1-to-clear; other bits are writable
+        eucsra_ = (value & ~desc_.txc_mask) | (eucsra_ & desc_.txc_mask & ~value);
     } else if (address == desc_.eucsrb_address) {
         eucsrb_ = value;
         if ((eucsrb_ & desc_.eus_en_mask) && bus_ && bus_->pin_mux()) {

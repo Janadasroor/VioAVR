@@ -1,0 +1,71 @@
+* SPWM Inverter — Edge Analysis Testbench
+* Studies: duty accuracy, gate drive edges, bootstrap, zero-crossing
+
+* 1. Power Supplies
+V_dc vdc 0 DC 24.0
+
+* 2. DAC bridges (level-shift AVR 5V digital to 12V gate drive)
+A_dac_a [spwm_a_dig] [spwm_a_an] dac_model
+A_dac_b [spwm_b_dig] [spwm_b_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=12.0)
+
+* 3. Bootstrap gate drives (B-sources)
+Bhs_a q1_gate_drv 0 V=V(sw_a)+V(spwm_a_an)
+Bls_a q4_gate_drv 0 V=12-V(spwm_a_an)
+Bhs_b q2_gate_drv 0 V=V(sw_b)+V(spwm_b_an)
+Bls_b q3_gate_drv 0 V=12-V(spwm_b_an)
+
+* 4. Gate resistors + bootstrap convergence caps
+Rg1 q1_gate_drv q1_gate 0.1
+Rg2 q2_gate_drv q2_gate 0.1
+Rg3 q3_gate_drv q3_gate 0.1
+Rg4 q4_gate_drv q4_gate 0.1
+Cgs1 q1_gate sw_a 100p
+Cgs2 q2_gate sw_b 100p
+Cgs3 q3_gate 0 100p
+Cgs4 q4_gate 0 100p
+
+* 5. H-Bridge MOSFETs (N-channel)
+M1 vdc q1_gate sw_a vdc IRF540
+M2 vdc q2_gate sw_b vdc IRF540
+M3 sw_b q3_gate 0 0 IRF540
+M4 sw_a q4_gate 0 0 IRF540
+
+* 6. RC Snubbers
+Cs1 sw_a vdc 470p
+Rs1 sw_a vdc 10
+Cs2 sw_b vdc 470p
+Rs2 sw_b vdc 10
+Cs3 0 sw_b 470p
+Rs3 0 sw_b 10
+Cs4 0 sw_a 470p
+Rs4 0 sw_a 10
+
+* 7. LC Output Filter
+L1 sw_a out_plus 5m
+L2 sw_b out_minus 5m
+C_out out_plus out_minus 10u
+R_load out_plus out_minus 47
+
+* 8. AVR MCU
+A_AVR [nc0 spwm_a_dig spwm_b_dig nc3 nc4 nc5 nc6 nc7 nc8 nc9 nc10 nc11 nc12 nc13 nc14 nc15 nc16 nc17 nc18 nc19 nc20 nc21 nc22 nc23] [nc0 spwm_a_dig spwm_b_dig nc3 nc4 nc5 nc6 nc7 nc8 nc9 nc10 nc11 nc12 nc13 nc14 nc15 nc16 nc17 nc18 nc19 nc20 nc21 nc22 nc23] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p"] queue_size=1024 irreversible=1 delay=1e-9)
+
+* 9. MOSFET Model
+.model IRF540 VDMOS(Vto=3.0 Rd=40m Rs=10m Rb=20m Kp=8.0 Lambda=10m
++ Cgdmax=1.0n Cgdmin=0.1n Cgs=1.5n Cds=0.5n Is=1e-12)
+
+* 10. Simulation Options
+.options reltol=0.005 method=gear itl1=500 itl2=5000
+
+* ====================================================================
+* TEST A — First PWM cycles: verify duty progression & switching edges
+* 0-300us, 50ns step. Look for SPWM rising edges and sw_a response.
+* ====================================================================
+.tran 50ns 300us
+.control
+run
+print v(spwm_a_an) v(sw_a) v(out_plus)
+.endc
+
+.end

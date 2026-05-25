@@ -244,6 +244,8 @@ struct EusartDescriptor {
     u8 f1617_mask {0x04U}; // EUCSRC
     u8 utxs_mask {0xF0U}; // EUCSRA
     u8 urxs_mask {0x0FU}; // EUCSRA
+    u8 txc_mask {0x40U};  // TX complete bit position (AT90PWM: EOT=0x80, megaAVR0: TXCIF=0x40)
+    u8 rxc_mask {0x80U};  // RX complete bit position (AT90PWM: RXCIF=0x40, megaAVR0: RXCIF=0x80)
 
     u16 txd_pin_address {0U};
     u8 txd_pin_bit {0xFFU};

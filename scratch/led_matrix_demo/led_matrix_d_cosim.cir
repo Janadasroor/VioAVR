@@ -1,0 +1,44 @@
+* VioAVR 10-LED Matrix Co-Simulation (d_cosim)
+* AVR runs in-process — no daemon or SHM needed.
+
+* 1. DAC bridges (digital -> analog for LED circuit)
+A_mcu_bridge [pb0_dig pb1_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [pb0_an pb1_an pd0_an pd1_an pd2_an pd3_an pd4_an pd5_an pd6_an pd7_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* 2. AVR MCU via d_cosim (24 pins, two vectors: d_in and d_out)
+A_AVR [pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p"] queue_size=1024 irreversible=1 delay=1e-9)
+
+* 3. LED Matrix Circuits
+R_b0 pb0_an pb0_led 330
+D_b0 pb0_led 0 led_model
+R_b1 pb1_an pb1_led 330
+D_b1 pb1_led 0 led_model
+R_d0 pd0_an pd0_led 330
+D_d0 pd0_led 0 led_model
+R_d1 pd1_an pd1_led 330
+D_d1 pd1_led 0 led_model
+R_d2 pd2_an pd2_led 330
+D_d2 pd2_led 0 led_model
+R_d3 pd3_an pd3_led 330
+D_d3 pd3_led 0 led_model
+R_d4 pd4_an pd4_led 330
+D_d4 pd4_led 0 led_model
+R_d5 pd5_an pd5_led 330
+D_d5 pd5_led 0 led_model
+R_d6 pd6_an pd6_led 330
+D_d6 pd6_led 0 led_model
+R_d7 pd7_an pd7_led 330
+D_d7 pd7_led 0 led_model
+
+.model led_model D(Is=1e-22 Rs=10 N=1.5 Cjo=10p)
+
+* 4. Solver Options
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 2.5ms
+
+.control
+run
+print v(pb0_an) v(pb1_an) v(pd0_an) v(pd1_an) v(pd2_an) v(pd3_an) v(pd4_an) v(pd5_an) v(pd6_an) v(pd7_an)
+.endc
+.end

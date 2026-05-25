@@ -9,8 +9,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 PORT = 8080
 WORKSPACE_DIR = "/home/jnd/cpp_projects/VioAVR"
 SCRATCH_DIR = os.path.join(WORKSPACE_DIR, "scratch")
-DAEMON_PATH = os.path.join(WORKSPACE_DIR, "build/vioavr-bridge-daemon")
+BUILD_DIR = os.path.join(WORKSPACE_DIR, "build")
+DAEMON_PATH = os.path.join(BUILD_DIR, "vioavr-bridge-daemon")
 NGSPICE_PATH = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice"
+COSIM_SO = os.path.join(BUILD_DIR, "cosim/libavr_cosim.so")
 
 class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -52,12 +54,13 @@ class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
                 for file in files:
                     if file.endswith('.cir'):
                         filepath = os.path.join(root, file)
-                        mcu_type, hex_path = self.parse_cir_metadata(filepath)
+                        mcu_type, hex_path, model_type = self.parse_cir_metadata(filepath)
                         cir_files.append({
                             "name": file,
                             "path": filepath,
                             "mcu_type": mcu_type,
                             "hex_path": hex_path,
+                            "model": model_type,
                             "dir": root
                         })
             
@@ -73,20 +76,28 @@ class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
     def parse_cir_metadata(self, filepath):
         mcu_type = "unknown"
         hex_path = ""
+        model_type = "d_vioavr"
         try:
             with open(filepath, 'r') as f:
                 content = f.read()
-                # Find mcu_type in .model definition
+                # Detect model type
+                if 'd_cosim' in content:
+                    model_type = "d_cosim"
+                # Find mcu_type in .model definition (old: d_vioavr; new: d_cosim sim_args)
                 mcu_match = re.search(r'mcu_type\s*=\s*["\']([^"\']+)["\']', content, re.IGNORECASE)
                 if mcu_match:
                     mcu_type = mcu_match.group(1)
+                else:
+                    sim_match = re.search(r'sim_args\s*=\s*\["([^"]+)"', content)
+                    if sim_match:
+                        mcu_type = sim_match.group(1).split(',')[0]
                 # Find hex_file in .model definition
                 hex_match = re.search(r'hex_file\s*=\s*["\']([^"\']+)["\']', content, re.IGNORECASE)
                 if hex_match:
                     hex_path = hex_match.group(1)
         except Exception:
             pass
-        return mcu_type, hex_path
+        return mcu_type, hex_path, model_type
 
     def handle_run_simulation(self):
         try:
@@ -101,56 +112,76 @@ class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
 
             cir_dir = os.path.dirname(cir_path)
             cir_filename = os.path.basename(cir_path)
-            mcu_type, hex_path = self.parse_cir_metadata(cir_path)
+            mcu_type, hex_path, model_type = self.parse_cir_metadata(cir_path)
 
-            # Step 1: Force terminate any stale bridge daemon instances
-            self.kill_stale_daemons()
+            if model_type == "d_cosim":
+                # --- d_cosim (in-process, no daemon) ---
+                # Ensure symlinks for cosim .so and firmware.hex
+                cosim_link = os.path.join(cir_dir, "cosim/libavr_cosim.so")
+                if not os.path.exists(cosim_link):
+                    os.makedirs(os.path.join(cir_dir, "cosim"), exist_ok=True)
+                    os.symlink(COSIM_SO, cosim_link)
+                hex_link = os.path.join(cir_dir, "firmware.hex")
+                if not os.path.exists(hex_link):
+                    # Try to find a .hex file in the same directory
+                    for f in os.listdir(cir_dir):
+                        if f.endswith(".hex"):
+                            os.symlink(os.path.join(cir_dir, f), hex_link)
+                            break
 
-            # Step 2: Start fresh vioavr-bridge-daemon in the background
-            daemon_process = None
-            if mcu_type != "unknown":
-                daemon_cmd = [DAEMON_PATH, "--mcu", mcu_type, "--instance", mcu_type]
-                daemon_process = subprocess.Popen(
-                    daemon_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    preexec_fn=os.setsid
+                # Run ngspice directly
+                log_path = os.path.join(cir_dir, "sim_matrix.log")
+                ngspice_cmd = [NGSPICE_PATH, "-b", cir_filename]
+                start_time = time.time()
+                sim_result = subprocess.run(
+                    ngspice_cmd, cwd=cir_dir,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=30
                 )
-                # Brief sleep to allow SHM bridge to allocate and bind
-                time.sleep(0.6)
+                elapsed_time = time.time() - start_time
+                with open(log_path, 'w') as lf:
+                    lf.write(sim_result.stdout)
 
-            # Step 3: Launch ngspice simulation synchronously
-            log_path = os.path.join(cir_dir, "sim_matrix.log")
-            ngspice_cmd = [NGSPICE_PATH, "-b", cir_filename]
-            
-            # Start timer
-            start_time = time.time()
-            
-            sim_result = subprocess.run(
-                ngspice_cmd,
-                cwd=cir_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=30 # 30s timeout guard
-            )
-            
-            elapsed_time = time.time() - start_time
+            else:
+                # --- Old d_vioavr (external daemon + SHM) ---
+                # Step 1: Force terminate any stale bridge daemon instances
+                self.kill_stale_daemons()
 
-            # Write standard output to sim_matrix.log for audit persistence
-            with open(log_path, 'w') as lf:
-                lf.write(sim_result.stdout)
+                # Step 2: Start fresh vioavr-bridge-daemon in the background
+                daemon_process = None
+                if mcu_type != "unknown":
+                    daemon_cmd = [DAEMON_PATH, "--mcu", mcu_type, "--instance", mcu_type]
+                    daemon_process = subprocess.Popen(
+                        daemon_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        preexec_fn=os.setsid
+                    )
+                    time.sleep(0.6)
 
-            # Step 4: Gracefully terminate background daemon
-            if daemon_process:
-                try:
-                    import signal
-                    os.killpg(os.getpgid(daemon_process.pid), signal.SIGTERM)
-                    daemon_process.wait(timeout=1.0)
-                except Exception:
-                    pass
+                # Step 3: Launch ngspice simulation synchronously
+                log_path = os.path.join(cir_dir, "sim_matrix.log")
+                ngspice_cmd = [NGSPICE_PATH, "-b", cir_filename]
+                start_time = time.time()
+                sim_result = subprocess.run(
+                    ngspice_cmd, cwd=cir_dir,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=30
+                )
+                elapsed_time = time.time() - start_time
+                with open(log_path, 'w') as lf:
+                    lf.write(sim_result.stdout)
 
-            # Step 5: Parse simulation log
+                # Step 4: Gracefully terminate background daemon
+                if daemon_process:
+                    try:
+                        import signal
+                        os.killpg(os.getpgid(daemon_process.pid), signal.SIGTERM)
+                        daemon_process.wait(timeout=1.0)
+                    except Exception:
+                        pass
+
+            # Parse simulation log
             parsed_data = self.parse_simulation_log(log_path)
             
             # Formulate robust JSON response
