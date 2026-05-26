@@ -43,7 +43,7 @@ TEST_CASE("ATmega328P System Monitor Integration Test") {
 
     auto flush_uart = [&]() -> std::string {
         std::string out;
-        u8 b;
+        u16 b;
         while (uart->consume_transmitted_byte(b)) {
             out += static_cast<char>(b);
         }
@@ -66,7 +66,7 @@ TEST_CASE("ATmega328P System Monitor Integration Test") {
         while (elapsed < max_cycles) {
             machine->run(chunk);
             elapsed += chunk;
-            u8 b;
+            u16 b;
             while (uart->consume_transmitted_byte(b)) {
                 out += static_cast<char>(b);
             }

@@ -38,7 +38,7 @@ TEST_CASE("UART0 Peripheral Functional Test")
         bus.tick_peripherals(81U);
         CHECK((bus.read_data(ucsra) & 0x40U) == 0x40U); // TXC set
 
-        u8 transmitted = 0U;
+        u16 transmitted = 0U;
         CHECK(uart0.consume_transmitted_byte(transmitted));
         CHECK(transmitted == 0x5AU);
     }

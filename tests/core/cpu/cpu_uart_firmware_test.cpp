@@ -71,7 +71,7 @@ TEST_CASE("UART0 Firmware Test")
 
         bus.tick_peripherals(180U); // Allow frame to finish (160 cycles)
         
-        vioavr::core::u8 transmitted = 0U;
+        vioavr::core::u16 transmitted = 0U;
         CHECK(uart0.consume_transmitted_byte(transmitted));
         CHECK(transmitted == 0x41U);
     }
