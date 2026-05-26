@@ -82,7 +82,7 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
 
     // Start transmission if buffer is full and shift register is idle
     if (!tx_active_ && tx_buffer_full_ && (ucsrb_ & desc_.txen_mask)) {
-        tx_shift_reg_ = udr_tx_;
+        tx_shift_reg_ = ((ucsrb_ & 0x01U) << 8) | udr_tx_;
         tx_active_ = true;
         tx_buffer_full_ = false;
         tx_cycle_accumulator_ = 0;
@@ -101,12 +101,12 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
         
         if (tx_cycle_accumulator_ >= limit) {
             // Byte finished shifting
-            tx_output_queue_.push_back(static_cast<u8>(tx_shift_reg_));
+            tx_output_queue_.push_back(static_cast<u16>(tx_shift_reg_));
             ucsra_ |= desc_.txc_mask;
             
             // Check for next byte in buffer
             if (tx_buffer_full_) {
-                tx_shift_reg_ = udr_tx_;
+                tx_shift_reg_ = ((ucsrb_ & 0x01U) << 8) | udr_tx_;
                 tx_buffer_full_ = false;
                 ucsra_ |= desc_.udre_mask;
                 ucsra_ &= ~desc_.txc_mask;
@@ -215,7 +215,7 @@ bool Uart::consume_interrupt_request(InterruptRequest& request) noexcept
     return true;
 }
 
-void Uart::inject_received_byte(const u8 data) noexcept
+void Uart::inject_received_byte(const u16 data) noexcept
 {
     if ((ucsrb_ & desc_.rxen_mask) == 0U) return;
 
@@ -224,13 +224,15 @@ void Uart::inject_received_byte(const u8 data) noexcept
         return;
     }
 
-    udr_rx_ = data;
+    rx_shift_reg_ = data;
+    udr_rx_ = static_cast<u8>(data & 0xFFU);
+    ucsrb_ = static_cast<u8>((ucsrb_ & ~0x02U) | ((data >> 7) & 0x02U));
     rx_cycle_accumulator_ = 0;
     rx_active_ = true;
     update_interrupt_state();
 }
 
-bool Uart::consume_transmitted_byte(u8& data) noexcept
+bool Uart::consume_transmitted_byte(u16& data) noexcept
 {
     if (tx_output_queue_.empty()) return false;
     data = tx_output_queue_.front();

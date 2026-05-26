@@ -34,7 +34,7 @@ TEST_CASE("Legacy UART - Stress Test (Interrupt-driven Echo)") {
            machine.cpu().state() == CpuState::running) {
         machine.run(1000);
         
-        u8 data;
+        u16 data;
         while (uart->consume_transmitted_byte(data)) {
             received_output += static_cast<char>(data);
         }
@@ -61,7 +61,7 @@ TEST_CASE("Legacy UART - Stress Test (Interrupt-driven Echo)") {
         while (machine.cpu().cycles() < process_target) {
             machine.run(10000);
             
-            u8 data;
+            u16 data;
             while (uart->consume_transmitted_byte(data)) {
                 echo_output += static_cast<char>(data);
             }

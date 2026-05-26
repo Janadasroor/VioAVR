@@ -241,7 +241,8 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                             rx_shift_reg_ |= (1 << bit_shift);
                         }
                     } else if (rx_bits_left_ == 0) {
-                        actually_push_to_fifo(static_cast<u8>(rx_shift_reg_), false);
+                        bool bit9 = ((rx_shift_reg_ >> 8) & 0x01) != 0;
+                        actually_push_to_fifo(static_cast<u8>(rx_shift_reg_ & 0xFF), bit9);
                         rx_in_progress_ = false;
                         rx_is_injected_ = false;
                         status_ &= ~STATUS_RXSIF;
@@ -267,6 +268,7 @@ u8 Uart8x::read(u16 address) noexcept {
     if (address == desc_.rxdata_address) {
         if (rx_fifo_count_ == 0) return 0;
         u8 data = rx_fifo_[rx_fifo_read_idx_].data;
+        rx_latched_high_ = rx_fifo_[rx_fifo_read_idx_].high;
         rx_fifo_read_idx_ = (rx_fifo_read_idx_ + 1) % 2;
         rx_fifo_count_--;
         if (rx_fifo_count_ == 0) status_ &= ~STATUS_RXCIF;
@@ -275,7 +277,7 @@ u8 Uart8x::read(u16 address) noexcept {
     }
     if (address == desc_.rxdata_address + 1) {
         if (rx_fifo_count_ == 0) return 0;
-        u8 high = rx_fifo_[rx_fifo_read_idx_].high;
+        u8 high = rx_latched_high_;
         if (status_ & STATUS_RXCIF) high |= RXDATAH_RXCIF;
         return high;
     }

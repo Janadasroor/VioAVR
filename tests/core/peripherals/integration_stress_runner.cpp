@@ -71,7 +71,7 @@ TEST_CASE("System Integration Stress Test") {
         }
 
         // Collect UART output
-        u8 data;
+        u16 data;
         while (uart->consume_transmitted_byte(data)) {
             output += static_cast<char>(data);
         }

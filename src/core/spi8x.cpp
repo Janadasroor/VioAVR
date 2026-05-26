@@ -136,7 +136,7 @@ void Spi8x::write(u16 address, u8 value) noexcept {
             } else if (!(old_ctrla & CTRLA_ENABLE)) {
                 bool is_master = (value & CTRLA_MASTER);
                 port_mux_->drive_spi_mosi(desc_.index, PinLevel::high, is_master);
-                port_mux_->drive_spi_sck(desc_.index, (value & 0x10) ? PinLevel::high : PinLevel::low, is_master);
+                port_mux_->drive_spi_sck(desc_.index, (value & 0x04) ? PinLevel::high : PinLevel::low, is_master);
                 if (is_master) port_mux_->drive_spi_ss(desc_.index, PinLevel::high, true);
             }
         }

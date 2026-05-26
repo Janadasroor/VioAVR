@@ -46,7 +46,7 @@ TEST_CASE("External UART firmware - Hello from ATmega328p (16MHz)") {
     machine->run(1100000);
 
     std::string out;
-    u8 b;
+    u16 b;
     while (uart->consume_transmitted_byte(b)) {
         out += static_cast<char>(b);
     }

@@ -113,6 +113,7 @@ private:
     void actually_push_to_fifo(u8 data, bool bit9) noexcept;
     void update_interrupt_state() noexcept;
     
+    u8 rx_latched_high_ {};
     PinLevel rx_last_level_ {PinLevel::high};
     std::deque<u16> tx_output_queue_;
     bool tx_event_triggered_ {false};

@@ -51,7 +51,7 @@ TEST_CASE("ATmega328P Voltmeter Integration Test") {
     adc->set_channel_voltage(0, 2.5);
     
     // Clear any previous output
-    u8 dummy;
+    u16 dummy;
     while (uart->consume_transmitted_byte(dummy));
 
     // Run enough cycles to complete conversion and UART transmission
@@ -60,7 +60,7 @@ TEST_CASE("ATmega328P Voltmeter Integration Test") {
 
     // Collect UART output
     std::string output;
-    u8 data;
+    u16 data;
     while (uart->consume_transmitted_byte(data)) {
         output += static_cast<char>(data);
     }

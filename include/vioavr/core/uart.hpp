@@ -30,8 +30,8 @@ public:
 
     [[nodiscard]] ClockDomain clock_domain() const noexcept override;
 
-    void inject_received_byte(u8 data) noexcept;
-    bool consume_transmitted_byte(u8& data) noexcept;
+    void inject_received_byte(u16 data) noexcept;
+    bool consume_transmitted_byte(u16& data) noexcept;
 
 private:
     std::string name_;
@@ -61,7 +61,7 @@ private:
     u64 rx_cycle_accumulator_ {};
     bool tx_buffer_full_ {};
 
-    std::deque<u8> tx_output_queue_;
+    std::deque<u16> tx_output_queue_;
 
     void update_pin_ownership() noexcept;
     [[nodiscard]] bool power_reduction_enabled() const noexcept;

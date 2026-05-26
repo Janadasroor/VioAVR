@@ -109,7 +109,9 @@ void Spi::write(const u16 address, const u8 value) noexcept
         }
 
         if ((spcr_ & desc_.mstr_mask) != 0U) {
-            // Start transfer
+            // Start transfer — clear SPIF so it can be set again on completion
+            spsr_ &= ~desc_.spif_mask;
+            interrupt_pending_ = false;
             u8 data = value;
             if ((spcr_ & 0x20U) != 0U) { // DORD
                 data = static_cast<u8>(

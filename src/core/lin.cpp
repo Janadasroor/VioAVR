@@ -81,7 +81,7 @@ void LinUART::write(u16 address, u8 value) noexcept {
             linidr_ = value; 
             // LIDST is updated with the parity-stripped ID
             linsir_ &= ~desc_.linsir_lidst_mask;
-            linsir_ |= (value & 0x3FU) << 5; // Heuristic mapping
+            linsir_ |= (value & 0x3FU) << 4; // LIDST at bits 4-9
             break;
         }
         case 7: { // LINDAT
@@ -147,7 +147,7 @@ void LinUART::simulate_rx_byte(u8 data) noexcept {
             break;
         case State::Checksum:
             // Verify checksum
-            if (data == (~checksum_ & 0xFFU)) {
+            if (data == ((0xFFU - checksum_) & 0xFFU)) {
                 linsir_ |= desc_.linsir_lrxok_mask;
             } else {
                 linerr_ |= 0x08; // Checksum error

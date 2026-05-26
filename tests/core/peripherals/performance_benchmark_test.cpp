@@ -104,7 +104,7 @@ TEST_CASE("Performance: integration stress with peripherals (20M cycles)") {
             last_cycles = now;
         }
 
-        u8 data;
+        u16 data;
         while (uart->consume_transmitted_byte(data)) {
             output += static_cast<char>(data);
         }

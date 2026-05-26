@@ -380,6 +380,7 @@ void Eusart::inject_received_byte(u32 data) noexcept {
 
 bool Eusart::consume_transmitted_byte(u32& data) noexcept {
     if (tx_queue_.empty()) return false;
+    if (tx_active_) return false;
     data = tx_queue_.front();
     tx_queue_.pop_front();
     return true;
