@@ -165,6 +165,7 @@ public:
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request, u8 active_domains = 0xFFU) noexcept;
     void on_reti() noexcept;
     [[nodiscard]] bool twi_broadcast(u8 address) noexcept;
+    [[nodiscard]] bool twi_data_send(u8 data) noexcept;
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
     [[nodiscard]] inline bool should_stall_cpu(u32 pc_word) const noexcept

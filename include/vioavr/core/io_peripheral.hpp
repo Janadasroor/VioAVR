@@ -93,6 +93,12 @@ public:
         (void)address;
     }
 
+    [[nodiscard]] virtual bool on_twi_data(u8 data) noexcept
+    {
+        (void)data;
+        return true;
+    }
+
     [[nodiscard]] virtual bool supports_interrupt_mask() const noexcept { return false; }
 
 protected:

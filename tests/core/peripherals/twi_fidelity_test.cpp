@@ -25,17 +25,17 @@ TEST_CASE("TWI: Master State Machine and Status Codes") {
     CHECK(!twi.busy());
     CHECK(bus.read_data(desc.twsr_address) == 0x08); // START Transmitted
     
-    // 2. SLA+W Transmit
+    // 2. SLA+W Transmit (TWEA must be set for slave to ACK)
     bus.write_data(desc.twar_address, 0x40); // Enable slave response to 0x20
     bus.write_data(desc.twdr_address, 0x40); // Addr 0x20 + Write (0)
-    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
+    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
     
     bus.tick_peripherals(36);
     CHECK(bus.read_data(desc.twsr_address) == 0x18); // SLA+W ACK
     
     // 3. Data Transmit
     bus.write_data(desc.twdr_address, 0xA5);
-    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
+    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
     
     bus.tick_peripherals(36);
     CHECK(bus.read_data(desc.twsr_address) == 0x28); // Data ACK
@@ -107,13 +107,13 @@ TEST_CASE("TWI: Repeated START Condition") {
     bus.tick_peripherals(36);
     
     bus.write_data(desc.twdr_address, 0x40); // SLA+W
-    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
+    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
     bus.tick_peripherals(36);
     CHECK(bus.read_data(desc.twsr_address) == 0x18); // SLA+W ACK
     
     // Send data byte
     bus.write_data(desc.twdr_address, 0x55);
-    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
+    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
     bus.tick_peripherals(36);
     CHECK(bus.read_data(desc.twsr_address) == 0x28); // Data ACK
     
@@ -125,7 +125,7 @@ TEST_CASE("TWI: Repeated START Condition") {
     // SLA+R (read from same device)
     bus.write_data(desc.twar_address, 0x41); // Enable slave response for read
     bus.write_data(desc.twdr_address, 0x41); // SLA+R
-    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
+    bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
     bus.tick_peripherals(36);
     // Status depends on whether device supports read
     
