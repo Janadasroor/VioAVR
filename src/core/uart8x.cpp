@@ -212,7 +212,12 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                 if (rx_last_level_ == PinLevel::high && rx_level == PinLevel::low) {
                     rx_in_progress_ = true;
                     rx_cycle_accumulator_ = bit_duration / 2.0;
-                    rx_bits_left_ = 10; // Start + 8 data + 1 stop
+                    rx_char_size_ = 5 + (ctrlc_ & 0x03U);
+                    if ((ctrlc_ & 0x07U) == 0x07U) rx_char_size_ = 9;
+                    u8 rx_parity_bits = (ctrlc_ & CTRLC_PMODE_MASK) ? 1 : 0;
+                    u8 rx_stop_bits = (ctrlc_ & CTRLC_SBMODE) ? 2 : 1;
+                    rx_total_bits_ = 1 + rx_char_size_ + rx_parity_bits + rx_stop_bits;
+                    rx_bits_left_ = rx_total_bits_;
                     rx_shift_reg_ = 0;
                     status_ |= STATUS_RXSIF;
                 }
@@ -224,15 +229,16 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                 if (rx_cycle_accumulator_ + 0.5 >= bit_duration) {
                     rx_cycle_accumulator_ -= bit_duration;
                     rx_bits_left_--;
-                    if (rx_bits_left_ > 0 && rx_bits_left_ < 9) { // Bits 0-7
+                    if (rx_bits_left_ >= (rx_total_bits_ - rx_char_size_ - 1) && rx_bits_left_ <= (rx_total_bits_ - 2)) {
+                        u8 bit_shift = rx_bits_left_ - (rx_total_bits_ - rx_char_size_ - 1);
                         bool bit;
                         if (rx_is_injected_) {
-                            bit = (rx_injected_data_ >> (rx_bits_left_ - 1)) & 1;
+                            bit = (rx_injected_data_ >> bit_shift) & 1;
                         } else {
                             bit = (rx_level == PinLevel::high);
                         }
                         if (bit) {
-                            rx_shift_reg_ |= (1 << (rx_bits_left_ - 1));
+                            rx_shift_reg_ |= (1 << bit_shift);
                         }
                     } else if (rx_bits_left_ == 0) {
                         actually_push_to_fifo(static_cast<u8>(rx_shift_reg_), false);
@@ -353,10 +359,9 @@ void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
     u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
     rx_bit_duration_ = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
     
-    // Total bits for rx
-    u8 char_size = 5 + (ctrlc_ & 0x03U);
-    if ((ctrlc_ & 0x07U) == 0x07U) char_size = 9;
-    rx_total_bits_ = 1 + char_size + ((ctrlc_ & CTRLC_PMODE_MASK) ? 1 : 0) + ((ctrlc_ & CTRLC_SBMODE) ? 2 : 1);
+    rx_char_size_ = 5 + (ctrlc_ & 0x03U);
+    if ((ctrlc_ & 0x07U) == 0x07U) rx_char_size_ = 9;
+    rx_total_bits_ = 1 + rx_char_size_ + ((ctrlc_ & CTRLC_PMODE_MASK) ? 1 : 0) + ((ctrlc_ & CTRLC_SBMODE) ? 2 : 1);
     rx_bits_left_ = rx_total_bits_;
     rx_cycle_accumulator_ = 0.0;
 }

@@ -77,6 +77,8 @@ private:
     u32 cycles_in_phase_ {0};
     u32 current_sample_ {0};
     u32 accumulated_res_ {0};
+    u16 res_latch_ {};
+    bool res_latch_valid_ {false};
     bool converting_ {false};
 };
 

@@ -53,8 +53,23 @@ u8 NvmCtrl::read(u16 address) noexcept {
 void NvmCtrl::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value & 0x7FU; // Only CMD bits are writable in CTRLA for now
-        if (ctrla_ != 0 && bus_) {
-            bus_->execute_nvm_command(ctrla_, addr_, data_);
+        if (ctrla_ != 0) {
+            // Set local busy delay so BUSY is visible immediately
+            switch (ctrla_) {
+                case 0x04: case 0x09: // PBC / EEPBC — immediate
+                    busy_cycles_ = 1;
+                    break;
+                case 0x05: // CHER — long (~100ms at 16MHz)
+                    busy_cycles_ = 1600000U;
+                    break;
+                default:
+                    busy_cycles_ = 64000U; // ~4ms at 16MHz for erase/write
+                    break;
+            }
+            set_busy(ctrla_ >= 1 && ctrla_ <= 5, ctrla_ >= 6 && ctrla_ <= 8);
+            if (bus_) {
+                bus_->execute_nvm_command(ctrla_, addr_, data_);
+            }
         }
     } else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
@@ -76,6 +91,20 @@ void NvmCtrl::write(u16 address, u8 value) noexcept {
     }
 }
 
+void NvmCtrl::tick(u64 cycles) noexcept {
+    if (busy_cycles_ > 0U) {
+        if (cycles >= busy_cycles_) {
+            busy_cycles_ = 0U;
+            set_busy(false, false);
+            clear_command();
+            set_done();
+            update_interrupt_state();
+        } else {
+            busy_cycles_ -= static_cast<u32>(cycles);
+        }
+    }
+}
+
 void NvmCtrl::reset() noexcept {
     ctrla_ = 0;
     ctrlb_ = 0;
@@ -84,6 +113,7 @@ void NvmCtrl::reset() noexcept {
     intflags_ = 0;
     addr_ = 0;
     data_ = 0;
+    busy_cycles_ = 0;
 }
 
 bool NvmCtrl::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -95,12 +125,10 @@ bool NvmCtrl::pending_interrupt_request(InterruptRequest& request) const noexcep
 }
 
 bool NvmCtrl::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (pending_interrupt_request(request)) {
-        intflags_ = 0;
-        update_interrupt_state();
-        return true;
-    }
-    return false;
+    if (!pending_interrupt_request(request)) return false;
+    intflags_ &= ~0x01U; // Clear EE Ready flag only, preserve error flags
+    update_interrupt_state();
+    return true;
 }
 
 void NvmCtrl::update_interrupt_state() noexcept {

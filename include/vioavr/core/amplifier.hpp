@@ -31,8 +31,6 @@ private:
     PinMux* pin_mux_;
     u8 ampcsr_{0};
     double voltage_out_{0.0};
-    double positive_input_{0.0};
-    double negative_input_{0.0};
     AddressRange range_;
 };
 

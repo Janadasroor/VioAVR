@@ -59,6 +59,7 @@ void Twi8x::reset() noexcept {
     
     slave_phase_ = TwiSlavePhase::idle;
     slave_bits_left_ = 0;
+    address_ack_ = false;
     prev_scl_ = PinLevel::high;
     prev_sda_ = PinLevel::high;
     last_intended_sda_ = PinLevel::high;
@@ -88,7 +89,7 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                 target_sda = (slave_shift_register_ >> (slave_bits_left_ - 1)) & 1 ? PinLevel::high : PinLevel::low;
             }
         } else if (slave_phase_ == TwiSlavePhase::ack_pulse || slave_phase_ == TwiSlavePhase::ack_setup) {
-            if (do_ack) target_sda = (sctrlb_ & SCTRLB_ACKACT) ? PinLevel::high : PinLevel::low;
+            if (do_ack) target_sda = address_ack_ ? PinLevel::low : ((sctrlb_ & SCTRLB_ACKACT) ? PinLevel::high : PinLevel::low);
         }
         
         port_mux_->drive_twi_sda(desc_.index, target_sda, true);
@@ -102,6 +103,7 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                         slave_phase_ = TwiSlavePhase::addr;
                         slave_bits_left_ = 8;
                         slave_shift_register_ = 0;
+                        address_ack_ = false;
                         sstatus_ |= SSTATUS_AP;
                         sstatus_ &= ~(SSTATUS_DIF | SSTATUS_CLKHOLD | SSTATUS_RXACK | SSTATUS_DIR | SSTATUS_COLL | SSTATUS_BUSERR);
                         Logger::debug("TWI8X Slave START");
@@ -134,7 +136,8 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                                 sstatus_ |= (SSTATUS_APIF | SSTATUS_AP | SSTATUS_CLKHOLD);
                                 if (slave_shift_register_ & 0x01) sstatus_ |= SSTATUS_DIR;
                                 else sstatus_ &= ~SSTATUS_DIR;
-                                slave_phase_ = TwiSlavePhase::ack_setup; // Transition now
+                                slave_phase_ = TwiSlavePhase::ack_setup;
+                                address_ack_ = true;
                             } else {
                                 slave_phase_ = TwiSlavePhase::idle; 
                                 sstatus_ &= ~SSTATUS_AP;
@@ -183,10 +186,10 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
                         }
                     } else {
                         slave_phase_ = TwiSlavePhase::rx_data;
-                        slave_bits_left_ = 7; // Off-by-one: counter reaches 0 on 7th falling edge,
-                                              // 8th rising edge triggers DIF (bits_left_==0 check)
+                        slave_bits_left_ = 7;
                         slave_shift_register_ = 0;
                     }
+                    address_ack_ = false;
                 }
             }
         }

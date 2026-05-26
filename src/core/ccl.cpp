@@ -239,8 +239,8 @@ void Ccl::update_logic() noexcept {
             if (outputs_[i] != old_val) changed = true;
         }
         if (!changed) break;
-        // Oscillation detection: if state returns to initial after even # of passes
-        if ((iter & 1) && iter >= 1) {
+        // Oscillation detection: if state returns to initial
+        if (iter >= 1) {
             bool back = true;
             for (u8 i = 0; i < desc_.lut_count && back; ++i) {
                 if (outputs_[i] != initial_outputs[i]) back = false;

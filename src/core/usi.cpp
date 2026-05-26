@@ -1,4 +1,6 @@
 #include "vioavr/core/usi.hpp"
+#include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 
 namespace vioavr::core {
 
@@ -46,11 +48,60 @@ void Usi::reset() noexcept {
     usidr_ = 0;
     usibr_ = 0;
     int_pending_ = false;
+    prev_sda_ = false;
+    prev_scl_ = false;
+    prev_do_ = false;
+    sda_driven_ = false;
 }
 
-void Usi::tick(u64 /*elapsed_cycles*/) noexcept {
-    // External pin monitoring deferred (requires PortMux integration)
-    // USI responds to software clock strobes only
+void Usi::tick(u64 elapsed_cycles) noexcept {
+    if (!bus_ || desc_.scl_pin_address == 0) return;
+    auto* pm = bus_->pin_mux();
+    if (!pm) return;
+
+    for (u64 i = 0; i < elapsed_cycles; ++i) {
+        bool cur_sda = pm->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
+        bool cur_scl = pm->get_state_by_address(desc_.scl_pin_address, desc_.scl_pin_bit).drive_level;
+
+        if (is_twowire()) {
+            if (prev_scl_ && cur_scl && prev_sda_ && !cur_sda) {
+                usisr_ |= USISIF;
+                usisr_ &= ~(USIPF | USIDC);
+                update_interrupt_pending();
+            }
+            if (prev_scl_ && cur_scl && !prev_sda_ && cur_sda) {
+                usisr_ |= USIPF;
+                update_interrupt_pending();
+            }
+        }
+
+        if (!prev_scl_ && cur_scl) {
+            u8 clk_src = usicr_ & (USICS1 | USICS0);
+            if (clk_src == 0x00 || clk_src == 0x04) {
+                bool bit_in = cur_sda;
+                u8 cnt = usisr_ & USICNT_MASK;
+                if (cnt > 0) {
+                    usidr_ = (usidr_ << 1) | (bit_in ? 1 : 0);
+                }
+                if (cnt < 15) {
+                    usisr_ = (usisr_ & ~USICNT_MASK) | ((cnt + 1) & USICNT_MASK);
+                }
+                if ((cnt + 1) >= 16) {
+                    usisr_ &= ~USICNT_MASK;
+                    usisr_ |= USIOIF;
+                    update_interrupt_pending();
+                }
+            }
+        }
+
+        if (!is_twowire() && desc_.do_pin_address != 0) {
+            bool do_val = (usidr_ & 0x80) != 0;
+            pm->update_pin_by_address(desc_.do_pin_address, desc_.do_pin_bit, PinOwner::spi, true, do_val);
+        }
+
+        prev_sda_ = cur_sda;
+        prev_scl_ = cur_scl;
+    }
 }
 
 u8 Usi::reg_offset(u16 address) const noexcept {
@@ -78,7 +129,6 @@ bool Usi::is_twowire() const noexcept {
 void Usi::write(u16 address, u8 value) noexcept {
     switch (reg_offset(address)) {
     case 0: {
-        u8 usics = value & (USICS1 | USICS0);
         u8 clock_strobe = value & USICLK;
         u8 toggle_clock = value & USITC;
 
@@ -89,31 +139,21 @@ void Usi::write(u16 address, u8 value) noexcept {
         if (clock_strobe) {
             usicr_ |= USICLK;
             u8 cnt = usisr_ & USICNT_MASK;
-            if (is_twowire()) {
-                // 2-wire mode: shift MSB out, shift new bit in from SDA
-                u8 bit_in = 0;
-                if (cnt > 0) {
-                    usidr_ = (usidr_ << 1) | bit_in;
+            bool bit_in = false;
+            if (bus_ && bus_->pin_mux()) {
+                if (is_twowire()) {
+                    bit_in = bus_->pin_mux()->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
+                } else {
+                    bit_in = bus_->pin_mux()->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
                 }
-                if (cnt < 15) {
-                    usisr_ = (usisr_ & ~USICNT_MASK) | ((cnt + 1) & USICNT_MASK);
-                }
-                if ((cnt + 1) >= 16) {
-                    usisr_ &= ~USICNT_MASK; // wrap to 0
-                    usisr_ |= USIOIF;
-                }
-            } else {
-                // 3-wire / normal mode: shift MSB out, shift new bit in from DI
-                u8 bit_out = (usidr_ & 0x80) ? 1 : 0;
-                u8 bit_in = 0;
-                usidr_ = (usidr_ << 1) | bit_in;
-                if (cnt < 15) {
-                    usisr_ = (usisr_ & ~USICNT_MASK) | ((cnt + 1) & USICNT_MASK);
-                }
-                if ((cnt + 1) >= 16) {
-                    usisr_ &= ~USICNT_MASK;
-                    usisr_ |= USIOIF;
-                }
+            }
+            usidr_ = (usidr_ << 1) | (bit_in ? 1 : 0);
+            if (cnt < 15) {
+                usisr_ = (usisr_ & ~USICNT_MASK) | ((cnt + 1) & USICNT_MASK);
+            }
+            if ((cnt + 1) >= 16) {
+                usisr_ &= ~USICNT_MASK; // wrap to 0
+                usisr_ |= USIOIF;
             }
             update_interrupt_pending();
         } else {

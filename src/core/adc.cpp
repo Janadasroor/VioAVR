@@ -4,7 +4,6 @@
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/timer8.hpp"
 #include "vioavr/core/logger.hpp"
-#include <cstdio>
 
 #include <algorithm>
 #include <cmath>
@@ -181,20 +180,16 @@ bool Adc::consume_interrupt_request(InterruptRequest& request) noexcept {
 
 void Adc::start_conversion() noexcept {
     if (converting_) return;
-    if (power_reduction_enabled()) return;
-
-    u32 prescaler_bits = adcsra_ & 0x7U;
-    u32 prescaler = 1U << prescaler_bits;
-    if (prescaler_bits == 0U) prescaler = 2U;
-
+    if (bus_) bus_->scheduler().cancel(adc_callback, this);
     converting_ = true;
     adcsra_ |= desc_.adsc_mask;
     
     if (conversion_cycles_ != 0U) {
-        // Legacy/Test behavior: use absolute cycles
         cycles_remaining_ = conversion_cycles_;
     } else {
-        u32 conv_cycles = (first_conversion_ ? 25U : 13U); 
+        u32 conv_cycles = (first_conversion_ ? 25U : 13U);
+        u32 prescaler = 1U << (adcsra_ & 0x7U);
+        if ((adcsra_ & 0x7U) == 0U) prescaler = 2U;
         cycles_remaining_ = static_cast<u16>(conv_cycles * prescaler);
     }
     
@@ -207,9 +202,7 @@ void Adc::start_conversion() noexcept {
 
 void Adc::on_event(u64 cycle) noexcept {
     (void)cycle;
-    if (converting_) {
-        complete_conversion();
-    }
+    // Conversion completed by tick(). No action needed here.
 }
 
 bool Adc::power_reduction_enabled() const noexcept {

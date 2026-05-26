@@ -203,7 +203,7 @@ void Twi::handle_master_step() noexcept
             twsr_ = acked ? kStatusMasterTxAddrAck : kStatusMasterTxAddrNack;
         }
     } else if (mode_ == Mode::master_tx) {
-        // Data byte just sent
+        // Data byte just sent — slave ACK is assumed (SDA pull-down by addressed slave)
         twsr_ = kStatusMasterTxDataAck;
         tx_buffer_.push_back(twdr_);
     } else if (mode_ == Mode::master_rx) {
@@ -219,6 +219,7 @@ void Twi::handle_master_step() noexcept
 
 void Twi::on_twi_match(u8 address) noexcept
 {
+    if (!(twcr_ & desc_.twea_mask)) return;
     if (address & 0x01U) {
         mode_ = Mode::slave_tx;
         twsr_ = kStatusSlaveTxAddrAck;
@@ -235,7 +236,7 @@ void Twi::on_twi_match(u8 address) noexcept
 void Twi::handle_slave_step() noexcept
 {
     if (mode_ == Mode::slave_rx) {
-        tx_buffer_.push_back(twdr_);
+        if (twcr_ & desc_.twea_mask) tx_buffer_.push_back(twdr_);
         twsr_ = (twcr_ & desc_.twea_mask) ? kStatusSlaveRxDataAck : kStatusSlaveRxDataNack;
     } else if (mode_ == Mode::slave_tx) {
         if (rx_idx_ < rx_buffer_.size()) {

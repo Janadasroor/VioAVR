@@ -82,7 +82,7 @@ void Adc8x::reset() noexcept {
     ctrld_ = 0;
     ctrle_ = 0;
     sampctrl_ = 0;
-    muxpos_ = 127; // Reset value for MUXPOS is often 127 (Disconnected) or 0
+    muxpos_ = 0; // ATmega4809 resets MUXPOS to 0 (AIN0)
     muxneg_ = 0;
     command_ = 0;
     evctrl_ = 0;
@@ -98,6 +98,8 @@ void Adc8x::reset() noexcept {
     cycles_in_phase_ = 0;
     current_sample_ = 0;
     accumulated_res_ = 0;
+    res_latch_ = 0;
+    res_latch_valid_ = false;
 }
 
 void Adc8x::tick(u64 elapsed_cycles) noexcept {
@@ -170,9 +172,11 @@ u8 Adc8x::read(u16 address) noexcept {
     else if (address == desc_.temp_address) val = 0; // Temp usually returns LAST read or something
     else if (address == desc_.res_address) {
         val = static_cast<u8>(res_);
-        intflags_ &= ~0x01U; // Clear RESRDY on RES read (per datasheet)
+        res_latch_ = res_;
+        res_latch_valid_ = true;
+        intflags_ &= ~0x01U;
     }
-    else if (address == desc_.res_address + 1) val = static_cast<u8>(res_ >> 8);
+    else if (address == desc_.res_address + 1) val = static_cast<u8>((res_latch_valid_ ? res_latch_ : res_) >> 8);
     else if (address == desc_.winlt_address) val = static_cast<u8>(winlt_);
     else if (address == desc_.winlt_address + 1) val = static_cast<u8>(winlt_ >> 8);
     else if (address == desc_.winht_address) val = static_cast<u8>(winht_);
@@ -238,12 +242,11 @@ bool Adc8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
 }
 
 bool Adc8x::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (pending_interrupt_request(request)) {
-        intflags_ = 0;
-        update_interrupt_state();
-        return true;
-    }
-    return false;
+    if (!pending_interrupt_request(request)) return false;
+    // Only clear the interrupt flags that were consumed (RESRDY and/or WCOMP)
+    intflags_ &= ~(0x01U | 0x02U);
+    update_interrupt_state();
+    return true;
 }
 
 bool Adc8x::is_enabled() const noexcept {
@@ -309,6 +312,7 @@ void Adc8x::complete_conversion() noexcept {
 
 void Adc8x::process_sample_result(u16 result) noexcept {
     res_ = result;
+    res_latch_valid_ = false;
     intflags_ |= 0x01U; // RESRDY
     
     // Window Comparator Logic

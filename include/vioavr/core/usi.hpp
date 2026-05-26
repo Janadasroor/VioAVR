@@ -36,6 +36,10 @@ private:
     u8 usidr_{0};
     u8 usibr_{0};
     bool int_pending_{false};
+    bool prev_sda_{false};
+    bool prev_scl_{false};
+    bool prev_do_{false};
+    bool sda_driven_{false};
 };
 
 } // namespace vioavr::core

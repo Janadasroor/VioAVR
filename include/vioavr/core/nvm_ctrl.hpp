@@ -30,7 +30,7 @@ public:
     u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     void reset() noexcept override;
-    void tick(u64) noexcept override {}
+    void tick(u64 cycles) noexcept override;
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
     virtual bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
@@ -61,6 +61,7 @@ private:
     u16 addr_{0};
     u16 data_{0};
     class MemoryBus* bus_ {nullptr};
+    u32 busy_cycles_{0};
     std::array<AddressRange, 4> ranges_{};
 };
 

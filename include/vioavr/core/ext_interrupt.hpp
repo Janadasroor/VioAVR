@@ -36,13 +36,16 @@ public:
     void bind_int0_signal(const AnalogSignalBank& signal_bank, u8 channel, DigitalThresholdConfig threshold = {}) noexcept;
     void connect_adc_auto_trigger(Adc& adc) noexcept;
     void set_int0_level(bool high) noexcept;
+    void set_int1_level(bool high) noexcept;
     void set_int0_voltage(double normalized_voltage) noexcept;
 
 private:
     void refresh_bound_input() noexcept;
     void update_interrupt_pending() noexcept;
     [[nodiscard]] u8 int0_sense_mode() const noexcept;
+    [[nodiscard]] u8 int1_sense_mode() const noexcept;
     void raise_int0() noexcept;
+    void raise_int1() noexcept;
 
     std::string name_;
     ExtInterruptDescriptor desc_;

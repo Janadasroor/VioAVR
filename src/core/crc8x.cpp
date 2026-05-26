@@ -6,6 +6,7 @@ Crc8x::Crc8x(const Crc8xDescriptor& descriptor, std::span<const u16> flash) noex
     : desc_(descriptor), flash_(flash)
 {
     u16 end = desc_.ctrla_address;
+    if (desc_.ctrlb_address > end) end = desc_.ctrlb_address;
     if (desc_.status_address > end) end = desc_.status_address;
     if (desc_.data_address > end) end = desc_.data_address;
     if (desc_.checksum_address > end) end = desc_.checksum_address;
@@ -19,6 +20,7 @@ std::span<const AddressRange> Crc8x::mapped_ranges() const noexcept {
 
 void Crc8x::reset() noexcept {
     ctrla_ = 0;
+    ctrlb_ = 0;
     status_ = 0;
     checksum_ = 0;
     busy_ = false;
@@ -40,6 +42,7 @@ void Crc8x::tick(u64 elapsed_cycles) noexcept {
 
 u8 Crc8x::read(u16 address) noexcept {
     if (address == desc_.ctrla_address) return ctrla_;
+    if (desc_.ctrlb_address != 0 && address == desc_.ctrlb_address) return ctrlb_;
     if (address == desc_.status_address) return status_;
     if (address == desc_.checksum_address) return checksum_ & 0xFFU;
     if (address == desc_.checksum_address + 1) return (checksum_ >> 8) & 0xFFU;
@@ -48,10 +51,12 @@ u8 Crc8x::read(u16 address) noexcept {
 
 void Crc8x::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
-        ctrla_ = value;
-        if (value & 0x01U) { // ENABLE? (Verify bit in ATDF)
+        ctrla_ = value & 0x83U; // ENABLE(0), NMIEN(1), RESET(7)
+        if (value & 0x01U) {
             start_scan();
         }
+    } else if (desc_.ctrlb_address != 0 && address == desc_.ctrlb_address) {
+        ctrlb_ = value & 0x33U; // SRC(0-1), MODE(4-5)
     }
 }
 
@@ -59,10 +64,18 @@ void Crc8x::start_scan() noexcept {
     busy_ = true;
     status_ |= 0x01U; // BUSY
     status_ &= ~0x02U; // Clear OK
-    checksum_ = calculate_crc16(flash_);
-    
+
+    u8 src = ctrlb_ & 0x03U;
+    std::span<const u16> scan_data = flash_;
+    if (src != 0) {
+        // Application or boot section — use flash_.size() - boot_size or boot_size
+        // For now just use full flash (simplification)
+        scan_data = flash_;
+    }
+    checksum_ = calculate_crc16(scan_data);
+
     // Scan takes time proportional to flash size
-    remaining_cycles_ = flash_.size(); 
+    remaining_cycles_ = scan_data.size();
 }
 
 u16 Crc8x::calculate_crc16(std::span<const u16> data) noexcept {

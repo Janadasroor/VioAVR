@@ -144,10 +144,10 @@ void Dma::write(u16 address, u8 value) noexcept {
                 c.dstaddr = (c.dstaddr & 0x00FF) | (static_cast<u16>(value) << 8);
             } else if (address == cd.cnt_address) {
                 c.cnt = (c.cnt & 0xFF00) | value;
-                c.remaining_count = c.cnt;
+                if (!(c.ctrla & 0x01U)) c.remaining_count = c.cnt;
             } else if (address == cd.cnt_address + 1) {
                 c.cnt = (c.cnt & 0x00FF) | (static_cast<u16>(value) << 8);
-                c.remaining_count = c.cnt;
+                if (!(c.ctrla & 0x01U)) c.remaining_count = c.cnt;
             } else if (address == cd.trigsrc_address) {
                 c.trigsrc = value;
             } else if (address == cd.intctrl_address) {
@@ -199,15 +199,35 @@ void Dma::perform_transfer(u8 channel_idx) noexcept {
 
     c.busy = true;
     
-    // Transfer logic
-    // CTRLB[1:0] = TRIGACT: 00=REPEAT(all), 01=BURST(block), 10=TRANSFERONE, 11=TRANSFERALL
+    // CTRLB[1:0] = TRIGACT: 00=REPEAT(block/trigger), 01=BURST(all blocks), 10=SINGLE(1 beat), 11=TRANSFERALL(all beats)
     u8 trigact = c.ctrlb & 0x03U;
-    bool burst = (trigact == 0x00U || trigact == 0x03U); // REPEAT or TRANSFERALL
+    // CHCTRLA[3:2] = BURSTLEN: 00=1, 01=2, 10=4, 11=8 beats per block
+    u8 burstlen = ((c.ctrla >> 2) & 0x03U);
+    u8 block_size = static_cast<u8>(1U << burstlen); // 1, 2, 4, or 8
 
-    do {
+    u16 xfer_limit;
+    switch (trigact) {
+        case 0: // REPEAT — one block (BURSTLEN beats)
+            xfer_limit = block_size;
+            break;
+        case 1: // BURST — all remaining (full transaction, block-by-block)
+            xfer_limit = c.remaining_count;
+            break;
+        case 2: // SINGLE — one beat
+            xfer_limit = 1;
+            break;
+        case 3: // TRANSFERALL — all remaining (full transaction, beat-by-beat)
+            xfer_limit = c.remaining_count;
+            break;
+        default:
+            xfer_limit = 1;
+            break;
+    }
+
+    u16 count = 0;
+    while (count < xfer_limit && c.remaining_count > 0) {
         u8 data = bus_->read_data(c.srcaddr);
         bus_->write_data(c.dstaddr, data);
-        Logger::debug("DMA Transfer: [0x" + Logger::hex(c.srcaddr) + "] -> [0x" + Logger::hex(c.dstaddr) + "] = 0x" + Logger::hex(data));
         
         // Address increment logic (2-bit fields)
         // CTRLA[7:6] = SRCINC: 00=no inc, 01=+1, 10=+2, 11=+2
@@ -220,20 +240,15 @@ void Dma::perform_transfer(u8 channel_idx) noexcept {
         else if (dstinc >= 0x02U) c.dstaddr += 2;
 
         c.remaining_count--;
-        
-        if (c.remaining_count == 0) {
-            c.busy = false;
-            c.pending_trigger = false;
-            c.intflags |= 0x01; // Transfer Complete flag
-            Logger::debug("DMA Channel " + std::to_string(channel_idx) + " transfer complete");
-            break;
-        }
-    } while (burst);
-
-    if (!burst) {
-        c.busy = false;
-        c.pending_trigger = false;
+        count++;
     }
+
+    if (c.remaining_count == 0) {
+        c.intflags |= 0x01; // Transfer Complete flag
+    }
+
+    c.busy = false;
+    c.pending_trigger = false;
 }
 
 void Dma::on_trigger(u8 trigger_id) noexcept {
