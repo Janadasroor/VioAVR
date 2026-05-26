@@ -109,6 +109,18 @@ void GpioPort::tick(const u64 elapsed_cycles) noexcept
 {
     (void)elapsed_cycles;
     (void)sample_levels();
+
+    // Level-sensitive interrupt retriggering (ISC=0x05: low level)
+    for (u8 i = 0; i < 8; ++i) {
+        u8 isc = pin_ctrl_[i] & 0x07U;
+        if (isc == 0x05U) {
+            bool is_low = (external_levels_ & (1U << i)) == 0U;
+            if (is_low && (intflags_ & (1U << i)) == 0U) {
+                intflags_ |= (1U << i);
+                update_interrupt_state();
+            }
+        }
+    }
 }
 
 u8 GpioPort::read(const u16 address) noexcept
@@ -203,7 +215,7 @@ bool GpioPort::consume_pin_change(PinStateChange& change) noexcept
             change.bit_index = i;
             change.level = (port_ & (1U << i)) != 0U;
             change.cycle_stamp = bus_ ? bus_->cpu_cycles() : 0;
-            change.change_mask = mask;
+            change.change_mask = (1U << i);
             pending_changes_mask_ &= ~(1U << i);
             return true;
         }
@@ -260,6 +272,10 @@ bool GpioPort::on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel le
         else if (isc == 0x05U) trigger = !is_high; // LEVEL (Low)
 
         if (trigger) {
+            intflags_ |= mask;
+            update_interrupt_state();
+        } else if (isc == 0x05U && !is_high && (intflags_ & mask) == 0U) {
+            // Level-sensitive: retrigger while pin is low
             intflags_ |= mask;
             update_interrupt_state();
         }

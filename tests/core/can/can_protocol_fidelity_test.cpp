@@ -127,5 +127,5 @@ TEST_CASE("CAN Protocol Fidelity - Timer Timing")
     
     can.tick(1); // Overflow!
     CHECK(can.read(desc.cantim_address) == 0); // Overflow
-    CHECK((can.read(desc.cangit_address) & 0x01) != 0); // OVRIT
+    CHECK((can.read(desc.cangit_address) & 0x10) != 0); // OVRIT (bit 4)
 }
