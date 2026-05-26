@@ -373,7 +373,7 @@ inline constexpr DeviceDescriptor atmega808 {
 
     .crc8x_count = 1U,
     .crcs8x = {{ {
-            .ctrla_address = 0x120U, .ctrlb_address = 0x121U, .status_address = 0x122U, .data_address = 0x0U, .checksum_address = 0x0U,
+            .ctrla_address = 0x120U, .ctrlb_address = 0x121U, .status_address = 0x122U, .data_address = 0x123U, .checksum_address = 0x124U,
             .user_event_address = 0x0U
         } }},
 
