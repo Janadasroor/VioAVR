@@ -144,7 +144,7 @@ void Spi8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.ctrlb_address) ctrlb_ = value;
     else if (address == desc_.intctrl_address) intctrl_ = value;
     else if (address == desc_.intflags_address) {
-        if (value & INTFLAGS_IF) intflags_ &= ~INTFLAGS_IF;
+        intflags_ &= ~(value & (INTFLAGS_IF | INTFLAGS_WRCOL));
     }
     else if (address == desc_.data_address) {
         if (!(ctrla_ & CTRLA_ENABLE)) return;

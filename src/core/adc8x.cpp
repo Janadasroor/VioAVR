@@ -89,6 +89,7 @@ void Adc8x::reset() noexcept {
     intctrl_ = 0;
     intflags_ = 0;
     dbgctrl_ = 0;
+    calib_ = 0;
     res_ = 0;
     winlt_ = 0;
     winht_ = 0;
@@ -142,7 +143,7 @@ void Adc8x::tick(u64 elapsed_cycles) noexcept {
                 } else {
                     state_ = AdcPhase::idle;
                     converting_ = false;
-                    process_sample_result(static_cast<u16>(accumulated_res_));
+                    process_sample_result(accumulated_res_);
                 }
                 break;
             }
@@ -169,7 +170,8 @@ u8 Adc8x::read(u16 address) noexcept {
     else if (address == desc_.intctrl_address) val = intctrl_;
     else if (address == desc_.intflags_address) val = intflags_;
     else if (address == desc_.dbgctrl_address) val = dbgctrl_;
-    else if (address == desc_.temp_address) val = 0; // Temp usually returns LAST read or something
+    else if (address == desc_.temp_address) val = 0;
+    else if (desc_.calib_address != 0 && address == desc_.calib_address) val = calib_;
     else if (address == desc_.res_address) {
         val = static_cast<u8>(res_);
         res_latch_ = res_;
@@ -226,6 +228,8 @@ void Adc8x::write(u16 address, u8 value) noexcept {
         winht_ = (winht_ & 0xFF00U) | value;
     } else if (address == desc_.winht_address + 1) {
         winht_ = (winht_ & 0x00FFU) | (static_cast<u16>(value) << 8);
+    } else if (desc_.calib_address != 0 && address == desc_.calib_address) {
+        calib_ = value;
     }
 }
 
@@ -314,13 +318,16 @@ void Adc8x::complete_conversion() noexcept {
     accumulated_res_ += raw_result;
 }
 
-void Adc8x::process_sample_result(u16 result) noexcept {
+void Adc8x::process_sample_result(u32 raw_accumulated) noexcept {
+    // Right-shift by SAMPNUM to undo hardware oversampling
+    u8 sampnum = ctrlb_ & 0x07U;
+    u16 result = static_cast<u16>(raw_accumulated >> sampnum);
     res_ = result;
     res_latch_valid_ = false;
     intflags_ |= 0x01U; // RESRDY
     
-    // Window Comparator Logic
-    u8 wmode = ctrld_ & 0x07U;
+    // Window Comparator Logic (WINCM in CTRLE)
+    u8 wmode = ctrle_ & 0x07U;
     bool wcomp = false;
     if (wmode == 0x01U) wcomp = (result < winlt_); // BELOW
     else if (wmode == 0x02U) wcomp = (result > winht_); // ABOVE

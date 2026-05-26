@@ -59,6 +59,12 @@ public:
      * @param vector The interrupt vector index being dispatched.
      */
     virtual void on_interrupt(u8 vector) = 0;
+
+    /**
+     * @brief Returns whether this hook has active observers.
+     * JIT execution is disabled when active hooks exist.
+     */
+    virtual bool is_active() const noexcept { return true; }
 };
 
 /**
@@ -97,6 +103,8 @@ public:
     void on_interrupt(u8 vector) override {
         for (auto* h : hooks_) h->on_interrupt(vector);
     }
+
+    bool is_active() const noexcept override { return !hooks_.empty(); }
 
 private:
     std::vector<ITraceHook*> hooks_;

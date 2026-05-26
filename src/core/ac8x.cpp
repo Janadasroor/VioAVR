@@ -18,7 +18,7 @@ void Ac8x::set_event_system(EventSystem* evsys) noexcept {
         if (desc_.user_event_address >= user_base) {
             u8 user_index = static_cast<u8>(desc_.user_event_address - user_base);
             evsys_->register_user_callback(user_index, [this](bool) {
-                if (is_enabled() && !(ctrla_ & 0x08U)) {
+                if (is_enabled()) {
                     evaluate();
                 }
             });
@@ -120,7 +120,6 @@ void Ac8x::evaluate() noexcept {
 void Ac8x::tick(u64 elapsed_cycles) noexcept {
     (void)elapsed_cycles;
     if (!is_enabled()) return;
-    if (ctrla_ & 0x08U) return;
 
     evaluate();
 
@@ -130,11 +129,14 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
         return;
     }
 
+    u32 delay = PROPAGATION_DELAY;
+    if (ctrla_ & 0x08U) delay = PROPAGATION_DELAY * 4; // LPMODE: slower response
+
     if (settle_counter_ > 0) {
         settle_counter_--;
         if (settle_counter_ > 0) return;
     } else {
-        settle_counter_ = PROPAGATION_DELAY;
+        settle_counter_ = delay;
         if (settle_counter_ > 0) return;
     }
 

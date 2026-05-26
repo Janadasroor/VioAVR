@@ -233,7 +233,7 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                         u8 bit_shift = rx_bits_left_ - (rx_total_bits_ - rx_char_size_ - 1);
                         bool bit;
                         if (rx_is_injected_) {
-                            bit = (rx_injected_data_ >> bit_shift) & 1;
+                            bit = (rx_shift_reg_ >> bit_shift) & 1;
                         } else {
                             bit = (rx_level == PinLevel::high);
                         }
@@ -276,7 +276,6 @@ u8 Uart8x::read(u16 address) noexcept {
         return data;
     }
     if (address == desc_.rxdata_address + 1) {
-        if (rx_fifo_count_ == 0) return 0;
         u8 high = rx_latched_high_;
         if (status_ & STATUS_RXCIF) high |= RXDATAH_RXCIF;
         return high;
@@ -355,7 +354,7 @@ void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
     rx_in_progress_ = true;
     rx_is_injected_ = true;
     rx_injected_data_ = data;
-    rx_shift_reg_ = 0;
+    rx_shift_reg_ = bit9 ? (static_cast<u16>(1U) << 8U) | data : data;
     status_ |= STATUS_RXSIF;
 
     u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;

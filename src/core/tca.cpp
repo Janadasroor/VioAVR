@@ -81,8 +81,53 @@ void Tca::set_event_system(EventSystem* evsys) noexcept {
 
 void Tca::on_event(bool level) noexcept {
     if (level && !last_event_level_) {
-        if (is_enabled()) {
+        if (!is_enabled() || !(evctrl_ & 0x01)) return;
+        u8 evact = (evctrl_ >> 1) & 0x03;
+        switch (evact) {
+        case 0: // COUNTER: event = clock tick
             perform_tick();
+            break;
+        case 1: // ONESHOT: count on event, stop at CMP0
+            if (is_split_mode()) {
+                if (cnt_l() < cmp0_l()) {
+                    cnt_l()++;
+                    if (cnt_l() >= cmp0_l()) {
+                        intflags_ |= 0x01; // LUNF/OVF
+                    }
+                }
+                if (cnt_h() < cmp0_h()) {
+                    cnt_h()++;
+                    if (cnt_h() >= cmp0_h()) {
+                        intflags_ |= 0x02; // HUNF
+                    }
+                }
+                handle_matches();
+                update_outputs();
+            } else {
+                if (norm_.tcnt < norm_.cmp0) {
+                    norm_.tcnt++;
+                    if (norm_.tcnt >= norm_.cmp0) {
+                        intflags_ |= 0x01; // OVF
+                        if (evsys_ && desc_.ovf_generator_id != 0) {
+                            evsys_->trigger_event(desc_.ovf_generator_id);
+                        }
+                    }
+                }
+                handle_matches();
+                update_outputs();
+            }
+            update_interrupt_state();
+            break;
+        case 2: // OFF: ignore events
+            break;
+        case 3: // CAPTURE: copy CNT to CMP0
+            if (is_split_mode()) {
+                cmp0_l() = cnt_l();
+                cmp0_h() = cnt_h();
+            } else {
+                norm_.cmp0 = norm_.tcnt;
+            }
+            break;
         }
     }
     last_event_level_ = level;
@@ -285,6 +330,11 @@ void Tca::write(u16 address, u8 value) noexcept {
 void Tca::tick(u64 elapsed_cycles) noexcept {
     if (elapsed_cycles == 0) return;
     if (!is_enabled()) return;
+    
+    u8 evact = (evctrl_ >> 1) & 0x03;
+    // In COUNTER or ONESHOT event modes, events ARE the clock (prescaler bypassed)
+    // Only skip prescaler when event counting is explicitly enabled (CNTEI bit)
+    if ((evctrl_ & 0x01) && (evact == 0 || evact == 1)) return;
     
     bool ticked = false;
     for (u64 i = 0; i < elapsed_cycles; ++i) {
@@ -528,8 +578,11 @@ void Tca::update_prescaler() noexcept {
 bool Tca::get_wo_level(u8 index) const noexcept {
     if (!is_enabled() || index >= 6) return false;
 
+    // CTRLC override bits take priority over compare result
+    if (index < 3 && (ctrlc_ & (1U << index))) return true;            // LCMPxOV
+    if (is_split_mode() && index >= 3 && (ctrlc_ & (1U << (index + 1)))) return true; // HCMPxOV
+
     if (is_split_mode()) {
-        // H11: WO0-WO2 for L-timer, WO3-WO5 for H-timer
         if (index == 0) return cnt_l() < cmp0_l();
         if (index == 1) return cnt_l() < cmp1_l();
         if (index == 2) return cnt_l() < cmp2_l();
@@ -538,12 +591,10 @@ bool Tca::get_wo_level(u8 index) const noexcept {
         if (index == 5) return cnt_h() < cmp2_h();
     } else {
         u8 wgmode = ctrlb_ & 0x07;
-        if (wgmode == 0x01 && index == 0) { // FRQ mode WO0
+        if (wgmode == 0x01 && index == 0) {
             return wo_states_[0];
         }
-        if (index == 0) {
-            return norm_.tcnt < norm_.cmp0;
-        }
+        if (index == 0) return norm_.tcnt < norm_.cmp0;
         if (index == 1) return norm_.tcnt < norm_.cmp1;
         if (index == 2) return norm_.tcnt < norm_.cmp2;
     }
@@ -556,20 +607,17 @@ void Tca::on_routing_changed() noexcept {
 void Tca::update_outputs() {
     if (!port_mux_) return;
     if (is_split_mode()) {
-        // WO0-WO2 for L, WO3-WO5 for H
         for (u8 i = 0; i < 3; ++i) {
-            bool en_l = ctrlb_ & (1U << (4 + i));
+            bool en_l = ctrlb_ & (1U << i);            // LCMPxEN (CTRLB bits 0-2)
             port_mux_->drive_tca0_wo(i, get_wo_level(i), en_l);
-            bool en_h = ctrlc_ & (1U << i);
+            bool en_h = ctrlb_ & (1U << (4 + i));      // HCMPxEN (CTRLB bits 4-6)
             port_mux_->drive_tca0_wo(u8(3 + i), get_wo_level(u8(3 + i)), en_h);
         }
     } else {
         for (u8 i = 0; i < 3; ++i) {
-            bool en = ctrlb_ & (1U << (4 + i));
+            bool en = ctrlb_ & (1U << (4 + i));        // CMPxEN (CTRLB bits 4-6)
             port_mux_->drive_tca0_wo(i, get_wo_level(i), en);
         }
-        // WO3-WO5 are not used in normal mode? 
-        // Actually, they can be driven by other compares sometimes, but for now just release.
         for (u8 i = 3; i < 6; ++i) port_mux_->drive_tca0_wo(i, false, false);
     }
 }

@@ -659,6 +659,16 @@ void Machine::wire_peripherals()
             }
         }
     }
+
+    // Re-connect AVR8X peripherals that the AvrCpu constructor missed
+    // (constructor ran before initialize_peripherals created them)
+    for (auto& p : owned_peripherals_) {
+        if (auto* wdt = dynamic_cast<Wdt8x*>(p.get())) {
+            cpu_->set_wdt8x(wdt);
+        } else if (auto* rst = dynamic_cast<RstCtrl*>(p.get())) {
+            cpu_->set_rst_ctrl(rst);
+        }
+    }
 }
 
 } // namespace vioavr::core

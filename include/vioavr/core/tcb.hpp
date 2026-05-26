@@ -71,6 +71,7 @@ private:
     u8 get_clksel() const noexcept { return (ctrla_ >> 1) & 0x03; }
 
     u8 prescaler_counter_ {0};
+    u64 async_cycle_accum_ {0}; // For ASYNC mode RTC clock conversion
     void update_interrupt_state() noexcept;
     void update_active_state() noexcept;
 };

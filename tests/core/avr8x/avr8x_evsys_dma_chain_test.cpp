@@ -50,7 +50,7 @@ TEST_CASE("Complex Chain: TCA0 -> EVSYS -> CCL -> EVSYS -> DMA") {
     bus.write_data(0x3010, 0x00);
 
     // 2. Configure TCA0 (Generator 128)
-    bus.write_data(0xA09, 0x01); // EVCTRL: OVF=1 (Enable event generation)
+    // EVCTRL reset value (0x00): CNTEI=0, EVACT=0 — prescaler runs normally, OVF events always fire.
     bus.write_data(0xA26, 10);   // PER (low) = 10
     bus.write_data(0xA27, 0x00); // PER (high)
     bus.write_data(0xA20, 0x00); // CNT (low)

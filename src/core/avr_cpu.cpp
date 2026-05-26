@@ -205,7 +205,7 @@ void AvrCpu::run(const u64 cycle_budget)
         }
 
         // JIT execution path
-        if (__builtin_expect(jit_enabled_ && jit_ && trace_hook_ == nullptr, 0)) {
+        if (__builtin_expect(jit_enabled_ && jit_ && (trace_hook_ == nullptr || !trace_hook_->is_active()), 0)) {
             if (pending_cycles > 0) {
                 advance_cycles(pending_cycles);
                 pending_cycles = 0;
