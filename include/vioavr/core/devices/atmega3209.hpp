@@ -258,7 +258,8 @@ inline constexpr DeviceDescriptor atmega3209 {
             .ctrla_address = 0x50U
         },
     .rstctrl = {
-            .rstfr_address = 0x40U
+            .rstfr_address = 0x40U,
+            .swrr_address = 0x41U
         },
     .syscfg = {
             .reves_address = 0xF01U
@@ -391,7 +392,7 @@ inline constexpr DeviceDescriptor atmega3209 {
 
     .crc8x_count = 1U,
     .crcs8x = {{ {
-            .ctrla_address = 0x120U, .status_address = 0x122U, .data_address = 0x0U, .checksum_address = 0x0U,
+            .ctrla_address = 0x120U, .ctrlb_address = 0x121U, .status_address = 0x122U, .data_address = 0x0U, .checksum_address = 0x0U,
             .user_event_address = 0x0U
         } }},
 

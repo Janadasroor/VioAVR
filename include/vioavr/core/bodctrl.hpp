@@ -52,6 +52,7 @@ public:
         intflags_ = 0x00U;
         status_   = 0x00U;
         pending_  = false;
+        prev_below_ = false;
     }
 
     void tick(u64) noexcept override {

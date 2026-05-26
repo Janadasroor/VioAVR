@@ -71,7 +71,6 @@ public:
         }
         if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
             request_cpu_stall(spm_busy_cycles_left_);
-            spm_busy_cycles_left_ = 0U;
         }
         if (word_address >= flash_.size()) return 0xFFFFU;
         return flash_[word_address];
@@ -113,7 +112,6 @@ public:
         if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) return 0xFFU;
         if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
             request_cpu_stall(spm_busy_cycles_left_);
-            spm_busy_cycles_left_ = 0U;
         }
         
         if (word_address >= flash_.size()) return 0U;

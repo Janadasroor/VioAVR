@@ -76,14 +76,15 @@ TEST_CASE("Complex Chain: TCA0 -> EVSYS -> CCL -> EVSYS -> DMA") {
     bus.write_data(0x1AA, 0x02); 
     
     // Configure DMA registers via bus
-    bus.write_data(0x300, 0x01); // MCTRLA: ENABLE=1 (GLOBAL DMA ENABLE)
-    bus.write_data(0x310, 0x01); // CH0.CTRLA: ENABLE=1 (CHANNEL ENABLE)
+    // Write CNT before enabling the channel (CNT is double-buffered while enabled)
+    bus.write_data(0x316, 0x01); // CNT (low)
+    bus.write_data(0x317, 0x00); // CNT (high) -> 1 byte
     bus.write_data(0x312, 0x00); // SRCADDR (low)
     bus.write_data(0x313, 0x30); // SRCADDR (high) -> 0x3000
     bus.write_data(0x314, 0x10); // DSTADDR (low)
     bus.write_data(0x315, 0x30); // DSTADDR (high) -> 0x3010
-    bus.write_data(0x316, 0x01); // CNT (low)
-    bus.write_data(0x317, 0x00); // CNT (high) -> 1 byte
+    bus.write_data(0x310, 0x01); // CH0.CTRLA: ENABLE=1 (CHANNEL ENABLE)
+    bus.write_data(0x300, 0x01); // MCTRLA: ENABLE=1 (GLOBAL DMA ENABLE)
     
     // 7. Tick and Verify
     for (int i = 0; i < 100; ++i) {

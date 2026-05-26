@@ -112,9 +112,13 @@ bool ExtInterrupt::on_external_pin_change(u16 pin_address, u8 bit_index, PinLeve
 {
     (void)pin_address;
     Logger::debug("ExtInterrupt: external pin change bit=" + std::to_string(bit_index));
-    // ATmega328P INT0 is on PD2
+    // INT0 on bit_index 2 (PD2 on ATmega328P), INT1 on bit_index 3 (PD3)
     if (bit_index == 2) {
         set_int0_level(level == PinLevel::high);
+        return true;
+    }
+    if (bit_index == 3) {
+        set_int1_level(level == PinLevel::high);
         return true;
     }
     return false;
@@ -207,6 +211,33 @@ void ExtInterrupt::set_int0_level(const bool high) noexcept
     }
 }
 
+void ExtInterrupt::set_int1_level(const bool high) noexcept
+{
+    const bool previous = int1_level_;
+    int1_level_ = high;
+
+    if (previous != high) {
+        Logger::debug("INT1 level change detected");
+    }
+
+    switch (int1_sense_mode()) {
+    case 0x00U:
+        if (!high) raise_int1();
+        break;
+    case 0x01U:
+        if (previous != high) raise_int1();
+        break;
+    case 0x02U:
+        if (previous && !high) raise_int1();
+        break;
+    case 0x03U:
+        if (!previous && high) raise_int1();
+        break;
+    default:
+        break;
+    }
+}
+
 void ExtInterrupt::set_int0_voltage(const double normalized_voltage) noexcept
 {
     if (bus_ != nullptr) {
@@ -229,6 +260,11 @@ u8 ExtInterrupt::int0_sense_mode() const noexcept
     return static_cast<u8>(eicra_ & 0x03U);
 }
 
+u8 ExtInterrupt::int1_sense_mode() const noexcept
+{
+    return static_cast<u8>((eicra_ >> 2U) & 0x03U);
+}
+
 void ExtInterrupt::update_interrupt_pending() noexcept {
     InterruptRequest req;
     set_interrupt_pending(pending_interrupt_request(req));
@@ -242,6 +278,13 @@ void ExtInterrupt::raise_int0() noexcept
     if (auto_trigger_adc_ != nullptr) {
         auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::external_interrupt_0);
     }
+}
+
+void ExtInterrupt::raise_int1() noexcept
+{
+    eifr_ |= 0x02U;
+    int1_pending_ = true;
+    update_interrupt_pending();
 }
 
 }  // namespace vioavr::core

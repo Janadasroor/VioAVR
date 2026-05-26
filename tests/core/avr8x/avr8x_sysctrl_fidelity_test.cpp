@@ -58,13 +58,15 @@ TEST_CASE("RstCtrl — set_reset_cause / reset_flags round-trip")
     CHECK(rst.reset_flags() == static_cast<u8>(RstCtrl::ResetCause::updi));
 }
 
-TEST_CASE("RstCtrl — mapped_ranges covers RSTFR")
+TEST_CASE("RstCtrl — mapped_ranges covers RSTFR and SWRR")
 {
     RstCtrl rst{devices::atmega4809.rstctrl};
     auto ranges = rst.mapped_ranges();
-    REQUIRE(ranges.size() == 1U);
+    REQUIRE(ranges.size() == 2U);
     CHECK(ranges[0].begin == devices::atmega4809.rstctrl.rstfr_address);
     CHECK(ranges[0].end   == devices::atmega4809.rstctrl.rstfr_address);
+    CHECK(ranges[1].begin == devices::atmega4809.rstctrl.swrr_address);
+    CHECK(ranges[1].end   == devices::atmega4809.rstctrl.swrr_address);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

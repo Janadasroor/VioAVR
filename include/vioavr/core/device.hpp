@@ -485,6 +485,7 @@ struct NvmCtrlDescriptor {
 
 struct Crc8xDescriptor {
     u16 ctrla_address {};
+    u16 ctrlb_address {};
     u16 status_address {};
     u16 data_address {};
     u16 checksum_address {};
@@ -899,6 +900,7 @@ struct SlpctrlDescriptor {
 
 struct RstctrlDescriptor {
     u16 rstfr_address {0x0U};
+    u16 swrr_address  {0x0U};
 };
 
 struct SyscfgDescriptor {

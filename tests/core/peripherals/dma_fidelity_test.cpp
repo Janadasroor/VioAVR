@@ -120,7 +120,7 @@ TEST_CASE("DMA: Event Triggered Single Byte Transfer") {
     dma->write(0x115, 0x29);
     dma->write(0x116, 2);    // CNT 2
     dma->write(0x117, 0);
-    dma->write(0x111, 0x01); // Mode: Single byte per trigger
+    dma->write(0x111, 0x02); // TRIGACT=0x02: SINGLE (1 byte per trigger)
     dma->write(0x118, 1);    // TRIGSRC: Trigger ID 1
     dma->write(0x110, 0x51); // ENABLE | SRCINC=01 (+1) | DSTINC=01 (+1)
     dma->write(0x100, 0x01); // Global Enable

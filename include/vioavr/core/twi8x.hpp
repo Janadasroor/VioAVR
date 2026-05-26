@@ -92,6 +92,7 @@ private:
     u8 slave_bits_left_{0};
     u8 slave_shift_register_{0};
     TwiSlavePhase slave_phase_{TwiSlavePhase::idle};
+    bool address_ack_{false}; // true during address ACK cycle (always ACK, ignore ACKACT)
 
     // Constants
     static constexpr u8 MSTATUS_RIF = 0x80U;

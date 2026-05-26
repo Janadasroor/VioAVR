@@ -127,11 +127,9 @@ void CanBus::tick(u64 elapsed_cycles) noexcept {
                 // Decrement TEC on successful transmission
                 if (cantec_ > 0) cantec_--;
                 
-                // Clear conmob
+                // Clear conmob only (bits 7:6)
                 mob.cancdmob &= 0x3FU;
-                // Update CANEN
-                if (current_tx_mob_ < 8) canen2_ &= ~(1 << current_tx_mob_);
-                else canen1_ &= ~(1 << (current_tx_mob_ - 8));
+                // CANEN is NOT cleared on TX complete — only firmware write to CONMOB changes it
 
                 current_tx_mob_ = -1;
                 tx_wait_cycles_ = 0;
@@ -343,8 +341,9 @@ void CanBus::find_high_priority_mob() noexcept {
                      (static_cast<u32>(mob.canidtags[1]) << 5U) |
                      (static_cast<u32>(mob.canidtags[0] >> 3U));
             } else {
-                id = (static_cast<u32>(mob.canidtags[3]) << 3U) |
-                     (static_cast<u32>(mob.canidtags[2] >> 5U));
+                // Standard 11-bit: CANIDT3[7:5]=ID10:ID8, CANIDT0[7:0]=ID7:ID0
+                id = ((static_cast<u32>(mob.canidtags[3] & 0xE0U)) << 3U) |
+                     static_cast<u32>(mob.canidtags[0]);
             }
             if (id < best_id) {
                 best_id = id;
@@ -398,11 +397,12 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
             
             if ((msg.id & mob_mask) != (mob_id & mob_mask)) match = false;
         } else {
-            u32 mob_id = (static_cast<u32>(mob.canidtags[3]) << 3U) |
-                         (static_cast<u32>(mob.canidtags[2] >> 5U));
+            // Standard 11-bit: CANIDT3[7:5]=ID10:ID8, CANIDT0[7:0]=ID7:ID0
+            u32 mob_id = ((static_cast<u32>(mob.canidtags[3] & 0xE0U)) << 3U) |
+                         static_cast<u32>(mob.canidtags[0]);
             
-            u32 mob_mask = (static_cast<u32>(mob.canidmasks[3]) << 3U) |
-                           (static_cast<u32>(mob.canidmasks[2] >> 5U));
+            u32 mob_mask = ((static_cast<u32>(mob.canidmasks[3] & 0xE0U)) << 3U) |
+                          static_cast<u32>(mob.canidmasks[0]);
             
             if ((msg.id & mob_mask) != (mob_id & mob_mask)) match = false;
         }
@@ -428,10 +428,8 @@ void CanBus::receive_message(const CanMessage& msg) noexcept {
             // Decrement REC on successful reception
             if (canrec_ > 0) canrec_--;
             
-            // Disable MOb after reception
-            mob.cancdmob &= 0x3FU; 
-            if (i < 8) canen2_ &= ~(1 << i);
-            else canen1_ &= ~(1 << (i - 8));
+            // Clear conmob (bits 7:6) — CANEN is NOT changed by HW on reception
+            mob.cancdmob &= 0x3FU;
             
             evaluate_error_state();
             evaluate_interrupts();

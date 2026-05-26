@@ -249,7 +249,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .ctrla_address = 0x50U
         },
     .rstctrl = {
-            .rstfr_address = 0x40U
+            .rstfr_address = 0x40U,
+            .swrr_address = 0x41U
         },
     .syscfg = {
             .reves_address = 0xF01U

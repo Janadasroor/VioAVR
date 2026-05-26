@@ -42,7 +42,7 @@ public:
 
     using FrequencyChangedCallback = std::function<void(u32 new_hz)>;
 
-    explicit ClkCtrl(const ClkctrlDescriptor& desc, u32 base_freq_hz = 3'333'333U) noexcept
+    explicit ClkCtrl(const ClkctrlDescriptor& desc, u32 base_freq_hz = 20'000'000U) noexcept
         : desc_(desc), base_freq_hz_(base_freq_hz)
     {
         if (desc_.ctrla_address != 0U) {
@@ -58,6 +58,7 @@ public:
             if (desc_.xosc32kctrla_address != 0U)
                 ranges_[3] = {desc_.xosc32kctrla_address, desc_.xosc32kctrla_address};
         }
+        recompute_freq();
     }
 
     [[nodiscard]] std::string_view name() const noexcept override { return "CLKCTRL"; }
@@ -69,8 +70,6 @@ public:
     [[nodiscard]] ClockDomain clock_domain() const noexcept override { return ClockDomain::io; }
 
     void reset() noexcept override {
-        // ATmega4809 reset defaults:
-        // MCLKCTRLA = 0x00 (OSC20M), MCLKCTRLB = 0x11 (prescaler ON, /6 → ~3.33MHz)
         mclkctrla_    = 0x00U;
         mclkctrlb_    = 0x11U;
         mclklock_     = 0x00U;
@@ -80,6 +79,7 @@ public:
         osc32kctrla_  = 0x00U;
         xosc32kctrla_ = 0x00U;
         update_status();
+        recompute_freq();
     }
 
     void tick(u64) noexcept override {}
@@ -103,7 +103,7 @@ public:
 
         if (address == desc_.ctrla_address && !locked)      { mclkctrla_ = value;    update_status(); recompute_freq(); }
         else if (address == desc_.ctrlb_address && !locked) { mclkctrlb_ = value;    recompute_freq(); }
-        else if (address == desc_.mclklock_address)         { mclklock_  = value & 0x01U; }
+        else if (address == desc_.mclklock_address && !locked) { mclklock_  = value & 0x01U; }
         // mclkstatus_ is read-only
         else if (address == desc_.osc20mctrla_address)      { osc20mctrla_  = value; }
         else if (address == desc_.osc20mcalib_address)      { osc20mcaliba_ = value & 0x7FU; }
@@ -187,9 +187,9 @@ private:
     u8 osc32kctrla_{0x00U};
     u8 xosc32kctrla_{0x00U};
 
-    u32 base_freq_hz_{3'333'333U}; ///< Default: 20 MHz / 6 = 3.333 MHz
+    u32 base_freq_hz_{20'000'000U}; ///< OSC20M raw frequency; prescaler applied in recompute_freq()
     u32 ext_clock_hz_{0U};
-    u32 effective_freq_hz_{3'333'333U};
+    u32 effective_freq_hz_{20'000'000U};
 
     FrequencyChangedCallback on_freq_changed_;
 };

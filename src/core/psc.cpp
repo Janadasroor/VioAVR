@@ -399,7 +399,13 @@ void Psc::update_outputs() noexcept {
         bool pulse_a = false;
         bool pulse_b = false;
         if (pctl_ & desc_.pbfm_mask) {
-            if (ocrsb_ > 0) {
+            u8 mode_val = (pconf_ & desc_.mode_mask) >> 3;
+            // BFM vs PBFM selection:
+            // - Centered mode (mode bits=11, mode_val==3) -> PBFM
+            // - Two-ramp mode (mode bits=01, mode_val==1) -> BFM
+            // - Other modes: fall back to OCRSB heuristic (OCRSB>0 = BFM)
+            bool is_pbfm = (mode_val == 3) || (mode_val != 1 && ocrsb_ == 0);
+            if (!is_pbfm) {
                 // Burst Flank Modulation (BFM):
                 // Pulse 1 is defined by OCRnSA and OCRnRA
                 // Pulse 2 is defined by OCRnSB and OCRnRB

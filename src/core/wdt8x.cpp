@@ -87,6 +87,19 @@ void Wdt8x::reset_timer() noexcept {
             reset();
             return;
         }
+        // In window mode, a valid WDR within the open window is expected
+        elapsed_cycles_ = 0;
+        return;
+    }
+
+    if (!enabled_) {
+        // WDR when disabled starts the WDT running (per AVR8X datasheet)
+        enabled_ = true;
+        // Use whatever period is already configured in ctrla_
+        u8 period = ctrla_ & 0x0FU;
+        if (period != 0) {
+            timeout_cycles_ = (1ULL << (period - 1)) * 128000ULL;
+        }
     }
     elapsed_cycles_ = 0;
 }

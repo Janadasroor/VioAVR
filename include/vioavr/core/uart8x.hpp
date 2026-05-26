@@ -80,6 +80,7 @@ private:
     u16 rx_shift_reg_ {};
     u8 rx_bits_left_ {};
     u8 rx_total_bits_ {};
+    u8 rx_char_size_ {};
     double rx_bit_duration_ {};
     double rx_cycle_accumulator_ {};
 

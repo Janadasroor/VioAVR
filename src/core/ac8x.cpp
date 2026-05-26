@@ -96,8 +96,9 @@ void Ac8x::evaluate() noexcept {
     }
     
     bool old_state = (status_ & 0x10U) != 0;
-    bool new_state = (p_volts > n_volts);
-    if (muxctrla_ & 0x80U) new_state = !new_state;
+    // Hysteresis uses the raw (pre-NEG) comparison state for threshold direction
+    bool hyst_state = old_state;
+    if (muxctrla_ & 0x80U) hyst_state = !hyst_state;
 
     u8 hys = (ctrla_ >> 1) & 0x03U;
     if (hys > 0) {
@@ -105,15 +106,15 @@ void Ac8x::evaluate() noexcept {
         if (hys == 1) hyst_v = 0.010;
         else if (hys == 2) hyst_v = 0.025;
         else hyst_v = 0.050;
-        if (old_state) {
-            new_state = (p_volts > n_volts - hyst_v);
-            if (muxctrla_ & 0x80U) new_state = !new_state;
+        if (hyst_state) {
+            pending_state_ = (p_volts > n_volts - hyst_v);
         } else {
-            new_state = (p_volts > n_volts + hyst_v);
-            if (muxctrla_ & 0x80U) new_state = !new_state;
+            pending_state_ = (p_volts > n_volts + hyst_v);
         }
+    } else {
+        pending_state_ = (p_volts > n_volts);
     }
-    pending_state_ = new_state;
+    if (muxctrla_ & 0x80U) pending_state_ = !pending_state_;
 }
 
 void Ac8x::tick(u64 elapsed_cycles) noexcept {
@@ -143,10 +144,10 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
     u8 mode = (ctrla_ >> 4) & 0x03U;
     bool trigger = false;
     switch (mode) {
-        case 0: trigger = true; break;
-        case 2: trigger = !pending_state_; break;
-        case 3: trigger = pending_state_; break;
-        default: break;
+        case 0: trigger = true; break;                              // toggle (both edges)
+        case 1: trigger = pending_state_ && !old_state; break;      // rising edge
+        case 2: trigger = !pending_state_ && old_state; break;      // falling edge
+        case 3: trigger = true; break;                              // digital filter (stable change)
     }
     if (trigger) status_ |= 0x01U;
 

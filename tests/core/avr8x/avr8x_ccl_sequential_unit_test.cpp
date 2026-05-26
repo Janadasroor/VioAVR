@@ -110,3 +110,5 @@ TEST_CASE("AVR8X CCL Sequential Units - JKFF and RS-Latch") {
     ccl->set_pin_input(3, 0, true); // S=1
     CHECK(ccl->get_seq_output(1) == false);
 }
+
+

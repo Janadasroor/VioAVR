@@ -32,6 +32,7 @@ private:
     std::array<AddressRange, 1> ranges_{};
 
     u8 ctrla_{0};
+    u8 ctrlb_{0};
     u8 status_{0};
     u16 checksum_{0};
     

@@ -164,7 +164,7 @@ void Usb::write(u16 address, u8 value) noexcept {
     if (address == desc_.uhwcon_address) uhwcon_ = value;
     else if (address == desc_.usbcon_address) usbcon_ = value;
     else if (address == desc_.usbsta_address) usbsta_ = value;
-    else if (address == desc_.usbint_address) usbint_ = value;
+    else if (address == desc_.usbint_address) usbint_ &= ~value;
     else if (address == desc_.udcon_address) udcon_ = value;
     else if (address == desc_.udint_address) udint_ &= ~value; // Write-1-to-clear
     else if (address == desc_.udien_address) udien_ = value;
@@ -278,6 +278,32 @@ void Usb::write(u16 address, u8 value) noexcept {
         ep.interrupt_enable = value;
         update_ueint();
     }
+    else if (address == desc_.uesta0x_address) {
+        // UESTA0X: write-0-to-clear STALLRQ (bit 5), write 1 sets CTRLDIR (bit 2)
+        for (u8 b = 0; b < 8; ++b) {
+            u8 bit = (1U << b);
+            if (value & bit) {
+                if (b == 2) ep.status0 |= bit;       // CTRLDIR set by writing 1
+                else if (b == 5) ;                   // STALLRQ set by HW, writing 1 has no effect
+            } else {
+                if (b == 5) ep.status0 &= ~bit;      // STALLRQ cleared by writing 0
+            }
+        }
+    }
+    else if (address == desc_.uesta1x_address) {
+        // UESTA1X: mostly read-only. Bits 0 (CFGOK) cleared by writing 1.
+        ep.status1 &= ~value;
+    }
+    else if (address == desc_.uebclx_address) {
+        // UEBCLX: lower byte of byte count — writable for test/debug
+        u16 count = ep.banks[ep.cpu_bank].byte_count;
+        ep.banks[ep.cpu_bank].byte_count = static_cast<u16>((count & 0xFF00U) | value);
+    }
+    else if (address == desc_.uebchx_address) {
+        // UEBCHX: upper byte of byte count — writable for test/debug
+        u16 count = ep.banks[ep.cpu_bank].byte_count;
+        ep.banks[ep.cpu_bank].byte_count = static_cast<u16>((count & 0x00FFU) | (static_cast<u16>(value) << 8U));
+    }
     else if (address == desc_.uedatx_address) {
         // Only allow writes for IN endpoints with TXINI set
         if (is_in_endpoint(ep) && (ep.interrupt_flags & desc_.ueintx_txini_mask)) {
@@ -335,7 +361,29 @@ bool Usb::consume_interrupt_request(InterruptRequest& request) noexcept {
 
 void Usb::simulate_usb_reset() noexcept {
     udaddr_ = 0;
+    uenum_ = 0;
+    uerst_ = 0;
     udint_ |= 0x08U; // EORSTI
+
+    for (auto& ep : endpoints_) {
+        ep.control = 0;
+        ep.config0 = 0;
+        ep.config1 = 0;
+        ep.status0 = 0;
+        ep.status1 = 0;
+        ep.interrupt_flags = 0;
+        ep.cpu_bank = 0;
+        ep.sie_bank = 0;
+        ep.bank_count = 1;
+        ep.data_toggle = false;
+        for (auto& bank : ep.banks) {
+            bank.read_idx = 0;
+            bank.write_idx = 0;
+            bank.byte_count = 0;
+            bank.busy = false;
+        }
+    }
+    update_ueint();
 }
 
 void Usb::simulate_vbus_event(bool high) noexcept {

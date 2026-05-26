@@ -58,8 +58,15 @@ void WatchdogTimer::reset() noexcept
 
 void WatchdogTimer::tick(const u64 elapsed_cycles) noexcept
 {
-    (void)elapsed_cycles;
-    // Handled by scheduler
+    if (timed_sequence_active_) {
+        if (elapsed_cycles >= timed_sequence_cycles_left_) {
+            timed_sequence_active_ = false;
+            timed_sequence_cycles_left_ = 0;
+            wdtcsr_ &= static_cast<u8>(~kWdce);
+        } else {
+            timed_sequence_cycles_left_ -= static_cast<u8>(elapsed_cycles);
+        }
+    }
 }
 
 void WatchdogTimer::on_event(u64 cycle) noexcept {

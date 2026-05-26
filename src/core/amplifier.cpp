@@ -17,8 +17,6 @@ std::span<const AddressRange> At90Amplifier::mapped_ranges() const noexcept {
 void At90Amplifier::reset() noexcept {
     ampcsr_ = 0;
     voltage_out_ = 0.0;
-    positive_input_ = 0.0;
-    negative_input_ = 0.0;
     update_pin_ownership();
 }
 
@@ -51,12 +49,8 @@ void At90Amplifier::evaluate() noexcept {
         return;
     }
 
-    double v_pos = positive_input_;
-    double v_neg = negative_input_;
-    
-    // Also check PinMux in case it was updated externally through standard GPIO/ADC path
-    v_pos = std::max(v_pos, pin_mux_->get_state_by_address(desc_.pos_pin_address, desc_.pos_pin_bit).voltage);
-    v_neg = std::max(v_neg, pin_mux_->get_state_by_address(desc_.neg_pin_address, desc_.neg_pin_bit).voltage);
+    double v_pos = pin_mux_->get_state_by_address(desc_.pos_pin_address, desc_.pos_pin_bit).voltage;
+    double v_neg = pin_mux_->get_state_by_address(desc_.neg_pin_address, desc_.neg_pin_bit).voltage;
 
     // Gain mapping: 00: 5, 01: 10, 10: 20, 11: 40
     u8 g_bits = 0;
@@ -91,18 +85,10 @@ void At90Amplifier::update_pin_ownership() noexcept {
     }
 }
 
-void At90Amplifier::on_analog_pin_change(u16 pin_address, u8 bit_index, double voltage) noexcept {
-    Logger::debug("AMP on_analog_pin_change: addr=" + Logger::hex(pin_address) + " bit=" + std::to_string(bit_index) + " volt=" + std::to_string(voltage));
-    bool changed = false;
-    if (pin_address == desc_.pos_pin_address && bit_index == desc_.pos_pin_bit) {
-        positive_input_ = voltage;
-        changed = true;
-    } else if (pin_address == desc_.neg_pin_address && bit_index == desc_.neg_pin_bit) {
-        negative_input_ = voltage;
-        changed = true;
-    }
-
-    if (changed) {
+void At90Amplifier::on_analog_pin_change(u16 pin_address, u8 bit_index, double) noexcept {
+    Logger::debug("AMP on_analog_pin_change: addr=" + Logger::hex(pin_address) + " bit=" + std::to_string(bit_index));
+    if ((pin_address == desc_.pos_pin_address && bit_index == desc_.pos_pin_bit) ||
+        (pin_address == desc_.neg_pin_address && bit_index == desc_.neg_pin_bit)) {
         evaluate();
     }
 }
