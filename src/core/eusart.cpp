@@ -45,6 +45,9 @@ void Eusart::reset() noexcept {
     mubrrh_ = 0;
     tx_queue_.clear();
     rx_queue_.clear();
+    rx_uart_state_ = RxUartState::idle;
+    rx_active_ = false;
+    rx_accumulator_ = 0;
 }
 
 void Eusart::tick(u64 elapsed_cycles) noexcept {
@@ -169,78 +172,151 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
     if (eucsrb_ & desc_.eus_en_mask) {
         bool current_rx = bus_->pin_mux()->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
         
-        if (!rx_active_) {
-            // Manchester '1' Start Bit: LOW then HIGH. Wait for falling edge.
-            if (current_rx == false && rx_last_pin_level_ == true) {
-                rx_active_ = true;
-                rx_waiting_for_start_ = true;
-                rx_half_bit_ = false; // We are in first half
-                rx_cycles_to_sample_ = cycles_per_half / 2;
-                rx_shift_reg_ = 0;
-            }
-        } else {
-            rx_accumulator_ += elapsed_cycles;
-            while (rx_active_ && rx_accumulator_ >= rx_cycles_to_sample_) {
-                rx_accumulator_ -= rx_cycles_to_sample_;
-                
-                if (rx_waiting_for_start_) {
-                    if (!rx_half_bit_) { // Sample first half of START (should be LOW)
-                        if (current_rx == true) { // Violation
-                            rx_active_ = false;
+        if (manchester) {
+            // Manchester RX path
+            if (!rx_active_) {
+                // Manchester '1' Start Bit: LOW then HIGH. Wait for falling edge.
+                if (current_rx == false && rx_last_pin_level_ == true) {
+                    rx_active_ = true;
+                    rx_waiting_for_start_ = true;
+                    rx_half_bit_ = false;
+                    rx_cycles_to_sample_ = cycles_per_half / 2;
+                    rx_shift_reg_ = 0;
+                }
+            } else {
+                rx_accumulator_ += elapsed_cycles;
+                while (rx_active_ && rx_accumulator_ >= rx_cycles_to_sample_) {
+                    rx_accumulator_ -= rx_cycles_to_sample_;
+                    
+                    if (rx_waiting_for_start_) {
+                        if (!rx_half_bit_) {
+                            if (current_rx == true) {
+                                rx_active_ = false;
+                            } else {
+                                rx_half_bit_ = true;
+                                rx_cycles_to_sample_ = cycles_per_half;
+                            }
                         } else {
+                            if (current_rx == false) {
+                                rx_active_ = false;
+                            } else {
+                                rx_waiting_for_start_ = false;
+                                rx_half_bit_ = false;
+                                rx_bit_count_ = get_char_size(false);
+                                rx_cycles_to_sample_ = cycles_per_half;
+                            }
+                        }
+                    } else {
+                        if (!rx_half_bit_) {
+                            rx_temp_sampled_ = current_rx;
                             rx_half_bit_ = true;
                             rx_cycles_to_sample_ = cycles_per_half;
-                        }
-                    } else { // Sample second half of START (should be HIGH)
-                        if (current_rx == false) { // Violation
-                            rx_active_ = false;
                         } else {
-                            rx_waiting_for_start_ = false;
+                            bool first_half = rx_temp_sampled_;
+                            bool second_half = current_rx;
+                            bool bit_val;
+                            bool error = false;
+                            
+                            if (!first_half && second_half) bit_val = true;
+                            else if (first_half && !second_half) bit_val = false;
+                            else { error = true; bit_val = false; }
+                            
+                            if (error) {
+                                eucsrc_ |= 0x08; // FEM (Frame Error Manchester)
+                            }
+
+                            u8 total_bits = get_char_size(false);
+                            if (!(eucsrb_ & 0x01)) {
+                                if (bit_val) rx_shift_reg_ |= (1U << (total_bits - rx_bit_count_));
+                            } else {
+                                rx_shift_reg_ = (rx_shift_reg_ << 1) | (bit_val ? 1 : 0);
+                            }
+
+                            rx_bit_count_--;
                             rx_half_bit_ = false;
-                            rx_bit_count_ = get_char_size(false);
-                            rx_cycles_to_sample_ = cycles_per_half; // Now at 1/4 of first data bit
-                        }
-                    }
-                } else {
-                    // Data Bits
-                    if (!rx_half_bit_) {
-                        rx_temp_sampled_ = current_rx; // Save first half
-                        rx_half_bit_ = true;
-                        rx_cycles_to_sample_ = cycles_per_half;
-                    } else {
-                        bool first_half = rx_temp_sampled_;
-                        bool second_half = current_rx;
-                        bool bit_val;
-                        bool error = false;
-                        
-                        if (!first_half && second_half) bit_val = true;
-                        else if (first_half && !second_half) bit_val = false;
-                        else { error = true; bit_val = false; }
-                        
-                        if (error) {
-                            eucsrc_ |= 0x08; // FEM (Frame Error Manchester)
-                        }
-
-                        u8 total_bits = get_char_size(false);
-                        if (!(eucsrb_ & 0x01)) { // LSB First
-                            if (bit_val) rx_shift_reg_ |= (1U << (total_bits - rx_bit_count_));
-                        } else { // MSB First
-                            rx_shift_reg_ = (rx_shift_reg_ << 1) | (bit_val ? 1 : 0);
-                        }
-
-                        rx_bit_count_--;
-                        rx_half_bit_ = false;
-                        
-                        if (rx_bit_count_ == 0) {
-                            rx_active_ = false;
-                            rx_queue_.push_back(rx_shift_reg_);
-                            eucsra_ |= desc_.rxc_mask; // RXCIF
-                            rx_cycles_to_sample_ = 0;
-                        } else {
-                            rx_cycles_to_sample_ = cycles_per_half; // Back to 1/4 of next bit
+                            
+                            if (rx_bit_count_ == 0) {
+                                rx_active_ = false;
+                                rx_queue_.push_back(rx_shift_reg_);
+                                eucsra_ |= desc_.rxc_mask;
+                                rx_cycles_to_sample_ = 0;
+                            } else {
+                                rx_cycles_to_sample_ = cycles_per_half;
+                            }
                         }
                     }
                 }
+            }
+        } else {
+            // Standard UART RX path
+            switch (rx_uart_state_) {
+                case RxUartState::idle:
+                    // Wait for falling edge (start bit)
+                    if (current_rx == false && rx_last_pin_level_ == true) {
+                        rx_uart_state_ = RxUartState::start_bit;
+                        rx_cycles_to_sample_ = cycles_per_bit + cycles_per_bit / 2; // 1.5 bit times to center of first data bit
+                        rx_accumulator_ = 0;
+                        rx_shift_reg_ = 0;
+                        rx_bit_count_ = get_char_size(false);
+                    }
+                    break;
+
+                case RxUartState::start_bit:
+                    rx_accumulator_ += elapsed_cycles;
+                    if (rx_accumulator_ >= rx_cycles_to_sample_) {
+                        rx_accumulator_ = 0;
+                        // Sample first data bit
+                        bool bit_val = current_rx;
+                        u8 total_bits = rx_bit_count_;
+                        if (!(eucsrb_ & 0x01)) { // LSB first
+                            if (bit_val) rx_shift_reg_ |= (1U << (total_bits - 1));
+                        } else { // MSB first
+                            rx_shift_reg_ = (rx_shift_reg_ << 1) | (bit_val ? 1 : 0);
+                        }
+                        rx_bit_count_--;
+                        if (rx_bit_count_ > 0) {
+                            rx_uart_state_ = RxUartState::data_bits;
+                            rx_cycles_to_sample_ = cycles_per_bit;
+                        } else {
+                            // Only 1 data bit, skip to stop bit
+                            rx_uart_state_ = RxUartState::stop_bit;
+                            rx_cycles_to_sample_ = cycles_per_bit;
+                        }
+                    }
+                    break;
+
+                case RxUartState::data_bits:
+                    rx_accumulator_ += elapsed_cycles;
+                    while (rx_bit_count_ > 0 && rx_accumulator_ >= rx_cycles_to_sample_) {
+                        rx_accumulator_ -= rx_cycles_to_sample_;
+                        bool bit_val = current_rx;
+                        u8 total_bits = get_char_size(false);
+                        if (!(eucsrb_ & 0x01)) { // LSB first
+                            if (bit_val) rx_shift_reg_ |= (1U << (rx_bit_count_ - 1));
+                        } else { // MSB first
+                            rx_shift_reg_ = (rx_shift_reg_ << 1) | (bit_val ? 1 : 0);
+                        }
+                        rx_bit_count_--;
+                    }
+                    if (rx_bit_count_ == 0) {
+                        rx_uart_state_ = RxUartState::stop_bit;
+                        rx_cycles_to_sample_ = cycles_per_bit;
+                    }
+                    break;
+
+                case RxUartState::stop_bit:
+                    rx_accumulator_ += elapsed_cycles;
+                    if (rx_accumulator_ >= rx_cycles_to_sample_) {
+                        rx_accumulator_ = 0;
+                        bool stop_valid = current_rx;
+                        if (!stop_valid) {
+                            eucsrc_ |= 0x04; // FE (Framing Error)
+                        }
+                        rx_uart_state_ = RxUartState::idle;
+                        rx_queue_.push_back(rx_shift_reg_);
+                        eucsra_ |= desc_.rxc_mask;
+                    }
+                    break;
             }
         }
         rx_last_pin_level_ = current_rx;

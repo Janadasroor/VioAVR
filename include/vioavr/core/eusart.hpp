@@ -64,6 +64,10 @@ private:
     u64 tx_accumulator_ {0};
     u64 rx_accumulator_ {0};
 
+    // Standard UART RX state machine
+    enum class RxUartState : u8 { idle, start_bit, data_bits, stop_bit };
+    RxUartState rx_uart_state_ {RxUartState::idle};
+
     bool power_reduction_enabled() const noexcept;
 };
 

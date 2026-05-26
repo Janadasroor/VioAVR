@@ -587,6 +587,16 @@ bool MemoryBus::twi_broadcast(u8 address) noexcept {
     return false;
 }
 
+bool MemoryBus::twi_data_send(u8 data) noexcept {
+    bool acked = false;
+    for (auto* peripheral : peripherals_) {
+        if (peripheral != nullptr && peripheral->on_twi_data(data)) {
+            acked = true;
+        }
+    }
+    return acked;
+}
+
 IoPeripheral* MemoryBus::get_peripheral_by_name(std::string_view name) noexcept {
     for (auto* p : peripherals_) {
         // Some peripherals might have instance names like USART0

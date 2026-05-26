@@ -12,7 +12,7 @@ inline constexpr DeviceDescriptor atmega1609 {
     .interrupt_vector_count = 43U,
     .interrupt_vector_size = 4U,
     .flash_page_size = 64U,
-    .register_file_range = { 0x0000, 0x0000 },
+    .register_file_range = { 0x0000, 0x001F },
     .io_range = { 0x0U, 0x3FU },
     .extended_io_range = { 0x40U, 0x10FFU },
 
