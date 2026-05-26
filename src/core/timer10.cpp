@@ -186,6 +186,7 @@ void Timer10::perform_tick() noexcept {
         tcnt_ = (tcnt_ - 1) & 0x3FFU;
     }
 
+    bool loaded_buffers = false;
     if (up_direction_ && tcnt_ >= ocrc_) {
         if (pfc) {
             up_direction_ = false;
@@ -195,6 +196,7 @@ void Timer10::perform_tick() noexcept {
             ocra_ = ocra_buf_;
             ocrb_ = ocrb_buf_;
             ocrd_ = ocrd_buf_;
+            loaded_buffers = true;
         }
     } else if (!up_direction_ && tcnt_ == 0) {
         handle_overflow(); // In PFC, overflow is hit at BOTTOM
@@ -202,11 +204,14 @@ void Timer10::perform_tick() noexcept {
         ocra_ = ocra_buf_;
         ocrb_ = ocrb_buf_;
         ocrd_ = ocrd_buf_;
+        loaded_buffers = true;
     }
 
-    if (tcnt_ == ocra_) handle_compare_match_a();
-    if (tcnt_ == ocrb_) handle_compare_match_b();
-    if (tcnt_ == ocrd_) handle_compare_match_d();
+    if (!loaded_buffers) {
+        if (tcnt_ == ocra_) handle_compare_match_a();
+        if (tcnt_ == ocrb_) handle_compare_match_b();
+        if (tcnt_ == ocrd_) handle_compare_match_d();
+    }
 }
 
 void Timer10::apply_pin_level(std::optional<BoundPin> pin, bool high) noexcept {
