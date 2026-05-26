@@ -208,7 +208,9 @@ inline constexpr DeviceDescriptor atmega328p {
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
             .eicra_address = 0x69U, .eicrb_address = 0x0U, .eimsk_address = 0x3DU, .eifr_address = 0x3CU,
-            .vector_indices = {{ 1U, 2U, 0U, 0U, 0U, 0U, 0U, 0U }}
+            .vector_indices = {{ 1U, 2U, 0U, 0U, 0U, 0U, 0U, 0U }},
+            .pin_addresses = {{ 0x29U, 0x29U, 0U, 0U, 0U, 0U, 0U, 0U }},
+            .pin_bit_indices = {{ 2U, 3U, 0U, 0U, 0U, 0U, 0U, 0U }}
         } }},
 
     .uart_count = 1U,

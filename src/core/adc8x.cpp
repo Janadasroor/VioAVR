@@ -243,8 +243,12 @@ bool Adc8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
 
 bool Adc8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (!pending_interrupt_request(request)) return false;
-    // Only clear the interrupt flags that were consumed (RESRDY and/or WCOMP)
-    intflags_ &= ~(0x01U | 0x02U);
+    // Clear only the interrupt flag that was actually consumed
+    if (intflags_ & 0x01U) {
+        intflags_ &= ~0x01U;  // RESRDY
+    } else {
+        intflags_ &= ~0x02U;  // WCOMP
+    }
     update_interrupt_state();
     return true;
 }

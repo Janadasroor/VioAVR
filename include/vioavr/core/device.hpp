@@ -204,6 +204,8 @@ struct ExtInterruptDescriptor {
     u16 eimsk_address {};
     u16 eifr_address {};
     std::array<u8, 8> vector_indices {};
+    std::array<u16, 8> pin_addresses {};
+    std::array<u8, 8> pin_bit_indices {};
 };
 
 struct Uart8xDescriptor {
