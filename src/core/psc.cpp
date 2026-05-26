@@ -13,6 +13,7 @@ Psc::Psc(std::string_view name, const PscDescriptor& desc, PinMux* pin_mux)
     std::vector<u16> addrs = {
         desc.pctl_address, desc.psoc_address, desc.pconf_address,
         desc.pim_address, desc.pifr_address, desc.picr_address,
+        static_cast<u16>(desc.picr_address + 1U),
         desc.ocrsa_address, static_cast<u16>(desc.ocrsa_address + 1),
         desc.ocrra_address, static_cast<u16>(desc.ocrra_address + 1),
         desc.ocrsb_address, static_cast<u16>(desc.ocrsb_address + 1),
@@ -83,7 +84,13 @@ u8 Psc::read(u16 address) noexcept {
     if (address == desc_.pifr_address) return pifr_;
     if (address == desc_.pfrc0a_address) return pfrc0a_;
     if (address == desc_.pfrc0b_address) return pfrc0b_;
-    if (address == desc_.picr_address) return picr_ & 0xFF;
+    if (address == desc_.picr_address) {
+        read_temp_high_ = (picr_ >> 8) & 0xFFU;
+        return picr_ & 0xFFU;
+    }
+    if (desc_.picr_address != 0 && address == desc_.picr_address + 1) {
+        return read_temp_high_;
+    }
     if (address == desc_.pom_address) return pom_;
     
     if (address == desc_.ocrsa_address) {
@@ -144,7 +151,9 @@ void Psc::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.pfrc0b_address) {
         pfrc0b_ = value;
     } else if (address == desc_.picr_address) {
-        picr_ = value;
+        temp_high_ = value;
+    } else if (desc_.picr_address != 0 && address == desc_.picr_address + 1) {
+        picr_ = (static_cast<u16>(value) << 8U) | temp_high_;
     } else if (address == desc_.pom_address) {
         pom_ = value;
     } else if (address >= desc_.ocrsa_address && address < desc_.ocrsa_address + 8) {

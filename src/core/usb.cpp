@@ -363,6 +363,7 @@ void Usb::simulate_usb_reset() noexcept {
     udaddr_ = 0;
     uenum_ = 0;
     uerst_ = 0;
+    udcon_ = 0;
     udint_ |= 0x08U; // EORSTI
 
     for (auto& ep : endpoints_) {
@@ -372,6 +373,8 @@ void Usb::simulate_usb_reset() noexcept {
         ep.status0 = 0;
         ep.status1 = 0;
         ep.interrupt_flags = 0;
+        ep.interrupt_enable = 0;
+        ep.data_toggle = false;
         ep.cpu_bank = 0;
         ep.sie_bank = 0;
         ep.bank_count = 1;

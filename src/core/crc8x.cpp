@@ -9,9 +9,13 @@ Crc8x::Crc8x(const Crc8xDescriptor& descriptor, std::span<const u16> flash) noex
     if (desc_.ctrlb_address > end) end = desc_.ctrlb_address;
     if (desc_.status_address > end) end = desc_.status_address;
     if (desc_.data_address > end) end = desc_.data_address;
-    if (desc_.checksum_address > end) end = desc_.checksum_address;
+    if (desc_.checksum_address > end) {
+        end = static_cast<u16>(desc_.checksum_address + 1U);
+    } else if (desc_.checksum_address != 0 && desc_.checksum_address + 1 > end) {
+        end = static_cast<u16>(desc_.checksum_address + 1U);
+    }
     
-    ranges_[0] = AddressRange{desc_.ctrla_address, static_cast<u16>(end)};
+    ranges_[0] = AddressRange{desc_.ctrla_address, end};
 }
 
 std::span<const AddressRange> Crc8x::mapped_ranges() const noexcept {
@@ -44,8 +48,9 @@ u8 Crc8x::read(u16 address) noexcept {
     if (address == desc_.ctrla_address) return ctrla_;
     if (desc_.ctrlb_address != 0 && address == desc_.ctrlb_address) return ctrlb_;
     if (address == desc_.status_address) return status_;
-    if (address == desc_.checksum_address) return checksum_ & 0xFFU;
-    if (address == desc_.checksum_address + 1) return (checksum_ >> 8) & 0xFFU;
+    if (desc_.data_address != 0 && address == desc_.data_address) return data_;
+    if (desc_.checksum_address != 0 && address == desc_.checksum_address) return checksum_ & 0xFFU;
+    if (desc_.checksum_address != 0 && address == desc_.checksum_address + 1) return (checksum_ >> 8) & 0xFFU;
     return 0;
 }
 
@@ -57,6 +62,8 @@ void Crc8x::write(u16 address, u8 value) noexcept {
         }
     } else if (desc_.ctrlb_address != 0 && address == desc_.ctrlb_address) {
         ctrlb_ = value & 0x33U; // SRC(0-1), MODE(4-5)
+    } else if (desc_.data_address != 0 && address == desc_.data_address) {
+        data_ = value;
     }
 }
 
