@@ -265,7 +265,9 @@ inline constexpr DeviceDescriptor atmega2560 {
     .ext_interrupt_count = 1U,
     .ext_interrupts = {{ {
             .eicra_address = 0x69U, .eicrb_address = 0x6AU, .eimsk_address = 0x3DU, .eifr_address = 0x3CU,
-            .vector_indices = {{ 1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U }}
+            .vector_indices = {{ 1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U }},
+            .pin_addresses = {{ 0x29U, 0x29U, 0x29U, 0x29U, 0x2CU, 0x2CU, 0x2CU, 0x2CU }},
+            .pin_bit_indices = {{ 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }}
         } }},
 
     .uart_count = 4U,

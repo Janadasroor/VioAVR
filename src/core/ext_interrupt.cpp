@@ -110,16 +110,33 @@ void ExtInterrupt::write(const u16 address, const u8 value) noexcept
 
 bool ExtInterrupt::on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept
 {
-    (void)pin_address;
-    Logger::debug("ExtInterrupt: external pin change bit=" + std::to_string(bit_index));
-    // INT0 on bit_index 2 (PD2 on ATmega328P), INT1 on bit_index 3 (PD3)
-    if (bit_index == 2) {
-        set_int0_level(level == PinLevel::high);
-        return true;
+    Logger::debug("ExtInterrupt: external pin change addr=0x" + std::to_string(pin_address) + " bit=" + std::to_string(bit_index));
+    bool level_bool = (level == PinLevel::high);
+    // Check descriptor-provided pin mapping first
+    bool has_mapping = false;
+    for (size_t i = 0; i < 8; ++i) {
+        if (desc_.pin_addresses[i] != 0U) {
+            has_mapping = true;
+            if (desc_.pin_addresses[i] == pin_address && desc_.pin_bit_indices[i] == bit_index) {
+                switch (i) {
+                    case 0: set_int0_level(level_bool); break;
+                    case 1: set_int1_level(level_bool); break;
+                    default: break;
+                }
+                return true;
+            }
+        }
     }
-    if (bit_index == 3) {
-        set_int1_level(level == PinLevel::high);
-        return true;
+    // Fallback for descriptors without pin mapping (classic ATmega328P-compatible)
+    if (!has_mapping) {
+        if (bit_index == 2) {
+            set_int0_level(level_bool);
+            return true;
+        }
+        if (bit_index == 3) {
+            set_int1_level(level_bool);
+            return true;
+        }
     }
     return false;
 }

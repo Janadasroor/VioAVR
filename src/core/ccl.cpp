@@ -213,9 +213,13 @@ bool Ccl::compute_lut(u8 index) const noexcept {
             case 0x0A: // TCA0
                 if (tca0_) in[j] = tca0_->get_wo_level(j); // WO0, WO1, WO2 for IN0, IN1, IN2
                 break;
-            case 0x0C: // TCB
-                if (tcbs_[index]) in[j] = tcbs_[index]->get_wo_level();
+            case 0x0C: case 0x0D: case 0x0E: // TCB0, TCB1, TCB2
+            {
+                const u8 tcb_idx = insel - 0x0C;
+                if (tcb_idx < tcbs_.size() && tcbs_[tcb_idx])
+                    in[j] = tcbs_[tcb_idx]->get_wo_level();
                 break;
+            }
             default:
                 in[j] = false;
                 break;
