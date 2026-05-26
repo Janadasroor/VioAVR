@@ -45,7 +45,7 @@ private:
     
     void start_conversion() noexcept;
     void complete_conversion() noexcept;
-    void process_sample_result(u16 result) noexcept;
+    void process_sample_result(u32 result) noexcept;
     void update_interrupt_state() noexcept;
 
     Adc8xDescriptor desc_;
@@ -68,6 +68,7 @@ private:
     u8 intctrl_ {};
     u8 intflags_ {};
     u8 dbgctrl_ {};
+    u8 calib_ {};
     u16 res_ {};
     u16 winlt_ {};
     u16 winht_ {};

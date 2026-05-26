@@ -45,6 +45,7 @@ void Tcb::reset() noexcept {
     temp_ = 0;
     cnt_ = 0;
     ccmp_ = 0;
+    async_cycle_accum_ = 0;
     update_interrupt_state();
     update_active_state();
 }
@@ -113,11 +114,26 @@ void Tcb::write(u16 address, u8 value) noexcept {
 
 void Tcb::tick(u64 elapsed_cycles) noexcept {
     if (!is_enabled()) return;
-    
+
+    bool async = (ctrlb_ >> 6) & 0x01;
     u8 clksel = get_clksel();
     bool ticked = false;
- 
-    if (clksel == 0) { // CLK_PER
+
+    if (async) {
+        // ASYNC mode: clocked from RTC (32.768 kHz) instead of CLK_PER
+        // CLKSEL acts as prescaler for the RTC clock
+        u32 clk_div = (clksel == 0) ? 1 : (clksel == 1) ? 2 : (clksel == 2) ? 4 : 1;
+        // Ratio of system clock (16 MHz typical) to RTC clock at chosen prescaler
+        static constexpr u64 kCyclesPerRtcTick = 488; // 16000000 / 32768
+        u64 cycles_per_tick = kCyclesPerRtcTick * clk_div;
+        async_cycle_accum_ += elapsed_cycles;
+        u64 rtc_ticks = async_cycle_accum_ / cycles_per_tick;
+        async_cycle_accum_ -= rtc_ticks * cycles_per_tick;
+        for (u64 i = 0; i < rtc_ticks; ++i) {
+            perform_tick(true);
+            ticked = true;
+        }
+    } else if (clksel == 0) { // CLK_PER
         for (u64 i = 0; i < elapsed_cycles; ++i) {
             perform_tick(true);
         }
@@ -233,7 +249,7 @@ void Tcb::on_event(bool level) noexcept {
     if (!(evctrl_ & 0x01)) return; // CAPTEI
  
     u8 mode = get_mode();
-    bool edge_select = (evctrl_ & 0x02) != 0; // 0=Rising, 1=Falling
+    bool edge_select = (evctrl_ & 0x10) != 0; // bit 4: 0=Rising, 1=Falling
     bool match_edge = (level != edge_select);
     bool updated = false;
  

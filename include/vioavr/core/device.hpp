@@ -100,6 +100,7 @@ struct Adc8xDescriptor {
     u16 intctrl_address {};
     u16 intflags_address {};
     u16 dbgctrl_address {};
+    u16 calib_address {};
     u16 temp_address {};
     u16 res_address {};
     u16 winlt_address {};
@@ -588,6 +589,7 @@ struct RtcDescriptor {
     u16 intflags_address {};
     u16 temp_address {};
     u16 dbgctrl_address {};
+    u16 calib_address {};
     u16 clksel_address {};
     u16 cnt_address {};
     u16 per_address {};

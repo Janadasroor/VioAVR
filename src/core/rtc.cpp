@@ -11,7 +11,7 @@ Rtc::Rtc(const RtcDescriptor& desc) : desc_(desc) {
         std::vector<u16> addrs = {
             desc_.ctrla_address, desc_.status_address, desc_.intctrl_address,
             desc_.intflags_address, desc_.temp_address, desc_.dbgctrl_address,
-            desc_.clksel_address,
+            desc_.clksel_address, desc_.calib_address,
             desc_.cnt_address, static_cast<u16>(desc_.cnt_address + 1),
             desc_.per_address, static_cast<u16>(desc_.per_address + 1),
             desc_.cmp_address, static_cast<u16>(desc_.cmp_address + 1),
@@ -35,11 +35,12 @@ Rtc::Rtc(const RtcDescriptor& desc) : desc_(desc) {
 
 void Rtc::reset() noexcept {
     ctrla_ = 0; status_ = 0; intctrl_ = 0; intflags_ = 0;
-    temp_ = 0; dbgctrl_ = 0; clksel_ = 0;
+    temp_ = 0; dbgctrl_ = 0; clksel_ = 0; calib_ = 0;
     cnt_ = 0; per_ = 0xFFFF; cmp_ = 0;
     pitctrla_ = 0; pitstatus_ = 0; pitintctrl_ = 0; pitintflags_ = 0;
     internal_ticks_ = 0;
     pit_ticks_ = 0;
+    calib_accum_ = 0;
     sync_busy_cycles_rtc_ = 0;
     sync_busy_cycles_pit_ = 0;
 }
@@ -57,6 +58,7 @@ u8 Rtc::read(u16 address) noexcept {
     if (address == desc_.intctrl_address) return intctrl_;
     if (address == desc_.intflags_address) return intflags_;
     if (address == desc_.clksel_address) return clksel_;
+    if (address == desc_.calib_address) return calib_;
     if (address == desc_.temp_address) return temp_;
 
     // 16-bit Read: Low byte first latches High byte into TEMP
@@ -80,6 +82,7 @@ u8 Rtc::read(u16 address) noexcept {
 
     if (address == desc_.pitctrla_address) return pitctrla_;
     if (address == desc_.pitstatus_address) return pitstatus_;
+    if (address == desc_.dbgctrl_address) return dbgctrl_;
     if (address == desc_.pitintctrl_address) return pitintctrl_;
     if (address == desc_.pitintflags_address) return pitintflags_;
 
@@ -123,6 +126,12 @@ void Rtc::write(u16 address, u8 value) noexcept {
         pitctrla_ = value;
         pitstatus_ |= 0x01; // CTRLBUSY
         sync_busy_cycles_pit_ = 64;
+    } else if (address == desc_.clksel_address) {
+        clksel_ = value;
+    } else if (address == desc_.calib_address) {
+        calib_ = value;
+    } else if (address == desc_.dbgctrl_address) {
+        dbgctrl_ = value;
     } else if (address == desc_.pitintctrl_address) {
         pitintctrl_ = value;
     } else if (address == desc_.pitintflags_address) {
@@ -176,24 +185,38 @@ void Rtc::tick(u64 elapsed_cycles) noexcept {
     }
 }
 
-void Rtc::handle_rtc_tick() {
-    Logger::debug("RTC: tick cnt=" + std::to_string(cnt_) + " per=" + std::to_string(per_));
+void Rtc::tick_core() {
     const u16 old_cnt = cnt_;
     if (old_cnt == cmp_) {
-        intflags_ |= 0x02; // CMP
-        if (evsys_ && desc_.cmp_generator_id != 0) {
+        intflags_ |= 0x02;
+        if (evsys_ && desc_.cmp_generator_id != 0)
             evsys_->trigger_event(desc_.cmp_generator_id);
-        }
     }
     if (old_cnt == per_) {
         cnt_ = 0;
-        intflags_ |= 0x01; // OVF
-        if (evsys_ && desc_.ovf_generator_id != 0) {
+        intflags_ |= 0x01;
+        if (evsys_ && desc_.ovf_generator_id != 0)
             evsys_->trigger_event(desc_.ovf_generator_id);
-        }
     } else {
         cnt_++;
     }
+}
+
+void Rtc::handle_rtc_tick() {
+    u8 error = calib_ & 0x7FU;
+    if (error > 0) {
+        calib_accum_ += error;
+        if (calib_accum_ >= 32768) {
+            calib_accum_ -= 32768;
+            if (calib_ & 0x80U) {
+                // Negative correction: skip this tick
+                return;
+            }
+            // Positive correction: do one extra tick
+            tick_core();
+        }
+    }
+    tick_core();
 }
 
 void Rtc::handle_pit_tick() {

@@ -63,7 +63,7 @@ inline constexpr DeviceDescriptor atmega4809 {
     .adcs8x = {{ {
             .ctrla_address = 0x600U, .ctrlb_address = 0x601U, .ctrlc_address = 0x602U, .ctrld_address = 0x603U, .ctrle_address = 0x604U,
             .sampctrl_address = 0x605U, .muxpos_address = 0x606U, .muxneg_address = 0x0U, .command_address = 0x608U, .evctrl_address = 0x609U,
-            .intctrl_address = 0x60AU, .intflags_address = 0x60BU, .dbgctrl_address = 0x60CU, .temp_address = 0x60DU,
+            .intctrl_address = 0x60AU, .intflags_address = 0x60BU, .dbgctrl_address = 0x60CU, .calib_address = 0x616U, .temp_address = 0x60DU,
             .res_address = 0x610U, .winlt_address = 0x612U, .winht_address = 0x614U,
             .res_ready_vector_index = 22U, .wcomp_vector_index = 23U,
             .user_event_address = 0x1A8U,
@@ -141,7 +141,7 @@ inline constexpr DeviceDescriptor atmega4809 {
     .timers_rtc = {{ {
             .ctrla_address = 0x140U, .status_address = 0x141U, .intctrl_address = 0x142U,
             .intflags_address = 0x143U, .temp_address = 0x144U, .dbgctrl_address = 0x145U,
-            .clksel_address = 0x147U, .cnt_address = 0x148U, .per_address = 0x14AU,
+            .calib_address = 0x146U, .clksel_address = 0x147U, .cnt_address = 0x148U, .per_address = 0x14AU,
             .cmp_address = 0x14CU, .pitctrla_address = 0x150U, .pitstatus_address = 0x151U,
             .pitintctrl_address = 0x152U, .pitintflags_address = 0x153U,
             .ovf_vector_index = 7U, .pit_vector_index = 4U,

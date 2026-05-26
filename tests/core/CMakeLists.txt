@@ -1,34 +1,55 @@
 set(TEST_SOURCES
+    avr8x/avr8x_ac_extended_test.cpp
     avr8x/avr8x_ac_fidelity_test.cpp
+    avr8x/avr8x_ac8x_extended_test.cpp
+    avr8x/avr8x_adc8x_extended_test.cpp
     avr8x/avr8x_adc_fidelity_test.cpp
     avr8x/avr8x_ccl_evsys_fidelity_test.cpp
     avr8x/avr8x_ccl_fidelity_test.cpp
+    avr8x/avr8x_ccl_rslatch_test.cpp
     avr8x/avr8x_ccl_seq_fidelity_test.cpp
     avr8x/avr8x_ccl_sequential_test.cpp
     avr8x/avr8x_ccl_sequential_unit_test.cpp
+    avr8x/avr8x_adc_free_running_test.cpp
+    avr8x/avr8x_bod_extended_test.cpp
     avr8x/avr8x_clkctrl_fidelity_test.cpp
+    avr8x/avr8x_clkctrl_extended_test.cpp
     avr8x/avr8x_cpu_int_test.cpp
     avr8x/avr8x_cpu_system_test.cpp
+    avr8x/avr8x_cpuint_extended_test.cpp
     avr8x/avr8x_cpuint_fidelity_test.cpp
+    avr8x/avr8x_crc_extended_test.cpp
     avr8x/avr8x_crc_fidelity_test.cpp
     avr8x/avr8x_evsys_chain_test.cpp
     avr8x/avr8x_evsys_dma_chain_test.cpp
+    avr8x/avr8x_evsys_extended_test.cpp
     avr8x/avr8x_evsys_fidelity_test.cpp
     avr8x/avr8x_evsys_test.cpp
     avr8x/avr8x_gpio_fidelity_test.cpp
+    avr8x/avr8x_gpio_extended_test.cpp
+    avr8x/avr8x_nvm_extended_test.cpp
     avr8x/avr8x_nvm_fidelity_test.cpp
+    avr8x/avr8x_rtc_extended_test.cpp
     avr8x/avr8x_rtc_fidelity_test.cpp
+    avr8x/avr8x_spi_extended_test.cpp
     avr8x/avr8x_spi_fidelity_test.cpp
+    avr8x/avr8x_spi_multi_byte_test.cpp
     avr8x/avr8x_sysctrl_fidelity_test.cpp
     avr8x/avr8x_tca_fidelity_test.cpp
+    avr8x/avr8x_tca_frq_mode_test.cpp
     avr8x/avr8x_tca_pwm_period_test.cpp
     avr8x/avr8x_tcb_fidelity_test.cpp
     avr8x/avr8x_tcb_pulse_width_test.cpp
+    avr8x/avr8x_twi_extended_test.cpp
     avr8x/avr8x_twi_fidelity_test.cpp
     avr8x/avr8x_uart_evsys_fidelity_test.cpp
     avr8x/avr8x_unified_map_test.cpp
+    avr8x/avr8x_usart_extended_test.cpp
     avr8x/avr8x_usart_fidelity_test.cpp
+    avr8x/avr8x_wdt_extended_test.cpp
     avr8x/avr8x_wdt_fidelity_test.cpp
+    avr8x/avr8x_wdt_timeout_test.cpp
+    avr8x/avr8x_zcd_extended_test.cpp
     avr8x/avr8x_zcd_fidelity_test.cpp
     can/can_fidelity_test.cpp
     can/can_protocol_fidelity_test.cpp

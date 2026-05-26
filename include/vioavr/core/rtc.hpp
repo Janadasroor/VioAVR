@@ -44,6 +44,7 @@ private:
     u8 temp_ {0x00};
     u8 dbgctrl_ {0x00};
     u8 clksel_ {0x00};
+    u8 calib_ {0x00};
     
     u16 cnt_ {0x0000};
     u16 per_ {0x0000};
@@ -62,9 +63,11 @@ private:
     u32 sync_busy_cycles_pit_ {0};
     u64 internal_ticks_ {0};
     u64 pit_ticks_ {0};
+    u16 calib_accum_ {0};
     
     void handle_pit_tick();
     void handle_rtc_tick();
+    void tick_core();
     
     bool is_rtc_enabled() const noexcept { return ctrla_ & 0x01; }
     bool is_pit_enabled() const noexcept { return pitctrla_ & 0x01; }
