@@ -382,8 +382,10 @@ bool Timer16::on_external_pin_change(u16 address, u8 bit, PinLevel level) noexce
         bool high = (level == PinLevel::high);
         u8 cs = tccrb_ & desc_.cs_mask;
         if (cs == 6 && last_t1_state_ == 1 && !high) { // Falling edge
+            sync();
             perform_tick();
         } else if (cs == 7 && last_t1_state_ == 0 && high) { // Rising edge
+            sync();
             perform_tick();
         }
         last_t1_state_ = high ? 1 : 0;
@@ -410,21 +412,14 @@ void Timer16::update_pin_ownership() noexcept {
 }
 
 void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
-    fprintf(stderr, "[PWM_CALLED] is_match=%d channel_mask=%u name=%s\n", (int)is_match, (unsigned)channel_mask, name_.data());
-    fflush(stderr);
     if (!pin_mux_) return;
     u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
     bool is_phase_correct = (wgm >= 1 && wgm <= 3) || (wgm >= 8 && wgm <= 11);
     bool is_non_pwm = (wgm == 0 || wgm == 4 || wgm == 12);
     bool is_fast_pwm = (wgm >= 5 && wgm <= 7) || (wgm >= 13 && wgm <= 15);
-    bool com1_toggles = is_non_pwm
-        || (wgm == 9 || wgm == 11)
-        || (wgm == 14 || wgm == 15);
 
     auto update_pin = [&](const std::optional<BoundPin>& pin, u8 com, u16 ocr) {
         if (!pin || com == 0) {
-            u64 cyc = bus_ ? bus_->domain_cycles(clock_domain()) : 0;
-            fprintf(stderr, "[PWM_SKIP] no_pin=%d com=%d is_match=%d cyc=%lu\n", !pin.has_value(), (int)com, (int)is_match, (unsigned long)cyc);
             return;
         }
 
@@ -441,20 +436,14 @@ void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
             return;
         }
 
-        bool old_level = false, new_level = false;
-        if (pin_mux_) {
-            auto old_state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
-            old_level = old_state.drive_level;
-        }
+        bool new_level = false;
 
         if (com == 1) {
-            if (com1_toggles && is_match) {
+            if (is_match) {
                 auto state = pin_mux_->get_state_by_address(pin->port->port_address(), pin->bit);
                 new_level = !state.drive_level;
                 pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, new_level);
             }
-            u64 cyc = bus_ ? bus_->domain_cycles(clock_domain()) : 0;
-            fprintf(stderr, "[PWM_COM1] tcnt=%u ocr=%u is_match=%d new_level=%d cyc=%lu\n", (unsigned)tcnt_, (unsigned)ocr, (int)is_match, (int)new_level, (unsigned long)cyc);
             return;
         }
 
@@ -467,10 +456,6 @@ void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
             new_level = (com == 2) ? (tcnt_ < ocr) : (tcnt_ >= ocr);
             pin_mux_->update_pin_by_address(pin->port->port_address(), pin->bit, PinOwner::timer, true, new_level);
         }
-
-        u64 cyc = bus_ ? bus_->domain_cycles(clock_domain()) : 0;
-        fprintf(stderr, "[PWM_PIN] %s level=%d tcnt=%u ocr=%u is_match=%d changed=%d cyc=%lu\n",
-                is_match ? "MATCH" : "BOTTOM", (int)new_level, (unsigned)tcnt_, (unsigned)ocr, (int)is_match, (int)(new_level != old_level), (unsigned long)cyc);
     };
     if (channel_mask & CH_A) update_pin(pin_a_, (tccra_ >> 6) & 0x03, ocra_);
     if (channel_mask & CH_B) update_pin(pin_b_, (tccra_ >> 4) & 0x03, ocrb_);

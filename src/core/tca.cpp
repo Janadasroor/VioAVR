@@ -500,13 +500,9 @@ void Tca::perform_tick_split() {
     }
 
     if (update_l) {
-        // In split mode, buf_ applies to L-parts and H-parts separately?
-        // Actually, the BUF registers in split mode are mapped differently.
-        // HPER is at the same address as PERBUF[15:8].
-        // So for simplicity, we'll just handle buffer updates on L-half if PERBUF was written.
-        if (buf_.per_valid) { per_l() = static_cast<u8>(buf_.per & 0xFFU); buf_.per_valid = false; }
-        if (buf_.cmp0_valid) { cmp0_l() = static_cast<u8>(buf_.cmp0 & 0xFFU); buf_.cmp0_valid = false; }
-        if (buf_.cmp1_valid) { cmp1_l() = static_cast<u8>(buf_.cmp1 & 0xFFU); buf_.cmp1_valid = false; }
+        if (buf_.per_valid) { per_l() = static_cast<u8>(buf_.per & 0xFFU); buf_.per_valid = false; ctrlf_ &= ~0x01U; }
+        if (buf_.cmp0_valid) { cmp0_l() = static_cast<u8>(buf_.cmp0 & 0xFFU); buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
+        if (buf_.cmp1_valid) { cmp1_l() = static_cast<u8>(buf_.cmp1 & 0xFFU); buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
         if (buf_.cmp2_valid) { cmp2_l() = static_cast<u8>(buf_.cmp2 & 0xFFU); buf_.cmp2_valid = false; }
     }
 

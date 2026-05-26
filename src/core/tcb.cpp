@@ -191,8 +191,14 @@ void Tcb::perform_tick(bool clock_event) {
         } else {
             cnt_++;
         }
+    } else if (mode == 7) { // Timeout
+        cnt_++;
+        if (cnt_ >= ccmp_) {
+            cnt_ = 0;
+            intflags_ |= 0x01;
+        }
     } else {
-        // Measurement Modes: counter free-runs
+        // Measurement Modes (2-5): counter free-runs
         cnt_++;
         if (cnt_ == 0) { // Overflow
             intflags_ |= 0x01; // CAPT

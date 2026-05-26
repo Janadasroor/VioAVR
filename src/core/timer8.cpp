@@ -316,6 +316,7 @@ void Timer8::perform_tick() noexcept
     const bool is_fast_pwm = (mode_ == Mode::fast_pwm_ff || mode_ == Mode::fast_pwm_ocra);
 
     // 2. Perform the counter increment/wrap logic
+    u8 prev_tcnt = tcnt_;
     if (is_phase_correct) {
         if (counting_up_) {
             if (tcnt_ == top) {
@@ -356,10 +357,12 @@ void Timer8::perform_tick() noexcept
         }
     }
 
-    // 3. Sample matches AFTER the update 
+    // 3. Sample matches (use pre-update value for phase-correct at TOP to catch CMP==TOP)
     if (is_phase_correct) {
-        if (tcnt_ == ocra_) handle_compare_match_a();
-        if (tcnt_ == ocrb_) handle_compare_match_b();
+        if (prev_tcnt == ocra_) handle_compare_match_a();
+        else if (tcnt_ == ocra_) handle_compare_match_a();
+        if (prev_tcnt == ocrb_) handle_compare_match_b();
+        else if (tcnt_ == ocrb_) handle_compare_match_b();
     } else {
         if (tcnt_ == ocra_) handle_compare_match_a();
         if (tcnt_ == ocrb_) handle_compare_match_b();
@@ -368,12 +371,17 @@ void Timer8::perform_tick() noexcept
         // Wait, the previous logic checked if tcnt_ == top before increment. 
         // If it wrapped this tick, tcnt_ is now 0.
         if (is_fast_pwm && tcnt_ == 0 && top != 0) { // wrapped
-            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
-            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
+            for (auto* p : {&pin_a_, &pin_b_}) {
+                auto action = (p == &pin_a_) ? get_pin_action_a() : get_pin_action_b();
+                if (action == PinAction::clear) apply_pin_action(*p, PinAction::set);
+                else if (action == PinAction::set) apply_pin_action(*p, PinAction::clear);
+            }
         } else if (is_fast_pwm && top == 0) {
-            // Special case TOP=0
-            if (get_pin_action_a() == PinAction::clear) apply_pin_action(pin_a_, PinAction::set);
-            if (get_pin_action_b() == PinAction::clear) apply_pin_action(pin_b_, PinAction::set);
+            for (auto* p : {&pin_a_, &pin_b_}) {
+                auto action = (p == &pin_a_) ? get_pin_action_a() : get_pin_action_b();
+                if (action == PinAction::clear) apply_pin_action(*p, PinAction::set);
+                else if (action == PinAction::set) apply_pin_action(*p, PinAction::clear);
+            }
         }
     }
 }
