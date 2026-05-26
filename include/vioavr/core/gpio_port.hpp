@@ -22,12 +22,7 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
-    [[nodiscard]] bool wants_tick() const noexcept override {
-        for (bool b : has_analog_binding_) {
-            if (b) return true;
-        }
-        return false;
-    }
+    [[nodiscard]] bool wants_tick() const noexcept override { return true; }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept override;

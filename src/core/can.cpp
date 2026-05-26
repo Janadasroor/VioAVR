@@ -61,7 +61,7 @@ std::span<const AddressRange> CanBus::mapped_ranges() const noexcept { return ra
 
 void CanBus::reset() noexcept {
     cangcon_ = 0;
-    cangsta_ = 0x03; // ENA (bit 0) and ERRA (bit 1)
+    cangsta_ = 0x02; // ERRA (bit 1), ENA=0
     cangit_ = 0;
     cangie_ = 0;
     canen1_ = 0;
@@ -105,7 +105,7 @@ void CanBus::tick(u64 elapsed_cycles) noexcept {
             timer_prescaler_cycles_ -= cycles_per_tq;
             cantim_++;
             if (cantim_ == 0) {
-                cangit_ |= 0x01U; // OVRIT
+                cangit_ |= 0x10U; // OVRIT (bit 4)
                 evaluate_interrupts();
             }
         }
@@ -209,11 +209,12 @@ u8 CanBus::read(u16 address) noexcept {
 
 void CanBus::write(u16 address, u8 value) noexcept {
     if (address == desc_.cangcon_address) {
-        cangcon_ = value;
-        if (value & 0x01U) {
+        bool swres = (value & 0x01U) != 0U;
+        if (swres) {
             reset(); // SWRES
             evaluate_interrupts();
         }
+        cangcon_ = value;
     } else if (address == desc_.cangie_address) {
         cangie_ = value;
         evaluate_interrupts();

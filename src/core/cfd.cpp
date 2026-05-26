@@ -27,7 +27,7 @@ void Cfd::reset() noexcept {
 
 u8 Cfd::read(u16 address) noexcept {
     if (address == desc_.xfdcsr_address) {
-        return xfdcsr_ & RW_MASK;
+        return xfdcsr_;
     }
     return 0;
 }
