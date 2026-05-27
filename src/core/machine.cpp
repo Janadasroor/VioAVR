@@ -49,6 +49,8 @@
 #include "vioavr/core/tcd.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
+#include "vioavr/core/usb8x.hpp"
+#include "vioavr/core/mvio.hpp"
 #include "vioavr/core/eusart.hpp"
 #include "vioavr/core/pll.hpp"
 
@@ -221,6 +223,13 @@ void Machine::initialize_peripherals()
     if (device_.clkctrl.ctrla_address != 0U) {
         // Default base = 20 MHz. The prescaler-on reset default divides by 6 → 3.333 MHz.
         auto p = std::make_unique<ClkCtrl>(device_.clkctrl, 20'000'000U);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+
+    // 2b. MVIO (DB/DD)
+    if (device_.mvio.intctrl_address != 0U) {
+        auto p = std::make_unique<Mvio>(device_.mvio);
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
@@ -581,6 +590,13 @@ void Machine::initialize_peripherals()
     // 18. USB
     for (u8 i = 0; i < device_.usb_count; ++i) {
         auto usb = std::make_unique<Usb>("USB", device_.usbs[i]);
+        bus_->attach_peripheral(*usb);
+        owned_peripherals_.push_back(std::move(usb));
+    }
+
+    // 18b. USB8x (DU)
+    for (u8 i = 0; i < device_.usb8x_count; ++i) {
+        auto usb = std::make_unique<Usb8x>(device_.usbs8x[i]);
         bus_->attach_peripheral(*usb);
         owned_peripherals_.push_back(std::move(usb));
     }
