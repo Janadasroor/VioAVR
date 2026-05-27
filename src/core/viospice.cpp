@@ -18,6 +18,7 @@
 #include "vioavr/core/xmem.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/dac.hpp"
+#include "vioavr/core/dac8x.hpp"
 #include "vioavr/core/adc8x.hpp"
 #include "vioavr/core/ac8x.hpp"
 #include "vioavr/core/usb.hpp"
@@ -292,6 +293,12 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     for (u8 i = 0; i < device.dac_count; ++i) {
         auto dac = std::make_unique<Dac>("DAC" + std::to_string(i), device.dacs[i]);
         dacs_.push_back(dac.get());
+        bus_.attach_peripheral(*dac);
+        owned_peripherals_.push_back(std::move(dac));
+    }
+
+    for (u8 i = 0; i < device.dac8x_count; ++i) {
+        auto dac = std::make_unique<Dac8x>(device.dacs8x[i]);
         bus_.attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
     }

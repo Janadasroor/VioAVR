@@ -59,6 +59,7 @@ target_sources(vioavr_core
         xmem.cpp
         psc.cpp
         dac.cpp
+        dac8x.cpp
         nvm_ctrl.cpp
         cpu_int.cpp
         dma.cpp
