@@ -20,6 +20,7 @@
 #include "vioavr/core/dac.hpp"
 #include "vioavr/core/dac8x.hpp"
 #include "vioavr/core/adc8x.hpp"
+#include "vioavr/core/adc10b.hpp"
 #include "vioavr/core/ac8x.hpp"
 #include "vioavr/core/usb.hpp"
 #include "vioavr/core/usb8x.hpp"
@@ -283,6 +284,13 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         auto adc = std::make_unique<Adc8x>(device.adcs8x[i]);
         adc->set_memory_bus(&bus_);
         adc->set_event_system(evsys);
+        adc->set_analog_signal_bank(&analog_signal_bank_);
+        bus_.attach_peripheral(*adc.release());
+    }
+
+    for (u8 i = 0; i < device.adc10b_count; ++i) {
+        auto adc = std::make_unique<Adc10b>(device.adcs10b[i]);
+        adc->set_memory_bus(&bus_);
         adc->set_analog_signal_bank(&analog_signal_bank_);
         bus_.attach_peripheral(*adc.release());
     }

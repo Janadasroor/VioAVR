@@ -112,6 +112,33 @@ struct Adc8xDescriptor {
     u8 resrd_generator_id {};
 };
 
+struct Adc10bDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrld_address {};
+    u16 ctrle_address {};
+    u16 ctrlf_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 status_address {};
+    u16 dbgctrl_address {};
+    u16 command_address {};
+    u16 muxpos_address {};
+    u16 result_address {};
+    u16 sample_address {};
+    u16 winlt_address {};
+    u16 winht_address {};
+    u16 temp_address {};
+
+    u8 resrdy_vector_index {};
+    u8 samprdy_vector_index {};
+    u8 wcmp_vector_index {};
+    u8 resovr_vector_index {};
+    u8 sampovr_vector_index {};
+    u8 trigovr_vector_index {};
+};
+
 struct Ac8xDescriptor {
     u16 ctrla_address {};
     u16 muxctrla_address {};
@@ -1166,6 +1193,9 @@ struct DeviceDescriptor {
 
     u8 adc8x_count {0U};
     std::array<Adc8xDescriptor, 2> adcs8x {};
+
+    u8 adc10b_count {0U};
+    std::array<Adc10bDescriptor, 2> adcs10b {};
 
     u8 ac_count {0U};
     std::array<AnalogComparatorDescriptor, 4> acs {};
