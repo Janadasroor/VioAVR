@@ -23,6 +23,7 @@ target_sources(vioavr_core
         hex_image.cpp
         io_peripheral.cpp
         memory_bus.cpp
+        mvio.cpp
         pin_change_interrupt.cpp
         pin_mux.cpp
         register_file.cpp
@@ -54,6 +55,7 @@ target_sources(vioavr_core
         wdt8x.cpp
         crc8x.cpp
         usb.cpp
+        usb8x.cpp
         eusart.cpp
         pll.cpp
         xmem.cpp

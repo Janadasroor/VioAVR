@@ -22,6 +22,7 @@
 #include "vioavr/core/adc8x.hpp"
 #include "vioavr/core/ac8x.hpp"
 #include "vioavr/core/usb.hpp"
+#include "vioavr/core/usb8x.hpp"
 #include "vioavr/core/port_mux.hpp"
 #include "vioavr/core/evsys.hpp"
 #include "vioavr/core/tca.hpp"
@@ -46,6 +47,7 @@
 #include "vioavr/core/syscfg.hpp"
 #include "vioavr/core/vref.hpp"
 #include "vioavr/core/bodctrl.hpp"
+#include "vioavr/core/mvio.hpp"
 #include "vioavr/core/clkctrl.hpp"
 #include "vioavr/core/eusart.hpp"
 #include "vioavr/core/psc.hpp"
@@ -128,6 +130,11 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     }
     if (device.bod.ctrla_address != 0U) {
         auto p = std::make_unique<BodCtrl>(device.bod);
+        bus_.attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    if (device.mvio.intctrl_address != 0U) {
+        auto p = std::make_unique<Mvio>(device.mvio);
         bus_.attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
@@ -463,6 +470,12 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     // 15. USB
     for (u8 i = 0; i < device.usb_count; ++i) {
         auto usb = std::make_unique<Usb>("USB", device.usbs[i]);
+        bus_.attach_peripheral(*usb);
+        owned_peripherals_.push_back(std::move(usb));
+    }
+
+    for (u8 i = 0; i < device.usb8x_count; ++i) {
+        auto usb = std::make_unique<Usb8x>(device.usbs8x[i]);
         bus_.attach_peripheral(*usb);
         owned_peripherals_.push_back(std::move(usb));
     }
