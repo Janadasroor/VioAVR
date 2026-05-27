@@ -284,6 +284,65 @@ void jit_dec(JitState* state, uint8_t rd) {
     sreg_preserve_c(state, state->sreg & 1, result == 0, r7, result == 0x7F, r7 ^ (result == 0x7F));
 }
 
+void jit_sbi(JitState* state, uint8_t io_offset, uint8_t bit_index) {
+    uint16_t addr = static_cast<uint16_t>(0x20 + io_offset);
+    uint8_t val = jit_read_data(state, addr);
+    val |= static_cast<uint8_t>(1u << bit_index);
+    jit_write_data(state, addr, val);
+}
+
+void jit_cbi(JitState* state, uint8_t io_offset, uint8_t bit_index) {
+    uint16_t addr = static_cast<uint16_t>(0x20 + io_offset);
+    uint8_t val = jit_read_data(state, addr);
+    val &= static_cast<uint8_t>(~(1u << bit_index));
+    jit_write_data(state, addr, val);
+}
+
+void jit_mul(JitState* state, uint8_t rd, uint8_t rr) {
+    uint16_t product = static_cast<uint16_t>(state->gpr[rd]) * static_cast<uint16_t>(state->gpr[rr]);
+    state->gpr[0] = static_cast<uint8_t>(product & 0xFF);
+    state->gpr[1] = static_cast<uint8_t>((product >> 8) & 0xFF);
+    bool z = (product == 0);
+    bool c = (product & 0x8000) != 0;
+    state->sreg = (state->sreg & 0xE0) | (c ? 1u : 0u) | (z ? 2u : 0u);
+}
+
+void jit_adiw(JitState* state, uint8_t pair, uint8_t imm) {
+    uint8_t lo = static_cast<uint8_t>(24 + pair * 2);
+    uint16_t val = static_cast<uint16_t>(state->gpr[lo]) |
+                   (static_cast<uint16_t>(state->gpr[lo + 1]) << 8);
+    uint16_t result = static_cast<uint16_t>(val + imm);
+    state->gpr[lo] = static_cast<uint8_t>(result & 0xFF);
+    state->gpr[lo + 1] = static_cast<uint8_t>((result >> 8) & 0xFF);
+    bool r15 = (result >> 15) != 0;
+    bool v15 = (val >> 15) != 0;
+    bool c = !v15 && r15;
+    bool v = v15 ^ r15;
+    bool n = r15;
+    bool z = (result == 0);
+    bool s = n ^ v;
+    state->sreg = (state->sreg & 0xE0) | (c ? 1u : 0u) | (z ? 2u : 0u) | (n ? 4u : 0u) |
+                  (v ? 8u : 0u) | (s ? 16u : 0u);
+}
+
+void jit_sbiw(JitState* state, uint8_t pair, uint8_t imm) {
+    uint8_t lo = static_cast<uint8_t>(24 + pair * 2);
+    uint16_t val = static_cast<uint16_t>(state->gpr[lo]) |
+                   (static_cast<uint16_t>(state->gpr[lo + 1]) << 8);
+    uint16_t result = static_cast<uint16_t>(val - imm);
+    state->gpr[lo] = static_cast<uint8_t>(result & 0xFF);
+    state->gpr[lo + 1] = static_cast<uint8_t>((result >> 8) & 0xFF);
+    bool r15 = (result >> 15) != 0;
+    bool v15 = (val >> 15) != 0;
+    bool c = !v15 && r15;
+    bool v = v15 ^ r15;
+    bool n = r15;
+    bool z = (result == 0);
+    bool s = n ^ v;
+    state->sreg = (state->sreg & 0xE0) | (c ? 1u : 0u) | (z ? 2u : 0u) | (n ? 4u : 0u) |
+                  (v ? 8u : 0u) | (s ? 16u : 0u);
+}
+
 // Subroutine helpers
 void jit_rcall(JitState* state, uint32_t return_pc) {
     state->bus->write_data(state->sp, static_cast<uint8_t>(return_pc & 0xFF));
@@ -380,7 +439,8 @@ static void emit_set_pc(CodeBuffer& buf, uint32_t pc) {
 // Returns number of 16-bit words consumed (0 = can't JIT)
 // ---------------------------------------------------------------------------
 uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
-                                       uint32_t pc, bool& block_ended) {
+                                       uint32_t pc, bool& block_ended,
+                                       CodeBuffer::Label* skip_patch_out) {
     u16 high = opcode & 0xF000;
 
     switch (high) {
@@ -904,6 +964,136 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             return 1;
         }
 
+        // SBI (0x9A00-0x9BFF): Set Bit in I/O Register
+        if ((opcode & 0xFF00) == 0x9A00) {
+            uint8_t io_offset = static_cast<uint8_t>((opcode >> 3) & 0x1F);
+            uint8_t bit_index = static_cast<uint8_t>(opcode & 0x07);
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, static_cast<int32_t>(io_offset));
+            buf.mov(Reg64::rdx, static_cast<int32_t>(bit_index));
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_sbi));
+            buf.call(Reg64::r11);
+            buf.add_membase_imm32(Reg64::r14, 40, 1);
+            emit_set_pc(buf, pc + 1);
+            return 1;
+        }
+
+        // CBI (0x9800-0x99FF): Clear Bit in I/O Register
+        if ((opcode & 0xFF00) == 0x9800) {
+            uint8_t io_offset = static_cast<uint8_t>((opcode >> 3) & 0x1F);
+            uint8_t bit_index = static_cast<uint8_t>(opcode & 0x07);
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, static_cast<int32_t>(io_offset));
+            buf.mov(Reg64::rdx, static_cast<int32_t>(bit_index));
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_cbi));
+            buf.call(Reg64::r11);
+            buf.add_membase_imm32(Reg64::r14, 40, 1);
+            emit_set_pc(buf, pc + 1);
+            return 1;
+        }
+
+        // SBIS (0x9B00-0x9BFF): Skip if Bit in I/O Register Set
+        if ((opcode & 0xFF00) == 0x9B00) {
+            uint8_t io_offset = static_cast<uint8_t>((opcode >> 3) & 0x1F);
+            uint8_t bit_index = static_cast<uint8_t>(opcode & 0x07);
+            uint16_t data_addr = static_cast<uint16_t>(0x20 + io_offset);
+            bool next_2word = false;
+            if (pc + 1 < flash_size_) {
+                u16 n = flash_[pc + 1];
+                if ((n & 0xFE0F) == 0x9000 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0F) == 0x9200 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940C) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940E) next_2word = true;
+            }
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
+            buf.call(Reg64::r11);
+            buf.test8_imm(Reg8::al, static_cast<uint8_t>(1u << bit_index));
+            auto taken = buf.jnz_forward(); // JNZ if bit SET → skip taken
+            auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
+            buf.patch_jnz(taken);
+            // TAKEN path
+            emit_set_pc(buf, pc + 1 + (next_2word ? 2u : 1u));
+            // n-1: block_cycles includes the skipped instruction's base cycle,
+            // so we subtract 1 to avoid double-counting (n=1→0, n=2→1).
+            buf.add_membase_imm32(Reg64::r14, 40, next_2word ? 1u : 0u);
+            if (skip_patch_out) *skip_patch_out = buf.jmp_forward(); // skip next instr(s)
+            buf.patch_jump(done);
+            return 1;
+        }
+
+        // SBIC (0x9900-0x99FF): Skip if Bit in I/O Register Clear
+        if ((opcode & 0xFF00) == 0x9900) {
+            uint8_t io_offset = static_cast<uint8_t>((opcode >> 3) & 0x1F);
+            uint8_t bit_index = static_cast<uint8_t>(opcode & 0x07);
+            uint16_t data_addr = static_cast<uint16_t>(0x20 + io_offset);
+            bool next_2word = false;
+            if (pc + 1 < flash_size_) {
+                u16 n = flash_[pc + 1];
+                if ((n & 0xFE0F) == 0x9000 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0F) == 0x9200 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940C) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940E) next_2word = true;
+            }
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
+            buf.call(Reg64::r11);
+            buf.test8_imm(Reg8::al, static_cast<uint8_t>(1u << bit_index));
+            auto taken = buf.jz_forward();  // JZ if bit CLEAR → skip taken
+            auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
+            buf.patch_jz(taken);
+            // TAKEN path
+            emit_set_pc(buf, pc + 1 + (next_2word ? 2u : 1u));
+            buf.add_membase_imm32(Reg64::r14, 40, next_2word ? 1u : 0u);
+            if (skip_patch_out) *skip_patch_out = buf.jmp_forward();
+            buf.patch_jump(done);
+            return 1;
+        }
+
+        // MUL (0x9C00-0x9FFF): Multiply Rd × Rr → R1:R0
+        if ((opcode & 0xFC00) == 0x9C00) {
+            uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
+            uint8_t rr = static_cast<uint8_t>((opcode & 0x0F) | ((opcode >> 5) & 0x10));
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
+            buf.mov(Reg64::rdx, static_cast<int32_t>(rr));
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_mul));
+            buf.call(Reg64::r11);
+            buf.add_membase_imm32(Reg64::r14, 40, 1);
+            emit_set_pc(buf, pc + 1);
+            return 1;
+        }
+
+        // ADIW (0x9600-0x97FF): Add Immediate to Word
+        if ((opcode & 0xFF00) == 0x9600) {
+            uint8_t pair = static_cast<uint8_t>((opcode >> 4) & 0x03);
+            uint8_t imm = static_cast<uint8_t>(((opcode >> 2) & 0x30) | (opcode & 0x0F));
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, static_cast<int32_t>(pair));
+            buf.mov(Reg64::rdx, static_cast<int32_t>(imm));
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_adiw));
+            buf.call(Reg64::r11);
+            buf.add_membase_imm32(Reg64::r14, 40, 1);
+            emit_set_pc(buf, pc + 1);
+            return 1;
+        }
+
+        // SBIW (0x9700-0x97FF): Subtract Immediate from Word
+        if ((opcode & 0xFF00) == 0x9700) {
+            uint8_t pair = static_cast<uint8_t>((opcode >> 4) & 0x03);
+            uint8_t imm = static_cast<uint8_t>(((opcode >> 2) & 0x30) | (opcode & 0x0F));
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, static_cast<int32_t>(pair));
+            buf.mov(Reg64::rdx, static_cast<int32_t>(imm));
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_sbiw));
+            buf.call(Reg64::r11);
+            buf.add_membase_imm32(Reg64::r14, 40, 1);
+            emit_set_pc(buf, pc + 1);
+            return 1;
+        }
+
         return 0;
     }
 
@@ -984,36 +1174,36 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             block_ended = true;
             return 1;
         }
-        // SBRC: (opcode & 0xFE08) == 0xFC00 — skip if bit CLEAR
+        // SBRC: (opcode & 0xFE08) == 0xFC00 — skip if bit CLEAR in register
         if ((opcode & 0xFE08) == 0xFC00) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t bit = static_cast<uint8_t>(opcode & 0x07);
             buf.movzx_membase(Reg64::rax, Reg64::r14, rd);
             buf.test8_imm(Reg8::al, static_cast<uint8_t>(1 << bit));
-            auto s_label = buf.jz_forward(); // JZ if bit clear → skip
-            emit_set_pc(buf, pc + 1);
-            auto d_label = buf.jmp_forward();
-            buf.patch_jz(s_label);
+            auto taken = buf.jz_forward();  // JZ if bit CLEAR → skip taken
+            auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
+            buf.patch_jz(taken);
+            // TAKEN path: 0 extra (block_cycles includes skipped instr's base)
             emit_set_pc(buf, pc + 2);
-            buf.add_membase_imm32(Reg64::r14, 40, 1);
-            buf.patch_jump(d_label);
-            block_ended = true;
+            buf.add_membase_imm32(Reg64::r14, 40, 0);
+            if (skip_patch_out) *skip_patch_out = buf.jmp_forward();
+            buf.patch_jump(done);
             return 1;
         }
-        // SBRS: (opcode & 0xFE08) == 0xFE00 — skip if bit SET
+        // SBRS: (opcode & 0xFE08) == 0xFE00 — skip if bit SET in register
         if ((opcode & 0xFE08) == 0xFE00) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t bit = static_cast<uint8_t>(opcode & 0x07);
             buf.movzx_membase(Reg64::rax, Reg64::r14, rd);
             buf.test8_imm(Reg8::al, static_cast<uint8_t>(1 << bit));
-            auto s_label = buf.jnz_forward(); // JNZ if bit set → skip
-            emit_set_pc(buf, pc + 1);
-            auto d_label = buf.jmp_forward();
-            buf.patch_jnz(s_label);
+            auto taken = buf.jnz_forward(); // JNZ if bit SET → skip taken
+            auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
+            buf.patch_jnz(taken);
+            // TAKEN path: 0 extra (block_cycles includes skipped instr's base)
             emit_set_pc(buf, pc + 2);
-            buf.add_membase_imm32(Reg64::r14, 40, 1);
-            buf.patch_jump(d_label);
-            block_ended = true;
+            buf.add_membase_imm32(Reg64::r14, 40, 0);
+            if (skip_patch_out) *skip_patch_out = buf.jmp_forward();
+            buf.patch_jump(done);
             return 1;
         }
         return 0;
@@ -1034,23 +1224,39 @@ bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size)
     CodeBuffer buf;
 
     // Prologue
+    buf.push(Reg64::r14);            // save r14 (callee-saved) + realign stack to 16 bytes
     buf.mov(Reg64::r14, Reg64::rdi); // R14 = JitState* (first argument)
 
     uint32_t pc = start_pc;
     uint64_t block_cycles = 0;
     bool block_ended = false;
     uint32_t insn_count = 0;
+    CodeBuffer::Label pending_skip_patch;
+    bool has_pending_skip = false;
     constexpr uint32_t MAX_INSTRUCTIONS = 64;
 
     while (pc < flash_size && !block_ended && insn_count < MAX_INSTRUCTIONS) {
         u16 opcode = flash[pc];
-        uint32_t words = translate_instruction(buf, opcode, pc, block_ended);
+        CodeBuffer::Label skip_patch_out;
+        uint32_t words = translate_instruction(buf, opcode, pc, block_ended,
+                                               &skip_patch_out);
         if (words == 0) {
             break;
+        }
+        // If a previous skip patch is pending, patch it now — the position is
+        // right after the skipped instruction's code (the skip target).
+        if (has_pending_skip) {
+            buf.patch_jump(pending_skip_patch);
+            has_pending_skip = false;
         }
         block_cycles += 1;
         pc += words;
         insn_count++;
+        // Store new skip patch from this instruction (e.g. SBIS)
+        if (skip_patch_out.resolved || skip_patch_out.patch_offset > 0) {
+            pending_skip_patch = skip_patch_out;
+            has_pending_skip = true;
+        }
     }
 
     if (insn_count == 0) return false;
@@ -1058,6 +1264,14 @@ bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size)
     // Epilogue: update state->cycles only (PC is set by each instruction)
     buf.add_membase_imm32(Reg64::r14, 40, static_cast<uint32_t>(block_cycles));
 
+    // If a skip patch is still pending, the skip target was never reached
+    // (block ended early). Patch to epilogue so the taken path returns and
+    // the run() loop picks up from the correct PC.
+    if (has_pending_skip) {
+        buf.patch_jump(pending_skip_patch);
+    }
+
+    buf.pop(Reg64::r14); // restore r14
     buf.ret();
 
     // Allocate executable memory and copy code

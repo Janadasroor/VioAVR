@@ -48,6 +48,7 @@ public:
     void connect_compare_output_a(GpioPort& port, u8 bit) noexcept { pin_a_ = {&port, bit}; }
     void connect_compare_output_b(GpioPort& port, u8 bit) noexcept { pin_b_ = {&port, bit}; }
     void connect_compare_output_c(GpioPort& port, u8 bit) noexcept { pin_c_ = {&port, bit}; }
+    void connect_compare_output_d(GpioPort& port, u8 bit) noexcept { pin_d_ = {&port, bit}; }
     void connect_adc(Adc& adc) noexcept { adc_auto_triggers_.push_back(&adc); }
     void connect_dac(Dac& dac) noexcept { dac_triggers_.push_back(&dac); }
     void connect_analog_comparator(AnalogComparator& ac) noexcept;
@@ -71,7 +72,7 @@ private:
     Timer16Descriptor desc_;
     std::vector<Adc*> adc_auto_triggers_;
     std::vector<Dac*> dac_triggers_;
-    std::array<AddressRange, 8> ranges_ {};
+    std::array<AddressRange, 16> ranges_ {};
     MemoryBus* bus_ {};
 
     u16 tcnt_ {};
@@ -85,6 +86,12 @@ private:
     u8 tccra_ {};
     u8 tccrb_ {};
     u8 tccrc_ {};
+    u8 tccrd_ {};
+    u8 tccre_ {};
+    u16 ocrd_ {};
+    u16 ocrd_buffer_ {};
+    u8 dt1_ {};
+    u8 tc1h_ {};
     u8 timsk_ {};
     u8 tifr_ {};
     u8 temp_ {};
@@ -97,6 +104,7 @@ private:
     std::optional<BoundPin> pin_a_;
     std::optional<BoundPin> pin_b_;
     std::optional<BoundPin> pin_c_;
+    std::optional<BoundPin> pin_d_;
     bool icp_initialized_ {false};
     u8 last_icp_state_ {0};
     u8 last_t1_state_ {0};

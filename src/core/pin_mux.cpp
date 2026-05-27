@@ -7,7 +7,8 @@ namespace vioavr::core {
 
 PinMux::PinMux(u8 num_ports) noexcept
 {
-    u8 actual_ports = (num_ports > 0) ? num_ports : 16;
+    (void)num_ports;
+    u8 actual_ports = 16;
     ports_.resize(actual_ports);
     for (auto& port : ports_) {
         port.resize(8); // Standard AVR ports have 8 pins

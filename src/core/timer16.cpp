@@ -13,6 +13,7 @@ namespace vioavr::core {
 static constexpr u8 CH_A = 0x01;
 static constexpr u8 CH_B = 0x02;
 static constexpr u8 CH_C = 0x04;
+static constexpr u8 CH_D = 0x08;
 
 namespace {
 static void timer16_callback(u64 cycle, void* param) {
@@ -23,12 +24,14 @@ constexpr u8 kIcf1  = 0x20U;
 constexpr u8 kOcf1c = 0x08U;
 constexpr u8 kOcf1b = 0x04U;
 constexpr u8 kOcf1a = 0x02U;
+constexpr u8 kOcf1d = 0x10U;
 constexpr u8 kTov1  = 0x01U;
 
 constexpr u8 kIcie1  = 0x20U;
 constexpr u8 kOcie1c = 0x08U;
 constexpr u8 kOcie1b = 0x04U;
 constexpr u8 kOcie1a = 0x02U;
+constexpr u8 kOcie1d = 0x10U;
 constexpr u8 kToie1  = 0x01U;
 
 constexpr u8 kIcnc1 = 0x80U;
@@ -39,16 +42,29 @@ Timer16::Timer16(std::string_view name, const Timer16Descriptor& desc, PinMux* p
     : pin_mux_(pin_mux), name_(name), desc_(desc)
 {
     std::vector<u16> addrs;
-    auto add_16bit = [&](u16 addr) { if (addr != 0) { addrs.push_back(addr); addrs.push_back(addr + 1); } };
+    auto add_16bit = [&](u16 addr) {
+        if (addr == 0) return;
+        if (desc_.tc1h_address != 0) {
+            addrs.push_back(addr); // single byte — high byte via TC1H register
+        } else {
+            addrs.push_back(addr);
+            addrs.push_back(addr + 1);
+        }
+    };
     auto add_8bit = [&](u16 addr) { if (addr != 0) addrs.push_back(addr); };
     add_16bit(desc_.tcnt_address);
     add_16bit(desc_.ocra_address);
     add_16bit(desc_.ocrb_address);
     add_16bit(desc_.ocrc_address);
+    add_16bit(desc_.ocrd_address);
     add_16bit(desc_.icr_address);
     add_8bit(desc_.tccra_address);
     add_8bit(desc_.tccrb_address);
     add_8bit(desc_.tccrc_address);
+    add_8bit(desc_.tccrd_address);
+    add_8bit(desc_.tccre_address);
+    add_8bit(desc_.tc1h_address);
+    add_8bit(desc_.dt1_address);
     add_8bit(desc_.timsk_address);
     add_8bit(desc_.tifr_address);
     
@@ -76,10 +92,11 @@ std::span<const AddressRange> Timer16::mapped_ranges() const noexcept {
 
 void Timer16::reset() noexcept {
     tcnt_ = 0U;
-    ocra_ = 0U; ocrb_ = 0U; ocrc_ = 0U;
-    ocra_buffer_ = 0U; ocrb_buffer_ = 0U; ocrc_buffer_ = 0U;
+    ocra_ = 0U; ocrb_ = 0U; ocrc_ = 0U; ocrd_ = 0U;
+    ocra_buffer_ = 0U; ocrb_buffer_ = 0U; ocrc_buffer_ = 0U; ocrd_buffer_ = 0U;
     icr_ = 0U;
-    tccra_ = 0U; tccrb_ = 0U; tccrc_ = 0U;
+    tccra_ = 0U; tccrb_ = 0U; tccrc_ = 0U; tccrd_ = 0U; tccre_ = 0U;
+    dt1_ = 0U; tc1h_ = 0U;
     timsk_ = 0U; tifr_ = 0U;
     temp_ = 0U;
     counting_up_ = true;
@@ -182,7 +199,7 @@ void Timer16::perform_tick() noexcept {
             if (tcnt_ >= top) {
                 counting_up_ = false;
                 if (tcnt_ > 0) tcnt_--;
-                if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocr_loaded_this_tick = true; }
+                if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocrd_ = ocrd_buffer_; ocr_loaded_this_tick = true; }
             } else {
                 tcnt_++;
             }
@@ -191,7 +208,7 @@ void Timer16::perform_tick() noexcept {
                 counting_up_ = true;
                 tcnt_++;
                 tifr_ |= kTov1;
-                if (update_ocr_at_bottom) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocr_loaded_this_tick = true; }
+                if (update_ocr_at_bottom) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocrd_ = ocrd_buffer_; ocr_loaded_this_tick = true; }
                 for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.overflow_trigger_source);
             } else {
                 tcnt_--;
@@ -201,7 +218,7 @@ void Timer16::perform_tick() noexcept {
         if (tcnt_ >= top) {
             tcnt_ = 0;
             tifr_ |= kTov1;
-            if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocr_loaded_this_tick = true; }
+            if (update_ocr_at_top) { ocra_ = ocra_buffer_; ocrb_ = ocrb_buffer_; ocrc_ = ocrc_buffer_; ocrd_ = ocrd_buffer_; ocr_loaded_this_tick = true; }
             for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.overflow_trigger_source);
             update_pwm_pins(false); // Set pin HIGH at BOTTOM for Fast PWM non-inverting (COM=2)
         } else {
@@ -225,6 +242,11 @@ void Timer16::perform_tick() noexcept {
         tifr_ |= kOcf1c;
         update_pwm_pins(true);
         for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.compare_c_trigger_source);
+    }
+    if (tcnt_ == ocrd_ && desc_.ocrd_address != 0) {
+        tifr_ |= kOcf1d;
+        update_pwm_pins(true);
+        for (auto* adc : adc_auto_triggers_) adc->notify_auto_trigger(desc_.compare_d_trigger_source);
     }
     }
 
@@ -274,19 +296,50 @@ void Timer16::on_event(u64 cycle) noexcept {
 
 u8 Timer16::read(u16 address) noexcept {
     sync();
-    if (address == desc_.tcnt_address) { temp_ = static_cast<u8>(tcnt_ >> 8); return static_cast<u8>(tcnt_ & 0xFF); }
-    if (address == desc_.tcnt_address + 1) return temp_;
-    if (address == desc_.ocra_address) { temp_ = static_cast<u8>(ocra_buffer_ >> 8); return static_cast<u8>(ocra_buffer_ & 0xFF); }
-    if (address == desc_.ocra_address + 1) return temp_;
-    if (address == desc_.ocrb_address) { temp_ = static_cast<u8>(ocrb_buffer_ >> 8); return static_cast<u8>(ocrb_buffer_ & 0xFF); }
-    if (address == desc_.ocrb_address + 1) return temp_;
-    if (address == desc_.ocrc_address && desc_.ocrc_address != 0) { temp_ = static_cast<u8>(ocrc_buffer_ >> 8); return static_cast<u8>(ocrc_buffer_ & 0xFF); }
-    if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0) return temp_;
-    if (address == desc_.icr_address) { temp_ = static_cast<u8>(icr_ >> 8); return static_cast<u8>(icr_ & 0xFF); }
-    if (address == desc_.icr_address + 1) return temp_;
+    bool use_tc1h = (desc_.tc1h_address != 0);
+    if (address == desc_.tcnt_address) {
+        if (use_tc1h) { tc1h_ = static_cast<u8>(tcnt_ >> 8); }
+        else { temp_ = static_cast<u8>(tcnt_ >> 8); }
+        return static_cast<u8>(tcnt_ & 0xFF);
+    }
+    if (!use_tc1h) {
+        if (address == desc_.tcnt_address + 1) return temp_;
+    }
+    if (address == desc_.ocra_address) {
+        if (use_tc1h) { tc1h_ = static_cast<u8>(ocra_buffer_ >> 8); }
+        else { temp_ = static_cast<u8>(ocra_buffer_ >> 8); }
+        return static_cast<u8>(ocra_buffer_ & 0xFF);
+    }
+    if (!use_tc1h && address == desc_.ocra_address + 1) return temp_;
+    if (address == desc_.ocrb_address) {
+        if (use_tc1h) { tc1h_ = static_cast<u8>(ocrb_buffer_ >> 8); }
+        else { temp_ = static_cast<u8>(ocrb_buffer_ >> 8); }
+        return static_cast<u8>(ocrb_buffer_ & 0xFF);
+    }
+    if (!use_tc1h && address == desc_.ocrb_address + 1) return temp_;
+    if (address == desc_.ocrc_address && desc_.ocrc_address != 0) {
+        if (use_tc1h) { tc1h_ = static_cast<u8>(ocrc_buffer_ >> 8); }
+        else { temp_ = static_cast<u8>(ocrc_buffer_ >> 8); }
+        return static_cast<u8>(ocrc_buffer_ & 0xFF);
+    }
+    if (!use_tc1h && address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0) return temp_;
+    if (address == desc_.ocrd_address && desc_.ocrd_address != 0) {
+        tc1h_ = static_cast<u8>(ocrd_buffer_ >> 8);
+        return static_cast<u8>(ocrd_buffer_ & 0xFF);
+    }
+    if (address == desc_.icr_address) {
+        if (use_tc1h) { tc1h_ = static_cast<u8>(icr_ >> 8); }
+        else { temp_ = static_cast<u8>(icr_ >> 8); }
+        return static_cast<u8>(icr_ & 0xFF);
+    }
+    if (!use_tc1h && address == desc_.icr_address + 1) return temp_;
     if (address == desc_.tccra_address) return tccra_;
     if (address == desc_.tccrb_address) return tccrb_;
     if (address == desc_.tccrc_address) return tccrc_ & ~(desc_.foca_mask | desc_.focb_mask | desc_.focc_mask);
+    if (address == desc_.tccrd_address) return tccrd_;
+    if (address == desc_.tccre_address) return tccre_;
+    if (address == desc_.tc1h_address) return tc1h_;
+    if (address == desc_.dt1_address) return dt1_;
     if (address == desc_.timsk_address) return timsk_;
     if (address == desc_.tifr_address) return tifr_;
     return 0;
@@ -294,6 +347,7 @@ u8 Timer16::read(u16 address) noexcept {
 
 void Timer16::write(u16 address, u8 value) noexcept {
     sync();
+    bool use_tc1h = (desc_.tc1h_address != 0);
     if (address == desc_.tccra_address) { tccra_ = value; update_pin_ownership(); }
     else if (address == desc_.tccrb_address) { tccrb_ = value; update_pin_ownership(); }
     else if (address == desc_.tccrc_address) {
@@ -306,19 +360,39 @@ void Timer16::write(u16 address, u8 value) noexcept {
             if (value & desc_.focc_mask) update_pwm_pins(true, CH_C);
         }
     }
-    else if (address == desc_.tcnt_address + 1) { temp_ = value; }
-    else if (address == desc_.tcnt_address) { 
-        tcnt_ = (static_cast<u16>(temp_) << 8) | value; 
+    else if (address == desc_.tccrd_address) { tccrd_ = value; }
+    else if (address == desc_.tccre_address) { tccre_ = value; }
+    else if (address == desc_.tc1h_address) { tc1h_ = value; }
+    else if (address == desc_.dt1_address) { dt1_ = value; }
+    else if (!use_tc1h && address == desc_.tcnt_address + 1) { temp_ = value; }
+    else if (address == desc_.tcnt_address) {
+        if (use_tc1h) tcnt_ = (static_cast<u16>(tc1h_) << 8) | value;
+        else tcnt_ = (static_cast<u16>(temp_) << 8) | value;
         cycle_accumulator_ = 0;
     }
-    else if (address == desc_.ocra_address + 1) { temp_ = value; }
-    else if (address == desc_.ocra_address) { ocra_buffer_ = (static_cast<u16>(temp_) << 8) | value; }
-    else if (address == desc_.ocrb_address + 1) { temp_ = value; }
-    else if (address == desc_.ocrb_address) { ocrb_buffer_ = (static_cast<u16>(temp_) << 8) | value; }
-    else if (address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0) { temp_ = value; }
-    else if (address == desc_.ocrc_address && desc_.ocrc_address != 0) { ocrc_buffer_ = (static_cast<u16>(temp_) << 8) | value; }
-    else if (address == desc_.icr_address + 1) { temp_ = value; }
-    else if (address == desc_.icr_address) { icr_ = (static_cast<u16>(temp_) << 8) | value; }
+    else if (!use_tc1h && address == desc_.ocra_address + 1) { temp_ = value; }
+    else if (address == desc_.ocra_address) {
+        u16 hv = use_tc1h ? static_cast<u16>(tc1h_) : static_cast<u16>(temp_);
+        ocra_buffer_ = (hv << 8) | value;
+    }
+    else if (!use_tc1h && address == desc_.ocrb_address + 1) { temp_ = value; }
+    else if (address == desc_.ocrb_address) {
+        u16 hv = use_tc1h ? static_cast<u16>(tc1h_) : static_cast<u16>(temp_);
+        ocrb_buffer_ = (hv << 8) | value;
+    }
+    else if (!use_tc1h && address == desc_.ocrc_address + 1 && desc_.ocrc_address != 0) { temp_ = value; }
+    else if (address == desc_.ocrc_address && desc_.ocrc_address != 0) {
+        u16 hv = use_tc1h ? static_cast<u16>(tc1h_) : static_cast<u16>(temp_);
+        ocrc_buffer_ = (hv << 8) | value;
+    }
+    else if (address == desc_.ocrd_address && desc_.ocrd_address != 0) {
+        ocrd_buffer_ = (static_cast<u16>(tc1h_) << 8) | value;
+    }
+    else if (!use_tc1h && address == desc_.icr_address + 1) { temp_ = value; }
+    else if (address == desc_.icr_address) {
+        u16 hv = use_tc1h ? static_cast<u16>(tc1h_) : static_cast<u16>(temp_);
+        icr_ = (hv << 8) | value;
+    }
     else if (address == desc_.timsk_address) { timsk_ = value; update_interrupt_state(); }
     else if (address == desc_.tifr_address) { tifr_ &= ~value; update_interrupt_state(); }
     
@@ -329,6 +403,7 @@ void Timer16::write(u16 address, u8 value) noexcept {
         ocra_ = ocra_buffer_;
         ocrb_ = ocrb_buffer_;
         ocrc_ = ocrc_buffer_;
+        ocrd_ = ocrd_buffer_;
     }
     
     recalculate_event();
@@ -409,6 +484,21 @@ void Timer16::update_pin_ownership() noexcept {
     update_ownership(pin_a_, (tccra_ >> 6) & 0x03);
     update_ownership(pin_b_, (tccra_ >> 4) & 0x03);
     update_ownership(pin_c_, (tccra_ >> 2) & 0x03);
+    if (pin_d_) {
+        u8 comd = 0;
+        if (desc_.tccrd_address != 0) {
+            u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
+            bool is_non_pwm = (wgm == 0 || wgm == 4 || wgm == 12);
+            if (is_non_pwm) {
+                comd = (tccrc_ & 0x10U) >> 4; // COM1D in bit 4 of TCCR1C (FPWM mode)
+            }
+        }
+        if (comd != 0) {
+            pin_mux_->claim_pin_by_address(pin_d_->port->port_address(), pin_d_->bit, PinOwner::timer);
+        } else {
+            pin_mux_->release_pin_by_address(pin_d_->port->port_address(), pin_d_->bit, PinOwner::timer);
+        }
+    }
 }
 
 void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
@@ -460,6 +550,7 @@ void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
     if (channel_mask & CH_A) update_pin(pin_a_, (tccra_ >> 6) & 0x03, ocra_);
     if (channel_mask & CH_B) update_pin(pin_b_, (tccra_ >> 4) & 0x03, ocrb_);
     if (channel_mask & CH_C) update_pin(pin_c_, (tccra_ >> 2) & 0x03, ocrc_);
+    if (channel_mask & CH_D) update_pin(pin_d_, (tccrc_ >> 4) & 0x03, ocrd_);
 }
 
 bool Timer16::pending_interrupt_request(InterruptRequest& request) const noexcept {
@@ -467,6 +558,7 @@ bool Timer16::pending_interrupt_request(InterruptRequest& request) const noexcep
     if ((tifr_ & kOcf1a) && (timsk_ & kOcie1a)) { request = {desc_.compare_a_vector_index, 0}; return true; }
     if ((tifr_ & kOcf1b) && (timsk_ & kOcie1b)) { request = {desc_.compare_b_vector_index, 0}; return true; }
     if ((tifr_ & kOcf1c) && (timsk_ & kOcie1c)) { request = {desc_.compare_c_vector_index, 0}; return true; }
+    if ((tifr_ & kOcf1d) && (timsk_ & kOcie1d) && desc_.compare_d_vector_index != 0) { request = {desc_.compare_d_vector_index, 0}; return true; }
     if ((tifr_ & kTov1) && (timsk_ & kToie1)) { request = {desc_.overflow_vector_index, 0}; return true; }
     return false;
 }
@@ -476,6 +568,7 @@ bool Timer16::consume_interrupt_request(InterruptRequest& request) noexcept {
     else if (request.vector_index == desc_.compare_a_vector_index) tifr_ &= ~kOcf1a;
     else if (request.vector_index == desc_.compare_b_vector_index) tifr_ &= ~kOcf1b;
     else if (request.vector_index == desc_.compare_c_vector_index) tifr_ &= ~kOcf1c;
+    else if (request.vector_index == desc_.compare_d_vector_index && desc_.compare_d_vector_index != 0) tifr_ &= ~kOcf1d;
     else if (request.vector_index == desc_.overflow_vector_index) tifr_ &= ~kTov1;
     update_interrupt_state();
     return true;
@@ -498,6 +591,7 @@ void Timer16::update_interrupt_state() noexcept {
     else if ((tifr_ & kOcf1a) && (timsk_ & kOcie1a)) pending = true;
     else if ((tifr_ & kOcf1b) && (timsk_ & kOcie1b)) pending = true;
     else if ((tifr_ & kOcf1c) && (timsk_ & kOcie1c)) pending = true;
+    else if ((tifr_ & kOcf1d) && (timsk_ & kOcie1d) && desc_.compare_d_vector_index != 0) pending = true;
     else if ((tifr_ & kTov1) && (timsk_ & kToie1)) pending = true;
     set_interrupt_pending(pending);
 }

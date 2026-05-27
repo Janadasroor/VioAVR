@@ -353,6 +353,9 @@ struct PortMuxDescriptor {
     UsartRouteGroup usart[4];
     SpiRouteGroup spi[2];
     TwiRouteGroup twi[2];
+    // WO-to-pin-bit mapping for TCA outputs (default: direct 0-5)
+    // ATtiny chips use reversed mapping: WO3→bit0, WO2→bit1, WO1→bit2, WO0→bit3
+    u8 tca_wo_pin_bit[6] {0, 1, 2, 3, 4, 5};
 };
 
 struct PinChangeInterruptDescriptor {
@@ -934,14 +937,22 @@ struct Timer16Descriptor {
     u16 tccra_address {};
     u16 tccrb_address {};
     u16 tccrc_address {};
+    u16 tccrd_address {};
+    u16 tccre_address {};
+    u16 tc1h_address {};
+    u16 ocrd_address {};
+    u16 dt1_address {};
     u8 tccra_reset {0x00U};
     u8 tccrb_reset {0x00U};
     u8 tccrc_reset {0x00U};
+    u8 tccrd_reset {0x00U};
+    u8 tccre_reset {0x00U};
     u8 timer_index {1U};
     u8 capture_vector_index {};
     u8 compare_a_vector_index {};
     u8 compare_b_vector_index {};
     u8 compare_c_vector_index {};
+    u8 compare_d_vector_index {};
     u8 overflow_vector_index {};
     u16 ocra_pin_address {};
     u8 ocra_pin_bit {};
@@ -949,6 +960,8 @@ struct Timer16Descriptor {
     u8 ocrb_pin_bit {};
     u16 ocrc_pin_address {};
     u8 ocrc_pin_bit {};
+    u16 ocrd_pin_address {};
+    u8 ocrd_pin_bit {};
     u16 icp_pin_address {};
     u8 icp_pin_bit {};
     u16 t_pin_address {};
@@ -973,6 +986,7 @@ struct Timer16Descriptor {
     AdcAutoTriggerSource compare_a_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource compare_b_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource compare_c_trigger_source {AdcAutoTriggerSource::none};
+    AdcAutoTriggerSource compare_d_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource overflow_trigger_source {AdcAutoTriggerSource::none};
     AdcAutoTriggerSource capture_trigger_source {AdcAutoTriggerSource::none};
 };
@@ -1117,7 +1131,7 @@ struct DeviceDescriptor {
     std::array<AnalogComparatorDescriptor, 4> acs {};
 
     u8 ac8x_count {0U};
-    std::array<Ac8xDescriptor, 2> acs8x {};
+    std::array<Ac8xDescriptor, 4> acs8x {};
 
     u8 timer8_count {0U};
     std::array<Timer8Descriptor, 8> timers8 {};

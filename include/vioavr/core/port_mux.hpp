@@ -124,12 +124,13 @@ public:
         if (!pin_mux_ || wo_index >= 6) return;
         u8 port_idx = tcaroutea_ & 0x07;
         if (port_idx >= 6) return;
+        u8 pin_bit = (wo_index < 6) ? desc_.tca_wo_pin_bit[wo_index] : wo_index;
 
         if (enabled) {
-            pin_mux_->claim_pin(port_idx, wo_index, PinOwner::timer);
-            pin_mux_->update_pin(port_idx, wo_index, PinOwner::timer, true, level, false);
+            pin_mux_->claim_pin(port_idx, pin_bit, PinOwner::timer);
+            pin_mux_->update_pin(port_idx, pin_bit, PinOwner::timer, true, level, false);
         } else {
-            pin_mux_->release_pin(port_idx, wo_index, PinOwner::timer);
+            pin_mux_->release_pin(port_idx, pin_bit, PinOwner::timer);
         }
     }
 

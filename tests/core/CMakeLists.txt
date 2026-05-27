@@ -226,6 +226,9 @@ set(TEST_SOURCES
     viospice/bridge_shm_test.cpp
     viospice/attiny_shm_test.cpp
     viospice/viospice_timer2_async_test.cpp
+    viospice/viospice_all_devices_test.cpp
+    viospice/viospice_ngspice_all_devices_test.cpp
+    viospice/viospice_attiny_tca_pwm_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
