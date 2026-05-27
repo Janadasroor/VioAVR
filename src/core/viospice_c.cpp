@@ -34,6 +34,10 @@ void vioavr_set_quantum(VioSpiceHandle handle, uint64_t cycles) {
     static_cast<VioSpice*>(handle)->set_quantum(cycles);
 }
 
+void vioavr_enable_jit(VioSpiceHandle handle, bool enabled) {
+    static_cast<VioSpice*>(handle)->cpu().enable_jit(enabled);
+}
+
 void vioavr_step_duration(VioSpiceHandle handle, double seconds) {
     static_cast<VioSpice*>(handle)->step_duration(seconds);
 }
@@ -49,6 +53,10 @@ void vioavr_add_pin_mapping(VioSpiceHandle handle, const char* port_name, uint8_
 void vioavr_set_external_pin(VioSpiceHandle handle, uint32_t external_id, VioAvrPinLevel level) {
     static_cast<VioSpice*>(handle)->set_external_pin(external_id, 
         (level == VIOAVR_LEVEL_HIGH) ? PinLevel::high : PinLevel::low);
+}
+
+uint64_t vioavr_get_cycles(VioSpiceHandle handle) {
+    return static_cast<VioSpice*>(handle)->cpu().cycles();
 }
 
 int vioavr_consume_pin_changes(VioSpiceHandle handle, VioAvrPinChange* changes, int max_changes) {

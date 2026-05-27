@@ -20,6 +20,8 @@ namespace vioavr::core {
 class Dac;
 class GpioPort;
 class LcdController;
+class PortMux;
+class EventSystem;
 
 /**
  * @brief High-level bridge for ngspice/XSPICE integration.
@@ -67,6 +69,8 @@ private:
     std::vector<GpioPort*> ports_;
     std::unordered_map<std::string, GpioPort*> port_map_;
     LcdController* lcd_ {nullptr};
+    PortMux* port_mux_ {nullptr};
+    EventSystem* evsys_ {nullptr};
     
     std::vector<PinStateChange> pending_pin_changes_;
     PinChangeInterruptSharedState pcint_shared_state_ {};

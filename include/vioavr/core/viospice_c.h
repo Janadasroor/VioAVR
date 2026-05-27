@@ -20,6 +20,7 @@ void vioavr_destroy(VioSpiceHandle handle);
 bool vioavr_load_hex(VioSpiceHandle handle, const char* path);
 void vioavr_reset(VioSpiceHandle handle);
 void vioavr_set_quantum(VioSpiceHandle handle, uint64_t cycles);
+void vioavr_enable_jit(VioSpiceHandle handle, bool enabled);
 
 // Stepping
 void vioavr_step_duration(VioSpiceHandle handle, double seconds);
@@ -28,6 +29,9 @@ void vioavr_tick_timer2_async(VioSpiceHandle handle, uint64_t ticks);
 // Pin Mapping & I/O
 void vioavr_add_pin_mapping(VioSpiceHandle handle, const char* port_name, uint8_t bit_index, uint32_t external_id);
 void vioavr_set_external_pin(VioSpiceHandle handle, uint32_t external_id, VioAvrPinLevel level);
+
+// Query
+uint64_t vioavr_get_cycles(VioSpiceHandle handle);
 
 // Results (Called by SPICE to see if any pins changed)
 typedef struct {

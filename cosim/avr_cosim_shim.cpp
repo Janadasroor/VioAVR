@@ -32,7 +32,7 @@ extern "C" {
 
 #define PIN_COUNT 24
 
-static const char* PORT_NAMES[3] = {"PORTB", "PORTC", "PORTD"};
+static const char* PORT_NAMES[4] = {"PORTA", "PORTB", "PORTC", "PORTD"};
 
 struct CosimInst {
     VioSpiceHandle avr;
@@ -44,22 +44,20 @@ struct CosimInst {
 static void shim_step(struct co_info* info)
 {
     struct CosimInst* inst = (struct CosimInst*)info->handle;
+    if (!inst) return;
     double delta = info->vtime - inst->last_vtime;
 
     if (delta > 0) {
         inst->last_vtime = info->vtime;
         inst->accumulated_time += delta;
-
-        // Batch small time steps: only step the AVR when enough time accumulates
-        // to avoid the ISR overshoot problem (budget too small for interrupt entry).
-        // At 16MHz, 1µs = 16 cycles, enough for ISR entry (4) + instructions + return.
         const double min_step = 1.0e-6; // 1 microsecond
         if (inst->accumulated_time >= min_step) {
+            // Pin change event: read firmware's output changes and send to ngspice
             vioavr_step_duration(inst->avr, inst->accumulated_time);
             inst->accumulated_time = 0.0;
 
-            VioAvrPinChange changes[PIN_COUNT];
-            int n = vioavr_consume_pin_changes(inst->avr, changes, PIN_COUNT);
+            VioAvrPinChange changes[PIN_COUNT * 2]; // Room for reset + firmware changes
+            int n = vioavr_consume_pin_changes(inst->avr, changes, PIN_COUNT * 2);
             for (int i = 0; i < n; i++) {
                 unsigned int id = changes[i].external_id;
                 if (id >= PIN_COUNT) continue;
@@ -104,27 +102,57 @@ static void nop_input(struct co_info* info, unsigned int bit, Digital_t* value)
 { (void)info; (void)bit; (void)value; }
 static void nop_cleanup(struct co_info* info) { (void)info; }
 
-/* Parse combined sim_args string in format "mcu_type,hex_path"
- * or fall back to defaults "atmega328p,firmware.hex".
+/* Parse sim_args in any of these formats:
+ *   sim_args=["atmega328p"]                    (single string, no comma)
+ *   sim_args=["atmega328p,firmware.hex"]       (single string with commas)
+ *   sim_args=["atmega328p","firmware.hex"]     (multiple array elements)
+ *   sim_args=["atmega328p","firmware.hex","0"] (multiple array elements, jit flag)
+ * jit_flag: "0" = disable JIT, "1" or absent = enable JIT (default)
  */
-static void parse_sim_args(struct co_info* info, const char** mcu, const char** hex)
+static void parse_sim_args(struct co_info* info, const char** mcu,
+                           const char** hex, bool* jit_enabled)
 {
     *mcu = "atmega328p";
     *hex = "firmware.hex";
-    if (info->sim_argc > 0 && info->sim_argv[0]) {
-        const char* s = info->sim_argv[0];
-        const char* comma = strchr(s, ',');
-        if (comma) {
-            size_t mcu_len = (size_t)(comma - s);
-            char* mcu_buf = (char*)malloc(mcu_len + 1);
-            if (mcu_buf) {
-                memcpy(mcu_buf, s, mcu_len);
-                mcu_buf[mcu_len] = '\0';
-                *mcu = mcu_buf;
+    *jit_enabled = true;
+    if (info->sim_argc > 0) {
+        // Prefer comma-separated single string (backward compat)
+        if (info->sim_argv[0]) {
+            const char* s = info->sim_argv[0];
+            const char* comma1 = strchr(s, ',');
+            if (comma1) {
+                size_t mcu_len = (size_t)(comma1 - s);
+                char* mcu_buf = (char*)malloc(mcu_len + 1);
+                if (mcu_buf) {
+                    memcpy(mcu_buf, s, mcu_len);
+                    mcu_buf[mcu_len] = '\0';
+                    *mcu = mcu_buf;
+                }
+                const char* rest = comma1 + 1;
+                const char* comma2 = strchr(rest, ',');
+                if (comma2) {
+                    size_t hex_len = (size_t)(comma2 - rest);
+                    char* hex_buf = (char*)malloc(hex_len + 1);
+                    if (hex_buf) {
+                        memcpy(hex_buf, rest, hex_len);
+                        hex_buf[hex_len] = '\0';
+                        *hex = hex_buf;
+                    }
+                    const char* jit_str = comma2 + 1;
+                    *jit_enabled = (jit_str[0] == '1');
+                } else {
+                    *hex = rest;
+                }
+            } else {
+                *mcu = s;
             }
-            *hex = comma + 1;
-        } else {
-            *mcu = s;
+        }
+        // Override with separate array elements if available
+        if (info->sim_argc >= 2 && info->sim_argv[1] && info->sim_argv[1][0]) {
+            *hex = info->sim_argv[1];
+        }
+        if (info->sim_argc >= 3 && info->sim_argv[2]) {
+            *jit_enabled = (info->sim_argv[2][0] == '1');
         }
     }
 }
@@ -143,7 +171,8 @@ void Cosim_setup(struct co_info* info)
 
     const char* mcu = NULL;
     const char* hex = NULL;
-    parse_sim_args(info, &mcu, &hex);
+    bool jit_enabled = true;
+    parse_sim_args(info, &mcu, &hex, &jit_enabled);
 
     struct CosimInst* inst = (struct CosimInst*)calloc(1, sizeof(struct CosimInst));
     if (!inst) return;
@@ -154,7 +183,9 @@ void Cosim_setup(struct co_info* info)
         return;
     }
 
-    for (int p = 0; p < 3; p++)
+    vioavr_enable_jit(inst->avr, jit_enabled);
+
+    for (int p = 0; p < 4; p++)
         for (int b = 0; b < 8; b++)
             vioavr_add_pin_mapping(inst->avr, PORT_NAMES[p], b, p * 8 + b);
 
@@ -172,6 +203,10 @@ void Cosim_setup(struct co_info* info)
     }
 
     vioavr_reset(inst->avr);
+
+    // Drain initial pin changes from reset so subsequent firmware changes aren't lost
+    VioAvrPinChange drain[64];
+    while (vioavr_consume_pin_changes(inst->avr, drain, 64) > 0) {}
 
     /* All init succeeded — publish the interface. */
     info->handle     = inst;

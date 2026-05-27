@@ -144,8 +144,11 @@ private:
 
     // Translate a single AVR instruction. Returns number of 16-bit words consumed.
     // Returns 0 if instruction can't be JIT'd.
+    // skip_patch_out: if non-null, set to a jmp_forward label that the caller
+    // must patch after emitting the next instruction (for SBIS/SBIC/SBRC/SBRS).
     uint32_t translate_instruction(CodeBuffer& buf, u16 opcode,
-                                   uint32_t pc, bool& block_ended);
+                                   uint32_t pc, bool& block_ended,
+                                   CodeBuffer::Label* skip_patch_out = nullptr);
 };
 
 } // namespace jit

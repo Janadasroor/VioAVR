@@ -176,8 +176,10 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(port));
     }
 
-    // 1.5 PortMux (AVR8X)
-    if (device_.portmux.tcaroutea_address != 0) {
+    // 1.5 PortMux (AVR8X) — also created when TCA/TCB/UART8x/SPI8x/TWI8x exist
+    // (ATtiny chips have fixed routing, no TCAROUTEA register)
+    if (device_.portmux.tcaroutea_address != 0 || device_.tca_count > 0 || device_.tcb_count > 0 ||
+        device_.uart8x_count > 0 || device_.spi8x_count > 0 || device_.twi8x_count > 0) {
         auto pm = std::make_unique<PortMux>(device_.portmux);
         port_mux_ = pm.get();
         port_mux_->set_pin_mux(pin_mux_.get());
