@@ -20,6 +20,7 @@
 #include "vioavr/core/can.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/dac.hpp"
+#include "vioavr/core/dac8x.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
 #include "vioavr/core/cpu_int.hpp"
 #include "vioavr/core/tca.hpp"
@@ -397,6 +398,13 @@ void Machine::initialize_peripherals()
     for (u8 i = 0; i < device_.dac_count; ++i) {
         auto dac = std::make_unique<Dac>("DAC", device_.dacs[i]);
         dac->set_memory_bus(bus_.get());
+        bus_->attach_peripheral(*dac);
+        owned_peripherals_.push_back(std::move(dac));
+    }
+
+    // 7b. DAC8x (AVR-Dx style)
+    for (u8 i = 0; i < device_.dac8x_count; ++i) {
+        auto dac = std::make_unique<Dac8x>(device_.dacs8x[i]);
         bus_->attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
     }

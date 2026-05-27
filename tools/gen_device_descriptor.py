@@ -151,9 +151,17 @@ def parse_hex(s):
     if isinstance(s, int):
         return s
     s = s.strip()
-    if s.startswith("0x") or s.startswith("0X"):
+    # Strip repeated "0x" prefixes (ATDF sometimes has "0x0x0000")
+    while s.startswith("0x") or s.startswith("0X"):
+        s = s[2:]
+    if s.startswith("x") or s.startswith("X"):
+        s = s[1:]
+    if not s:
+        return 0
+    try:
         return int(s, 16)
-    return int(s)
+    except ValueError:
+        return int(s, 10) if s.lstrip("-").isdigit() else 0
 
 
 def parse_int(v):
@@ -196,6 +204,17 @@ def get_register(root, module_name, instance_name, reg_name):
                     if base == 0 and periph_base != 0:
                         base = periph_base
                     return base + roff
+    return 0
+
+
+def get_module_base(root, module_name, instance_name):
+    """Get the base address of a module instance from the peripherals section."""
+    for mod in root.findall(".//peripherals/module[@name='" + module_name + "']"):
+        for inst in mod.findall("instance"):
+            if instance_name and inst.get("name") != instance_name:
+                continue
+            for rg in inst.findall("register-group"):
+                return parse_hex(rg.get("offset", "0"))
     return 0
 
 
@@ -392,8 +411,13 @@ def generate(root, output_file=sys.stdout):
                 "OUTTGL": "outtgl_address",
                 "PINCTRL": "pin_ctrl_base",
                 "INTFLAGS": "intflags_address",
-                "VPORT": "vport_base",
             })
+            
+            # Extract VPORT base address from the separate VPORT module instance
+            # VPORT is a separate module (not a register in PORT)
+            vport_name = "V" + pname  # e.g., "PORTA" -> "VPORTA"
+            vport_base = get_module_base(root, "VPORT", vport_name)
+            regs["vport_base"] = vport_base
             
             ports.append((pname, regs))
     
@@ -442,6 +466,14 @@ def generate(root, output_file=sys.stdout):
     has_portmux = False
     has_crc8x = False
     has_vref = False
+    has_mvio = False
+    has_usb8x = False
+    
+    dac_instances = []
+    zcd_instances = []
+    opamp_instances = []
+    usb_instances = []  # Classic USB (ATmega32U4 style)
+    ptc_instances = []
     
     for mod in root.findall(".//peripherals/module"):
         mname = mod.get("name", "")
@@ -530,6 +562,26 @@ def generate(root, output_file=sys.stdout):
                 has_crc8x = True
             elif mname == "VREF":
                 has_vref = True
+            elif mname == "DAC":
+                if is_avr8x:
+                    dac_instances.append(iname)
+            elif mname == "ZCD":
+                if is_avr8x:
+                    zcd_instances.append(iname)
+            elif mname == "OPAMP":
+                if is_avr8x:
+                    opamp_instances.append(iname)
+            elif mname == "MVIO":
+                if is_avr8x:
+                    has_mvio = True
+            elif mname == "USB":
+                if is_avr8x:
+                    has_usb8x = True
+                else:
+                    usb_instances.append(iname)
+            elif mname == "PTC":
+                if is_avr8x:
+                    ptc_instances.append(iname)
     
     # ---- System Registers ----
     # SPL, SPH, SREG are at fixed addresses for classic AVR
@@ -541,12 +593,21 @@ def generate(root, output_file=sys.stdout):
     # For AVR8X, check if they're different
     if is_avr8x:
         spl_addr = get_register(root, "CPU", "CPU", "SPL")
-        sph_addr = get_register(root, "CPU", "CPU", "SPH") if not get_register(root, "CPU", "CPU", "SPH") else get_register(root, "CPU", "CPU", "SP")
+        sph_addr = get_register(root, "CPU", "CPU", "SPH")
         sreg_addr = get_register(root, "CPU", "CPU", "SREG")
+        if not sph_addr:
+            # AVR8X uses 16-bit SP register (no separate SPH)
+            sp_addr = get_register(root, "CPU", "CPU", "SP")
+            if sp_addr:
+                spl_addr = sp_addr
+                sph_addr = sp_addr
         if spl_addr == 0 and sph_addr == 0 and sreg_addr == 0:
             spl_addr = 0x3D
             sph_addr = 0x3E
             sreg_addr = 0x3F
+    
+    # RAMPZ — search in CPU module (AVR8X: as a register, may not exist)
+    rampz_addr = get_register(root, "CPU", "CPU", "RAMPZ")
     
     # SPMCSR / SPMCR — search in CPU module or NVMCTRL or standalone SPM module
     spmcsr = 0
@@ -644,6 +705,8 @@ def generate(root, output_file=sys.stdout):
     out.append(f"    .spl_address = 0x{spl_addr:02X}U,")
     out.append(f"    .sph_address = 0x{sph_addr:02X}U,")
     out.append(f"    .sreg_address = 0x{sreg_addr:02X}U,")
+    if rampz_addr:
+        out.append(f"    .rampz_address = 0x{rampz_addr:02X}U,")
     if spmcsr:
         out.append(f"    .spmcsr_address = 0x{spmcsr:02X}U,")
     if ccp_address:
@@ -660,9 +723,9 @@ def generate(root, output_file=sys.stdout):
     #
     # Struct field order: adc/adc8x → ac/ac8x → timer8/tca → timer16/tcb
     # → tcd → rtc → evsys → ccl → portmux → vref → clkctrl → slpctrl
-    # → rstctrl → syscfg → bod → extint → uart/uart8x → nvmctrl
+    # → rstctrl → syscfg → bod → mvio → extint → uart/uart8x → nvmctrl
     # → cpuint → pcint → spi/spi8x → twi/twi8x → usi → eeprom
-    # → wdt/wdt8x → crc8x
+    # → wdt/wdt8x → crc8x → dac8x → zcd → usb8x → opamp → ptc
     
     # ---- ADC (classic) / ADC8x (AVR8X) ----
     if adc_instances and not is_avr8x:
@@ -1082,21 +1145,37 @@ def generate(root, output_file=sys.stdout):
         pmux_regs = extract_module_registers(root, "PORTMUX", "PORTMUX", {
             "CTRLA": "ctrla", "CTRLB": "ctrlb", "CTRLC": "ctrlc", "CTRLD": "ctrld",
         })
-        twispiroute = extract_module_registers(root, "PORTMUX", "PORTMUX", {
-            "TWISPIROUTEA": "twispiroutea",
-        })
-        usartroute = extract_module_registers(root, "PORTMUX", "PORTMUX", {
+        route_regs = extract_module_registers(root, "PORTMUX", "PORTMUX", {
+            "EVSYSROUTEA": "evsysroutea",
+            "CCLROUTEA": "cclroutea",
             "USARTROUTEA": "usartroutea",
+            "USARTROUTEB": "usartrouteb",
+            "SPIROUTEA": "spiroutea",
+            "TWIROUTEA": "twiroutea",
+            "TCAROUTEA": "tcaroutea",
+            "TCBROUTEA": "tcbroutea",
+            "TCDROUTEA": "tcdroutea",
+            "ACROUTEA": "acroutea",
+            "ZCDROUTEA": "zcdroutea",
         })
         out.append("")
         out.append(f"    .portmux = {{")
-        if pmux_regs.get("ctrla"):
+        # Map routing registers to existing PortMuxDescriptor fields
+        # Must match PortMuxDescriptor declaration order:
+        # twispiroutea → usartroutea → evoutroutea → tcaroutea → tcbroutea
+        if not route_regs.get("usartroutea") and pmux_regs.get("ctrla"):
+            # Fallback for megaAVR-0 style (CTRLA = TWISPI, CTRLB = USART)
             out.append(f"        .twispiroutea_address = 0x{pmux_regs['ctrla']:02X}U,")
             out.append(f"        .usartroutea_address = 0x{pmux_regs['ctrlb']:02X}U,")
-        elif twispiroute.get("twispiroutea"):
-            out.append(f"        .twispiroutea_address = 0x{twispiroute['twispiroutea']:02X}U,")
-        if usartroute.get("usartroutea"):
-            out.append(f"        .usartroutea_address = 0x{usartroute['usartroutea']:02X}U,")
+        else:
+            if route_regs.get("usartroutea"):
+                out.append(f"        .usartroutea_address = 0x{route_regs['usartroutea']:02X}U,")
+        if route_regs.get("evsysroutea"):
+            out.append(f"        .evoutroutea_address = 0x{route_regs['evsysroutea']:02X}U,")
+        if route_regs.get("tcaroutea"):
+            out.append(f"        .tcaroutea_address = 0x{route_regs['tcaroutea']:02X}U,")
+        if route_regs.get("tcbroutea"):
+            out.append(f"        .tcbroutea_address = 0x{route_regs['tcbroutea']:02X}U,")
         # ATtiny AVR8X chips have fixed (reversed) TCA WO-to-pin mapping
         if "attiny" in chip_name and tca_instances:
             out.append(f"        .tca_wo_pin_bit = {{3, 2, 1, 0, 5, 4}},")
@@ -1120,17 +1199,31 @@ def generate(root, output_file=sys.stdout):
         clk_regs = extract_module_registers(root, "CLKCTRL", "CLKCTRL", {
             "MCLKCTRLA": "ctrla_address", "MCLKCTRLB": "ctrlb_address",
             "MCLKLOCK": "mclklock_address", "MCLKSTATUS": "mclkstatus_address",
+            "OSCHFCTRLA": "osc20mctrla_address",
             "OSC20MCTRLA": "osc20mctrla_address",
-            "OSC20MCALIBA": "osc20mcalib_address",
+            "OSCHFTUNE": "osc20mcalib_address",
+            "OSC20MCALIB": "osc20mcalib_address",
             "OSC32KCTRLA": "osc32kctrla_address",
             "XOSC32KCTRLA": "xosc32kctrla_address",
+            "XOSCHFCTRLA": "xoschfctrla_address",
+            "MCLKCTRLC": "mclkctrlc_address",
+            "MCLKINTCTRL": "mclkintctrl_address",
+            "MCLKINTFLAGS": "mclkintflags_address",
+            "MCLKTIMEBASE": "mclktimebase_address",
+            "OSCHFSTATUS": "oschfstatus_address",
+            "USBPLLSTATUS": "usbpllstatus_address",
+            "PLLCTRLA": "pllctrla_address",
         })
         out.append("")
         out.append(f"    .clkctrl = {{")
         for fn in ["ctrla_address", "ctrlb_address", "mclklock_address",
                   "mclkstatus_address", "osc20mctrla_address",
                   "osc20mcalib_address", "osc32kctrla_address",
-                  "xosc32kctrla_address"]:
+                  "xosc32kctrla_address", "xoschfctrla_address",
+                  "mclkctrlc_address", "mclkintctrl_address",
+                  "mclkintflags_address", "mclktimebase_address",
+                  "oschfstatus_address", "usbpllstatus_address",
+                  "pllctrla_address"]:
             if clk_regs.get(fn):
                 out.append(f"        .{fn} = 0x{clk_regs[fn]:02X}U,")
         out.append(f"    }},")
@@ -1187,6 +1280,25 @@ def generate(root, output_file=sys.stdout):
                 out.append(f"        .{fn} = 0x{bod_regs[fn]:02X}U,")
         if vlm_idx != 0xFF:
             out.append(f"        .vlm_vector_index = {vlm_idx}U,")
+        out.append(f"    }},")
+    
+    # ---- AVR8X MVIO ----
+    if is_avr8x and has_mvio:
+        mvio_regs = extract_module_registers(root, "MVIO", "MVIO", {
+            "INTCTRL": "intctrl_address",
+            "INTFLAGS": "intflags_address",
+            "STATUS": "status_address",
+        })
+        mvio_idx = find_interrupt_index(root, "MVIO")
+        if mvio_idx == 0xFF:
+            mvio_idx = find_interrupt_by_module(root, "MVIO", "MVIO")
+        out.append("")
+        out.append(f"    .mvio = {{")
+        for fn in ["intctrl_address", "intflags_address", "status_address"]:
+            if mvio_regs.get(fn):
+                out.append(f"        .{fn} = 0x{mvio_regs[fn]:02X}U,")
+        if mvio_idx != 0xFF:
+            out.append(f"        .vector_index = {mvio_idx}U,")
         out.append(f"    }},")
     
     # ---- EXINT (classic only - AVR8X handles through PORT) ----
@@ -1566,6 +1678,132 @@ def generate(root, output_file=sys.stdout):
         out.append(f"        }}")
         out.append(f"    }}}},")
     
+    # ---- AVR8X USB8x (DU FIFO-based USB) ----
+    # Must come before DAC8x/ZCD/OPAMP/PTC in struct order (usb8x → dac8x → zcd → opamp → ptc)
+    if is_avr8x and has_usb8x:
+        usb8x_regs = extract_module_registers(root, "USB", "USB0", {
+            "CTRLA": "ctrla_address",
+            "CTRLB": "ctrlb_address",
+            "BUSSTATE": "busstate_address",
+            "ADDR": "addr_address",
+            "FIFOWP": "fifowp_address",
+            "FIFORP": "fiforp_address",
+            "EPPTR": "epptr_address",
+            "INTCTRLA": "intctrla_address",
+            "INTCTRLB": "intctrlb_address",
+            "INTFLAGSA": "intflagsa_address",
+            "INTFLAGSB": "intflagsb_address",
+        })
+        usb8x_idx = find_interrupt_by_module(root, "USB", "USB0")
+        if usb8x_idx == 0xFF:
+            usb8x_idx = find_interrupt_index(root, "USB")
+        pllcsr_addr = 0
+        for regname in ["PLLCSR", "PLLCTRLA"]:
+            pllcsr_addr = get_register(root, "USB", "USB0", regname)
+            if pllcsr_addr:
+                break
+        if not pllcsr_addr:
+            pllcsr_addr = get_register(root, "CLKCTRL", "CLKCTRL", "PLLCTRLA")
+        out.append("")
+        out.append(f"    .usb8x_count = 1U,")
+        out.append(f"    .usbs8x = {{{{")
+        out.append(f"        {{")
+        for fn in ["ctrla_address", "ctrlb_address", "busstate_address",
+                   "addr_address", "fifowp_address", "fiforp_address",
+                   "epptr_address", "intctrla_address", "intctrlb_address",
+                   "intflagsa_address", "intflagsb_address"]:
+            if usb8x_regs.get(fn):
+                out.append(f"            .{fn} = 0x{usb8x_regs[fn]:02X}U,")
+        if pllcsr_addr:
+            out.append(f"            .pllcsr_address = 0x{pllcsr_addr:02X}U,")
+        if usb8x_idx != 0xFF:
+            out.append(f"            .gen_vector_index = {usb8x_idx}U,")
+        out.append(f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- AVR8X DAC8x (DA/DB/DD) ----
+    if is_avr8x and dac_instances:
+        AVR8X_DAC_FIELDS = {
+            "CTRLA": "ctrla_address",
+            "DATA": "data_address",
+        }
+        out.append("")
+        out.append(f"    .dac8x_count = {len(dac_instances)}U,")
+        out.append(f"    .dacs8x = {{{{")
+        for di, dname in enumerate(dac_instances):
+            regs = extract_module_registers(root, "DAC", dname, AVR8X_DAC_FIELDS)
+            out.append(f"        {{")
+            for fn in ["ctrla_address", "data_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            out.append(f"        }}," if di < len(dac_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- AVR8X ZCD (DA/DB/DD) ----
+    if is_avr8x and zcd_instances:
+        AVR8X_ZCD_FIELDS = {
+            "CTRLA": "ctrla_address",
+            "INTCTRL": "intctrl_address",
+            "STATUS": "status_address",
+        }
+        out.append("")
+        out.append(f"    .zcd_count = {len(zcd_instances)}U,")
+        out.append(f"    .zcds = {{{{")
+        for zi, zname in enumerate(zcd_instances):
+            regs = extract_module_registers(root, "ZCD", zname, AVR8X_ZCD_FIELDS)
+            zcd_idx = find_interrupt_by_module(root, "ZCD", zname)
+            out.append(f"        {{")
+            for fn in ["ctrla_address", "intctrl_address", "status_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            if zcd_idx != 0xFF:
+                out.append(f"            .vector_index = {zcd_idx}U,")
+            out.append(f"        }}," if zi < len(zcd_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- AVR8X OPAMP (DB only) ----
+    if is_avr8x and opamp_instances:
+        out.append("")
+        out.append(f"    .opamp_count = {len(opamp_instances)}U,")
+        out.append(f"    .opamps = {{{{")
+        for oi, oname in enumerate(opamp_instances):
+            opamp_regs = extract_module_registers(root, "OPAMP", oname, {
+                "CTRLA": "ctrla_address",
+                "DBGCTRL": "ctrlb_address",
+                "TIMEBASE": "resctrl_address",
+                "PWRCTRL": "muxctrl_address",
+            })
+            out.append(f"        {{")
+            for fn in ["ctrla_address", "ctrlb_address", "resctrl_address", "muxctrl_address"]:
+                if opamp_regs.get(fn):
+                    out.append(f"            .{fn} = 0x{opamp_regs[fn]:02X}U,")
+            out.append(f"        }}," if oi < len(opamp_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- AVR8X PTC (DA only) ----
+    if is_avr8x and ptc_instances:
+        out.append("")
+        out.append(f"    .ptc_count = {len(ptc_instances)}U,")
+        out.append(f"    .ptcs = {{{{")
+        for pi, pname in enumerate(ptc_instances):
+            base_addr = 0
+            for mod in root.findall(f".//peripherals/module[@name='PTC']"):
+                for inst in mod.findall("instance"):
+                    if inst.get("name") == pname:
+                        for rg in inst.findall("register-group"):
+                            base_addr = parse_hex(rg.get("offset", "0"))
+            eoc_idx = find_interrupt_by_module(root, "EOC", pname)
+            wcomp_idx = find_interrupt_by_module(root, "WCOMP", pname)
+            out.append(f"        {{")
+            if base_addr:
+                out.append(f"            .base_address = 0x{base_addr:04X}U,")
+            if eoc_idx != 0xFF:
+                out.append(f"            .eoc_vector_index = {eoc_idx}U,")
+            if wcomp_idx != 0xFF:
+                out.append(f"            .wcomp_vector_index = {wcomp_idx}U,")
+            out.append(f"        }}," if pi < len(ptc_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
     # Signature
     out.append("")
     out.append(f"    .signature = {{ 0x{sig0:02X}, 0x{sig1:02X}, 0x{sig2:02X} }},")
@@ -1611,33 +1849,68 @@ def generate(root, output_file=sys.stdout):
     return True
 
 
+def generate_all(atdf_glob_pattern, output_dir, description):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    for atdf_path in sorted(Path().glob(atdf_glob_pattern) if "/" not in atdf_glob_pattern else sorted(Path(atdf_glob_pattern).parent.glob(Path(atdf_glob_pattern).name))):
+        pass
+    # Use explicit path construction
+    out_dir = Path(output_dir)
+    import glob as gglob
+    files = sorted(gglob.glob(atdf_glob_pattern))
+    for atdf_path_str in files:
+        atdf_path = Path(atdf_path_str)
+        chip = atdf_path.stem.lower()
+        out_path = out_dir / f"{chip}.hpp"
+        print(f"  {atdf_path.stem} -> {out_path.name}")
+        try:
+            tree = ET.parse(str(atdf_path))
+            with open(str(out_path), "w") as f:
+                if not generate(tree.getroot(), f):
+                    print(f"    FAILED", file=sys.stderr)
+            count += 1
+        except Exception as e:
+            print(f"    ERROR: {e}", file=sys.stderr)
+    print(f"  Generated {count} files")
+    return count
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Generate VioAVR device descriptor from ATDF")
     parser.add_argument("atdf", nargs="?", help="Path to ATDF XML file")
     parser.add_argument("--all", action="store_true", help="Generate all ATtiny descriptors")
-    parser.add_argument("--output-dir", default=None, help="Output directory for --all")
+    parser.add_argument("--all-classic", action="store_true", help="Generate all ATmega/AT90 classic descriptors")
+    parser.add_argument("--all-avr-dx", action="store_true", help="Generate all AVR-DA/DB/DD/DU descriptors")
+    parser.add_argument("--output-dir", default=None, help="Output directory for --all / --all-classic / --all-avr-dx")
     args = parser.parse_args()
     
+    base_dir = Path(__file__).parent.parent
+    output_dir = Path(args.output_dir) if args.output_dir else base_dir / "include" / "vioavr" / "core" / "devices"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
     if args.all:
-        atdf_dir = Path(__file__).parent.parent / "avr-pack" / "attiny" / "atdf"
-        output_dir = Path(args.output_dir) if args.output_dir else Path(__file__).parent.parent / "include" / "vioavr" / "core" / "devices"
+        atdf_dir = base_dir / "avr-pack" / "attiny" / "atdf"
         if not atdf_dir.exists():
             print(f"ATDF directory not found: {atdf_dir}", file=sys.stderr)
             return 1
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        for atdf_path in sorted(atdf_dir.glob("ATtiny*.atdf")):
-            chip = atdf_path.stem.lower()
-            out_path = output_dir / f"{chip}.hpp"
-            print(f"  {atdf_path.stem} -> {out_path.name}")
-            try:
-                tree = ET.parse(str(atdf_path))
-                with open(str(out_path), "w") as f:
-                    if not generate(tree.getroot(), f):
-                        print(f"    FAILED", file=sys.stderr)
-            except Exception as e:
-                print(f"    ERROR: {e}", file=sys.stderr)
+        generate_all(str(atdf_dir / "ATtiny*.atdf"), output_dir, "ATtiny")
+        return 0
+    
+    if args.all_classic:
+        atmega_dir = base_dir / "avr-pack" / "atmega" / "atdf"
+        if not atmega_dir.exists():
+            print(f"ATmega ATDF directory not found: {atmega_dir}", file=sys.stderr)
+            return 1
+        generate_all(str(atmega_dir / "ATmega*.atdf"), output_dir, "ATmega/AT90")
+        generate_all(str(atmega_dir / "AT90*.atdf"), output_dir, "AT90")
+        return 0
+    
+    if args.all_avr_dx:
+        avrdx_dir = base_dir / "avr-pack" / "avr-dx" / "atdf"
+        if not avrdx_dir.exists():
+            print(f"AVR-Dx ATDF directory not found: {avrdx_dir}", file=sys.stderr)
+            return 1
+        generate_all(str(avrdx_dir / "AVR*.atdf"), output_dir, "AVR-Dx")
         return 0
     
     if not args.atdf:

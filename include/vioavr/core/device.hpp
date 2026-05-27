@@ -277,6 +277,11 @@ struct DacDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct Dac8xDescriptor {
+    u16 ctrla_address {};
+    u16 data_address {};
+};
+
 struct AmplifierDescriptor {
     u16 ampcsr_address {};
     
@@ -731,6 +736,24 @@ struct UsbDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+struct Usb8xDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 busstate_address {};
+    u16 addr_address {};
+    u16 fifowp_address {};
+    u16 fiforp_address {};
+    u16 epptr_address {};
+    u16 intctrla_address {};
+    u16 intctrlb_address {};
+    u16 intflagsa_address {};
+    u16 intflagsb_address {};
+    u16 pllcsr_address {};
+    u8 gen_vector_index {};
+    u8 bus_vector_index {};
+    u32 usb_pll_frequency_hz {48000000U};
+};
+
 struct DmaChannelDescriptor {
     u16 ctrla_address {0U};
     u16 ctrlb_address {0U};
@@ -759,6 +782,8 @@ struct DmaDescriptor {
 
 struct ZcdDescriptor {
     u16 ctrla_address {0U};
+    u16 intctrl_address {0U};
+    u16 status_address {0U};
     u8 vector_index {0U};
     u8 out_generator_id {0U};
     u16 pin_address {0U};
@@ -899,6 +924,14 @@ struct ClkctrlDescriptor {
     u16 osc20mcalib_address {0x0U};
     u16 osc32kctrla_address {0x0U};
     u16 xosc32kctrla_address {0x0U};
+    u16 xoschfctrla_address {0x0U};
+    u16 mclkctrlc_address {0x0U};
+    u16 mclkintctrl_address {0x0U};
+    u16 mclkintflags_address {0x0U};
+    u16 mclktimebase_address {0x0U};
+    u16 oschfstatus_address {0x0U};
+    u16 usbpllstatus_address {0x0U};
+    u16 pllctrla_address {0x0U};
 };
 
 struct SlpctrlDescriptor {
@@ -923,6 +956,13 @@ struct BodDescriptor {
     u16 status_address {0x0U};
     
     u8 vlm_vector_index {0U};
+};
+
+struct MvioDescriptor {
+    u16 intctrl_address {0x0U};
+    u16 intflags_address {0x0U};
+    u16 status_address {0x0U};
+    u8 vector_index {0U};
 };
 
 
@@ -1146,7 +1186,7 @@ struct DeviceDescriptor {
     std::array<TcaDescriptor, 4> timers_tca {};
 
     u8 tcb_count {0U};
-    std::array<TcbDescriptor, 4> timers_tcb {};
+    std::array<TcbDescriptor, 8> timers_tcb {};
 
     u8 tcd_count {0U};
     std::array<TcdDescriptor, 1> timers_tcd {};
@@ -1165,6 +1205,7 @@ struct DeviceDescriptor {
     RstctrlDescriptor rstctrl {};
     SyscfgDescriptor syscfg {};
     BodDescriptor bod {};
+    MvioDescriptor mvio {};
 
     u8 ext_interrupt_count {0U};
     std::array<ExtInterruptDescriptor, 16> ext_interrupts {};
@@ -1216,6 +1257,8 @@ struct DeviceDescriptor {
     
     u8 usb_count {0U};
     std::array<UsbDescriptor, 1> usbs {};
+    u8 usb8x_count {0U};
+    std::array<Usb8xDescriptor, 1> usbs8x {};
 
     u8 lcd_count {0U};
     std::array<LcdDescriptor, 1> lcds {};
@@ -1228,6 +1271,8 @@ struct DeviceDescriptor {
 
     u8 dac_count {};
     std::array<DacDescriptor, 1> dacs {};
+    u8 dac8x_count {0U};
+    std::array<Dac8xDescriptor, 2> dacs8x {};
 
     u8 amplifier_count {};
     std::array<AmplifierDescriptor, 3> amplifiers {};
@@ -1236,7 +1281,7 @@ struct DeviceDescriptor {
     std::array<DmaDescriptor, 1> dmas {};
 
     u8 zcd_count {0U};
-    std::array<ZcdDescriptor, 2> zcds {};
+    std::array<ZcdDescriptor, 4> zcds {};
 
     u8 opamp_count {0U};
     std::array<OpampDescriptor, 3> opamps {};
