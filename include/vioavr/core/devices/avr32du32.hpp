@@ -27,23 +27,28 @@ inline constexpr DeviceDescriptor avr32du32 {
     .ccp_address = 0x34U,
     .cpu_frequency_hz = 16'000'000U,
 
-    .adc8x_count = 1U,
-    .adcs8x = {{
+    .adc10b_count = 1U,
+    .adcs10b = {{
         {
             .ctrla_address = 0x600U,
             .ctrlb_address = 0x601U,
             .ctrlc_address = 0x602U,
             .ctrld_address = 0x603U,
             .ctrle_address = 0x604U,
-            .muxpos_address = 0x60BU,
-            .command_address = 0x60AU,
+            .ctrlf_address = 0x605U,
             .intctrl_address = 0x606U,
             .intflags_address = 0x607U,
+            .status_address = 0x608U,
             .dbgctrl_address = 0x609U,
-            .temp_address = 0x614U,
+            .command_address = 0x60AU,
+            .muxpos_address = 0x60BU,
+            .result_address = 0x60CU,
+            .sample_address = 0x60EU,
             .winlt_address = 0x610U,
             .winht_address = 0x612U,
-            .res_ready_vector_index = 32U,
+            .temp_address = 0x614U,
+            .resrdy_vector_index = 32U,
+            .samprdy_vector_index = 33U,
         }
     }},
 

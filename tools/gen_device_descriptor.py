@@ -448,6 +448,7 @@ def generate(root, output_file=sys.stdout):
     twi8x_instances = []
     adc_instances = []
     adc8x_instances = []
+    adc10b_instances = []
     ac_instances = []
     ac8x_instances = []
     eeprom_instances = []
@@ -519,7 +520,10 @@ def generate(root, output_file=sys.stdout):
                 else:
                     twi_instances.append(iname)
             elif mname == "ADC":
-                if is_avr8x:
+                mod_id = mod.get("id", "")
+                if is_avr8x and mod_id == "adc_10b_ctrl_avr_v1":
+                    adc10b_instances.append(iname)
+                elif is_avr8x:
                     adc8x_instances.append(iname)
                 else:
                     adc_instances.append(iname)
@@ -783,6 +787,55 @@ def generate(root, output_file=sys.stdout):
             if wcomp_idx != 0xFF:
                 out.append(f"            .wcomp_vector_index = {wcomp_idx}U,")
             out.append(f"        }}," if ai < len(adc8x_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- ADC10b (AVR8X DU, 10-bit non-differential) ----
+    if is_avr8x and adc10b_instances:
+        ADC10B_FIELDS = {
+            "CTRLA": "ctrla_address", "CTRLB": "ctrlb_address",
+            "CTRLC": "ctrlc_address", "CTRLD": "ctrld_address",
+            "CTRLE": "ctrle_address", "CTRLF": "ctrlf_address",
+            "INTCTRL": "intctrl_address", "INTFLAGS": "intflags_address",
+            "STATUS": "status_address",
+            "DBGCTRL": "dbgctrl_address", "COMMAND": "command_address",
+            "MUXPOS": "muxpos_address",
+            "RESULT": "result_address", "SAMPLE": "sample_address",
+            "WINLT": "winlt_address", "WINHT": "winht_address",
+            "TEMP": "temp_address",
+        }
+        out.append("")
+        out.append(f"    .adc10b_count = {len(adc10b_instances)}U,")
+        out.append(f"    .adcs10b = {{{{")
+        for ai, aname in enumerate(adc10b_instances):
+            regs = extract_module_registers(root, "ADC", aname, ADC10B_FIELDS)
+            resrdy_idx = find_interrupt_by_module(root, "RESRDY", aname)
+            samprdy_idx = find_interrupt_by_module(root, "SAMPRDY", aname)
+            wcmp_idx = find_interrupt_by_module(root, "WCOMP", aname)
+            resovr_idx = find_interrupt_by_module(root, "RESOVR", aname)
+            sampovr_idx = find_interrupt_by_module(root, "SAMPOVR", aname)
+            trigovr_idx = find_interrupt_by_module(root, "TRIGOVR", aname)
+            out.append(f"        {{")
+            for fn in ["ctrla_address", "ctrlb_address", "ctrlc_address",
+                      "ctrld_address", "ctrle_address", "ctrlf_address",
+                      "intctrl_address", "intflags_address", "status_address",
+                      "dbgctrl_address", "command_address", "muxpos_address",
+                      "result_address", "sample_address",
+                      "winlt_address", "winht_address", "temp_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            if resrdy_idx != 0xFF:
+                out.append(f"            .resrdy_vector_index = {resrdy_idx}U,")
+            if samprdy_idx != 0xFF:
+                out.append(f"            .samprdy_vector_index = {samprdy_idx}U,")
+            if wcmp_idx != 0xFF:
+                out.append(f"            .wcmp_vector_index = {wcmp_idx}U,")
+            if resovr_idx != 0xFF:
+                out.append(f"            .resovr_vector_index = {resovr_idx}U,")
+            if sampovr_idx != 0xFF:
+                out.append(f"            .sampovr_vector_index = {sampovr_idx}U,")
+            if trigovr_idx != 0xFF:
+                out.append(f"            .trigovr_vector_index = {trigovr_idx}U,")
+            out.append(f"        }}," if ai < len(adc10b_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
     # ---- AC (classic) / AC8x (AVR8X) ----
