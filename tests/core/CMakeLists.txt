@@ -39,6 +39,7 @@ set(TEST_SOURCES
     avr8x/avr8x_tce_fidelity_test.cpp
     xmega/xmega_tc_fidelity_test.cpp
     xmega/xmega_awex_fidelity_test.cpp
+    xmega/xmega_adc_fidelity_test.cpp
     avr8x/avr8x_adcea_fidelity_test.cpp
     avr8x/avr8x_tca_frq_mode_test.cpp
     avr8x/avr8x_tca_pwm_period_test.cpp
