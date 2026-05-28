@@ -73,6 +73,10 @@ target_sources(vioavr_core
         ptc.cpp
         cfd.cpp
         tcd.cpp
+        tce.cpp
+        tc.cpp
+        adcea.cpp
+        awex.cpp
         vcd_writer.cpp
 )
 

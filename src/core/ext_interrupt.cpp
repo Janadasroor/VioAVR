@@ -9,7 +9,13 @@
 namespace vioavr::core {
 
 namespace {
-constexpr u8 kInt0Mask = 0x01U;
+constexpr u8 kIntMask(u8 index) noexcept { return static_cast<u8>(1U << index); }
+
+// Sense mode in EICRA: INT0-3 at bits [1:0], [3:2], [5:4], [7:6]
+// Sense mode in EICRB: INT4-7 at bits [1:0], [3:2], [5:4], [7:6]
+[[nodiscard]] u8 extract_sense_mode(u8 reg, u8 index) noexcept {
+    return static_cast<u8>((reg >> (index * 2U)) & 0x03U);
+}
 }
 
 ExtInterrupt::ExtInterrupt(std::string_view name,
@@ -21,9 +27,13 @@ ExtInterrupt::ExtInterrupt(std::string_view name,
       pin_mux_(&pin_mux),
       source_id_(source_id)
 {
-    std::vector<u16> addrs = {desc_.eicra_address, desc_.eimsk_address, desc_.eifr_address};
+    std::vector<u16> addrs;
+    if (desc_.eicra_address) addrs.push_back(desc_.eicra_address);
+    if (desc_.eicrb_address) addrs.push_back(desc_.eicrb_address);
+    if (desc_.eimsk_address) addrs.push_back(desc_.eimsk_address);
+    if (desc_.eifr_address) addrs.push_back(desc_.eifr_address);
     std::sort(addrs.begin(), addrs.end());
-    
+
     size_t ri = 0;
     ranges_.fill({0, 0});
     for (size_t i = 0; i < addrs.size(); ++i) {
@@ -56,34 +66,30 @@ std::span<const AddressRange> ExtInterrupt::mapped_ranges() const noexcept
 void ExtInterrupt::reset() noexcept
 {
     eicra_ = 0U;
+    eicrb_ = 0U;
     eimsk_ = 0U;
     eifr_ = 0U;
-    int0_level_ = true;
-    int1_level_ = true;
-    int0_pending_ = false;
-    int1_pending_ = false;
+    for (auto& lvl : int_levels_) lvl = true;
+    for (auto& pnd : int_pending_) pnd = false;
 }
 
 void ExtInterrupt::tick(const u64 elapsed_cycles) noexcept
 {
     if (elapsed_cycles > 0U) refresh_bound_input();
-    if ((int0_sense_mode() == 0x00U) && !int0_level_) {
-        raise_int0();
+    for (u8 i = 0; i < kIntCount; ++i) {
+        if (sense_mode(i) == 0x00U && !int_levels_[i]) {
+            raise_interrupt(i);
+        }
     }
 }
 
 u8 ExtInterrupt::read(const u16 address) noexcept
 {
     refresh_bound_input();
-    if (address == desc_.eicra_address) {
-        return eicra_;
-    }
-    if (address == desc_.eimsk_address) {
-        return eimsk_;
-    }
-    if (address == desc_.eifr_address) {
-        return eifr_;
-    }
+    if (address == desc_.eicra_address) return eicra_;
+    if (address == desc_.eicrb_address) return eicrb_;
+    if (address == desc_.eimsk_address) return eimsk_;
+    if (address == desc_.eifr_address) return eifr_;
     return 0U;
 }
 
@@ -94,6 +100,11 @@ void ExtInterrupt::write(const u16 address, const u8 value) noexcept
         update_interrupt_pending();
         return;
     }
+    if (address == desc_.eicrb_address) {
+        eicrb_ = value;
+        update_interrupt_pending();
+        return;
+    }
     if (address == desc_.eimsk_address) {
         eimsk_ = value;
         update_interrupt_pending();
@@ -101,8 +112,10 @@ void ExtInterrupt::write(const u16 address, const u8 value) noexcept
     }
     if (address == desc_.eifr_address) {
         eifr_ = static_cast<u8>(eifr_ & static_cast<u8>(~value));
-        if ((value & kInt0Mask) != 0U) {
-            int0_pending_ = false;
+        for (u8 i = 0; i < kIntCount; ++i) {
+            if ((value & kIntMask(i)) != 0U) {
+                int_pending_[i] = false;
+            }
         }
         update_interrupt_pending();
     }
@@ -112,31 +125,19 @@ bool ExtInterrupt::on_external_pin_change(u16 pin_address, u8 bit_index, PinLeve
 {
     Logger::debug("ExtInterrupt: external pin change addr=0x" + std::to_string(pin_address) + " bit=" + std::to_string(bit_index));
     bool level_bool = (level == PinLevel::high);
-    // Check descriptor-provided pin mapping first
     bool has_mapping = false;
-    for (size_t i = 0; i < 8; ++i) {
+    for (u8 i = 0; i < kIntCount; ++i) {
         if (desc_.pin_addresses[i] != 0U) {
             has_mapping = true;
             if (desc_.pin_addresses[i] == pin_address && desc_.pin_bit_indices[i] == bit_index) {
-                switch (i) {
-                    case 0: set_int0_level(level_bool); break;
-                    case 1: set_int1_level(level_bool); break;
-                    default: break;
-                }
+                handle_level_change(i, level_bool);
                 return true;
             }
         }
     }
-    // Fallback for descriptors without pin mapping (classic ATmega328P-compatible)
     if (!has_mapping) {
-        if (bit_index == 2) {
-            set_int0_level(level_bool);
-            return true;
-        }
-        if (bit_index == 3) {
-            set_int1_level(level_bool);
-            return true;
-        }
+        if (bit_index == 2) { handle_level_change(0, level_bool); return true; }
+        if (bit_index == 3) { handle_level_change(1, level_bool); return true; }
     }
     return false;
 }
@@ -144,13 +145,11 @@ bool ExtInterrupt::on_external_pin_change(u16 pin_address, u8 bit_index, PinLeve
 bool ExtInterrupt::pending_interrupt_request(InterruptRequest& request) const noexcept
 {
     const_cast<ExtInterrupt*>(this)->refresh_bound_input();
-    if (int0_pending_ && (eimsk_ & 0x01U) != 0U) {
-        request = {.vector_index = desc_.vector_indices[0], .source_id = source_id_};
-        return true;
-    }
-    if (int1_pending_ && (eimsk_ & 0x02U) != 0U) {
-        request = {.vector_index = desc_.vector_indices[1], .source_id = source_id_};
-        return true;
+    for (u8 i = 0; i < kIntCount; ++i) {
+        if (int_pending_[i] && (eimsk_ & kIntMask(i)) != 0U) {
+            request = {.vector_index = desc_.vector_indices[i], .source_id = source_id_};
+            return true;
+        }
     }
     return false;
 }
@@ -162,14 +161,14 @@ bool ExtInterrupt::consume_interrupt_request(InterruptRequest& request) noexcept
         return false;
     }
 
-    if (request.vector_index == desc_.vector_indices[0]) {
-        int0_pending_ = false;
-        eifr_ &= static_cast<u8>(~0x01U);
-    } else if (request.vector_index == desc_.vector_indices[1]) {
-        int1_pending_ = false;
-        eifr_ &= static_cast<u8>(~0x02U);
+    for (u8 i = 0; i < kIntCount; ++i) {
+        if (request.vector_index == desc_.vector_indices[i]) {
+            int_pending_[i] = false;
+            eifr_ &= static_cast<u8>(~kIntMask(i));
+            break;
+        }
     }
-    
+
     update_interrupt_pending();
     return true;
 }
@@ -194,65 +193,12 @@ void ExtInterrupt::connect_adc_auto_trigger(Adc& adc) noexcept
 
 void ExtInterrupt::set_int0_level(const bool high) noexcept
 {
-    const bool previous = int0_level_;
-    int0_level_ = high;
-
-    if (previous != high) {
-        // Use a simpler log call to avoid string builder issues if it persists
-        Logger::debug("INT0 level change detected");
-    }
-
-    switch (int0_sense_mode()) {
-    case 0x00U:
-        if (!high) {
-            raise_int0();
-        }
-        break;
-    case 0x01U:
-        if (previous != high) {
-            raise_int0();
-        }
-        break;
-    case 0x02U:
-        if (previous && !high) {
-            raise_int0();
-        }
-        break;
-    case 0x03U:
-        if (!previous && high) {
-            raise_int0();
-        }
-        break;
-    default:
-        break;
-    }
+    handle_level_change(0, high);
 }
 
 void ExtInterrupt::set_int1_level(const bool high) noexcept
 {
-    const bool previous = int1_level_;
-    int1_level_ = high;
-
-    if (previous != high) {
-        Logger::debug("INT1 level change detected");
-    }
-
-    switch (int1_sense_mode()) {
-    case 0x00U:
-        if (!high) raise_int1();
-        break;
-    case 0x01U:
-        if (previous != high) raise_int1();
-        break;
-    case 0x02U:
-        if (previous && !high) raise_int1();
-        break;
-    case 0x03U:
-        if (!previous && high) raise_int1();
-        break;
-    default:
-        break;
-    }
+    handle_level_change(1, high);
 }
 
 void ExtInterrupt::set_int0_voltage(const double normalized_voltage) noexcept
@@ -260,26 +206,56 @@ void ExtInterrupt::set_int0_voltage(const double normalized_voltage) noexcept
     if (bus_ != nullptr) {
         bus_->register_ticking_peripheral(*this);
     }
-    set_int0_level(apply_schmitt_threshold(int0_level_, normalized_voltage));
+    set_int0_level(apply_schmitt_threshold(int_levels_[0], normalized_voltage));
 }
 
 void ExtInterrupt::refresh_bound_input() noexcept
 {
-    if (signal_bank_ == nullptr) {
-        return;
+    if (signal_bank_ == nullptr) return;
+    set_int0_level(apply_schmitt_threshold(int_levels_[0], signal_bank_->voltage(signal_channel_), threshold_config_));
+}
+
+u8 ExtInterrupt::sense_mode(const u8 index) const noexcept
+{
+    if (index < 4) return extract_sense_mode(eicra_, index);
+    return extract_sense_mode(eicrb_, static_cast<u8>(index - 4));
+}
+
+void ExtInterrupt::handle_level_change(const u8 index, const bool high) noexcept
+{
+    const bool previous = int_levels_[index];
+    int_levels_[index] = high;
+
+    if (previous != high) {
+        Logger::debug("INT" + std::to_string(index) + " level change detected");
     }
 
-    set_int0_level(apply_schmitt_threshold(int0_level_, signal_bank_->voltage(signal_channel_), threshold_config_));
+    switch (sense_mode(index)) {
+    case 0x00U:
+        if (!high) raise_interrupt(index);
+        break;
+    case 0x01U:
+        if (previous != high) raise_interrupt(index);
+        break;
+    case 0x02U:
+        if (previous && !high) raise_interrupt(index);
+        break;
+    case 0x03U:
+        if (!previous && high) raise_interrupt(index);
+        break;
+    default:
+        break;
+    }
 }
 
-u8 ExtInterrupt::int0_sense_mode() const noexcept
+void ExtInterrupt::raise_interrupt(const u8 index) noexcept
 {
-    return static_cast<u8>(eicra_ & 0x03U);
-}
-
-u8 ExtInterrupt::int1_sense_mode() const noexcept
-{
-    return static_cast<u8>((eicra_ >> 2U) & 0x03U);
+    eifr_ |= kIntMask(index);
+    int_pending_[index] = true;
+    update_interrupt_pending();
+    if (index == 0 && auto_trigger_adc_ != nullptr) {
+        auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::external_interrupt_0);
+    }
 }
 
 void ExtInterrupt::update_interrupt_pending() noexcept {
@@ -287,21 +263,4 @@ void ExtInterrupt::update_interrupt_pending() noexcept {
     set_interrupt_pending(pending_interrupt_request(req));
 }
 
-void ExtInterrupt::raise_int0() noexcept
-{
-    eifr_ |= kInt0Mask;
-    int0_pending_ = true;
-    update_interrupt_pending();
-    if (auto_trigger_adc_ != nullptr) {
-        auto_trigger_adc_->notify_auto_trigger(Adc::AutoTriggerSource::external_interrupt_0);
-    }
-}
-
-void ExtInterrupt::raise_int1() noexcept
-{
-    eifr_ |= 0x02U;
-    int1_pending_ = true;
-    update_interrupt_pending();
-}
-
-}  // namespace vioavr::core
+} // namespace vioavr::core

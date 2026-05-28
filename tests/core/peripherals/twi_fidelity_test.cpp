@@ -6,6 +6,10 @@
 
 using namespace vioavr::core;
 
+// Each TWI byte/start/stop step takes divisor × 9 cycles (8 data bits + 1 ACK)
+static constexpr u32 kTwbr10Divisor = 36U;
+static constexpr u32 kStepCycles = kTwbr10Divisor * 9U;
+
 TEST_CASE("TWI: Master State Machine and Status Codes") {
     const auto& desc = devices::atmega32u4.twis[0];
     MemoryBus bus{devices::atmega32u4};
@@ -21,7 +25,7 @@ TEST_CASE("TWI: Master State Machine and Status Codes") {
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
     CHECK(twi.busy());
     
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(!twi.busy());
     CHECK(bus.read_data(desc.twsr_address) == 0x08); // START Transmitted
     
@@ -30,20 +34,20 @@ TEST_CASE("TWI: Master State Machine and Status Codes") {
     bus.write_data(desc.twdr_address, 0x40); // Addr 0x20 + Write (0)
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
     
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x18); // SLA+W ACK
     
     // 3. Data Transmit
     bus.write_data(desc.twdr_address, 0xA5);
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
     
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x28); // Data ACK
     CHECK(twi.tx_buffer().back() == 0xA5);
     
     // 4. STOP
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsto_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0xF8); // Bus Idle
 }
 
@@ -80,14 +84,14 @@ TEST_CASE("TWI: NACK Detection on Slave Address") {
     
     // Start condition
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x08); // START
     
     // SLA+W to non-existent address (0x7F)
     bus.write_data(desc.twdr_address, 0xFE); // Addr 0x7F + Write
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
     
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     // Should get SLA+W NOT ACK (0x20) since no slave responds
     CHECK(bus.read_data(desc.twsr_address) == 0x20);
 }
@@ -104,34 +108,34 @@ TEST_CASE("TWI: Repeated START Condition") {
     // First transaction: Write to address 0x20
     bus.write_data(desc.twar_address, 0x40); // Enable slave response
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     
     bus.write_data(desc.twdr_address, 0x40); // SLA+W
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x18); // SLA+W ACK
     
     // Send data byte
     bus.write_data(desc.twdr_address, 0x55);
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x28); // Data ACK
     
     // Repeated START (without STOP)
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x10); // Repeated START
     
     // SLA+R (read from same device)
     bus.write_data(desc.twar_address, 0x41); // Enable slave response for read
     bus.write_data(desc.twdr_address, 0x41); // SLA+R
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     // Status depends on whether device supports read
     
     // STOP
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsto_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0xF8); // Bus idle
 }
 
@@ -146,7 +150,7 @@ TEST_CASE("TWI: Clock Stretching Simulation") {
     
     // Start and address
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     
     bus.write_data(desc.twdr_address, 0x40);
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
@@ -172,7 +176,7 @@ TEST_CASE("TWI: Arbitration Lost Detection") {
     
     // Start transaction
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x08); // START
     
     // In multi-master scenario, arbitration could be lost
@@ -194,12 +198,12 @@ TEST_CASE("TWI: General Call Address (0x00)") {
     
     // Start
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     
     // General call address (0x00 + Write = 0x00)
     bus.write_data(desc.twdr_address, 0x00);
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     
     // Status should be General Call ACK (0x70) if slaves respond
     u8 status = bus.read_data(desc.twsr_address);
@@ -238,7 +242,7 @@ TEST_CASE("TWI: Interrupt Flag Behavior") {
     
     // Start transaction
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     
     // TWINT should be set when operation completes
     u8 twcr = bus.read_data(desc.twcr_address);
@@ -300,13 +304,13 @@ TEST_CASE("TWI: Master Receiver Mode") {
     
     // START
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsta_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     CHECK(bus.read_data(desc.twsr_address) == 0x08); // START
     
     // SLA+R (Read from address 0x20)
     bus.write_data(desc.twdr_address, 0x41); // SLA+R
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     
     // Status depends on slave response
     // 0x40 = SLA+R transmitted, ACK received
@@ -317,7 +321,7 @@ TEST_CASE("TWI: Master Receiver Mode") {
     // Data byte reception with ACK
     // TWEA=1: Send ACK after receive
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twea_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
     
     // Status 0x50 = Data received, ACK returned
     // Status 0x58 = Data received, NACK returned
@@ -326,5 +330,5 @@ TEST_CASE("TWI: Master Receiver Mode") {
     
     // STOP
     bus.write_data(desc.twcr_address, desc.twen_mask | desc.twsto_mask | desc.twint_mask);
-    bus.tick_peripherals(36);
+    bus.tick_peripherals(kStepCycles);
 }

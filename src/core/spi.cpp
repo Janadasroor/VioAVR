@@ -181,6 +181,7 @@ void Spi::trigger_slave_transfer(const u32 sck_bit_cycles) noexcept
         const u32 total_cycles = 8U * sck_bit_cycles;
         transfer_cycles_left_ = total_cycles;
         if (bus_) {
+            bus_->scheduler().cancel(spi_callback, this);
             bus_->scheduler().schedule(total_cycles, spi_callback, this);
         }
     }

@@ -52,6 +52,9 @@ inline constexpr DeviceDescriptor attiny13 {
             .timsk_address = 0x59U,
             .tccra_address = 0x4FU,
             .tccrb_address = 0x53U,
+            .compare_a_enable_mask = 0x04U,
+            .compare_b_enable_mask = 0x08U,
+            .overflow_enable_mask = 0x02U,
             .timer_index = 0U,
         }
     }},

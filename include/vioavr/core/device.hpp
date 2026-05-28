@@ -83,6 +83,7 @@ struct AdcDescriptor {
     u8 adts_mask {0x07U};   // Mask for ADTS bits in ADCSRB
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    u8 mux5_mask {0x20U}; // Which bit of ADCSRB carries MUX5 (0x20=bit5 for ATmega32U4, 0x08=bit3 for ATmega328P/2560)
     std::array<AdcMuxEntry, 64> mux_table {};
 };
 
@@ -137,6 +138,34 @@ struct Adc10bDescriptor {
     u8 resovr_vector_index {};
     u8 sampovr_vector_index {};
     u8 trigovr_vector_index {};
+};
+
+struct AdcEaDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrld_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 status_address {};
+    u16 dbgctrl_address {};
+    u16 ctrle_address {};
+    u16 ctrlf_address {};
+    u16 command_address {};
+    u16 pgactrl_address {};
+    u16 muxpos_address {};
+    u16 muxneg_address {};
+    u16 result_address {};
+    u16 sample_address {};
+    u16 temp0_address {};
+    u16 temp1_address {};
+    u16 temp2_address {};
+    u16 winlt_address {};
+    u16 winht_address {};
+
+    u8 error_vector_index {};
+    u8 resrdy_vector_index {};
+    u8 samprdy_vector_index {};
 };
 
 struct Ac8xDescriptor {
@@ -615,6 +644,89 @@ struct TcdDescriptor {
     u8 woc_pin_bit {0xFFU};
     u8 wod_pin_address {0U};
     u8 wod_pin_bit {0xFFU};
+};
+
+struct TceDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrleclr_address {};
+    u16 ctrleset_address {};
+    u16 ctrlfclr_address {};
+    u16 ctrlfset_address {};
+    u16 evgenctrl_address {};
+    u16 evctrl_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 dbgctrl_address {};
+    u16 temp_address {};
+    u16 tcnt_address {};
+    u16 period_address {};
+    u16 cmp0_address {};
+    u16 cmp1_address {};
+    u16 cmp2_address {};
+    u16 perbuf_address {};
+    u16 cmp0buf_address {};
+    u16 cmp1buf_address {};
+    u16 cmp2buf_address {};
+
+    u8 ovf_vector_index {};
+    u8 cmp0_vector_index {};
+    u8 cmp1_vector_index {};
+    u8 cmp2_vector_index {};
+
+    u16 user_event_address {};
+    u8 ovf_generator_id {};
+    u8 cmp0_generator_id {};
+    u8 cmp1_generator_id {};
+    u8 cmp2_generator_id {};
+};
+
+struct TcDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrld_address {};
+    u16 ctrle_address {};
+    u16 intctrla_address {};
+    u16 intctrlb_address {};
+    u16 ctrlfclr_address {};
+    u16 ctrlfset_address {};
+    u16 ctrlgclr_address {};
+    u16 ctrlgset_address {};
+    u16 intflags_address {};
+    u16 temp_address {};
+    u16 cnt_address {};
+    u16 period_address {};
+    u16 cca_address {};
+    u16 ccb_address {};
+    u16 ccc_address {};
+    u16 ccd_address {};
+    u16 perbuf_address {};
+    u16 ccabuf_address {};
+    u16 ccbbuf_address {};
+    u16 cccbuf_address {};
+    u16 ccdbuf_address {};
+    u8 ovf_vector_index {};
+    u8 err_vector_index {};
+    u8 cca_vector_index {};
+    u8 ccb_vector_index {};
+    u8 ccc_vector_index {};
+    u8 ccd_vector_index {};
+};
+
+struct AwexDescriptor {
+    u16 ctrl_address {};
+    u16 fdemask_address {};
+    u16 fdctrl_address {};
+    u16 status_address {};
+    u16 dtboth_address {};
+    u16 dtbothbuf_address {};
+    u16 dtls_address {};
+    u16 dths_address {};
+    u16 dtlsbuf_address {};
+    u16 dthsbuf_address {};
+    u16 outoven_address {};
 };
 
 struct RtcDescriptor {
@@ -1197,6 +1309,9 @@ struct DeviceDescriptor {
     u8 adc10b_count {0U};
     std::array<Adc10bDescriptor, 2> adcs10b {};
 
+    u8 adcea_count {0U};
+    std::array<AdcEaDescriptor, 1> adceas {};
+
     u8 ac_count {0U};
     std::array<AnalogComparatorDescriptor, 4> acs {};
 
@@ -1220,6 +1335,15 @@ struct DeviceDescriptor {
 
     u8 tcd_count {0U};
     std::array<TcdDescriptor, 1> timers_tcd {};
+
+    u8 tce_count {0U};
+    std::array<TceDescriptor, 4> timers_tce {};
+
+    u8 tc_count {0U};
+    std::array<TcDescriptor, 12> timers_tc {};
+
+    u8 awex_count {0U};
+    std::array<AwexDescriptor, 4> awexs {};
 
     u8 rtc_count {0U};
     std::array<RtcDescriptor, 1> timers_rtc {};

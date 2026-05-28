@@ -55,6 +55,7 @@ private:
     
     u32 write_cycles_left_ {};
     u8 master_write_enable_timeout_ {};
+    u8 eepm_mode_ {}; // Latched programming mode (EEPM bits) at write start
 };
 
 }  // namespace vioavr::core

@@ -30,6 +30,14 @@ void vioavr_tick_timer2_async(VioSpiceHandle handle, uint64_t ticks);
 void vioavr_add_pin_mapping(VioSpiceHandle handle, const char* port_name, uint8_t bit_index, uint32_t external_id);
 void vioavr_set_external_pin(VioSpiceHandle handle, uint32_t external_id, VioAvrPinLevel level);
 
+// Analog voltage injection (for ADC / comparator inputs)
+void vioavr_set_external_voltage(VioSpiceHandle handle, uint8_t channel, double voltage_volts);
+void vioavr_set_external_voltage_by_pin(VioSpiceHandle handle, uint32_t external_id, double voltage);
+void vioavr_set_operating_voltage(VioSpiceHandle handle, double vcc_volts);
+
+// Query analog outputs (DAC voltages)
+int vioavr_get_analog_outputs(VioSpiceHandle handle, double* outputs, int max_outputs);
+
 // Query
 uint64_t vioavr_get_cycles(VioSpiceHandle handle);
 

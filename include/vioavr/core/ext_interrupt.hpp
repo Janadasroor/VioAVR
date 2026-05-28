@@ -14,6 +14,8 @@ class PinMux;
 
 class ExtInterrupt final : public IoPeripheral {
 public:
+    static constexpr u8 kIntCount = 8;
+
     ExtInterrupt(std::string_view name,
                  const ExtInterruptDescriptor& descriptor,
                  PinMux& pin_mux,
@@ -42,15 +44,14 @@ public:
 private:
     void refresh_bound_input() noexcept;
     void update_interrupt_pending() noexcept;
-    [[nodiscard]] u8 int0_sense_mode() const noexcept;
-    [[nodiscard]] u8 int1_sense_mode() const noexcept;
-    void raise_int0() noexcept;
-    void raise_int1() noexcept;
+    [[nodiscard]] u8 sense_mode(u8 index) const noexcept;
+    void handle_level_change(u8 index, bool high) noexcept;
+    void raise_interrupt(u8 index) noexcept;
 
     std::string name_;
     ExtInterruptDescriptor desc_;
     PinMux* pin_mux_ {};
-    std::array<AddressRange, 3> ranges_;
+    std::array<AddressRange, 4> ranges_;
     u8 source_id_;
 
     const AnalogSignalBank* signal_bank_ {};
@@ -59,12 +60,11 @@ private:
     Adc* auto_trigger_adc_ {};
 
     u8 eicra_ {};
+    u8 eicrb_ {};
     u8 eimsk_ {};
     u8 eifr_ {};
-    bool int0_level_ {true};
-    bool int1_level_ {true};
-    bool int0_pending_ {};
-    bool int1_pending_ {};
+    std::array<bool, kIntCount> int_levels_ {};
+    std::array<bool, kIntCount> int_pending_ {};
 };
 
-}  // namespace vioavr::core
+} // namespace vioavr::core

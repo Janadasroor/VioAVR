@@ -281,7 +281,7 @@ void Adc::complete_conversion() noexcept {
 
 Adc::MuxMapping Adc::resolve_mux() const noexcept {
     u8 mux = (admux_ & 0x1FU);
-    if (adcsrb_ & 0x20U) mux |= 0x20U; // Add MUX5
+    if (desc_.mux5_mask && (adcsrb_ & desc_.mux5_mask)) mux |= 0x20U; // Add MUX5
 
     if (mux < desc_.mux_table.size()) {
         const auto& entry = desc_.mux_table[mux];

@@ -32,6 +32,7 @@ inline constexpr DeviceDescriptor atmega328p {
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .clkpr_address = 0x61U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,
     .xmcrb_address = 0x0U,

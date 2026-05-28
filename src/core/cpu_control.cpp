@@ -134,7 +134,11 @@ u8 CpuControl::read(const u16 address) noexcept
     if (address == d.prr0_address) return prr0_;
     if (address == d.prr1_address) return prr1_;
     if (address == d.pllcsr_address) return pllcsr_;
-    if (address == d.clkpr_address) return clkpr_;
+    if (address == d.clkpr_address) {
+        u8 val = clkpr_;
+        if (cpu_.cycles() < clkpr_expiry_) val |= 0x80U; // CLKPCE active
+        return val;
+    }
     if (address == d.osccal_address) return osccal_;
     
     if (address == d.spl_address) return static_cast<u8>(cpu_.stack_pointer() & 0xFFU);
@@ -185,8 +189,11 @@ void CpuControl::write(const u16 address, const u8 value) noexcept
         } else if (cpu_.cycles() < clkpr_expiry_) {
             // Update CLKPS if CE is not set in this write
             if (!(value & 0x80U)) {
+                u8 old_clkpr = clkpr_;
                 clkpr_ = value & 0x0FU;
                 clkpr_expiry_ = 0;
+                if (old_clkpr != clkpr_ && on_freq_changed_)
+                    on_freq_changed_(static_cast<u32>(effective_frequency()));
             }
         }
     } else if (address == d.osccal_address) {
@@ -220,10 +227,14 @@ void CpuControl::unlock_ccp(u8 signature) noexcept {
     }
 }
 
-u8 CpuControl::clock_prescaler() const noexcept {
+u32 CpuControl::cpu_frequency_hz() const noexcept {
+    return static_cast<u32>(effective_frequency());
+}
+
+u16 CpuControl::clock_prescaler() const noexcept {
     u8 ps = clkpr_ & 0x0FU;
-    if (ps > 8) return 1; // Reserved
-    return static_cast<u8>(1U << ps);
+    if (ps > 8) return 1U; // Reserved
+    return static_cast<u16>(1U << ps);
 }
 
 }  // namespace vioavr::core

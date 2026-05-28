@@ -438,6 +438,7 @@ def generate(root, output_file=sys.stdout):
     tca_instances = []
     tcb_instances = []
     tcd_instances = []
+    tce_instances = []
     rtc_instances = []
     usi_instances = []
     uart_instances = []
@@ -449,6 +450,7 @@ def generate(root, output_file=sys.stdout):
     adc_instances = []
     adc8x_instances = []
     adc10b_instances = []
+    adcea_instances = []
     ac_instances = []
     ac8x_instances = []
     eeprom_instances = []
@@ -500,6 +502,8 @@ def generate(root, output_file=sys.stdout):
                 tcb_instances.append(iname)
             elif mname == "TCD":
                 tcd_instances.append(iname)
+            elif mname == "TCE":
+                tce_instances.append(iname)
             elif mname == "RTC":
                 rtc_instances.append(iname)
             elif mname == "USI":
@@ -521,7 +525,9 @@ def generate(root, output_file=sys.stdout):
                     twi_instances.append(iname)
             elif mname == "ADC":
                 mod_id = mod.get("id", "")
-                if is_avr8x and mod_id == "adc_10b_ctrl_avr_v1":
+                if is_avr8x and mod_id == "adc_12b_diff_ctrl_avr_v2":
+                    adcea_instances.append(iname)
+                elif is_avr8x and mod_id in ("adc_10b_ctrl_avr_v1", "adc_10b_ctrl_avr_v2"):
                     adc10b_instances.append(iname)
                 elif is_avr8x:
                     adc8x_instances.append(iname)
@@ -637,6 +643,11 @@ def generate(root, output_file=sys.stdout):
     if is_avr8x:
         ccp_address = get_register(root, "CPU", "CPU", "CCP")
     
+    # CLKPR (Clock Prescaler Register) — classic AVR only
+    clkpr_address = 0
+    if not is_avr8x:
+        clkpr_address = get_register(root, "CPU", "CPU", "CLKPR")
+    
     # ---- Extract signature bytes ----
     sig0 = 0
     sig1 = 0
@@ -718,6 +729,8 @@ def generate(root, output_file=sys.stdout):
     if not is_avr8x:
         out.append(f"    .sigrd_mask = 0x20U,")
         out.append(f"    .spmen_mask = 0x01U,")
+    if clkpr_address:
+        out.append(f"    .clkpr_address = 0x{clkpr_address:02X}U,")
     
     out.append(f"    .cpu_frequency_hz = 16'000'000U,")
     
@@ -837,7 +850,51 @@ def generate(root, output_file=sys.stdout):
                 out.append(f"            .trigovr_vector_index = {trigovr_idx}U,")
             out.append(f"        }}," if ai < len(adc10b_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
-    
+
+    # ---- AVR8X AdcEa (EA 12-bit diff ADC v2) ----
+    if is_avr8x and adcea_instances:
+        ADCEA_FIELDS = {
+            "CTRLA": "ctrla_address", "CTRLB": "ctrlb_address",
+            "CTRLC": "ctrlc_address", "CTRLD": "ctrld_address",
+            "INTCTRL": "intctrl_address", "INTFLAGS": "intflags_address",
+            "STATUS": "status_address",
+            "DBGCTRL": "dbgctrl_address", "CTRLE": "ctrle_address",
+            "CTRLF": "ctrlf_address", "COMMAND": "command_address",
+            "PGACTRL": "pgactrl_address",
+            "MUXPOS": "muxpos_address", "MUXNEG": "muxneg_address",
+            "RESULT": "result_address", "SAMPLE": "sample_address",
+            "TEMP0": "temp0_address", "TEMP1": "temp1_address",
+            "TEMP2": "temp2_address",
+            "WINLT": "winlt_address", "WINHT": "winht_address",
+        }
+        out.append("")
+        out.append(f"    .adcea_count = {len(adcea_instances)}U,")
+        out.append(f"    .adceas = {{{{")
+        for ai, aname in enumerate(adcea_instances):
+            regs = extract_module_registers(root, "ADC", aname, ADCEA_FIELDS)
+            error_idx = find_interrupt_by_module(root, "ERROR", aname)
+            resrdy_idx = find_interrupt_by_module(root, "RESRDY", aname)
+            samprdy_idx = find_interrupt_by_module(root, "SAMPRDY", aname)
+            out.append(f"        {{")
+            for fn in ["ctrla_address", "ctrlb_address", "ctrlc_address",
+                      "ctrld_address", "intctrl_address", "intflags_address",
+                      "status_address", "dbgctrl_address", "ctrle_address",
+                      "ctrlf_address", "command_address", "pgactrl_address",
+                      "muxpos_address", "muxneg_address",
+                      "result_address", "sample_address",
+                      "temp0_address", "temp1_address", "temp2_address",
+                      "winlt_address", "winht_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            if error_idx != 0xFF:
+                out.append(f"            .error_vector_index = {error_idx}U,")
+            if resrdy_idx != 0xFF:
+                out.append(f"            .resrdy_vector_index = {resrdy_idx}U,")
+            if samprdy_idx != 0xFF:
+                out.append(f"            .samprdy_vector_index = {samprdy_idx}U,")
+            out.append(f"        }}," if ai < len(adcea_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+
     # ---- AC (classic) / AC8x (AVR8X) ----
     if ac_instances and not is_avr8x:
         out.append("")
@@ -1061,7 +1118,56 @@ def generate(root, output_file=sys.stdout):
                 out.append(f"            .trig_vector_index = {trig_idx}U,")
             out.append(f"        }}," if ti < len(tcd_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
-    
+
+    # ---- AVR8X TCE ----    
+    if is_avr8x and tce_instances:
+        TCE_FIELDS = {
+            "CTRLA": "ctrla_address", "CTRLB": "ctrlb_address",
+            "CTRLC": "ctrlc_address",
+            "CTRLECLR": "ctrleclr_address", "CTRLESET": "ctrleset_address",
+            "CTRLFCLR": "ctrlfclr_address", "CTRLFSET": "ctrlfset_address",
+            "EVGENCTRL": "evgenctrl_address", "EVCTRL": "evctrl_address",
+            "INTCTRL": "intctrl_address", "INTFLAGS": "intflags_address",
+            "DBGCTRL": "dbgctrl_address", "TEMP": "temp_address",
+            "CNT": "tcnt_address", "PER": "period_address",
+            "CMP0": "cmp0_address", "CMP1": "cmp1_address", "CMP2": "cmp2_address",
+            "PERBUF": "perbuf_address",
+            "CMP0BUF": "cmp0buf_address", "CMP1BUF": "cmp1buf_address",
+            "CMP2BUF": "cmp2buf_address",
+        }
+        out.append("")
+        out.append(f"    .tce_count = {len(tce_instances)}U,")
+        out.append(f"    .timers_tce = {{{{")
+        for ti, tname in enumerate(tce_instances):
+            regs = extract_module_registers(root, "TCE", tname, TCE_FIELDS)
+            ovf_idx = find_interrupt_by_module(root, "OVF", tname)
+            cmp0_idx = find_interrupt_by_module(root, "CMP0", tname)
+            cmp1_idx = find_interrupt_by_module(root, "CMP1", tname)
+            cmp2_idx = find_interrupt_by_module(root, "CMP2", tname)
+            out.append(f"        {{")
+            for fn in ["ctrla_address", "ctrlb_address", "ctrlc_address",
+                      "ctrleclr_address", "ctrleset_address",
+                      "ctrlfclr_address", "ctrlfset_address",
+                      "evgenctrl_address", "evctrl_address",
+                      "intctrl_address", "intflags_address",
+                      "dbgctrl_address", "temp_address",
+                      "tcnt_address", "period_address",
+                      "cmp0_address", "cmp1_address", "cmp2_address",
+                      "perbuf_address", "cmp0buf_address",
+                      "cmp1buf_address", "cmp2buf_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            if ovf_idx != 0xFF:
+                out.append(f"            .ovf_vector_index = {ovf_idx}U,")
+            if cmp0_idx != 0xFF:
+                out.append(f"            .cmp0_vector_index = {cmp0_idx}U,")
+            if cmp1_idx != 0xFF:
+                out.append(f"            .cmp1_vector_index = {cmp1_idx}U,")
+            if cmp2_idx != 0xFF:
+                out.append(f"            .cmp2_vector_index = {cmp2_idx}U,")
+            out.append(f"        }}," if ti < len(tce_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+
     # ---- AVR8X RTC ----
     if is_avr8x and rtc_instances:
         AVR8X_RTC_FIELDS = {
@@ -1927,6 +2033,441 @@ def generate_all(atdf_glob_pattern, output_dir, description):
     print(f"  Generated {count} files")
     return count
 
+def build_xmega_register_map(root):
+    """Build register address map for XMEGA ATDF format.
+    
+    XMEGA ATDF splits register definitions across two locations:
+    - Root <modules>: defines register layout (names + offsets relative to register-group)
+    - Device <peripherals>: maps register-group to address space
+    
+    Returns dict: (module_name, instance_name) -> {register_name: absolute_address}
+    """
+    # Step 1: Build module register layouts from root <modules>
+    # <modules> -> <module> -> <register-group> -> <register>
+    module_layouts = {}  # (module_name, rg_name) -> [(offset, name, size)]
+    for mod in root.find('modules'):
+        mname = mod.get('name', '')
+        for rg in mod.findall('register-group'):
+            rgname = rg.get('name', '')
+            regs = []
+            for r in rg.findall('register'):
+                roff = parse_hex(r.get('offset', '0'))
+                regs.append((roff, r.get('name', ''), r.get('size', '1')))
+            if regs:
+                module_layouts[(mname, rgname)] = regs
+    
+    def match_rg(mname, dev_rgname):
+        """Match device register-group name to root register-group name."""
+        # Exact match
+        key = (mname, dev_rgname)
+        if key in module_layouts:
+            return module_layouts[key]
+        # Try module name as group name
+        key2 = (mname, mname)
+        if key2 in module_layouts:
+            return module_layouts[key2]
+        # Strip trailing digits from device group name (e.g. "PORTA" -> "PORT")
+        stripped = re.sub(r'[0-9]+$', '', dev_rgname)
+        if stripped and stripped != dev_rgname:
+            key3 = (mname, stripped)
+            if key3 in module_layouts:
+                return module_layouts[key3]
+                # Try matching by prefix (e.g. "PORTA" starts with "PORT")
+        for (mn, rgn), regs in module_layouts.items():
+            if mn == mname:
+                if rgn.startswith(dev_rgname) or dev_rgname.startswith(rgn):
+                    return regs
+                # Try stripping common prefixes/suffixes
+                # "TCC0" -> "TC0" (strip port letter, keep channel number)
+                if dev_rgname.startswith(mname) and len(dev_rgname) > len(mname):
+                    without_prefix = dev_rgname[len(mname):]
+                    if rgn.endswith(without_prefix) or without_prefix.endswith(rgn):
+                        return regs
+                # XMEGA TC/TCD0 "TCD0" -> "TC0": strip port letter from middle
+                # dev_rgname format: TC<port_letter><num> (e.g. TCC0, TCD0, TCF0)
+                # rgn format: TC<num> (e.g. TC0, TC1)
+                if dev_rgname.startswith(mname):
+                    num_match = re.match(r'^TC[A-Z](\d+)$', dev_rgname)
+                    if num_match:
+                        num = num_match.group(1)
+                        if rgn == f'TC{num}':
+                            return regs
+        return []
+    
+    # Step 2: Map device peripherals using base addresses
+    result = {}
+    dev = root.find('.//device')
+    periphs = dev.find('peripherals')
+    
+    for mod in periphs:
+        mname = mod.get('name', '')
+        for inst in mod:
+            iname = inst.get('name', '')
+            instance_regs = {}
+            
+            for rg in inst.findall('register-group'):
+                base = parse_hex(rg.get('offset', '0'))
+                rgname = rg.get('name', '')
+                matched_regs = match_rg(mname, rgname)
+                for roff, rname, rsize in matched_regs:
+                    instance_regs[rname] = base + roff
+            
+            # Also look for sub-register-groups (DMA_CH, ADC_CH, TWI_MASTER, etc.)
+            # These are at different offsets within the same module
+            seen_names = set(instance_regs.keys())
+            for (mn, rgn), regs in module_layouts.items():
+                if mn == mname and rgn != mname and rgn not in seen_names:
+                    # Check if this sub-group name relates to the instance
+                    if rgn.endswith('_CH') or rgn in ('TWI_MASTER', 'TWI_SLAVE'):
+                        for roff, rname, rsize in regs:
+                            instance_regs[rname] = base + roff
+                            seen_names.add(rname)
+            
+            if instance_regs:
+                result[(mname, iname)] = instance_regs
+    
+    return result
+
+
+def generate_xmega(root, output_file=sys.stdout):
+    """Generate DeviceDescriptor for XMEGA devices (architecture=AVR8_XMEGA)."""
+    
+    dev = root.find('.//device')
+    if dev is None:
+        print("ERROR: No <device> found", file=sys.stderr)
+        return False
+    
+    name = dev.get("name", "unknown")
+    chip_name = name.lower().replace("-", "").replace(" ", "")
+    
+    # Build register map
+    regs = build_xmega_register_map(root)
+    
+    # ---- Memory layout ----
+    flash_words = 0
+    sram_bytes = 0
+    sram_start = 0
+    eeprom_bytes = 0
+    flash_page_size = 0x80
+    io_start = 0x0000
+    io_end = 0x0FFF  # XMEGA has 4KB IO space
+    
+    for asp in dev.findall('.//address-spaces/address-space'):
+        aname = asp.get('name', '')
+        if aname == 'prog':
+            for seg in asp.findall('memory-segment'):
+                if seg.get('type') == 'flash':
+                    fs = parse_hex(seg.get('size', '0'))
+                    flash_words += fs // 2
+                    ps = seg.get('pagesize', '0')
+                    if ps != '0':
+                        flash_page_size = parse_hex(ps)
+        elif aname == 'data':
+            for seg in asp.findall('memory-segment'):
+                stype = seg.get('type', '')
+                if stype == 'ram' and 'EXTERNAL' not in seg.get('name', ''):
+                    sram_bytes = parse_hex(seg.get('size', '0'))
+                    sram_start = parse_hex(seg.get('start', '0'))
+                elif stype == 'io':
+                    io_size = parse_hex(seg.get('size', '0'))
+                    io_end = parse_hex(seg.get('start', '0')) + io_size - 1
+        elif aname == 'eeprom':
+            for seg in asp.findall('memory-segment'):
+                if seg.get('type') == 'eeprom':
+                    eeprom_bytes = parse_hex(seg.get('size', '0'))
+    
+    # ---- Interrupt vectors (XMEGA uses <interrupt-group> not <interrupt>) ----
+    interrupts = []
+    for i in dev.findall('interrupts/interrupt-group'):
+        idx = parse_int(i.get('index', '0'))
+        interrupts.append(idx)
+    
+    vector_count = max(interrupts) + 1 if interrupts else 0
+    vector_size = 4  # XMEGA uses 4-byte vectors (EIND + 2-byte address)
+    
+    # ---- Signature bytes ----
+    sig0 = sig1 = sig2 = 0
+    for pg in root.findall(".//property-group[@name='SIGNATURES']"):
+        for prop in pg.findall("property"):
+            pname = prop.get("name", "")
+            pval = prop.get("value", "0")
+            if pname == "SIGNATURE0": sig0 = parse_hex(pval)
+            elif pname == "SIGNATURE1": sig1 = parse_hex(pval)
+            elif pname == "SIGNATURE2": sig2 = parse_hex(pval)
+    
+    # ---- System registers from CPU module ----
+    cpu_regs = regs.get(("CPU", "CPU"), {})
+    spl_addr = cpu_regs.get("SPL", 0x003D)
+    sph_addr = cpu_regs.get("SPH", 0x003E)
+    sreg_addr = cpu_regs.get("SREG", 0x003F)
+    rampz_addr = cpu_regs.get("RAMPZ", 0)
+    cc_addr = cpu_regs.get("CCP", 0)
+    eind_addr = cpu_regs.get("EIND", 0)
+    
+    # ---- Ports ----
+    port_instances = []
+    for (mn, iname), iregs in regs.items():
+        if mn == 'PORT' and re.match(r'^PORT[A-Z]$', iname):
+            port_letter = iname[4]
+            port_instances.append((port_letter, iregs))
+    
+    # Find VPORT instances
+    vport_bases = {}
+    for (mn, iname), iregs in regs.items():
+        if re.match(r'^VPORT[0-3]$', iname):
+            vport_num = int(iname[5])
+            # VPORT0=0x10, VPORT1=0x14, VPORT2=0x18, VPORT3=0x1C
+            # XMEGA maps VPORTs sequentially to ports
+            if vport_num < len(port_instances):
+                vport_bases[port_instances[vport_num][0]] = parse_hex(
+                    next((rg.get('offset') for mod in dev.findall('.//peripherals/module')
+                          for inst in mod if inst.get('name') == iname
+                          for rg in inst.findall('register-group')), '0'))
+    
+    out = []
+    out.append("#pragma once")
+    out.append("#include \"vioavr/core/device.hpp\"")
+    out.append("")
+    out.append("namespace vioavr::core::devices {")
+    out.append("")
+    out.append(f"inline constexpr DeviceDescriptor {chip_name} {{")
+    
+    # Identity
+    out.append(f"    .name = \"{name}\",")
+    out.append(f"    .flash_words = {flash_words}U,")
+    out.append(f"    .sram_bytes = {sram_bytes}U,")
+    out.append(f"    .sram_start = 0x{sram_start:04X}U,")
+    out.append(f"    .eeprom_bytes = {eeprom_bytes}U,")
+    out.append(f"    .interrupt_vector_count = {vector_count}U,")
+    out.append(f"    .interrupt_vector_size = {vector_size}U,")
+    out.append(f"    .flash_page_size = 0x{flash_page_size:X}U,")
+    
+    # Memory ranges
+    out.append(f"    .register_file_range = {{ 0x0000, 0x001F }},")
+    out.append(f"    .io_range = {{ 0x{io_start:04X}, 0x{min(io_end, 0x3F):04X} }},")
+    ext_end = max(io_end, 0x3F)
+    out.append(f"    .extended_io_range = {{ 0x0040, 0x{ext_end:04X} }},")
+    
+    # Mapped memory (XMEGA has mapped EEPROM)
+    mapped_eeprom_start = 0
+    mapped_eeprom_size = 0
+    for seg in dev.findall('.//address-spaces/address-space[@name="data"]//memory-segment'):
+        if seg.get('type') == 'eeprom' and parse_hex(seg.get('start', '0')) > 0x100:
+            mapped_eeprom_start = parse_hex(seg.get('start', '0'))
+            mapped_eeprom_size = parse_hex(seg.get('size', '0'))
+    if mapped_eeprom_size:
+        out.append(f"    .mapped_eeprom = {{ 0x{mapped_eeprom_start:04X}U, 0x{mapped_eeprom_size:04X}U }},")
+    
+    # System registers
+    out.append("")
+    out.append(f"    .spl_address = 0x{spl_addr:02X}U,")
+    out.append(f"    .sph_address = 0x{sph_addr:02X}U,")
+    out.append(f"    .sreg_address = 0x{sreg_addr:02X}U,")
+    if rampz_addr:
+        out.append(f"    .rampz_address = 0x{rampz_addr:02X}U,")
+    if eind_addr:
+        out.append(f"    .eind_address = 0x{eind_addr:02X}U,")
+    if cc_addr:
+        out.append(f"    .ccp_address = 0x{cc_addr:02X}U,")
+    
+    out.append(f"    .cpu_frequency_hz = 32'000'000U,")
+    
+    # ---- TC (Timer/Counter 16-bit) ----
+    XMEGA_TC_FIELDS = {
+        "CTRLA": "ctrla_address",
+        "CTRLB": "ctrlb_address",
+        "CTRLC": "ctrlc_address",
+        "CTRLD": "ctrld_address",
+        "CTRLE": "ctrle_address",
+        "INTCTRLA": "intctrla_address",
+        "INTCTRLB": "intctrlb_address",
+        "CTRLFCLR": "ctrlfclr_address",
+        "CTRLFSET": "ctrlfset_address",
+        "CTRLGCLR": "ctrlgclr_address",
+        "CTRLGSET": "ctrlgset_address",
+        "INTFLAGS": "intflags_address",
+        "TEMP": "temp_address",
+        "CNT": "cnt_address",
+        "PER": "period_address",
+        "CCA": "cca_address",
+        "CCB": "ccb_address",
+        "CCC": "ccc_address",
+        "CCD": "ccd_address",
+        "PERBUF": "perbuf_address",
+        "CCABUF": "ccabuf_address",
+        "CCBBUF": "ccbbuf_address",
+        "CCCBUF": "cccbuf_address",
+        "CCDBUF": "ccdbuf_address",
+    }
+    tc_instances = []
+    for (mn, iname), iregs in regs.items():
+        if mn == 'TC' and re.match(r'^TC[A-Z]\d+$', iname):
+            addrs = {}
+            for rname, field in XMEGA_TC_FIELDS.items():
+                if rname in iregs:
+                    addrs[field] = iregs[rname]
+            # Find base interrupt vector
+            base_vec = 0
+            for i in dev.findall('interrupts/interrupt-group'):
+                if i.get('module-instance', '') == iname:
+                    base_vec = parse_int(i.get('index', '0'))
+                    break
+            # XMEGA TC has per-source vectors offset from base:
+            # TC0 (full, 4 CC): OVF=base, ERR=base+1, CCA=base+2, CCB=base+3, CCC=base+4, CCD=base+5
+            # TC1 (reduced, 2 CC): OVF=base, CCA=base+1, CCB=base+2
+            has_ccc = 'CCC' in iregs
+            has_err = 'CTRLGCLR' in iregs or 'CTRLGSET' in iregs
+            if base_vec:
+                addrs['ovf_vector_index'] = base_vec
+                if has_err:
+                    addrs['err_vector_index'] = base_vec + 1
+                    addrs['cca_vector_index'] = base_vec + 2
+                    addrs['ccb_vector_index'] = base_vec + 3
+                    if has_ccc:
+                        addrs['ccc_vector_index'] = base_vec + 4
+                        addrs['ccd_vector_index'] = base_vec + 5
+                else:
+                    addrs['cca_vector_index'] = base_vec + 1
+                    addrs['ccb_vector_index'] = base_vec + 2
+            tc_instances.append((iname, addrs))
+    if tc_instances:
+        out.append("")
+        out.append(f"    .tc_count = {len(tc_instances)}U,")
+        out.append(f"    .timers_tc = {{{{")
+        for ti, (tname, taddrs) in enumerate(tc_instances):
+            sep = ',' if ti < len(tc_instances) - 1 else ''
+            out.append(f"        {{")
+            for field in ['ctrla_address', 'ctrlb_address', 'ctrlc_address', 'ctrld_address', 'ctrle_address',
+                          'intctrla_address', 'intctrlb_address',
+                          'ctrlfclr_address', 'ctrlfset_address',
+                          'ctrlgclr_address', 'ctrlgset_address',
+                          'intflags_address', 'temp_address',
+                          'cnt_address', 'period_address',
+                          'cca_address', 'ccb_address', 'ccc_address', 'ccd_address',
+                          'perbuf_address', 'ccabuf_address', 'ccbbuf_address', 'cccbuf_address', 'ccdbuf_address',
+                          'ovf_vector_index', 'err_vector_index',
+                          'cca_vector_index', 'ccb_vector_index', 'ccc_vector_index', 'ccd_vector_index']:
+                val = taddrs.get(field, 0)
+                if val:
+                    out.append(f"            .{field} = {val}U,")
+            out.append(f"        }}{sep}")
+        out.append(f"    }}}},")
+    
+    # ---- AWEX (Advanced Waveform Extension) ----
+    XMEGA_AWEX_FIELDS = {
+        "CTRL": "ctrl_address",
+        "FDEMASK": "fdemask_address",
+        "FDCTRL": "fdctrl_address",
+        "STATUS": "status_address",
+        "DTBOTH": "dtboth_address",
+        "DTBOTHBUF": "dtbothbuf_address",
+        "DTLS": "dtls_address",
+        "DTHS": "dths_address",
+        "DTLSBUF": "dtlsbuf_address",
+        "DTHSBUF": "dthsbuf_address",
+        "OUTOVEN": "outoven_address",
+    }
+    awex_instances = []
+    for (mn, iname), iregs in regs.items():
+        if mn == 'TC' and re.match(r'^AWEX[A-Z]$', iname):
+            addrs = {}
+            for rname, field in XMEGA_AWEX_FIELDS.items():
+                if rname in iregs:
+                    addrs[field] = iregs[rname]
+            awex_instances.append((iname, addrs))
+    if awex_instances:
+        out.append("")
+        out.append(f"    .awex_count = {len(awex_instances)}U,")
+        out.append(f"    .awexs = {{{{")
+        for ai, (aname, aaddrs) in enumerate(awex_instances):
+            sep = ',' if ai < len(awex_instances) - 1 else ''
+            out.append(f"        {{")
+            for field in ['ctrl_address', 'fdemask_address', 'fdctrl_address', 'status_address',
+                          'dtboth_address', 'dtbothbuf_address',
+                          'dtls_address', 'dths_address',
+                          'dtlsbuf_address', 'dthsbuf_address', 'outoven_address']:
+                val = aaddrs.get(field, 0)
+                if val:
+                    out.append(f"            .{field} = {val}U,")
+            out.append(f"        }}{sep}")
+        out.append(f"    }}}},")
+    
+    # Signature/fuse fields (BEFORE port_count in struct order)
+    out.append("")
+    out.append(f"    .fuse_address = 0x0000U,")
+    out.append(f"    .lockbit_address = 0x0000U,")
+    out.append(f"    .signature_address = 0x0000U,")
+    out.append(f"    .signature = {{ 0x{sig0:02X}U, 0x{sig1:02X}U, 0x{sig2:02X}U }},")
+    
+    # Ports
+    out.append("")
+    out.append(f"    .port_count = {len(port_instances)}U,")
+    out.append(f"    .ports = {{{{")
+    for pi, (pl, iregs) in enumerate(port_instances):
+        dir_addr = iregs.get('DIR', 0)
+        dirset_addr = iregs.get('DIRSET', 0)
+        dirclr_addr = iregs.get('DIRCLR', 0)
+        dirtgl_addr = iregs.get('DIRTGL', 0)
+        out_addr = iregs.get('OUT', 0)
+        outset_addr = iregs.get('OUTSET', 0)
+        outclr_addr = iregs.get('OUTCLR', 0)
+        outtgl_addr = iregs.get('OUTTGL', 0)
+        in_addr = iregs.get('IN', 0)
+        intflags_addr = iregs.get('INTFLAGS', 0)
+        
+        # Find interrupt vector for this port
+        port_vector = 0xFF
+        for i in dev.findall('interrupts/interrupt-group'):
+            if i.get('module-instance', '') == f'PORT{pl}':
+                port_vector = parse_int(i.get('index', '0xFF'))
+                break
+        
+        separator = ',' if pi < len(port_instances) - 1 else ''
+        out.append(f"        {{")
+        out.append(f"            .name = \"PORT{pl}\",")
+        if in_addr:
+            out.append(f"            .pin_address = 0x{in_addr:04X}U,")
+        if dir_addr:
+            out.append(f"            .ddr_address = 0x{dir_addr:04X}U,")
+        if out_addr:
+            out.append(f"            .port_address = 0x{out_addr:04X}U,")
+        if dirset_addr:
+            out.append(f"            .dirset_address = 0x{dirset_addr:04X}U,")
+        if dirclr_addr:
+            out.append(f"            .dirclr_address = 0x{dirclr_addr:04X}U,")
+        if dirtgl_addr:
+            out.append(f"            .dirtgl_address = 0x{dirtgl_addr:04X}U,")
+        if outset_addr:
+            out.append(f"            .outset_address = 0x{outset_addr:04X}U,")
+        if outclr_addr:
+            out.append(f"            .outclr_address = 0x{outclr_addr:04X}U,")
+        if outtgl_addr:
+            out.append(f"            .outtgl_address = 0x{outtgl_addr:04X}U,")
+        # pin_ctrl_base (PIN0CTRL address, comes before intflags_address in struct)
+        pin_ctrl_addr = iregs.get('PIN0CTRL', 0)
+        if pin_ctrl_addr:
+            out.append(f"            .pin_ctrl_base = 0x{pin_ctrl_addr:04X}U,")
+        if intflags_addr:
+            out.append(f"            .intflags_address = 0x{intflags_addr:04X}U,")
+        # VPORT base (must come before vector_index in struct)
+        vp_base = vport_bases.get(pl, 0)
+        if vp_base:
+            out.append(f"            .vport_base = 0x{vp_base:04X}U,")
+        if port_vector != 0xFF:
+            out.append(f"            .vector_index = {port_vector}U,")
+        separator = ',' if pi < len(port_instances) - 1 else ''
+        out.append(f"        }}{separator}")
+    out.append(f"    }}}},")
+    
+    out.append(f"}};")
+    out.append("")
+    out.append(f"}}  // namespace vioavr::core::devices")
+    out.append("")
+    
+    output_file.write("\n".join(out))
+    return True
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Generate VioAVR device descriptor from ATDF")
@@ -1934,6 +2475,10 @@ def main():
     parser.add_argument("--all", action="store_true", help="Generate all ATtiny descriptors")
     parser.add_argument("--all-classic", action="store_true", help="Generate all ATmega/AT90 classic descriptors")
     parser.add_argument("--all-avr-dx", action="store_true", help="Generate all AVR-DA/DB/DD/DU descriptors")
+    parser.add_argument("--all-avr-ex", action="store_true", help="Generate all AVR-EA/EB descriptors")
+    parser.add_argument("--all-avr-lx", action="store_true", help="Generate all AVR-LA descriptors")
+    parser.add_argument("--all-avr-sx", action="store_true", help="Generate all AVR-SD descriptors")
+    parser.add_argument("--all-xmega", action="store_true", help="Generate all XMEGA descriptors")
     parser.add_argument("--output-dir", default=None, help="Output directory for --all / --all-classic / --all-avr-dx")
     args = parser.parse_args()
     
@@ -1966,12 +2511,69 @@ def main():
         generate_all(str(avrdx_dir / "AVR*.atdf"), output_dir, "AVR-Dx")
         return 0
     
+    if args.all_avr_ex:
+        ex_dir = base_dir / "avr-pack" / "avr-ex" / "atdf"
+        if not ex_dir.exists():
+            print(f"AVR-Ex ATDF directory not found: {ex_dir}", file=sys.stderr)
+            return 1
+        generate_all(str(ex_dir / "AVR*.atdf"), output_dir, "AVR-Ex")
+        return 0
+    
+    if args.all_avr_lx:
+        lx_dir = base_dir / "avr-pack" / "avr-lx" / "atdf"
+        if not lx_dir.exists():
+            print(f"AVR-Lx ATDF directory not found: {lx_dir}", file=sys.stderr)
+            return 1
+        generate_all(str(lx_dir / "AVR*.atdf"), output_dir, "AVR-Lx")
+        return 0
+    
+    if args.all_avr_sx:
+        sx_dir = base_dir / "avr-pack" / "avr-sx" / "atdf"
+        if not sx_dir.exists():
+            print(f"AVR-Sx ATDF directory not found: {sx_dir}", file=sys.stderr)
+            return 1
+        generate_all(str(sx_dir / "AVR*.atdf"), output_dir, "AVR-Sx")
+        return 0
+    
+    if args.all_xmega:
+        xmega_dir = base_dir / "avr-pack" / "xmega" / "atdf"
+        if not xmega_dir.exists():
+            print(f"XMEGA ATDF directory not found: {xmega_dir}", file=sys.stderr)
+            return 1
+        xmega_out_dir = output_dir / "xmega"
+        xmega_out_dir.mkdir(parents=True, exist_ok=True)
+        count = 0
+        import glob as gglob
+        for atdf_path in sorted(gglob.glob(str(xmega_dir / "ATxmega*.atdf"))):
+            chip = Path(atdf_path).stem.lower()
+            out_path = xmega_out_dir / f"{chip}.hpp"
+            print(f"  {Path(atdf_path).stem} -> {out_path.name}")
+            try:
+                tree = ET.parse(atdf_path)
+                with open(str(out_path), "w") as f:
+                    if not generate_xmega(tree.getroot(), f):
+                        print(f"    FAILED", file=sys.stderr)
+                count += 1
+            except Exception as e:
+                print(f"    ERROR: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+        print(f"  Generated {count} XMEGA descriptor files")
+        return 0
+    
     if not args.atdf:
         parser.print_help()
         return 1
     
     tree = ET.parse(args.atdf)
-    generate(tree.getroot())
+    root = tree.getroot()
+    # Auto-detect format
+    architecture = root.find('.//device')
+    arch = architecture.get('architecture', '') if architecture is not None else ''
+    if arch == 'AVR8_XMEGA':
+        generate_xmega(root)
+    else:
+        generate(root)
     return 0
 
 

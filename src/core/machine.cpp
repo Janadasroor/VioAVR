@@ -26,6 +26,8 @@
 #include "vioavr/core/cpu_int.hpp"
 #include "vioavr/core/tca.hpp"
 #include "vioavr/core/tcb.hpp"
+#include "vioavr/core/tc.hpp"
+#include "vioavr/core/awex.hpp"
 #include "vioavr/core/rtc.hpp"
 #include "vioavr/core/evsys.hpp"
 #include "vioavr/core/ccl.hpp"
@@ -48,6 +50,8 @@
 #include "vioavr/core/ptc.hpp"
 #include "vioavr/core/cfd.hpp"
 #include "vioavr/core/tcd.hpp"
+#include "vioavr/core/tce.hpp"
+#include "vioavr/core/adcea.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
 #include "vioavr/core/usb8x.hpp"
@@ -585,6 +589,47 @@ void Machine::initialize_peripherals()
         auto tcd = std::make_unique<Tcd>(device_.timers_tcd[i]);
         bus_->attach_peripheral(*tcd);
         owned_peripherals_.push_back(std::move(tcd));
+    }
+
+    // TCE (Timer/Counter Type E — LA family)
+    for (u8 i = 0; i < device_.tce_count; ++i) {
+        auto tce = std::make_unique<Tce>("TCE" + std::to_string(i), device_.timers_tce[i]);
+        tce->set_event_system(evsys);
+        if (port_mux_) {
+            tce->set_port_mux(port_mux_);
+            port_mux_->add_observer(tce.get());
+        }
+        bus_->attach_peripheral(*tce);
+        owned_peripherals_.push_back(std::move(tce));
+    }
+
+    // TC (XMEGA 16-bit Timer/Counter)
+    for (u8 i = 0; i < device_.tc_count; ++i) {
+        auto tc = std::make_unique<Tc>("TC" + std::to_string(i), device_.timers_tc[i]);
+        tc->set_event_system(evsys);
+        if (port_mux_) {
+            tc->set_port_mux(port_mux_);
+            port_mux_->add_observer(tc.get());
+        }
+        bus_->attach_peripheral(*tc);
+        owned_peripherals_.push_back(std::move(tc));
+    }
+
+    // AWEX (XMEGA Advanced Waveform Extension)
+    for (u8 i = 0; i < device_.awex_count; ++i) {
+        auto awex = std::make_unique<Awex>("AWEX" + std::to_string(i), device_.awexs[i]);
+        awex->set_memory_bus(bus_.get());
+        bus_->attach_peripheral(*awex);
+        owned_peripherals_.push_back(std::move(awex));
+    }
+
+    // AdcEa (EA 12-bit diff ADC)
+    for (u8 i = 0; i < device_.adcea_count; ++i) {
+        auto adc = std::make_unique<AdcEa>(device_.adceas[i]);
+        adc->set_memory_bus(bus_.get());
+        adc->set_analog_signal_bank(&analog_signal_bank_);
+        bus_->attach_peripheral(*adc);
+        owned_peripherals_.push_back(std::move(adc));
     }
 
     // 18. CCL (Moved to end to ensure all other peripherals are on the bus)

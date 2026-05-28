@@ -46,8 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
         'pa4_an': '#ff4757',   // Neon Coral Red (SEG0)
         'pc5_an': '#39ff14',   // Neon Electric Green (SEG11)
         'pd7_an': '#ffa502',   // Neon Orange (SEG19)
-        'out_plus': '#00ff88',  // Neon Green (inverter positive output)
-        'out_minus': '#ff4488'  // Hot Pink (inverter negative output)
+        'out_plus': '#00ff88',   // Neon Green (inverter positive output)
+        'out_minus': '#ff4488',  // Hot Pink (inverter negative output)
+        'v_diff': '#fee440'      // Yellow (differential sine = out_plus - out_minus)
     };
 
     // Load available netlists on startup

@@ -216,24 +216,26 @@ void Eeprom::start_write() noexcept
     eecr_ = static_cast<u8>((eecr_ & ~kEempe) | kEepe);
     master_write_enable_timeout_ = 0;
 
-    const u8 mode = (eecr_ >> 4U) & 0x03U;
-    switch (mode) {
+    eepm_mode_ = (eecr_ >> 4U) & 0x03U; // Latch programming mode at write start
+    switch (eepm_mode_) {
         case 0x00U: write_cycles_left_ = kEepromAtomicCycles; break;
         case 0x01U: write_cycles_left_ = kEepromEraseOnlyCycles; break;
         case 0x02U: write_cycles_left_ = kEepromWriteOnlyCycles; break;
         default:    write_cycles_left_ = kEepromAtomicCycles; break;
     }
-    if (bus_) bus_->scheduler().schedule(write_cycles_left_, eeprom_write_complete_callback, this);
+    if (bus_) {
+        bus_->scheduler().cancel(eeprom_write_complete_callback, this);
+        bus_->scheduler().schedule(write_cycles_left_, eeprom_write_complete_callback, this);
+    }
 }
 
 void Eeprom::complete_write() noexcept
 {
     const u16 addr = static_cast<u16>(eear_ % size_);
-    const u8 mode = (eecr_ >> 4U) & 0x03U;
     
-    if (mode == 0x01U) { // Erase only
+    if (eepm_mode_ == 0x01U) { // Erase only
         storage_[addr] = 0xFFU;
-    } else if (mode == 0x02U) { // Write only
+    } else if (eepm_mode_ == 0x02U) { // Write only
         storage_[addr] &= eedr_;
     } else { // Atomic
         storage_[addr] = eedr_;

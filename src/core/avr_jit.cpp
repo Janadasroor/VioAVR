@@ -27,7 +27,7 @@ void jit_add_flags(JitState* state, uint8_t rd, uint8_t rr, uint8_t result) {
     bool v = (d7 && s7 && !r7) || (!d7 && !s7 && r7);
     bool h = (d3 && s3) || (s3 && !r3) || (!r3 && d3);
     bool s = n ^ v;
-    state->sreg = sreg_to_byte(c, z, n, v, s, h, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(c, z, n, v, s, h, false, false);
 }
 
 void jit_sub_flags(JitState* state, uint8_t rd, uint8_t rr, uint8_t result) {
@@ -43,7 +43,7 @@ void jit_sub_flags(JitState* state, uint8_t rd, uint8_t rr, uint8_t result) {
     bool v = (d7 && !s7 && !r7) || (!d7 && s7 && r7);
     bool h = (!d3 && s3) || (s3 && r3) || (r3 && !d3);
     bool s = n ^ v;
-    state->sreg = sreg_to_byte(c, z, n, v, s, h, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(c, z, n, v, s, h, false, false);
 }
 
 void jit_logic_flags(JitState* state, uint8_t /*rd*/, uint8_t /*rr*/, uint8_t result) {
@@ -51,7 +51,7 @@ void jit_logic_flags(JitState* state, uint8_t /*rd*/, uint8_t /*rr*/, uint8_t re
     bool n = (result & 0x80) != 0;
     bool v = false;
     bool s = n ^ v;
-    state->sreg = sreg_to_byte(false, z, n, v, s, false, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(false, z, n, v, s, false, false, false);
 }
 
 // Memory access helpers for JIT-compiled LDD/STD/LDS/STS/IN/OUT
@@ -123,7 +123,7 @@ void jit_lsr(JitState* state, uint8_t rd) {
     uint8_t z = (r == 0) ? 1 : 0;
     uint8_t v = n ^ c;
     uint8_t s = n ^ v;
-    state->sreg = (state->sreg & 0xE0) | c | (z << 1) | (n << 2) | (v << 3) | (s << 4);
+    state->sreg = (state->sreg & 0xC0) | c | (z << 1) | (n << 2) | (v << 3) | (s << 4);
 }
 
 void jit_asr(JitState* state, uint8_t rd) {
@@ -136,7 +136,7 @@ void jit_asr(JitState* state, uint8_t rd) {
     uint8_t z = (r == 0) ? 1 : 0;
     uint8_t v = n ^ c;
     uint8_t s = n ^ v;
-    state->sreg = (state->sreg & 0xE0) | c | (z << 1) | (n << 2) | (v << 3) | (s << 4);
+    state->sreg = (state->sreg & 0xC0) | c | (z << 1) | (n << 2) | (v << 3) | (s << 4);
 }
 
 void jit_ror(JitState* state, uint8_t rd) {
@@ -150,7 +150,7 @@ void jit_ror(JitState* state, uint8_t rd) {
     uint8_t z = (r == 0) ? 1 : 0;
     uint8_t v = n ^ c;
     uint8_t s = n ^ v;
-    state->sreg = (state->sreg & 0xE0) | c | (z << 1) | (n << 2) | (v << 3) | (s << 4);
+    state->sreg = (state->sreg & 0xC0) | c | (z << 1) | (n << 2) | (v << 3) | (s << 4);
 }
 
 void jit_sbci(JitState* state, uint8_t rd, uint8_t imm) {
@@ -172,7 +172,7 @@ void jit_sbci(JitState* state, uint8_t rd, uint8_t imm) {
     bool v = (d7 && !s7 && !r7) || (!d7 && s7 && r7);
     bool h = (!d3 && s3) || (s3 && r3) || (r3 && !d3);
     bool s = n ^ v;
-    state->sreg = sreg_to_byte(c, z, n, v, s, h, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(c, z, n, v, s, h, false, false);
 }
 
 void jit_adc(JitState* state, uint8_t rd, uint8_t rr) {
@@ -193,7 +193,7 @@ void jit_adc(JitState* state, uint8_t rd, uint8_t rr) {
     bool v = (d7 && s7 && !r7) || (!d7 && !s7 && r7);
     bool h = (d3 && s3) || (s3 && !r3) || (!r3 && d3);
     bool s = n ^ v;
-    state->sreg = sreg_to_byte(c, z, n, v, s, h, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(c, z, n, v, s, h, false, false);
 }
 
 void jit_sbc(JitState* state, uint8_t rd, uint8_t rr) {
@@ -215,7 +215,7 @@ void jit_sbc(JitState* state, uint8_t rd, uint8_t rr) {
     bool v = (d7 && !s7 && !r7) || (!d7 && s7 && r7);
     bool h = (!d3 && s3) || (s3 && r3) || (r3 && !d3);
     bool s = n ^ v;
-    state->sreg = sreg_to_byte(c, z, n, v, s, h, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(c, z, n, v, s, h, false, false);
 }
 
 void jit_cpc(JitState* state, uint8_t rd, uint8_t rr) {
@@ -236,7 +236,7 @@ void jit_cpc(JitState* state, uint8_t rd, uint8_t rr) {
     bool v = (d7 && !s7 && !r7) || (!d7 && s7 && r7);
     bool h = (!d3 && s3) || (s3 && r3) || (r3 && !d3);
     bool s = n ^ v;
-    state->sreg = sreg_to_byte(c, z, n, v, s, h, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(c, z, n, v, s, h, false, false);
 }
 
 // Flag-preservation helper for instructions that don't modify C/H
@@ -265,7 +265,7 @@ void jit_neg(JitState* state, uint8_t rd) {
     bool s = n ^ v;
     bool c = (result != 0);
     bool h = d3 || r3;
-    state->sreg = sreg_to_byte(c, z, n, v, s, h, false, false);
+    state->sreg = (state->sreg & 0xC0) | sreg_to_byte(c, z, n, v, s, h, false, false);
 }
 
 void jit_inc(JitState* state, uint8_t rd) {
@@ -304,7 +304,7 @@ void jit_mul(JitState* state, uint8_t rd, uint8_t rr) {
     state->gpr[1] = static_cast<uint8_t>((product >> 8) & 0xFF);
     bool z = (product == 0);
     bool c = (product & 0x8000) != 0;
-    state->sreg = (state->sreg & 0xE0) | (c ? 1u : 0u) | (z ? 2u : 0u);
+    state->sreg = (state->sreg & 0xC0) | (c ? 1u : 0u) | (z ? 2u : 0u);
 }
 
 void jit_adiw(JitState* state, uint8_t pair, uint8_t imm) {
@@ -316,12 +316,12 @@ void jit_adiw(JitState* state, uint8_t pair, uint8_t imm) {
     state->gpr[lo + 1] = static_cast<uint8_t>((result >> 8) & 0xFF);
     bool r15 = (result >> 15) != 0;
     bool v15 = (val >> 15) != 0;
-    bool c = !v15 && r15;
+    bool c = v15 && !r15;
     bool v = v15 ^ r15;
     bool n = r15;
     bool z = (result == 0);
     bool s = n ^ v;
-    state->sreg = (state->sreg & 0xE0) | (c ? 1u : 0u) | (z ? 2u : 0u) | (n ? 4u : 0u) |
+    state->sreg = (state->sreg & 0xC0) | (c ? 1u : 0u) | (z ? 2u : 0u) | (n ? 4u : 0u) |
                   (v ? 8u : 0u) | (s ? 16u : 0u);
 }
 
@@ -339,7 +339,7 @@ void jit_sbiw(JitState* state, uint8_t pair, uint8_t imm) {
     bool n = r15;
     bool z = (result == 0);
     bool s = n ^ v;
-    state->sreg = (state->sreg & 0xE0) | (c ? 1u : 0u) | (z ? 2u : 0u) | (n ? 4u : 0u) |
+    state->sreg = (state->sreg & 0xC0) | (c ? 1u : 0u) | (z ? 2u : 0u) | (n ? 4u : 0u) |
                   (v ? 8u : 0u) | (s ? 16u : 0u);
 }
 
