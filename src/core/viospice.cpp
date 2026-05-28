@@ -41,6 +41,7 @@
 #include "vioavr/core/tcd.hpp"
 #include "vioavr/core/tce.hpp"
 #include "vioavr/core/adcea.hpp"
+#include "vioavr/core/xmegadc.hpp"
 #include "vioavr/core/zcd.hpp"
 #include "vioavr/core/opamp.hpp"
 #include "vioavr/core/cfd.hpp"
@@ -516,6 +517,15 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     // 14e. AdcEa (EA 12-bit diff ADC)
     for (u8 i = 0; i < device.adcea_count; ++i) {
         auto adc = std::make_unique<AdcEa>(device.adceas[i]);
+        adc->set_memory_bus(&bus_);
+        adc->set_analog_signal_bank(&analog_signal_bank_);
+        bus_.attach_peripheral(*adc);
+        owned_peripherals_.push_back(std::move(adc));
+    }
+
+    // 14f. XMEGA ADC
+    for (u8 i = 0; i < device.adc_xmega_count; ++i) {
+        auto adc = std::make_unique<XmegaAdc>(device.adcs_xmega[i]);
         adc->set_memory_bus(&bus_);
         adc->set_analog_signal_bank(&analog_signal_bank_);
         bus_.attach_peripheral(*adc);

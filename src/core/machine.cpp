@@ -52,6 +52,7 @@
 #include "vioavr/core/tcd.hpp"
 #include "vioavr/core/tce.hpp"
 #include "vioavr/core/adcea.hpp"
+#include "vioavr/core/xmegadc.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
 #include "vioavr/core/usb8x.hpp"
@@ -633,6 +634,15 @@ void Machine::initialize_peripherals()
     // AdcEa (EA 12-bit diff ADC)
     for (u8 i = 0; i < device_.adcea_count; ++i) {
         auto adc = std::make_unique<AdcEa>(device_.adceas[i]);
+        adc->set_memory_bus(bus_.get());
+        adc->set_analog_signal_bank(&analog_signal_bank_);
+        bus_->attach_peripheral(*adc);
+        owned_peripherals_.push_back(std::move(adc));
+    }
+
+    // XMEGA ADC
+    for (u8 i = 0; i < device_.adc_xmega_count; ++i) {
+        auto adc = std::make_unique<XmegaAdc>(device_.adcs_xmega[i]);
         adc->set_memory_bus(bus_.get());
         adc->set_analog_signal_bank(&analog_signal_bank_);
         bus_->attach_peripheral(*adc);

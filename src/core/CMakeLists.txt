@@ -77,6 +77,7 @@ target_sources(vioavr_core
         tc.cpp
         adcea.cpp
         awex.cpp
+        xmegadc.cpp
         vcd_writer.cpp
 )
 
