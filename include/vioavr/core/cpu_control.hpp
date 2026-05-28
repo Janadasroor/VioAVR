@@ -2,6 +2,7 @@
 
 #include "vioavr/core/io_peripheral.hpp"
 #include <vector>
+#include <functional>
 
 namespace vioavr::core {
 
@@ -82,12 +83,19 @@ public:
     void exit_sleep() noexcept { sleeping_ = false; }
     [[nodiscard]] bool is_sleeping() const noexcept { return sleeping_; }
 
-    [[nodiscard]] u8 clock_prescaler() const noexcept;
+    [[nodiscard]] u16 clock_prescaler() const noexcept;
     [[nodiscard]] u8 mcusr() const noexcept { return mcusr_; }
     [[nodiscard]] u8 mcucr() const noexcept { return mcucr_; }
     void set_reset_cause(ResetCause cause) noexcept;
     void clear_mcusr() noexcept { mcusr_ = 0U; }
- 
+    
+    using FrequencyChangedCallback = std::function<void(u32 new_hz)>;
+    
+    void set_frequency_changed_callback(FrequencyChangedCallback cb) noexcept {
+        on_freq_changed_ = std::move(cb);
+    }
+    
+    [[nodiscard]] u32 cpu_frequency_hz() const noexcept;
     [[nodiscard]] u64 effective_frequency() const noexcept;
 
 private:
@@ -111,6 +119,7 @@ private:
     AvrCpu& cpu_;
     u64 base_frequency_hz_ {16000000U};
     bool internal_rc_active_ {false};
+    FrequencyChangedCallback on_freq_changed_;
     std::vector<AddressRange> ranges_;
 };
 

@@ -55,6 +55,28 @@ void vioavr_set_external_pin(VioSpiceHandle handle, uint32_t external_id, VioAvr
         (level == VIOAVR_LEVEL_HIGH) ? PinLevel::high : PinLevel::low);
 }
 
+void vioavr_set_external_voltage(VioSpiceHandle handle, uint8_t channel, double voltage_volts) {
+    static_cast<VioSpice*>(handle)->set_external_voltage(channel, voltage_volts);
+}
+
+void vioavr_set_external_voltage_by_pin(VioSpiceHandle handle, uint32_t external_id, double voltage) {
+    static_cast<VioSpice*>(handle)->set_external_voltage_to_digital(external_id, voltage);
+}
+
+void vioavr_set_operating_voltage(VioSpiceHandle handle, double vcc_volts) {
+    static_cast<VioSpice*>(handle)->set_operating_voltage(vcc_volts);
+}
+
+int vioavr_get_analog_outputs(VioSpiceHandle handle, double* outputs, int max_outputs) {
+    auto values = static_cast<VioSpice*>(handle)->get_analog_outputs();
+    int count = 0;
+    for (const auto& v : values) {
+        if (count >= max_outputs) break;
+        outputs[count++] = v;
+    }
+    return count;
+}
+
 uint64_t vioavr_get_cycles(VioSpiceHandle handle) {
     return static_cast<VioSpice*>(handle)->cpu().cycles();
 }

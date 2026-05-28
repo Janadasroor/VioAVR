@@ -42,7 +42,9 @@ void Wdt8x::tick(u64 elapsed_cycles) noexcept {
 
     if (elapsed_cycles_ >= timeout_cycles_) {
         cpu_.reset(ResetCause::watchdog);
-        reset();
+        // Don't call reset() here — cpu_.reset() triggers system reset which calls Wdt8x::reset().
+        // Calling it again would zero configuration registers (CTRLA, WINCTRLA) which persist
+        // across Watchdog Reset on real hardware.
     }
 }
 
@@ -95,10 +97,13 @@ void Wdt8x::reset_timer() noexcept {
     if (!enabled_) {
         // WDR when disabled starts the WDT running (per AVR8X datasheet)
         enabled_ = true;
-        // Use whatever period is already configured in ctrla_
         u8 period = ctrla_ & 0x0FU;
         if (period != 0) {
             timeout_cycles_ = (1ULL << (period - 1)) * 128000ULL;
+        } else {
+            // Period 0 means WDT is off — enabling with period=0 would cause
+            // stale timeout_cycles_ to trigger instant reset. Use minimum period.
+            timeout_cycles_ = 128000ULL; // 8ms at 16MHz
         }
     }
     elapsed_cycles_ = 0;

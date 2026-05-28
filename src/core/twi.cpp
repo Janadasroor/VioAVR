@@ -119,7 +119,7 @@ void Twi::write(const u16 address, const u8 value) noexcept
                 // F_SCL = CPU_CLK / (16 + 2*TWBR * 4^Prescaler)
                 u32 prescaler = 1 << (2 * (twsr_ & 0x03U));
                 u32 divisor = 16 + 2 * twbr_ * prescaler;
-                step_cycles_left_ = divisor; // One TWI cycle
+                step_cycles_left_ = divisor * 9U; // One byte + ACK = 9 bit-times
             }
         }
         twcr_ = value & ~desc_.twint_mask; // Clear TWINT internally

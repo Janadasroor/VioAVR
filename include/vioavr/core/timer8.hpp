@@ -99,7 +99,7 @@ private:
     PinMux* pin_mux_ {};
     std::string name_;
     Timer8Descriptor desc_;
-    std::array<AddressRange, 4> ranges_ {};
+    std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {};
 
 

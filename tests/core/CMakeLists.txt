@@ -36,6 +36,10 @@ set(TEST_SOURCES
     avr8x/avr8x_spi_multi_byte_test.cpp
     avr8x/avr8x_sysctrl_fidelity_test.cpp
     avr8x/avr8x_tca_fidelity_test.cpp
+    avr8x/avr8x_tce_fidelity_test.cpp
+    xmega/xmega_tc_fidelity_test.cpp
+    xmega/xmega_awex_fidelity_test.cpp
+    avr8x/avr8x_adcea_fidelity_test.cpp
     avr8x/avr8x_tca_frq_mode_test.cpp
     avr8x/avr8x_tca_pwm_period_test.cpp
     avr8x/avr8x_tcb_fidelity_test.cpp
@@ -229,6 +233,10 @@ set(TEST_SOURCES
     viospice/viospice_all_devices_test.cpp
     viospice/viospice_ngspice_all_devices_test.cpp
     viospice/viospice_attiny_tca_pwm_test.cpp
+    attiny/attiny13_fidelity_test.cpp
+    attiny/attiny85_fidelity_test.cpp
+    attiny/attiny861_fidelity_test.cpp
+    attiny/attiny412_fidelity_test.cpp
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})

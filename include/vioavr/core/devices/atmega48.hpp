@@ -36,6 +36,7 @@ inline constexpr DeviceDescriptor atmega48 {
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .clkpr_address = 0x61U,
     .ccp_address = 0x0U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,

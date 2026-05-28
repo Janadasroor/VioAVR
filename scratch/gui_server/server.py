@@ -13,6 +13,7 @@ BUILD_DIR = os.path.join(WORKSPACE_DIR, "build")
 DAEMON_PATH = os.path.join(BUILD_DIR, "vioavr-bridge-daemon")
 NGSPICE_PATH = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice"
 COSIM_SO = os.path.join(BUILD_DIR, "cosim/libavr_cosim.so")
+OSCOPE_PATH = os.path.join(BUILD_DIR, "oscope/vioavr_oscope")
 
 class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
     def end_headers(self):
@@ -41,6 +42,8 @@ class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/api/run-simulation':
             self.handle_run_simulation()
+        elif self.path == '/api/launch-oscope':
+            self.handle_launch_oscope()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -206,6 +209,80 @@ class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
             self.kill_stale_daemons()
             self.send_json_error(500, f"Internal Simulation Error: {str(e)}")
 
+    def handle_launch_oscope(self):
+        """Run simulation and launch native oscilloscope app with results."""
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            params = json.loads(post_data.decode('utf-8'))
+            
+            cir_path = params.get('path')
+            if not cir_path or not os.path.exists(cir_path):
+                self.send_json_error(400, "Invalid or missing circuit file path.")
+                return
+
+            cir_dir = os.path.dirname(cir_path)
+            cir_filename = os.path.basename(cir_path)
+            mcu_type, hex_path, model_type = self.parse_cir_metadata(cir_path)
+
+            if model_type == "d_cosim":
+                cosim_link = os.path.join(cir_dir, "cosim/libavr_cosim.so")
+                if not os.path.exists(cosim_link):
+                    os.makedirs(os.path.join(cir_dir, "cosim"), exist_ok=True)
+                    os.symlink(COSIM_SO, cosim_link)
+                hex_link = os.path.join(cir_dir, "firmware.hex")
+                if not os.path.exists(hex_link):
+                    for f in os.listdir(cir_dir):
+                        if f.endswith(".hex"):
+                            os.symlink(os.path.join(cir_dir, f), hex_link)
+                            break
+
+                log_path = os.path.join(cir_dir, "sim_matrix.log")
+                ngspice_cmd = [NGSPICE_PATH, "-b", cir_filename]
+                start_time = time.time()
+                sim_result = subprocess.run(
+                    ngspice_cmd, cwd=cir_dir,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=30
+                )
+                elapsed_time = time.time() - start_time
+                with open(log_path, 'w') as lf:
+                    lf.write(sim_result.stdout)
+            else:
+                log_path = os.path.join(cir_dir, "sim_matrix.log")
+                ngspice_cmd = [NGSPICE_PATH, "-b", cir_filename]
+                start_time = time.time()
+                sim_result = subprocess.run(
+                    ngspice_cmd, cwd=cir_dir,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=30
+                )
+                elapsed_time = time.time() - start_time
+                with open(log_path, 'w') as lf:
+                    lf.write(sim_result.stdout)
+
+            # Launch native oscilloscope app asynchronously
+            if sim_result.returncode == 0 and os.path.exists(OSCOPE_PATH):
+                subprocess.Popen([OSCOPE_PATH, log_path],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            response = {
+                "success": sim_result.returncode == 0,
+                "elapsed_s": elapsed_time,
+                "log": sim_result.stdout,
+                "oscope_launched": os.path.exists(OSCOPE_PATH)
+            }
+            response_data = json.dumps(response).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', len(response_data))
+            self.end_headers()
+            self.wfile.write(response_data)
+        except subprocess.TimeoutExpired:
+            self.send_json_error(504, "Simulation execution timed out (limit: 30s).")
+        except Exception as e:
+            self.send_json_error(500, f"Internal Simulation Error: {str(e)}")
+
     def kill_stale_daemons(self):
         try:
             subprocess.run(["pkill", "-f", "vioavr-bridge-daemon"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -296,9 +373,30 @@ class SimulationHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(response_data)
 
 def run_server():
+    parser = argparse.ArgumentParser(description="VioAVR GUI Dashboard / Oscilloscope Launcher")
+    parser.add_argument("--view", "-v", help="View a simulation log file with the native oscilloscope")
+    args = parser.parse_args()
+
+    if args.view:
+        log_path = os.path.abspath(args.view)
+        if not os.path.exists(log_path):
+            print(f"Log file not found: {log_path}")
+            sys.exit(1)
+        if os.path.exists(OSCOPE_PATH):
+            print(f"Launching oscilloscope: {log_path}")
+            subprocess.run([OSCOPE_PATH, log_path])
+        else:
+            print(f"Oscilloscope binary not found: {OSCOPE_PATH}")
+            print(f"Build it with: cmake -B build/oscope -DCMAKE_PREFIX_PATH=/home/jnd/Qt/6.10.1/gcc_64 tools/oscope && cmake --build build/oscope")
+            sys.exit(1)
+        return
+
     server_address = ('', PORT)
     httpd = HTTPServer(server_address, SimulationHTTPRequestHandler)
     print(f"VioAVR GUI Web Dashboard Server running at http://localhost:{PORT}")
+    print(f"  POST /api/run-simulation  — run sim, return JSON")
+    print(f"  POST /api/launch-oscope  — run sim, launch native oscilloscope")
+    print(f"  --view <logfile>         — view a saved log in the oscilloscope")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -306,4 +404,5 @@ def run_server():
         httpd.server_close()
 
 if __name__ == '__main__':
+    import argparse
     run_server()

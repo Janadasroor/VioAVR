@@ -36,6 +36,7 @@ inline constexpr DeviceDescriptor atmega328p {
     .smcr_address = 0x53U,
     .mcusr_address = 0x54U,
     .mcucr_address = 0x55U,
+    .clkpr_address = 0x61U,
     .ccp_address = 0x0U,
     .pllcsr_address = 0x0U,
     .xmcra_address = 0x0U,
@@ -68,6 +69,7 @@ inline constexpr DeviceDescriptor atmega328p {
             .adsc_mask = 0x40U, .adate_mask = 0x20U, .adif_mask = 0x10U, .adie_mask = 0x8U, .aden_mask = 0x80U, .adlar_mask = 0x20U,
             .adts_mask = 0x7U,
             .pr_address = 100, .pr_bit = 0,
+            .mux5_mask = 0x08U,
             .mux_table = {{
                 { 0, 0, 1.0f, false }, { 1, 0, 1.0f, false }, { 2, 0, 1.0f, false }, { 3, 0, 1.0f, false },
                 { 4, 0, 1.0f, false }, { 5, 0, 1.0f, false }, { 6, 0, 1.0f, false }, { 7, 0, 1.0f, false },
