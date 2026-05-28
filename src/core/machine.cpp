@@ -278,6 +278,13 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(timer));
     }
 
+    // Timer10 (HV devices)
+    for (u8 i = 0; i < device_.timer10_count; ++i) {
+        auto timer = std::make_unique<Timer10>("TIMER10_" + std::to_string(i), device_.timers10[i]);
+        timer->set_bus(*bus_);
+        bus_->attach_peripheral(*timer);
+        owned_peripherals_.push_back(std::move(timer));
+    }
 
     // Modern TCA
     for (u8 i = 0; i < device_.tca_count; ++i) {
@@ -640,6 +647,13 @@ void Machine::initialize_peripherals()
         c->set_pin_mux(pin_mux_.get());
         bus_->attach_peripheral(*c);
         owned_peripherals_.push_back(std::move(c));
+    }
+
+    // 17b. CAN
+    for (u8 i = 0; i < device_.can_count; ++i) {
+        auto can = std::make_unique<CanBus>("CAN" + std::to_string(i), device_.cans[i]);
+        bus_->attach_peripheral(*can);
+        owned_peripherals_.push_back(std::move(can));
     }
 
     // 18. USB

@@ -205,6 +205,36 @@ struct AnalogComparatorDescriptor {
     u8 achyst_mask {0x00U}; // Hysteresis select bits
 };
 
+struct XmegaAdcDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 refctrl_address {};
+    u16 evctrl_address {};
+    u16 prescaler_address {};
+    u16 intflags_address {};
+    u16 temp_address {};
+    u16 sampctrl_address {};
+    u16 cal_address {};
+    u16 ch0res_address {};
+    u16 cmp_address {};
+    u16 muxctrl_address {};
+    u16 ch_intctrl_address {};
+    u8 vector_index {};
+    u8 ch_count {1U};
+};
+
+struct XmegaAcDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 winctrl_address {};
+    u16 status_address {};
+    u16 ac0ctrl_address {};
+    u16 ac1ctrl_address {};
+    u16 ac0mux_address {};
+    u16 ac1mux_address {};
+    u8 vector_index {};
+};
+
 struct Timer8Descriptor {
     u16 tcnt_address {};
     u16 ocra_address {};
@@ -1235,6 +1265,7 @@ struct PortDescriptor {
     u16 intflags_address {0x0U};
     u16 vport_base {0xFFFFU};
     u8 vector_index {0xFFU};
+    u16 remap_address {0x0U};
 };
 
 
@@ -1312,11 +1343,17 @@ struct DeviceDescriptor {
     u8 adcea_count {0U};
     std::array<AdcEaDescriptor, 1> adceas {};
 
+    u8 adc_xmega_count {0U};
+    std::array<XmegaAdcDescriptor, 2> adcs_xmega {};
+
     u8 ac_count {0U};
     std::array<AnalogComparatorDescriptor, 4> acs {};
 
     u8 ac8x_count {0U};
     std::array<Ac8xDescriptor, 4> acs8x {};
+
+    u8 ac_xmega_count {0U};
+    std::array<XmegaAcDescriptor, 2> acs_xmega {};
 
     u8 timer8_count {0U};
     std::array<Timer8Descriptor, 8> timers8 {};
@@ -1426,7 +1463,7 @@ struct DeviceDescriptor {
     u8 dac_count {};
     std::array<DacDescriptor, 1> dacs {};
     u8 dac8x_count {0U};
-    std::array<Dac8xDescriptor, 2> dacs8x {};
+    std::array<Dac8xDescriptor, 3> dacs8x {};
 
     u8 amplifier_count {};
     std::array<AmplifierDescriptor, 3> amplifiers {};

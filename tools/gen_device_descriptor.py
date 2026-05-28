@@ -31,13 +31,18 @@ PORT_FIELDS = {
 }
 
 TIMER8_FIELDS = {
-    "TCNT0": "tcnt_address",
+    "TCNT": "tcnt_address",
     "TCCR0A": "tccra_address",
     "TCCR0B": "tccrb_address",
-    "OCR0A":  "ocra_address",
-    "OCR0B":  "ocrb_address",
-    "TIMSK0": "timsk_address",
-    "TIFR0":  "tifr_address",
+    "TCCR2A": "tccra_address",
+    "TCCR2B": "tccrb_address",
+    "OCR0A": "ocra_address",
+    "OCR0B": "ocrb_address",
+    "OCR2A": "ocra_address",
+    "OCR2B": "ocrb_address",
+    "TIMSK": "timsk_address",
+    "TIFR":  "tifr_address",
+    "ASSR":  "assr_address",
 }
 
 TIMER16_FIELDS = {
@@ -143,6 +148,84 @@ PCINT_FIELDS = {
 WDT_FIELDS = {
     "WDTCSR": "wdtcsr_address",
     "WDTCR":  "wdtcr_address",
+}
+
+CAN_FIELDS = {
+    "CANGCON": "cangcon_address",
+    "CANGSTA": "cangsta_address",
+    "CANGIT": "cangit_address",
+    "CANGIE": "cangie_address",
+    "CANEN1": "canen1_address",
+    "CANEN2": "canen2_address",
+    "CANIE1": "canie1_address",
+    "CANIE2": "canie2_address",
+    "CANSIT1": "cansit1_address",
+    "CANSIT2": "cansit2_address",
+    "CANBT1": "canbt1_address",
+    "CANBT2": "canbt2_address",
+    "CANBT3": "canbt3_address",
+    "CANTCON": "cantcon_address",
+    "CANTIM": "cantim_address",
+    "CANTTC": "canttc_address",
+    "CANTEC": "cantec_address",
+    "CANREC": "canrec_address",
+    "CANHPMOB": "canhpmob_address",
+    "CANPAGE": "canpage_address",
+    "CANSTMOB": "canstmob_address",
+    "CANCDMOB": "cancdmob_address",
+    "CANIDT": "canidt_address",
+    "CANIDM": "canidm_address",
+    "CANSTM": "canstm_address",
+    "CANMSG": "canmsg_address",
+}
+
+PSC_FIELDS = {
+    "PCTL": "pctl_address",
+    "PSOC": "psoc_address",
+    "PCNF": "pconf_address",
+    "PIM": "pim_address",
+    "PIFR": "pifr_address",
+    "PICR": "picr_address",
+    "OCRSA": "ocrsa_address",
+    "OCRRA": "ocrra_address",
+    "OCRSB": "ocrsb_address",
+    "OCRRB": "ocrrb_address",
+    "PFRC": "pfrc0a_address",
+    "PFRC0A": "pfrc0a_address",
+    "PFRC0B": "pfrc0b_address",
+    "POM": "pom_address",
+    "PCNT": "pcnt_address",
+    "PLLCSR": "pllcsr_address",
+}
+
+EUSART_FIELDS = {
+    "EUDR": "eudr_address",
+    "EUCSRA": "eucsra_address",
+    "EUCSRB": "eucsrb_address",
+    "EUCSRC": "eucsrc_address",
+    "MUBRR": "mubrrl_address",
+}
+
+LINUART_FIELDS = {
+    "LINCR": "ctrla_address",
+}
+
+AMP_FIELDS = {
+    "AMPCSR": "ampcsr_address",
+}
+
+LCD_FIELDS = {
+    "LCDCRA": "lcdcra_address",
+    "LCDCRB": "lcdcrb_address",
+    "LCDFRR": "lcdfrr_address",
+    "LCDCCR": "lcdccr_address",
+    "LCDDR00": "lcddr_base_address",
+    "LCDDR": "lcddr_base_address",
+}
+
+DAC_CLASSIC_FIELDS = {
+    "DACON": "dacon_address",
+    "DAC": "dacl_address",
 }
 
 
@@ -266,7 +349,7 @@ def extract_module_registers(root, module_name, instance_name, pattern_map):
                             # For classic AVR style (PORTB/DDRB/PINB), ensure
                             # the suffix after the prefix is exactly one letter
                             suffix = rname[len(pat_key):]
-                            if not suffix or (len(suffix) == 1 and suffix.isalpha()):
+                            if not suffix or (len(suffix) == 1 and (suffix.isalpha() or suffix.isdigit())):
                                 matched_key = cpp_field
                                 break
                 if matched_key and matched_key not in regs:
@@ -317,6 +400,7 @@ def generate(root, output_file=sys.stdout):
     io_end = 0x5F
     
     is_avr8x = (architecture == "AVR8X")
+    is_xmega = (architecture == "AVR8_XMEGA")
     
     for addr_space in root.findall(".//address-spaces/address-space"):
         as_name = addr_space.get("name", "")
@@ -324,7 +408,8 @@ def generate(root, output_file=sys.stdout):
             for seg in addr_space.findall("memory-segment"):
                 if seg.get("type") == "flash":
                     flash_size = parse_hex(seg.get("size", "0"))
-                    flash_words = flash_size // 2
+                    if flash_size > flash_words * 2:
+                        flash_words = flash_size // 2
                     ps = seg.get("pagesize", "0")
                     if ps != "0":
                         flash_page_size = parse_hex(ps)
@@ -385,7 +470,10 @@ def generate(root, output_file=sys.stdout):
         interrupts.append((idx, iname))
     
     vector_count = max([idx for idx, _ in interrupts] + [0]) + 1 if interrupts else 0
-    vector_size = 2 if not is_avr8x else 4
+    if is_avr8x or is_xmega or chip_name.startswith("atmega") or chip_name.startswith("at90"):
+        vector_size = 4
+    else:
+        vector_size = 2
     
     # ---- Identify ports ----
     ports = []
@@ -455,7 +543,7 @@ def generate(root, output_file=sys.stdout):
     ac8x_instances = []
     eeprom_instances = []
     extint_instances = []
-    pcint_instances = []
+    pcint_instances = []  # PCINT group indices (0, 1, 2, ...)
     wdt_instances = []
     wdt8x_instances = []
     has_evsys = False
@@ -473,10 +561,18 @@ def generate(root, output_file=sys.stdout):
     has_usb8x = False
     
     dac_instances = []
+    dac_classic_instances = []
     zcd_instances = []
     opamp_instances = []
     usb_instances = []  # Classic USB (ATmega32U4 style)
     ptc_instances = []
+    
+    can_instances = []
+    psc_instances = []
+    eusart_instances = []
+    lin_instances = []
+    amplifier_instances = []
+    lcd_instances = []
     
     for mod in root.findall(".//peripherals/module"):
         mname = mod.get("name", "")
@@ -484,7 +580,7 @@ def generate(root, output_file=sys.stdout):
             iname = inst.get("name", "")
             if mname == "TC0" or (mname == "TC" and "0" in iname):
                 timer8_instances.append(iname)
-            elif mname == "TC8":
+            elif mname in ("TC8", "TC8_ASYNC"):
                 if "1" in iname:
                     timer16_instances.append(iname)
                 else:
@@ -542,6 +638,16 @@ def generate(root, output_file=sys.stdout):
                 eeprom_instances.append(iname)
             elif mname == "EXINT":
                 extint_instances.append(iname)
+                # Populate PCINT instances from root EXINT module (PCMSK registers)
+                if not is_avr8x:
+                    for root_mod in root.findall(".//module[@name='EXINT']"):
+                        for rg in root_mod.findall("register-group"):
+                            for reg in rg.findall("register"):
+                                rname = reg.get("name", "")
+                                if rname.startswith("PCMSK"):
+                                    idx_str = rname[5:]
+                                    if idx_str.isdigit():
+                                        pcint_instances.append(int(idx_str))
             elif mname == "PORT":
                 # Handled separately
                 pass
@@ -575,12 +681,12 @@ def generate(root, output_file=sys.stdout):
             elif mname == "DAC":
                 if is_avr8x:
                     dac_instances.append(iname)
+                else:
+                    dac_classic_instances.append(iname)
             elif mname == "ZCD":
-                if is_avr8x:
-                    zcd_instances.append(iname)
+                zcd_instances.append(iname)
             elif mname == "OPAMP":
-                if is_avr8x:
-                    opamp_instances.append(iname)
+                opamp_instances.append(iname)
             elif mname == "MVIO":
                 if is_avr8x:
                     has_mvio = True
@@ -592,6 +698,22 @@ def generate(root, output_file=sys.stdout):
             elif mname == "PTC":
                 if is_avr8x:
                     ptc_instances.append(iname)
+            elif mname == "CAN":
+                can_instances.append(iname)
+            elif mname == "PSC":
+                psc_instances.append(iname)
+            elif mname == "EUSART":
+                if not is_avr8x:
+                    eusart_instances.append(iname)
+            elif mname == "LINUART":
+                if not is_avr8x:
+                    lin_instances.append(iname)
+            elif mname == "AMP":
+                if not is_avr8x:
+                    amplifier_instances.append(iname)
+            elif mname == "LCD":
+                if not is_avr8x:
+                    lcd_instances.append(iname)
     
     # ---- System Registers ----
     # SPL, SPH, SREG are at fixed addresses for classic AVR
@@ -729,8 +851,25 @@ def generate(root, output_file=sys.stdout):
     if not is_avr8x:
         out.append(f"    .sigrd_mask = 0x20U,")
         out.append(f"    .spmen_mask = 0x01U,")
+    if not is_avr8x and not is_xmega:
+        prr_addr = get_register(root, "CPU", "CPU", "PRR")
+        if prr_addr:
+            out.append(f"    .prr_address = 0x{prr_addr:02X}U,")
+        smcr_addr = get_register(root, "CPU", "CPU", "SMCR")
+        if smcr_addr:
+            out.append(f"    .smcr_address = 0x{smcr_addr:02X}U,")
+        mcusr_addr = get_register(root, "CPU", "CPU", "MCUSR")
+        if mcusr_addr:
+            out.append(f"    .mcusr_address = 0x{mcusr_addr:02X}U,")
+        mcucr_addr = get_register(root, "CPU", "CPU", "MCUCR")
+        if mcucr_addr:
+            out.append(f"    .mcucr_address = 0x{mcucr_addr:02X}U,")
     if clkpr_address:
         out.append(f"    .clkpr_address = 0x{clkpr_address:02X}U,")
+    if not is_avr8x and not is_xmega:
+        osccal_addr = get_register(root, "CPU", "CPU", "OSCCAL")
+        if osccal_addr:
+            out.append(f"    .osccal_address = 0x{osccal_addr:02X}U,")
     
     out.append(f"    .cpu_frequency_hz = 16'000'000U,")
     
@@ -940,8 +1079,12 @@ def generate(root, output_file=sys.stdout):
         out.append("")
         out.append(f"    .timer8_count = {len(timer8_instances)}U,")
         out.append(f"    .timers8 = {{{{")
-        for ti, tname in enumerate(timer8_instances):
+        # Sort by timer index (TC0 before TC2, etc.)
+        sorted_t8 = sorted(timer8_instances, key=lambda n: int(re.search(r'(\d+)', n).group(1)) if re.search(r'(\d+)', n) else 0)
+        for ti, tname in enumerate(sorted_t8):
             regs = extract_module_registers(root, "TC8", tname, TIMER8_FIELDS)
+            if not regs:
+                regs = extract_module_registers(root, "TC8_ASYNC", tname, TIMER8_FIELDS)
             if not regs:
                 regs = extract_module_registers(root, "TC0", tname, TIMER8_FIELDS)
             if not regs:
@@ -956,7 +1099,7 @@ def generate(root, output_file=sys.stdout):
             out.append(f"        {{")
             for fn in ["tcnt_address", "ocra_address", "ocrb_address",
                        "tifr_address", "timsk_address",
-                       "tccra_address", "tccrb_address"]:
+                       "tccra_address", "tccrb_address", "assr_address"]:
                 if regs.get(fn):
                     out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
             if compa_idx != 0xFF:
@@ -1327,6 +1470,7 @@ def generate(root, output_file=sys.stdout):
             out.append(f"        .twispiroutea_address = 0x{pmux_regs['ctrla']:02X}U,")
             out.append(f"        .usartroutea_address = 0x{pmux_regs['ctrlb']:02X}U,")
         else:
+            out.append(f"        .twispiroutea_address = 0U,")
             if route_regs.get("usartroutea"):
                 out.append(f"        .usartroutea_address = 0x{route_regs['usartroutea']:02X}U,")
         if route_regs.get("evsysroutea"):
@@ -1335,6 +1479,9 @@ def generate(root, output_file=sys.stdout):
             out.append(f"        .tcaroutea_address = 0x{route_regs['tcaroutea']:02X}U,")
         if route_regs.get("tcbroutea"):
             out.append(f"        .tcbroutea_address = 0x{route_regs['tcbroutea']:02X}U,")
+        out.append(f"        .usart = {{}},")
+        out.append(f"        .spi = {{}},")
+        out.append(f"        .twi = {{}},")
         # ATtiny AVR8X chips have fixed (reversed) TCA WO-to-pin mapping
         if "attiny" in chip_name and tca_instances:
             out.append(f"        .tca_wo_pin_bit = {{3, 2, 1, 0, 5, 4}},")
@@ -1561,6 +1708,32 @@ def generate(root, output_file=sys.stdout):
                 out.append(f"            .rxd_pin_bit = {rxd_bit}U,")
             out.append(f"            .index = {uart_idx}U,")
             out.append(f"        }}," if ui < len(uart8x_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- PCINT (classic only, from EXINT module) ----
+    if pcint_instances and not is_avr8x:
+        pcint_regs = extract_module_registers(root, "EXINT", extint_instances[0] if extint_instances else "EXINT", PCINT_FIELDS)
+        pcicr = pcint_regs.get("pcicr_address", 0)
+        pcifr = pcint_regs.get("pcifr_address", 0)
+        out.append("")
+        out.append(f"    .pcint_count = {len(pcint_instances)}U,")
+        out.append(f"    .pcints = {{{{")
+        for pi, pidx in enumerate(sorted(set(pcint_instances))):
+            pcmsk_key = f"pcmsk{pidx}_address"
+            paddr = pcint_regs.get(pcmsk_key, 0)
+            mask = 1 << pidx
+            pci_idx = find_interrupt_index(root, f"PCINT{pidx}")
+            out.append(f"        {{")
+            if pcicr:
+                out.append(f"            .pcicr_address = 0x{pcicr:02X}U,")
+            if pcifr:
+                out.append(f"            .pcifr_address = 0x{pcifr:02X}U,")
+            if paddr:
+                out.append(f"            .pcmsk_address = 0x{paddr:02X}U,")
+            out.append(f"            .pcicr_enable_mask = 0x{mask:X}U, .pcifr_flag_mask = 0x{mask:X}U,")
+            if pci_idx != 0xFF:
+                out.append(f"            .vector_index = {pci_idx}U")
+            out.append(f"        }}," if pi < len(set(pcint_instances)) - 1 else f"        }}")
         out.append(f"    }}}},")
     
     # ---- AVR8X NVMCTRL ----
@@ -1837,8 +2010,33 @@ def generate(root, output_file=sys.stdout):
         out.append(f"        }}")
         out.append(f"    }}}},")
     
+    # ---- CAN (AT90CAN / ATmega32C1/64C1) ----
+    if can_instances:
+        out.append("")
+        out.append(f"    .can_count = {len(can_instances)}U,")
+        out.append(f"    .cans = {{{{")
+        for ci, ename in enumerate(can_instances):
+            regs = extract_module_registers(root, "CAN", ename, CAN_FIELDS)
+            out.append(f"        {{")
+            for fn in ["cangcon_address", "cangsta_address", "cangit_address", "cangie_address",
+                       "canen1_address", "canen2_address", "canie1_address", "canie2_address",
+                       "cansit1_address", "cansit2_address", "canbt1_address", "canbt2_address",
+                       "canbt3_address", "cantcon_address", "cantim_address", "canttc_address",
+                       "cantec_address", "canrec_address", "canhpmob_address", "canpage_address",
+                       "canstmob_address", "cancdmob_address", "canidt_address", "canidm_address",
+                       "canstm_address", "canmsg_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            canit_idx = find_interrupt_index(root, "CANIT")
+            if canit_idx != 0xFF:
+                out.append(f"            .canit_vector_index = {canit_idx}U,")
+            ovrit_idx = find_interrupt_index(root, "OVRIT")
+            if ovrit_idx != 0xFF:
+                out.append(f"            .ovrit_vector_index = {ovrit_idx}U,")
+            out.append(f"        }}," if ci < len(can_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
     # ---- AVR8X USB8x (DU FIFO-based USB) ----
-    # Must come before DAC8x/ZCD/OPAMP/PTC in struct order (usb8x → dac8x → zcd → opamp → ptc)
     if is_avr8x and has_usb8x:
         usb8x_regs = extract_module_registers(root, "USB", "USB0", {
             "CTRLA": "ctrla_address",
@@ -1880,6 +2078,77 @@ def generate(root, output_file=sys.stdout):
         out.append(f"        }}")
         out.append(f"    }}}},")
     
+    # ---- LCD (ATmega329/649) ----
+    if lcd_instances and not is_avr8x:
+        out.append("")
+        out.append(f"    .lcd_count = {len(lcd_instances)}U,")
+        out.append(f"    .lcds = {{{{")
+        for li, ename in enumerate(lcd_instances):
+            regs = extract_module_registers(root, "LCD", ename, LCD_FIELDS)
+            out.append(f"        {{")
+            for fn in ["lcdcra_address", "lcdcrb_address", "lcdfrr_address", "lcdccr_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            if regs.get("lcddr_base_address"):
+                out.append(f"            .lcddr_base_address = 0x{regs['lcddr_base_address']:02X}U,")
+            lcd_idx = find_interrupt_by_module(root, "LCD", ename)
+            if lcd_idx != 0xFF:
+                out.append(f"            .vector_index = {lcd_idx}U,")
+            out.append(f"        }}," if li < len(lcd_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- PSC (AT90PWM) ----
+    if psc_instances and not is_avr8x:
+        out.append("")
+        out.append(f"    .psc_count = {len(psc_instances)}U,")
+        out.append(f"    .pscs = {{{{")
+        for pi, ename in enumerate(psc_instances):
+            regs = extract_module_registers(root, "PSC", ename, PSC_FIELDS)
+            out.append(f"        {{")
+            for fn in ["pctl_address", "psoc_address", "pconf_address", "pim_address",
+                       "pifr_address", "picr_address", "ocrsa_address", "ocrra_address",
+                       "ocrsb_address", "ocrrb_address", "pfrc0a_address", "pfrc0b_address",
+                       "pom_address", "pcnt_address", "pllcsr_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            gen_idx = find_interrupt_by_module(root, "PSC", ename + "_PSC")
+            if gen_idx != 0xFF:
+                out.append(f"            .gen_vector_index = {gen_idx}U,")
+            out.append(f"        }}," if pi < len(psc_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- EUSART (AT90PWM) ----
+    if eusart_instances and not is_avr8x:
+        out.append("")
+        out.append(f"    .eusart_count = {len(eusart_instances)}U,")
+        out.append(f"    .eusarts = {{{{")
+        for ei, ename in enumerate(eusart_instances):
+            regs = extract_module_registers(root, "EUSART", ename, EUSART_FIELDS)
+            out.append(f"        {{")
+            for fn in ["eudr_address", "eucsra_address", "eucsrb_address", "eucsrc_address",
+                       "mubrrl_address"]:
+                if regs.get(fn):
+                    out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+            out.append(f"        }}," if ei < len(eusart_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- Classic DAC (AT90PWM / ATmega32C1/64C1) ----
+    if dac_classic_instances and not is_avr8x:
+        out.append("")
+        out.append(f"    .dac_count = {len(dac_classic_instances)}U,")
+        out.append(f"    .dacs = {{{{")
+        for di, ename in enumerate(dac_classic_instances):
+            regs = extract_module_registers(root, "DAC", ename, DAC_CLASSIC_FIELDS)
+            out.append(f"        {{")
+            if regs.get("dacon_address"):
+                out.append(f"            .dacon_address = 0x{regs['dacon_address']:02X}U,")
+            if regs.get("dacl_address"):
+                out.append(f"            .dacl_address = 0x{regs['dacl_address']:02X}U,")
+                # DAC register is 16-bit; dach = dacl + 1
+                out.append(f"            .dach_address = 0x{regs['dacl_address'] + 1:02X}U,")
+            out.append(f"        }}," if di < len(dac_classic_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
     # ---- AVR8X DAC8x (DA/DB/DD) ----
     if is_avr8x and dac_instances:
         AVR8X_DAC_FIELDS = {
@@ -1898,8 +2167,21 @@ def generate(root, output_file=sys.stdout):
             out.append(f"        }}," if di < len(dac_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
-    # ---- AVR8X ZCD (DA/DB/DD) ----
-    if is_avr8x and zcd_instances:
+    # ---- Amplifier (AT90PWM) ----
+    if amplifier_instances and not is_avr8x:
+        out.append("")
+        out.append(f"    .amplifier_count = {len(amplifier_instances)}U,")
+        out.append(f"    .amplifiers = {{{{")
+        for ai, ename in enumerate(amplifier_instances):
+            regs = extract_module_registers(root, "AMP", ename, AMP_FIELDS)
+            out.append(f"        {{")
+            if regs.get("ampcsr_address"):
+                out.append(f"            .ampcsr_address = 0x{regs['ampcsr_address']:02X}U,")
+            out.append(f"        }}," if ai < len(amplifier_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- ZCD ----
+    if zcd_instances:
         AVR8X_ZCD_FIELDS = {
             "CTRLA": "ctrla_address",
             "INTCTRL": "intctrl_address",
@@ -1920,8 +2202,8 @@ def generate(root, output_file=sys.stdout):
             out.append(f"        }}," if zi < len(zcd_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
-    # ---- AVR8X OPAMP (DB only) ----
-    if is_avr8x and opamp_instances:
+    # ---- OPAMP (DB only) ----
+    if opamp_instances:
         out.append("")
         out.append(f"    .opamp_count = {len(opamp_instances)}U,")
         out.append(f"    .opamps = {{{{")
@@ -1961,6 +2243,22 @@ def generate(root, output_file=sys.stdout):
             if wcomp_idx != 0xFF:
                 out.append(f"            .wcomp_vector_index = {wcomp_idx}U,")
             out.append(f"        }}," if pi < len(ptc_instances) - 1 else f"        }}")
+        out.append(f"    }}}},")
+    
+    # ---- LIN (ATmega32M1/64M1/16M1) ----
+    if lin_instances and not is_avr8x:
+        out.append("")
+        out.append(f"    .lin_count = {len(lin_instances)}U,")
+        out.append(f"    .lins = {{{{")
+        for li, ename in enumerate(lin_instances):
+            regs = extract_module_registers(root, "LINUART", ename, LINUART_FIELDS)
+            out.append(f"        {{")
+            if regs.get("ctrla_address"):
+                out.append(f"            .ctrla_address = 0x{regs['ctrla_address']:02X}U,")
+            lin_idx = find_interrupt_by_module(root, "LIN", ename)
+            if lin_idx != 0xFF:
+                out.append(f"            .vector_index = {lin_idx}U,")
+            out.append(f"        }}," if li < len(lin_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
     # Signature
@@ -2009,17 +2307,28 @@ def generate(root, output_file=sys.stdout):
 
 
 def generate_all(atdf_glob_pattern, output_dir, description):
-    output_dir.mkdir(parents=True, exist_ok=True)
-    count = 0
-    for atdf_path in sorted(Path().glob(atdf_glob_pattern) if "/" not in atdf_glob_pattern else sorted(Path(atdf_glob_pattern).parent.glob(Path(atdf_glob_pattern).name))):
-        pass
-    # Use explicit path construction
     out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
     import glob as gglob
     files = sorted(gglob.glob(atdf_glob_pattern))
     for atdf_path_str in files:
         atdf_path = Path(atdf_path_str)
         chip = atdf_path.stem.lower()
+        # Check architecture: skip AVR8X devices when generating classic descriptors
+        try:
+            tree = ET.parse(str(atdf_path))
+            root = tree.getroot()
+            devs = root.find('devices')
+            arch = ''
+            if devs is not None:
+                for dev_el in devs.findall('device'):
+                    arch = dev_el.get('architecture', '')
+                    break
+            if arch == "AVR8X":
+                continue
+        except Exception:
+            pass
         out_path = out_dir / f"{chip}.hpp"
         print(f"  {atdf_path.stem} -> {out_path.name}")
         try:
@@ -2267,10 +2576,61 @@ def generate_xmega(root, output_file=sys.stdout):
         out.append(f"    .rampz_address = 0x{rampz_addr:02X}U,")
     if eind_addr:
         out.append(f"    .eind_address = 0x{eind_addr:02X}U,")
+    # PR (Power Reduction) — comes before ccp_address in DeviceDescriptor
+    pr_regs = regs.get(("PR", "PR"), {})
+    pr_base = pr_regs.get("PRGEN", 0)
+    if pr_base:
+        out.append(f"    .prr_address = {pr_base}U,")
     if cc_addr:
         out.append(f"    .ccp_address = 0x{cc_addr:02X}U,")
     
     out.append(f"    .cpu_frequency_hz = 32'000'000U,")
+    
+    # ---- XMEGA ADC ----
+    for (mn, iname), iregs in regs.items():
+        if mn == 'ADC' and re.match(r'^ADC[A-Z]$', iname):
+            out.append("")
+            out.append(f"    .adc_xmega_count = 1U,")
+            out.append(f"    .adcs_xmega = {{{{")
+            out.append(f"        {{")
+            for rn, field in [("CTRLA","ctrla_address"),("CTRLB","ctrlb_address"),
+                              ("REFCTRL","refctrl_address"),("EVCTRL","evctrl_address"),
+                              ("PRESCALER","prescaler_address"),("INTFLAGS","intflags_address"),
+                              ("TEMP","temp_address"),("SAMPCTRL","sampctrl_address"),
+                              ("CAL","cal_address"),("CH0RES","ch0res_address"),
+                              ("CMP","cmp_address"),("MUXCTRL","muxctrl_address"),
+                              ("INTCTRL","ch_intctrl_address")]:
+                if rn in iregs:
+                    out.append(f"            .{field} = {iregs[rn]}U,")
+            # Find ADC interrupt vector
+            for i in dev.findall('interrupts/interrupt-group'):
+                if i.get('module-instance', '') == iname:
+                    vec = parse_int(i.get('index', '0'))
+                    out.append(f"            .vector_index = {vec}U,")
+                    break
+            out.append(f"        }}}}}},")
+            break
+    
+    # ---- XMEGA AC ----
+    for (mn, iname), iregs in regs.items():
+        if mn == 'AC' and re.match(r'^AC[A-Z]$', iname):
+            out.append("")
+            out.append(f"    .ac_xmega_count = 1U,")
+            out.append(f"    .acs_xmega = {{{{")
+            out.append(f"        {{")
+            for rn, field in [("CTRLA","ctrla_address"),("CTRLB","ctrlb_address"),
+                              ("WINCTRL","winctrl_address"),("STATUS","status_address"),
+                              ("AC0CTRL","ac0ctrl_address"),("AC1CTRL","ac1ctrl_address"),
+                              ("AC0MUXCTRL","ac0mux_address"),("AC1MUXCTRL","ac1mux_address")]:
+                if rn in iregs:
+                    out.append(f"            .{field} = {iregs[rn]}U,")
+            for i in dev.findall('interrupts/interrupt-group'):
+                if i.get('module-instance', '') == iname:
+                    vec = parse_int(i.get('index', '0'))
+                    out.append(f"            .vector_index = {vec}U,")
+                    break
+            out.append(f"        }}}}}},")
+            break
     
     # ---- TC (Timer/Counter 16-bit) ----
     XMEGA_TC_FIELDS = {
@@ -2392,8 +2752,287 @@ def generate_xmega(root, output_file=sys.stdout):
             out.append(f"        }}{sep}")
         out.append(f"    }}}},")
     
-    # Signature/fuse fields (BEFORE port_count in struct order)
-    out.append("")
+    # ---- RTC (Real-Time Counter) ----
+    rtc_regs = regs.get(("RTC", "RTC"), {})
+    if rtc_regs:
+        # Find RTC interrupt vectors
+        rtc_ovf_vec = 0
+        rtc_pit_vec = 0
+        for i in dev.findall('interrupts/interrupt-group'):
+            if i.get('module-instance', '') == 'RTC':
+                rtc_ovf_vec = parse_int(i.get('index', '0'))
+            # PIT is usually RTC + 1 (common for XMEGA)
+        rtc_pit_vec = rtc_ovf_vec + 1 if rtc_ovf_vec else 0
+        
+        out.append("")
+        out.append(f"    .rtc_count = 1U,")
+        out.append(f"    .timers_rtc = {{{{")
+        rtc_fields = [
+            ("CTRL", "ctrla_address"), ("STATUS", "status_address"),
+            ("INTCTRL", "intctrl_address"), ("INTFLAGS", "intflags_address"),
+            ("TEMP", "temp_address"), ("CALIB", "calib_address"),
+            ("CNT", "cnt_address"), ("PER", "per_address"), ("COMP", "cmp_address"),
+        ]
+        out.append(f"        {{")
+        for rn, field in rtc_fields:
+            if rn in rtc_regs:
+                out.append(f"            .{field} = {rtc_regs[rn]}U,")
+        if rtc_ovf_vec:
+            out.append(f"            .ovf_vector_index = {rtc_ovf_vec}U,")
+        if rtc_pit_vec:
+            out.append(f"            .pit_vector_index = {rtc_pit_vec}U,")
+        out.append(f"        }}}}}},")
+    
+    # ---- EVSYS (Event System) ----
+    evsys_regs = regs.get(("EVSYS", "EVSYS"), {})
+    if evsys_regs:
+        out.append("")
+        strobe = evsys_regs.get("STROBE", 0)
+        channels = evsys_regs.get("CH0MUX", 0)
+        users = evsys_regs.get("CH0CTRL", 0)  # CH0CTRL serves as first user reg
+        out.append(f"    .evsys = {{")
+        if strobe:
+            out.append(f"        .strobe_address = {strobe}U,")
+        if channels:
+            out.append(f"        .channels_address = {channels}U,")
+        if users:
+            out.append(f"        .users_address = {users}U,")
+        out.append(f"        .channel_count = 8U,")
+        out.append(f"    }},")
+    
+    # ---- CLKCTRL (Clock Controller) ----
+    clk_regs = regs.get(("CLK", "CLK"), {})
+    if clk_regs:
+        out.append("")
+        ctrla = clk_regs.get("CTRL", 0)
+        out.append(f"    .clkctrl = {{")
+        if ctrla:
+            out.append(f"        .ctrla_address = {ctrla}U,")
+        out.append(f"    }},")
+    
+    # ---- SLPCTRL (Sleep Controller) ----
+    sleep_regs = regs.get(("SLEEP", "SLEEP"), {})
+    if sleep_regs:
+        ctrla = sleep_regs.get("CTRL", 0)
+        out.append(f"    .slpctrl = {{ .ctrla_address = {ctrla}U }},")
+    
+    # ---- RSTCTRL (Reset Controller) ----
+    rst_regs = regs.get(("RST", "RST"), {})
+    if rst_regs:
+        rstfr = rst_regs.get("STATUS", 0)
+        out.append(f"    .rstctrl = {{ .rstfr_address = {rstfr}U }},")
+    
+    # ---- SYSCFG / MCU ----
+    mcu_regs = regs.get(("MCU", "MCU"), {})
+    if mcu_regs:
+        reves = mcu_regs.get("DEVID0", 0)
+        if not reves:
+            reves = list(mcu_regs.values())[0] if mcu_regs else 0
+        out.append(f"    .syscfg = {{ .reves_address = {reves}U }},")
+    
+    # ---- XMEGA USART (mapped to existing Uart8xDescriptor) ----
+    usart_instances = []
+    for (mn, iname), iregs in regs.items():
+        if mn == 'USART' and re.match(r'^USART[A-Z]\d*$', iname):
+            usart_instances.append((iname, iregs))
+    if usart_instances:
+        out.append("")
+        out.append(f"    .uart8x_count = {len(usart_instances)}U,")
+        out.append(f"    .uarts8x = {{{{")
+        usart_map = [
+            ("CTRLA","ctrla_address"), ("CTRLB","ctrlb_address"),
+            ("CTRLC","ctrlc_address"), ("CTRLD","ctrld_address"),
+            ("STATUS","status_address"), ("BAUDCTRLA","baud_address"),
+            ("DATA","rxdata_address"), ("DATA","txdata_address"),
+        ]
+        for ui, (uname, uregs) in enumerate(usart_instances):
+            sep = ',' if ui < len(usart_instances) - 1 else ''
+            out.append(f"        {{")
+            for rn, field in usart_map:
+                if rn in uregs:
+                    out.append(f"            .{field} = {uregs[rn]}U,")
+            for i in dev.findall('interrupts/interrupt-group'):
+                inst = i.get('module-instance', '')
+                if inst == uname:
+                    vec = parse_int(i.get('index', '0'))
+                    out.append(f"            .rx_vector_index = {vec}U,")
+                    out.append(f"            .tx_vector_index = {vec + 2}U,")
+                    out.append(f"            .dre_vector_index = {vec + 1}U,")
+                    break
+            out.append(f"        }}{sep}")
+        out.append(f"    }}}},")
+    
+    # ---- NVMCTRL (Non-Volatile Memory Controller) ----
+    nvm_regs = regs.get(("NVM", "NVM"), {})
+    if nvm_regs:
+        out.append("")
+        out.append(f"    .nvm_ctrl_count = 1U,")
+        out.append(f"    .nvm_ctrls = {{{{")
+        out.append(f"        {{")
+        cmd = nvm_regs.get("CMD", 0)
+        ctrl = nvm_regs.get("CTRLA", 0)
+        intctrl = nvm_regs.get("INTCTRL", 0)
+        status = nvm_regs.get("STATUS", 0)
+        if ctrl:
+            out.append(f"            .ctrla_address = {ctrl}U,")
+        if status:
+            out.append(f"            .status_address = {status}U,")
+        if intctrl:
+            out.append(f"            .intctrl_address = {intctrl}U,")
+        out.append(f"        }}}}}},")
+    
+    # ---- CPUINT / PMIC (Programmable Multilevel Interrupt Controller) ----
+    pmic_regs = regs.get(("PMIC", "PMIC"), {})
+    if pmic_regs:
+        out.append("")
+        out.append(f"    .cpu_int_count = 1U,")
+        out.append(f"    .cpu_ints = {{{{")
+        out.append(f"        {{")
+        ctrla = pmic_regs.get("CTRL", 0)
+        status = pmic_regs.get("STATUS", 0)
+        intpri = pmic_regs.get("INTPRI", 0)
+        if ctrla:
+            out.append(f"            .ctrla_address = {ctrla}U,")
+        if status:
+            out.append(f"            .status_address = {status}U,")
+        if intpri:
+            out.append(f"            .lvl0pri_address = {intpri}U,")
+        out.append(f"        }}}}}},")
+    
+    # ---- XMEGA SPI (mapped to existing Spi8xDescriptor) ----
+    spi_instances = []
+    for (mn, iname), iregs in regs.items():
+        if mn == 'SPI' and re.match(r'^SPI[A-Z]\d*$', iname):
+            spi_instances.append((iname, iregs))
+    if spi_instances:
+        out.append("")
+        out.append(f"    .spi8x_count = {len(spi_instances)}U,")
+        out.append(f"    .spis8x = {{{{")
+        spi_map = [
+            ("CTRL","ctrla_address"), ("CTRLB","ctrlb_address"),
+            ("INTCTRL","intctrl_address"), ("STATUS","intflags_address"),
+            ("DATA","data_address"),
+        ]
+        for si, (sname, sregs) in enumerate(spi_instances):
+            sep = ',' if si < len(spi_instances) - 1 else ''
+            out.append(f"        {{")
+            for rn, field in spi_map:
+                if rn in sregs:
+                    out.append(f"            .{field} = {sregs[rn]}U,")
+            for i in dev.findall('interrupts/interrupt-group'):
+                if i.get('module-instance', '') == sname:
+                    vec = parse_int(i.get('index', '0'))
+                    out.append(f"            .vector_index = {vec}U,")
+                    break
+            out.append(f"        }}{sep}")
+        out.append(f"    }}}},")
+    
+    # ---- XMEGA TWI (mapped to existing Twi8xDescriptor) ----
+    twi_instances = []
+    for (mn, iname), iregs in regs.items():
+        if mn == 'TWI' and re.match(r'^TWI[A-Z]\d*$', iname):
+            twi_instances.append((iname, iregs))
+    if twi_instances:
+        out.append("")
+        out.append(f"    .twi8x_count = {len(twi_instances)}U,")
+        out.append(f"    .twis8x = {{{{")
+        twi_map = [
+            ("CTRLA","mctrla_address"), ("CTRLB","mctrlb_address"),
+            ("STATUS","mstatus_address"), ("BAUD","mbaud_address"),
+            ("ADDR","maddr_address"), ("DATA","mdata_address"),
+        ]
+        twi_slave_map = [
+            ("CTRLA","sctrla_address"), ("CTRLB","sctrlb_address"),
+            ("STATUS","sstatus_address"), ("ADDR","saddr_address"),
+            ("DATA","sdata_address"), ("ADDRMASK","saddrmask_address"),
+        ]
+        for ti, (tname, tregs) in enumerate(twi_instances):
+            sep = ',' if ti < len(twi_instances) - 1 else ''
+            out.append(f"        {{")
+            for rn, field in twi_map:
+                if rn in tregs:
+                    out.append(f"            .{field} = {tregs[rn]}U,")
+            for rn, field in twi_slave_map:
+                if rn in tregs:
+                    out.append(f"            .{field} = {tregs[rn]}U,")
+            out.append(f"        }}{sep}")
+        out.append(f"    }}}},")
+    
+    # ---- WDT (Watchdog Timer) as wdt8x ----
+    wdt_regs = regs.get(("WDT", "WDT"), {})
+    if wdt_regs:
+        out.append("")
+        out.append(f"    .wdt8x_count = 1U,")
+        out.append(f"    .wdts8x = {{{{")
+        out.append(f"        {{")
+        ctrla = wdt_regs.get("CTRL", 0)
+        winctrl = wdt_regs.get("WINCTRL", 0)
+        status = wdt_regs.get("STATUS", 0)
+        if ctrla:
+            out.append(f"            .ctrla_address = {ctrla}U,")
+        if winctrl:
+            out.append(f"            .winctrla_address = {winctrl}U,")
+        if status:
+            out.append(f"            .status_address = {status}U,")
+        out.append(f"        }}}}}},")
+    
+    # ---- CRC (Cyclic Redundancy Check) as crc8x ----
+    crc_regs = regs.get(("CRC", "CRC"), {})
+    if crc_regs:
+        out.append("")
+        out.append(f"    .crc8x_count = 1U,")
+        out.append(f"    .crcs8x = {{{{")
+        out.append(f"        {{")
+        ctrla = crc_regs.get("CTRL", 0)
+        status = crc_regs.get("STATUS", 0)
+        data_in = crc_regs.get("DATAIN", 0)
+        if ctrla:
+            out.append(f"            .ctrla_address = {ctrla}U,")
+        if status:
+            out.append(f"            .status_address = {status}U,")
+        if data_in:
+            out.append(f"            .data_address = {data_in}U,")
+        out.append(f"        }}}}}},")
+    
+    # ---- DAC (Digital-to-Analog Converter) as dac8x ----
+    # XMEGA may have one DAC instance: DACA, DACB, etc.
+    dac_regs = {}
+    for (mn, iname), iregs in regs.items():
+        if mn == 'DAC' and re.match(r'^DAC[A-Z]$', iname):
+            dac_regs = iregs
+            break
+    if dac_regs:
+        out.append("")
+        out.append(f"    .dac8x_count = 1U,")
+        out.append(f"    .dacs8x = {{{{")
+        out.append(f"        {{")
+        ctrla = dac_regs.get("CTRLA", 0)
+        ch0data = dac_regs.get("CH0DATA", 0)
+        if ctrla:
+            out.append(f"            .ctrla_address = {ctrla}U,")
+        if ch0data:
+            out.append(f"            .data_address = {ch0data}U,")
+        out.append(f"        }}}}}},")
+    
+    # ---- DMA (Direct Memory Access) from EDMA ----
+    dma_regs = regs.get(("EDMA", "EDMA"), {})
+    if dma_regs:
+        out.append("")
+        out.append(f"    .dma_count = 1U,")
+        out.append(f"    .dmas = {{{{")
+        out.append(f"        {{")
+        ctrla = dma_regs.get("CTRL", 0)
+        intflags = dma_regs.get("INTFLAGS", 0)
+        status = dma_regs.get("STATUS", 0)
+        if ctrla:
+            out.append(f"            .ctrla_address = {ctrla}U,")
+        if status:
+            out.append(f"            .status_address = {status}U,")
+        if intflags:
+            out.append(f"            .intflags_address = {intflags}U,")
+        out.append(f"        }}}}}},")
+    
+    # ---- Signature/fuse fields (BEFORE port_count in struct order) ----
     out.append(f"    .fuse_address = 0x0000U,")
     out.append(f"    .lockbit_address = 0x0000U,")
     out.append(f"    .signature_address = 0x0000U,")
@@ -2455,6 +3094,10 @@ def generate_xmega(root, output_file=sys.stdout):
             out.append(f"            .vport_base = 0x{vp_base:04X}U,")
         if port_vector != 0xFF:
             out.append(f"            .vector_index = {port_vector}U,")
+        # REMAP register (XMEGA port routing)
+        remap_addr = iregs.get('REMAP', 0)
+        if remap_addr:
+            out.append(f"            .remap_address = 0x{remap_addr:04X}U,")
         separator = ',' if pi < len(port_instances) - 1 else ''
         out.append(f"        }}{separator}")
     out.append(f"    }}}},")

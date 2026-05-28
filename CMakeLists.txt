@@ -39,6 +39,45 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(attiny_dfp)
 set(ATTINY_DFP_DIR ${attiny_dfp_SOURCE_DIR} CACHE PATH "Path to ATtiny DFP")
 
+# Microchip AVR-Dx DFP (AVR-DA/DB/DD/DU)
+FetchContent_Declare(
+    avr_dx_dfp
+    URL https://packs.download.microchip.com/Microchip.AVR-Dx_DFP.2.8.343.atpack
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/avr-dx
+)
+FetchContent_MakeAvailable(avr_dx_dfp)
+set(AVR_DX_DFP_DIR ${avr_dx_dfp_SOURCE_DIR} CACHE PATH "Path to AVR-Dx DFP")
+
+# Microchip AVR-Ex DFP (AVR-EA/EB)
+FetchContent_Declare(
+    avr_ex_dfp
+    URL https://packs.download.microchip.com/Microchip.AVR-Ex_DFP.2.12.239.atpack
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/avr-ex
+)
+FetchContent_MakeAvailable(avr_ex_dfp)
+set(AVR_EX_DFP_DIR ${avr_ex_dfp_SOURCE_DIR} CACHE PATH "Path to AVR-Ex DFP")
+
+# Microchip AVR-Lx DFP (AVR-LA)
+FetchContent_Declare(
+    avr_lx_dfp
+    URL https://packs.download.microchip.com/Microchip.AVR-Lx_DFP.1.3.46.atpack
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/avr-lx
+)
+FetchContent_MakeAvailable(avr_lx_dfp)
+set(AVR_LX_DFP_DIR ${avr_lx_dfp_SOURCE_DIR} CACHE PATH "Path to AVR-Lx DFP")
+
+# Microchip AVR-Sx DFP (AVR-SD)
+FetchContent_Declare(
+    avr_sx_dfp
+    URL https://packs.download.microchip.com/Microchip.AVR-Sx_DFP.1.2.26.atpack
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/avr-pack/avr-sx
+)
+FetchContent_MakeAvailable(avr_sx_dfp)
+set(AVR_SX_DFP_DIR ${avr_sx_dfp_SOURCE_DIR} CACHE PATH "Path to AVR-Sx DFP")
+
+# Note: XMEGA DFP is split into 5 packs (Atmel.XMEGAA/B/C/D/E_DFP).
+# These are not auto-fetched — manually install to avr-pack/xmega/atdf/
+
 # Optimization and LTO
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
