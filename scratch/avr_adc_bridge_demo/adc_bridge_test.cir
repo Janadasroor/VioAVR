@@ -1,0 +1,45 @@
+* Minimal test: avr_adc_bridge code model loading + co-simulation
+* Uses d_cosim AVR + avr_adc_bridge for analog voltage injection
+
+.title avr_adc_bridge co-sim test
+
+.options reltol=1e-6 vntol=1e-6 method=trap
+
+* Load the code model
+.codemodel ./build/cosim/avr_adc_bridge.cm
+
+* Analog voltage source (variable to test different levels)
+V_adc adc_in 0 DC 2.5
+
+* avr_adc_bridge: reads adc_in voltage, injects into AVR bank channel 0
+* The output (dummy 0) is a unity-gain mirror of the input
+A_avr_adc [adc_in 0] [dummy 0] avr_adc_bridge
+.model avr_adc_bridge avr_adc_bridge(channel=0)
+
+* d_cosim AVR (megaAVR-0: atmega4809)
+* PORTA 0-7 -> ext 0-7, PORTB 0-7 -> ext 8-15, PORTC 0-7 -> ext 16-23
+* Firmware toggles PORTA bit 0 (pa0_clk)
+A_AVR [pa0_clk 0 gnd gnd gnd gnd gnd gnd
++        gnd gnd gnd gnd gnd gnd gnd gnd
++        gnd gnd gnd gnd gnd gnd gnd gnd]
++      [pa0_clk 0 gnd gnd gnd gnd gnd gnd
++        gnd gnd gnd gnd gnd gnd gnd gnd
++        gnd gnd gnd gnd gnd gnd gnd gnd]
++      d_cosim_model
+
+.model d_cosim_model d_cosim(
++ simulation=./build/cosim/libavr_cosim.so
++ sim_args=["atmega3209","firmware.hex","1"]
++ queue_size=1024 irreversible=1 delay=1e-9)
+
+* Pull-up resistor to give pa0_clk an analog reference
+R_pull pa0_clk 0 10k
+
+* DAC bridge to observe pin state as analog voltage
+A_dac [pa0_clk] [pa0_an 0] dac_bridge
+.model dac_bridge dac_bridge(out_low=0 out_high=5 input_load=1p t_rise=1n t_fall=1n)
+
+* Control
+.tran 1n 200u
+.print tran v(adc_in) v(pa0_an)
+.end

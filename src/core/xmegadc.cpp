@@ -16,6 +16,9 @@ XmegaAdc::XmegaAdc(const XmegaAdcDescriptor& desc) noexcept : desc_(desc) {
     add_if(desc_.evctrl_address);
     add_if(desc_.prescaler_address);
     add_if(desc_.intflags_address);
+    if (desc_.ctrla_address && desc_.intflags_address != desc_.ctrla_address + 6) {
+        add_if(static_cast<u16>(desc_.ctrla_address + 6));
+    }
     add_if(desc_.temp_address);
     add_if(desc_.sampctrl_address);
     add_if(desc_.cal_address);
@@ -148,6 +151,7 @@ u8 XmegaAdc::read(u16 address) noexcept {
     if (address == desc_.ctrlb_address || address == desc_.muxctrl_address) return ctrlb_;
     if (address == desc_.refctrl_address || address == desc_.ch_intctrl_address) return refctrl_;
     if (address == desc_.evctrl_address || address == desc_.intflags_address) return intflags_;
+    if (desc_.ctrla_address && address == desc_.ctrla_address + 6) return intflags_;
     if (address == desc_.prescaler_address) return prescaler_;
     if (address == desc_.temp_address) return temp_;
     if (address == desc_.sampctrl_address) return sampctrl_;
@@ -194,7 +198,7 @@ void XmegaAdc::write(u16 address, u8 value) noexcept {
     }
 
     // INTFLAGS write: write-1-to-clear at intflags_address
-    if (address == desc_.intflags_address) {
+    if (address == desc_.intflags_address || (desc_.ctrla_address && address == desc_.ctrla_address + 6)) {
         intflags_ &= ~value;
         update_interrupt_state();
     }

@@ -71,6 +71,8 @@ void Uart::reset() noexcept
     tx_buffer_full_ = false;
     rx_shift_reg_ = 0;
     rx_bits_left_ = 0;
+    if (desc_.txd_pin_address)
+        pin_mux_->release_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
     update_interrupt_state();
 }
 
@@ -88,9 +90,14 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
         tx_cycle_accumulator_ = 0;
         ucsra_ |= desc_.udre_mask;   // Buffer now empty
         ucsra_ &= ~desc_.txc_mask;  // New transmission clears TXC
+        // Drive start bit LOW
+        if (desc_.txd_pin_address)
+            pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit,
+                PinOwner::uart, true, false);
     }
 
     if (tx_active_) {
+        u64 old_accum = tx_cycle_accumulator_;
         tx_cycle_accumulator_ += elapsed_cycles;
         u16 ubrr = (static_cast<u16>(ubrrh_) << 8) | ubrrl_;
         u32 bit_duration = ((ucsra_ & desc_.u2x_mask) ? 8U : 16U) * (ubrr + 1U);
@@ -99,8 +106,27 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
         u8 stop_bits = (ucsrc_ & 0x08U) ? 2 : 1;
         const u64 limit = bit_duration * (1ULL + data_bits + parity_bits + stop_bits);
         
+        // Drive TX pin for current bit position
+        if (desc_.txd_pin_address && tx_cycle_accumulator_ < limit) {
+            u64 bit_pos = tx_cycle_accumulator_ / bit_duration;
+            if (bit_pos < 1ULL + data_bits + parity_bits + stop_bits) {
+                bool level = true; // stop/idle HIGH
+                if (bit_pos == 0) {
+                    level = false; // start bit
+                } else if (bit_pos <= data_bits) {
+                    level = (tx_shift_reg_ >> (bit_pos - 1)) & 1;
+                }
+                pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit,
+                    PinOwner::uart, true, level);
+            }
+        }
+        
         if (tx_cycle_accumulator_ >= limit) {
-            // Byte finished shifting
+            // Byte finished shifting — drive idle HIGH
+            if (desc_.txd_pin_address)
+                pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit,
+                    PinOwner::uart, true, true);
+            
             tx_output_queue_.push_back(static_cast<u16>(tx_shift_reg_));
             ucsra_ |= desc_.txc_mask;
             
@@ -111,6 +137,10 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
                 ucsra_ |= desc_.udre_mask;
                 ucsra_ &= ~desc_.txc_mask;
                 tx_cycle_accumulator_ -= limit;
+                // Drive start bit of next byte
+                if (desc_.txd_pin_address)
+                    pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit,
+                        PinOwner::uart, true, false);
                 // tx_active remains true
             } else {
                 tx_active_ = false;
@@ -167,7 +197,17 @@ void Uart::write(const u16 address, const u8 value) noexcept
         ucsra_ = static_cast<u8>((ucsra_ & ~(desc_.u2x_mask | desc_.mpcm_mask)) | (value & (desc_.u2x_mask | desc_.mpcm_mask)));
         if (value & desc_.txc_mask) ucsra_ &= ~desc_.txc_mask;
     } else if (address == desc_.ucsrb_address) {
+        u8 old = ucsrb_;
         ucsrb_ = value;
+        if (desc_.txd_pin_address) {
+            if ((value & desc_.txen_mask) && !(old & desc_.txen_mask)) {
+                pin_mux_->claim_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+                pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit,
+                    PinOwner::uart, true, true);
+            } else if (!(value & desc_.txen_mask) && (old & desc_.txen_mask)) {
+                pin_mux_->release_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+            }
+        }
     } else if (address == desc_.ucsrc_address) {
         ucsrc_ = value;
     } else if (address == desc_.ubrrl_address) {

@@ -53,6 +53,7 @@
 #include "vioavr/core/tce.hpp"
 #include "vioavr/core/adcea.hpp"
 #include "vioavr/core/xmegadc.hpp"
+#include "vioavr/core/xmegaac.hpp"
 #include "vioavr/core/lcd_controller.hpp"
 #include "vioavr/core/usb.hpp"
 #include "vioavr/core/usb8x.hpp"
@@ -619,6 +620,23 @@ void Machine::initialize_peripherals()
             tc->set_port_mux(port_mux_);
             port_mux_->add_observer(tc.get());
         }
+        {
+            u16 tc_base = device_.timers_tc[i].ctrla_address;
+            char port_letter = 0;
+            if (tc_base >= 0x0800 && tc_base < 0x0900) port_letter = 'C';
+            else if (tc_base >= 0x0900 && tc_base < 0x0A00) port_letter = 'D';
+            else if (tc_base >= 0x0A00 && tc_base < 0x0B00) port_letter = 'E';
+            else if (tc_base >= 0x0B00 && tc_base < 0x0C00) port_letter = 'F';
+            if (port_letter) {
+                for (u8 p = 0; p < device_.port_count; ++p) {
+                    auto& pn = device_.ports[p].name;
+                    if (pn.size() > 4 && pn[4] == port_letter) {
+                        tc->set_port_index(static_cast<u8>(pn[4] - 'A'));
+                        break;
+                    }
+                }
+            }
+        }
         bus_->attach_peripheral(*tc);
         owned_peripherals_.push_back(std::move(tc));
     }
@@ -647,6 +665,15 @@ void Machine::initialize_peripherals()
         adc->set_analog_signal_bank(&analog_signal_bank_);
         bus_->attach_peripheral(*adc);
         owned_peripherals_.push_back(std::move(adc));
+    }
+
+    // XMEGA AC
+    for (u8 i = 0; i < device_.ac_xmega_count; ++i) {
+        auto ac = std::make_unique<XmegaAc>(device_.acs_xmega[i]);
+        ac->set_memory_bus(bus_.get());
+        ac->set_analog_signal_bank(&analog_signal_bank_);
+        bus_->attach_peripheral(*ac);
+        owned_peripherals_.push_back(std::move(ac));
     }
 
     // 18. CCL (Moved to end to ensure all other peripherals are on the bus)

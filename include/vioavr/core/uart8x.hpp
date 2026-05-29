@@ -43,6 +43,7 @@ private:
     class MemoryBus* bus_ {nullptr};
     class EventSystem* evsys_ {nullptr};
     std::array<AddressRange, 8> ranges_;
+    bool xmega_mode_ {false};
 
     u8 ctrla_ {};
     u8 ctrlb_ {};
@@ -109,9 +110,16 @@ private:
     static constexpr u8 RXDATAH_PERR = 0x02;
     static constexpr u8 RXDATAH_DATA8 = 0x01;
 
+    [[nodiscard]] static bool is_xmega_layout(const Uart8xDescriptor& desc) noexcept {
+        return desc.rxdata_address != 0 && desc.ctrla_address != 0
+            && desc.rxdata_address == desc.txdata_address
+            && desc.rxdata_address < desc.ctrla_address;
+    }
+
     void update_pin_ownership() noexcept;
     void actually_push_to_fifo(u8 data, bool bit9) noexcept;
     void update_interrupt_state() noexcept;
+    void drive_tx_pin(PinLevel level, bool claim = true) noexcept;
     
     u8 rx_latched_high_ {};
     PinLevel rx_last_level_ {PinLevel::high};

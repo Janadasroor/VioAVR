@@ -42,6 +42,7 @@
 #include "vioavr/core/tce.hpp"
 #include "vioavr/core/adcea.hpp"
 #include "vioavr/core/xmegadc.hpp"
+#include "vioavr/core/xmegaac.hpp"
 #include "vioavr/core/zcd.hpp"
 #include "vioavr/core/opamp.hpp"
 #include "vioavr/core/cfd.hpp"
@@ -95,6 +96,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         GpioPort* ptr = port.get();
         ports_.push_back(ptr);
         port_map_[std::string(desc.name)] = ptr;
+        u8 port_idx = (desc.name.size() >= 5 && desc.name[0] == 'P')
+                      ? static_cast<u8>(desc.name[4] - 'A') : i;
+        port_idx_to_name_[port_idx] = std::string(desc.name);
         bus_.attach_peripheral(*port);
         owned_peripherals_.push_back(std::move(port));
     }
@@ -325,8 +329,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // 4. Communication
     for (u8 i = 0; i < device.uart_count; ++i) {
-        auto uart = std::make_unique<Uart>("UART" + std::to_string(i), device.uarts[i], pin_mux_);
-        bus_.attach_peripheral(*uart.release());
+        auto u = std::make_unique<Uart>("UART" + std::to_string(i), device.uarts[i], pin_mux_);
+        if (i == 0) uart0_ = u.get();
+        bus_.attach_peripheral(*u.release());
     }
 
     for (u8 i = 0; i < device.uart8x_count; ++i) {
@@ -334,6 +339,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         uart->set_memory_bus(&bus_);
         uart->set_event_system(evsys);
         uart->set_port_mux(port_mux_);
+        if (i == 0) uart8x0_ = uart.get();
         bus_.attach_peripheral(*uart.release());
     }
 
@@ -502,6 +508,23 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             tc->set_port_mux(port_mux_);
             port_mux_->add_observer(tc.get());
         }
+        {
+            u16 tc_base = device.timers_tc[i].ctrla_address;
+            char port_letter = 0;
+            if (tc_base >= 0x0800 && tc_base < 0x0900) port_letter = 'C';
+            else if (tc_base >= 0x0900 && tc_base < 0x0A00) port_letter = 'D';
+            else if (tc_base >= 0x0A00 && tc_base < 0x0B00) port_letter = 'E';
+            else if (tc_base >= 0x0B00 && tc_base < 0x0C00) port_letter = 'F';
+            if (port_letter) {
+                for (u8 p = 0; p < device.port_count; ++p) {
+                    auto& pn = device.ports[p].name;
+                    if (pn.size() > 4 && pn[4] == port_letter) {
+                        tc->set_port_index(static_cast<u8>(pn[4] - 'A'));
+                        break;
+                    }
+                }
+            }
+        }
         bus_.attach_peripheral(*tc);
         owned_peripherals_.push_back(std::move(tc));
     }
@@ -530,6 +553,15 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         adc->set_analog_signal_bank(&analog_signal_bank_);
         bus_.attach_peripheral(*adc);
         owned_peripherals_.push_back(std::move(adc));
+    }
+
+    // 14g. XMEGA AC
+    for (u8 i = 0; i < device.ac_xmega_count; ++i) {
+        auto ac = std::make_unique<XmegaAc>(device.acs_xmega[i]);
+        ac->set_memory_bus(&bus_);
+        ac->set_analog_signal_bank(&analog_signal_bank_);
+        bus_.attach_peripheral(*ac);
+        owned_peripherals_.push_back(std::move(ac));
     }
 
     // 15. USB
@@ -622,13 +654,10 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // PinMux callback (set after all peripherals created to capture runtime pin changes)
     pin_mux_.set_callback([this](u8 port_idx, u8 bit_idx, const PinState& state) {
-        static const std::string port_names[] = {
-            "PORTA", "PORTB", "PORTC", "PORTD", "PORTE", "PORTF", "PORTG", "PORTH",
-            "PORTI", "PORTJ", "PORTK", "PORTL", "PORTM", "PORTN", "PORTO", "PORTP"
-        };
         PinStateChange change;
-        if (port_idx < 16) {
-            change.port_name = port_names[port_idx];
+        auto it = port_idx_to_name_.find(port_idx);
+        if (it != port_idx_to_name_.end()) {
+            change.port_name = it->second;
         } else {
             change.port_name = "PORT?";
         }
@@ -739,6 +768,35 @@ std::vector<double> VioSpice::get_analog_outputs() {
 
 void VioSpice::step_duration(double seconds) {
     cpu_.run_duration(seconds);
+    bridge_hc05();
+}
+
+void VioSpice::enable_hc05() {
+    hc05_enabled_ = true;
+}
+
+void VioSpice::bridge_hc05() {
+    if (!hc05_enabled_) return;
+    u16 data;
+    auto consume = [&](auto* u) -> bool {
+        if (!u) return false;
+        return u->consume_transmitted_byte(data);
+    };
+    auto inject = [&](auto* u, u16 d) {
+        if (u) u->inject_received_byte(static_cast<u8>(d));
+    };
+    while (consume(uart0_) || consume(uart8x0_))
+        hc05_.rx_byte(static_cast<u8>(data & 0xFF));
+    while (hc05_.has_tx_byte()) {
+        data = hc05_.read_tx_byte();
+        inject(uart0_, data);
+        if (!uart0_) inject(uart8x0_, data);
+    }
+    while (hc05_.has_external_data()) {
+        data = hc05_.read_injected_byte();
+        inject(uart0_, data);
+        if (!uart0_) inject(uart8x0_, data);
+    }
 }
 
 void VioSpice::tick_timer2_async(u64 ticks) {

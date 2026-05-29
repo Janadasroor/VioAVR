@@ -10,6 +10,10 @@
 #include <QPushButton>
 #include <QFont>
 #include <QStatusBar>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QLineEdit>
+#include <QDialog>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -29,6 +33,12 @@ MainWindow::MainWindow(QWidget *parent)
     setupSidebar();
 
     // statusMessage — WaveformViewer doesn't have one; we emit our own
+}
+
+QString MainWindow::ngspicePath()
+{
+    QSettings s(kOrgName, kAppName);
+    return s.value(kSettingsNgspice, kDefaultNgspice).toString();
 }
 
 void MainWindow::loadLogFile(const QString &path)
@@ -86,6 +96,10 @@ void MainWindow::setupMenuBar()
     // --- Simulation menu ---
     m_simMenu = menuBar()->addMenu("&Simulation");
     auto *refreshAct = m_simMenu->addAction("&Refresh Circuit List", QKeySequence("F5"), this, &MainWindow::onRefreshCirList);
+
+    // --- Settings ---
+    auto *settingsMenu = menuBar()->addMenu("&Settings");
+    settingsMenu->addAction("&Configure ngspice...", this, &MainWindow::onSettings);
 }
 
 void MainWindow::setupSidebar()
@@ -344,9 +358,12 @@ void MainWindow::runNgspiceFor(const QString &cirPath)
         }
     }
 
-    QString ngspice = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice";
+    QString ngspice = ngspicePath();
     if (!QFileInfo::exists(ngspice)) {
-        QMessageBox::warning(this, "ngspice Not Found", ngspice);
+        QMessageBox::warning(this, "ngspice Not Found",
+            QString("ngspice binary not found at:\n%1\n\n"
+                    "Configure the correct path in Settings → Configure ngspice.")
+                .arg(ngspice));
         return;
     }
 
@@ -387,4 +404,35 @@ void MainWindow::runNgspiceFor(const QString &cirPath)
     });
 
     proc->start(ngspice, {"-b", cirName});
+}
+
+void MainWindow::onSettings()
+{
+    QSettings s(kOrgName, kAppName);
+    QString current = s.value(kSettingsNgspice, kDefaultNgspice).toString();
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Configure ngspice");
+    auto *form = new QFormLayout(&dlg);
+    auto *pathEdit = new QLineEdit(current);
+    pathEdit->setPlaceholderText("/path/to/ngspice");
+    form->addRow("ngspice binary:", pathEdit);
+
+    auto *browseBtn = new QPushButton("Browse...");
+    form->addRow("", browseBtn);
+    connect(browseBtn, &QPushButton::clicked, this, [&]() {
+        QString p = QFileDialog::getOpenFileName(&dlg, "Select ngspice binary",
+            pathEdit->text(), "ngspice (ngspice ngspice.exe)");
+        if (!p.isEmpty()) pathEdit->setText(p);
+    });
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    form->addRow(btns);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        s.setValue(kSettingsNgspice, pathEdit->text());
+        s.sync();
+    }
 }

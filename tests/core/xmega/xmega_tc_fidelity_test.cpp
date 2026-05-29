@@ -138,6 +138,92 @@ TEST_CASE("XMEGA TC Fidelity: Double Buffering") {
     CHECK(tc.read(d.period_address) == 20);
 }
 
+TEST_CASE("XMEGA TC Fidelity: Single-Slope PWM WO Output") {
+    auto d = make_test_tc0();
+    Tc tc("TCC0", d);
+    tc.reset();
+
+    // Enable, single-slope PWM (wg_mode=1), non-inverting
+    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.ctrlb_address, 0x01); // wg_mode=1, no WO output enable
+    tc.write(d.period_address, 10);
+    tc.write(d.period_address + 1, 0);
+    tc.write(d.cca_address, 5);
+    tc.write(d.cca_address + 1, 0);
+
+    // With wg_mode==1 but WOEN clear, outputs are not enabled
+    // Enable WO0 (bit 4 in CTRLB)
+    tc.write(d.ctrlb_address, 0x11); // wg_mode=1 | WO0EN
+
+    // After reset, no ticks yet: wo should be false (BOTTOM state)
+    CHECK(tc.get_wo_level(0) == false);
+
+    // Tick to cnt=5 (compare match should set wo)
+    tc.tick(5);
+    CHECK(tc.get_wo_level(0) == true);
+
+    // Tick to cnt=10 (TOP, wo should clear)
+    tc.tick(5);
+    CHECK(tc.get_wo_level(0) == false);
+    CHECK((tc.read(d.intflags_address) & 0x01) != 0); // OVF
+
+    // Count to 5 again (wo should set at CMP)
+    tc.tick(5);
+    CHECK(tc.get_wo_level(0) == true);
+
+    // Inverting mode: set CMPPOL bit
+    tc.write(d.ctrlc_address, 0x10);
+    tc.reset();
+    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.ctrlb_address, 0x11);
+    tc.write(d.period_address, 10);
+    tc.write(d.period_address + 1, 0);
+    tc.write(d.cca_address, 5);
+    tc.write(d.cca_address + 1, 0);
+    tc.write(d.ctrlc_address, 0x10); // CCA polarity = inverting
+
+    // After reset: wo should follow CMPPOL = HIGH (inverting starts HIGH)
+    CHECK(tc.get_wo_level(0) == true);
+
+    tc.tick(5);
+    // At CMP match: inverting clears the output
+    CHECK(tc.get_wo_level(0) == false);
+
+    tc.tick(5);
+    // At TOP: inverting sets the output back to HIGH
+    CHECK(tc.get_wo_level(0) == true);
+}
+
+TEST_CASE("XMEGA TC Fidelity: CMP==PER Boundary Match") {
+    auto d = make_test_tc0();
+    auto dev = minimal_device();
+    MemoryBus bus{dev};
+    Tc tc("TCC0", d);
+    tc.set_memory_bus(&bus);
+    tc.reset();
+
+    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.period_address, 5);
+    tc.write(d.period_address + 1, 0);
+    tc.write(d.cca_address, 5);
+    tc.write(d.cca_address + 1, 0);
+    tc.write(d.intctrlb_address, 0x01);
+
+    // Count to 4 (one before PER)
+    tc.tick(4);
+    CHECK(tc.read(d.cnt_address) == 4);
+    CHECK((tc.read(d.intflags_address) & 0x10) == 0);
+    CHECK((tc.read(d.intflags_address) & 0x01) == 0);
+
+    // 5th tick: cnt 4→5→0, CMP match fires (cnt_==cca_) before wrap
+    tc.tick(1);
+    CHECK(tc.read(d.cnt_address) == 0); // wrapped
+
+    u8 intflags = tc.read(d.intflags_address);
+    CHECK((intflags & 0x10) != 0); // CMP match fired
+    CHECK((intflags & 0x01) != 0); // OVF also fired in same tick
+}
+
 TEST_CASE("XMEGA TC Fidelity: Dual Slope Mode") {
     auto d = make_test_tc0();
     Tc tc("TCC0", d);

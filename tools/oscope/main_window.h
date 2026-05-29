@@ -13,6 +13,7 @@
 #include <QLabel>
 #include <QProcess>
 #include <QProgressBar>
+
 #include "waveform_viewer.h"
 
 class MainWindow : public QMainWindow {
@@ -31,6 +32,7 @@ private slots:
     void onRefreshCirList();
     void onRunSimulation();
     void onClearRecent();
+    void onSettings();
 
 private:
     void setupMenuBar();
@@ -59,6 +61,10 @@ private:
     static constexpr int kMaxRecent = 10;
     static constexpr const char *kSettingsRecent = "recentFiles";
     static constexpr const char *kSettingsLastDir = "lastDir";
+    static constexpr const char *kSettingsNgspice = "ngspiceBinary";
+    static constexpr const char *kDefaultNgspice = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice";
     static constexpr const char *kOrgName = "VioAVR";
     static constexpr const char *kAppName = "VioAVR Oscilloscope";
+
+    static QString ngspicePath();
 };

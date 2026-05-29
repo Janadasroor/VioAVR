@@ -21,6 +21,7 @@ target_sources(vioavr_core
         eeprom.cpp
         ext_interrupt.cpp
         gpio_port.cpp
+        hc05.cpp
         hex_image.cpp
         io_peripheral.cpp
         memory_bus.cpp
@@ -78,6 +79,7 @@ target_sources(vioavr_core
         adcea.cpp
         awex.cpp
         xmegadc.cpp
+        xmegaac.cpp
         vcd_writer.cpp
 )
 

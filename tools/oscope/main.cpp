@@ -3,6 +3,7 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QDir>
+#include <QSettings>
 #include <QMessageBox>
 #include "main_window.h"
 #include "theme_manager.h"
@@ -95,10 +96,12 @@ int main(int argc, char *argv[])
             setupCosimLinks(cirDir);
 
         // Run ngspice synchronously
-        QString ngspice = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice";
+        QSettings s("VioAVR", "VioAVR Oscilloscope");
+        QString ngspice = s.value("ngspiceBinary",
+            "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice").toString();
         if (!QFileInfo::exists(ngspice)) {
             QMessageBox::critical(nullptr, "ngspice Not Found",
-                QString("ngspice binary not found at %1").arg(ngspice));
+                QString("ngspice binary not found at:\n%1").arg(ngspice));
             return 1;
         }
 

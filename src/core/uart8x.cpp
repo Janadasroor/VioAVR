@@ -8,7 +8,7 @@
 namespace vioavr::core {
 
 Uart8x::Uart8x(const Uart8xDescriptor& descriptor, PinMux& pin_mux) noexcept
-    : desc_(descriptor), pin_mux_(&pin_mux)
+    : desc_(descriptor), pin_mux_(&pin_mux), xmega_mode_(is_xmega_layout(descriptor))
 {
     const std::array<u16, 10> addrs = {
         desc_.ctrla_address, desc_.ctrlb_address, desc_.ctrlc_address,
@@ -90,14 +90,17 @@ void Uart8x::set_event_system(EventSystem* evsys) noexcept {
 }
 
 void Uart8x::tick(u64 elapsed_cycles) noexcept {
-    // Determine bit duration once if not cached
-    u8 samples_per_bit = 16;
-    u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
-    if (rxmode == 0x01) samples_per_bit = 8;
-    
     double bit_duration = 16.0;
-    if (baud_ > 64) {
-        bit_duration = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
+    if (xmega_mode_) {
+        u16 bsel = baud_ & 0x0FFFU;
+        bit_duration = 16.0 * (static_cast<double>(bsel) + 1.0);
+    } else {
+        u8 samples_per_bit = 16;
+        u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
+        if (rxmode == 0x01) samples_per_bit = 8;
+        if (baud_ > 64) {
+            bit_duration = (static_cast<double>(baud_) * samples_per_bit) / 64.0;
+        }
     }
 
     const u8 old_status = status_;
@@ -167,7 +170,7 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                         }
                     }
                 }
-                port_mux_->drive_usart_tx(desc_.index, bit_level);
+                drive_tx_pin(bit_level);
             }
 
             if (tx_cycle_accumulator_ >= tx_bit_duration_) {
@@ -179,9 +182,7 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                     status_ |= STATUS_TXCIF;
                     tx_output_queue_.push_back(tx_shift_reg_);
 
-                    if (port_mux_) {
-                        port_mux_->drive_usart_tx(desc_.index, PinLevel::high); // Idle High
-                    }
+                    drive_tx_pin(PinLevel::high); // Idle High
                     
                     // Loop-back handling
                     if (ctrla_ & CTRLA_LBME) {
@@ -190,20 +191,22 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                 }
             }
         } else if (ctrlb_ & CTRLB_TXEN) {
-            if (port_mux_) {
-                port_mux_->drive_usart_tx(desc_.index, PinLevel::high);
-            }
+            drive_tx_pin(PinLevel::high);
         }
 
         // 2. Receiver (bit-level simulation)
         if (ctrlb_ & CTRLB_RXEN) {
-            u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
-            double bit_duration = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
+            double bit_duration;
+            if (xmega_mode_) {
+                u16 bsel = baud_ & 0x0FFFU;
+                bit_duration = 16.0 * (static_cast<double>(bsel) + 1.0);
+            } else {
+                u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
+                bit_duration = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
+            }
 
             PinLevel rx_level = PinLevel::high;
-            if (port_mux_) {
-                rx_level = port_mux_->get_usart_rx_level(desc_.index);
-            } else {
+            if (desc_.rxd_pin_address) {
                 bool rx_level_bit = pin_mux_->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
                 rx_level = rx_level_bit ? PinLevel::high : PinLevel::low;
             }
@@ -290,13 +293,11 @@ void Uart8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.ctrlb_address) {
         u8 old_ctrlb = ctrlb_;
         ctrlb_ = value;
-        if (port_mux_) {
-            // Manage TX pin ownership
-            if (!(value & CTRLB_TXEN)) {
-                port_mux_->drive_usart_tx(desc_.index, PinLevel::high, false);
-            } else if (!(old_ctrlb & CTRLB_TXEN)) {
-                port_mux_->drive_usart_tx(desc_.index, PinLevel::high, true);
-            }
+        // Manage TX pin ownership
+        if (!(value & CTRLB_TXEN)) {
+            drive_tx_pin(PinLevel::high, false);
+        } else if (!(old_ctrlb & CTRLB_TXEN)) {
+            drive_tx_pin(PinLevel::high, true);
         }
     }
     else if (address == desc_.ctrlc_address) ctrlc_ = value;
@@ -357,8 +358,13 @@ void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
     rx_shift_reg_ = bit9 ? (static_cast<u16>(1U) << 8U) | data : data;
     status_ |= STATUS_RXSIF;
 
-    u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
-    rx_bit_duration_ = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
+    if (xmega_mode_) {
+        u16 bsel = baud_ & 0x0FFFU;
+        rx_bit_duration_ = 16.0 * (static_cast<double>(bsel) + 1.0);
+    } else {
+        u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
+        rx_bit_duration_ = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
+    }
     
     rx_char_size_ = 5 + (ctrlc_ & 0x03U);
     if ((ctrlc_ & 0x07U) == 0x07U) rx_char_size_ = 9;
@@ -400,6 +406,17 @@ void Uart8x::update_interrupt_state() noexcept {
     bool dreif = (status_ & STATUS_DREIF) && (ctrla_ & CTRLA_DREIE);
     bool txicif = (status_ & STATUS_TXCIF) && (ctrla_ & CTRLA_TXCIE);
     set_interrupt_pending(rif || dreif || txicif);
+}
+
+void Uart8x::drive_tx_pin(PinLevel level, bool claim) noexcept {
+    if (desc_.txd_pin_address == 0) return;
+    
+    if (claim) {
+        pin_mux_->claim_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+        pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart, true, level == PinLevel::high, false);
+    } else {
+        pin_mux_->release_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+    }
 }
 
 } // namespace vioavr::core

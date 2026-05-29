@@ -1,0 +1,31 @@
+* VioAVR ATtiny85 Mixed-Signal Dynamic Frequency Demo (d_cosim)
+* Analog sweep -> ADC bridge -> PB1 digital input -> firmware -> PB0 digital output -> DAC
+
+* 1. Analog Input Sweep Signal (500 Hz triangle: 0-5V, 2ms period)
+V_in adc_in_an 0 pulse(0 5 0 1m 1m 1n 2m)
+
+* 2. ADC bridge: analog sweep -> digital hysteresis signal for PB1
+* Thresholds: in_low=1.5V (VIL), in_high=3.5V (VIH)
+A_adc_in [adc_in_an] [pb1_dig] adc_model
+.model adc_model adc_bridge(in_low=1.5 in_high=3.5)
+
+* 3. DAC bridge for PB0 digital output -> analog visualization
+A_dac_out [pb0_dig] [pb0_an] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0)
+
+* 4. AVR MCU via d_cosim (24 pins)
+* Pin map: PORTB[0..7]=idx 0..7, PORTC[0..7]=idx 8..15, PORTD[0..7]=idx 16..23
+* PB0 (idx 0) = output via d_out[0], PB1 (idx 1) = input via d_in[1]
+* List same 24 nodes in both vectors (d_in and d_out).
+A_AVR [pb0_dig pb1_dig nc2 nc3 nc4 nc5 nc6 nc7 nc8 nc9 nc10 nc11 nc12 nc13 nc14 nc15 nc16 nc17 nc18 nc19 nc20 nc21 nc22 nc23] [pb0_dig pb1_dig nc2 nc3 nc4 nc5 nc6 nc7 nc8 nc9 nc10 nc11 nc12 nc13 nc14 nc15 nc16 nc17 nc18 nc19 nc20 nc21 nc22 nc23] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["attiny85"] queue_size=1024 irreversible=1 delay=1e-9)
+
+* 5. SPICE Solver Options
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 2.0ms
+
+.control
+run
+print v(adc_in_an) v(pb0_an)
+.endc
+.end

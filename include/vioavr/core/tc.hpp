@@ -18,6 +18,7 @@ public:
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept;
     void set_port_mux(PortMux* port_mux) noexcept { port_mux_ = port_mux; }
+    void set_port_index(u8 idx) noexcept { port_index_ = idx; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -41,7 +42,7 @@ private:
     [[nodiscard]] u8 get_wg_mode() const noexcept;
 
     void perform_tick() noexcept;
-    void handle_matches() noexcept;
+    void handle_matches(u16 prev_cnt) noexcept;
     void commit_buffers() noexcept;
     void handle_cmd(u8 cmd) noexcept;
     void update_prescaler() noexcept;
@@ -56,6 +57,7 @@ private:
     MemoryBus* bus_ {};
     EventSystem* evsys_ {};
     PortMux* port_mux_ {};
+    u8 port_index_ {0xFF};
 
     u8 ctrla_ {};
     u8 ctrlb_ {};

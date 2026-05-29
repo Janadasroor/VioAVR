@@ -1,0 +1,2 @@
+* Load digital code models (d_cosim, dac_bridge, adc_bridge)
+codemodel /home/jnd/cpp_projects/VioMATRIXC/release/src/xspice/icm/digital/digital.cm
