@@ -1,0 +1,17 @@
+* VioAVR co-simulation test for ATmega4808
+
+R_pull pa0_dig 0 10k
+A_dac [pa0_dig] [pa0_an] dac_bridge_model_dac
+.model dac_bridge_model_dac dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [pa0_dig 0 0 0 0 0 0 0 pb0_dig 0 0 0 0 0 0 0 pc0_dig 0 0 0 0 0 0 0] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega4808","atmega4808_fw.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 5us 300us
+
+.control
+run
+print v(pa0_an)
+.endc
+.end

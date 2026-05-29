@@ -120,9 +120,9 @@ public:
         if (observer) observers_.push_back(observer);
     }
 
-    void drive_tca0_wo(u8 wo_index, bool level, bool enabled) noexcept {
+    void drive_tca0_wo(u8 wo_index, bool level, bool enabled, u8 port_override = 0xFF) noexcept {
         if (!pin_mux_ || wo_index >= 6) return;
-        u8 port_idx = tcaroutea_ & 0x07;
+        u8 port_idx = (port_override != 0xFF) ? port_override : (tcaroutea_ & 0x07);
         if (port_idx >= 6) return;
         u8 pin_bit = (wo_index < 6) ? desc_.tca_wo_pin_bit[wo_index] : wo_index;
 
@@ -132,6 +132,20 @@ public:
         } else {
             pin_mux_->release_pin(port_idx, pin_bit, PinOwner::timer);
         }
+    }
+
+    [[nodiscard]] bool usart_tx_is_routable(u8 usart_index) const noexcept {
+        if (usart_index >= 4) return false;
+        u8 val = (usartroutea_ >> (usart_index * 2)) & 0x03;
+        u16 addr = desc_.usart[usart_index].txd.pin_addr[val];
+        return addr != 0;
+    }
+
+    [[nodiscard]] bool usart_rx_is_routable(u8 usart_index) const noexcept {
+        if (usart_index >= 4) return false;
+        u8 val = (usartroutea_ >> (usart_index * 2)) & 0x03;
+        u16 addr = desc_.usart[usart_index].rxd.pin_addr[val];
+        return addr != 0;
     }
 
     void drive_usart_tx(u8 usart_index, PinLevel level, bool enabled = true) noexcept {

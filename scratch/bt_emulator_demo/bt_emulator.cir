@@ -1,0 +1,31 @@
+* Two-chip BT emulator demo — dual-core cosim shim
+* One A-device, 64 d_in + 64 d_out:
+*   Chip 0 (APP): local ext IDs  0-31 → global  0-31
+*   Chip 1 (BT):  local ext IDs 32-63 → global 32-63
+*
+* Cross-wiring: app_txd -> bt_rxd, bt_txd -> app_rxd
+
+R_pull_app_txd app_txd 0 10k
+R_pull_bt_txd  bt_txd  0 10k
+R_pull_pc0_dig pc0_dig 0 10k
+
+A_dac_app [app_txd] [app_txd_an 0] dac_bridge_model
+A_dac_bt  [bt_txd]  [bt_txd_an 0]  dac_bridge_model
+A_dac_pc0 [pc0_dig] [pc0_an 0]     dac_bridge_model
+.model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+* 64 d_in + 64 d_out:
+* d_in[0]=bt_txd (APP RXD=PA0), d_in[32]=app_txd (BT RXD=PA0)
+* d_out[1]=app_txd (APP TXD=PA1), d_out[16]=pc0_dig (APP LED=PC0)
+* d_out[33]=bt_txd (BT TXD=PA1)
+A_DUAL [bt_txd 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 app_txd 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [0 app_txd 0 0 0 0 0 0 0 0 0 0 0 0 0 0 pc0_dig 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 bt_txd 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_dual
+
+.model d_cosim_dual d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega4809","app.hex","atmega4809","bt.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 1u 5000u
+.control
+run
+print v(app_txd_an) v(bt_txd_an) v(pc0_an)
+.endc
+.end

@@ -65,8 +65,8 @@ static bool generate_circuit(const fs::path& cir_path, const fs::path& hex_path,
     of << "A_dac [pa3_dig] [pa3_an] dac_bridge_model_dac\n";
     of << ".model dac_bridge_model_dac dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
     of << "\n";
-    of << "A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [";
-    for (int i = 0; i < 24; i++) {
+    of << "A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [";
+    for (int i = 0; i < 32; i++) {
         if (i > 0) of << " ";
         if (i < 8) of << "pa" << i << "_dig";
         else of << "0";

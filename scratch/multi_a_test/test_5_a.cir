@@ -1,0 +1,42 @@
+* Test: 5 d_cosim A-devices (ATmega328P, PB0=d_out[8])
+R_pull1 pb0_dig1 0 10k
+R_pull2 pb0_dig2 0 10k
+R_pull3 pb0_dig3 0 10k
+R_pull4 pb0_dig4 0 10k
+R_pull5 pb0_dig5 0 10k
+A_dac1 [pb0_dig1] [pb0_an1 0] dac_model
+A_dac2 [pb0_dig2] [pb0_an2 0] dac_model
+A_dac3 [pb0_dig3] [pb0_an3 0] dac_model
+A_dac4 [pb0_dig4] [pb0_an4 0] dac_model
+A_dac5 [pb0_dig5] [pb0_an5 0] dac_model
+.model dac_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+A_AVR1 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 0 0 0 pb0_dig1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ cosim1
+A_AVR2 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 0 0 0 pb0_dig2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ cosim2
+A_AVR3 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 0 0 0 pb0_dig3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ cosim3
+A_AVR4 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 0 0 0 pb0_dig4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ cosim4
+A_AVR5 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 0 0 0 pb0_dig5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ cosim5
+
+.model cosim1 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","toggle.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+.model cosim2 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","toggle.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+.model cosim3 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","toggle.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+.model cosim4 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","toggle.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+.model cosim5 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","toggle.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 5us 300us
+.control
+run
+print v(pb0_an1) v(pb0_an2) v(pb0_an3) v(pb0_an4) v(pb0_an5)
+.endc
+.end

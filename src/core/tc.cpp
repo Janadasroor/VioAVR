@@ -151,38 +151,32 @@ void Tc::perform_tick() noexcept {
     just_hit_top_ = false;
     just_hit_bottom_ = false;
 
+    u16 prev_cnt = cnt_;
+
     if (wg_mode >= 4 && wg_mode <= 7) {
         if (counting_up_) {
-            if (cnt_ < per_) {
-                ++cnt_;
-            }
-            if (cnt_ >= per_) {
-                cnt_ = per_;
-                just_hit_top_ = true;
-                counting_up_ = false;
-            }
+            if (cnt_ < per_) ++cnt_;
+            if (cnt_ >= per_) { cnt_ = per_; just_hit_top_ = true; counting_up_ = false; }
         } else {
-            if (cnt_ > 0) {
-                --cnt_;
-            }
-            if (cnt_ == 0) {
-                just_hit_bottom_ = true;
-                counting_up_ = true;
-                intflags_ |= 0x01;
-            }
+            if (cnt_ > 0) --cnt_;
+            if (cnt_ == 0) { just_hit_bottom_ = true; counting_up_ = true; intflags_ |= 0x01; }
         }
+        // Dual-slope: check matches after updating count but before updating outputs
+        handle_matches(prev_cnt);
     } else {
-        if (cnt_ < per_) {
-            ++cnt_;
-        }
-        if (cnt_ >= per_) {
-            cnt_ = 0;
-            just_hit_top_ = true;
-            intflags_ |= 0x01;
-        }
+        // Single-slope: increment but don't wrap yet — wrap after matches so CMP==PER is seen
+        if (cnt_ < per_) ++cnt_;
+        handle_matches(prev_cnt);
+        if (cnt_ >= per_) { cnt_ = 0; just_hit_top_ = true; intflags_ |= 0x01; }
     }
 
-    handle_matches();
+    // Single-slope PWM (wg_mode==1): reset WO states at TOP
+    if (just_hit_top_ && wg_mode == 1) {
+        wo_states_[0] = (ctrlc_ & 0x10) != 0;
+        wo_states_[1] = (ctrlc_ & 0x20) != 0;
+        wo_states_[2] = (ctrlc_ & 0x40) != 0;
+        wo_states_[3] = (ctrlc_ & 0x80) != 0;
+    }
 
     // Commit double-buffers at TOP (single-slope) or BOTTOM (dual-slope)
     if ((wg_mode < 4 && just_hit_top_) || (wg_mode >= 4 && just_hit_bottom_)) {
@@ -192,19 +186,21 @@ void Tc::perform_tick() noexcept {
     update_outputs();
 }
 
-void Tc::handle_matches() noexcept {
-    if (cca_ > 0 && cnt_ == cca_) {
-        intflags_ |= 0x10;
-    }
-    if (ccb_ > 0 && cnt_ == ccb_) {
-        intflags_ |= 0x20;
-    }
-    if (desc_.ccc_address && ccc_ > 0 && cnt_ == ccc_) {
-        intflags_ |= 0x40;
-    }
-    if (desc_.ccd_address && ccd_ > 0 && cnt_ == ccd_) {
-        intflags_ |= 0x80;
-    }
+void Tc::handle_matches(u16 prev_cnt) noexcept {
+    u8 wg = get_wg_mode();
+
+    auto check_match = [&](u16 cmp, u8 flag, u8 wo_idx, u8 pol_bit) {
+        if (cmp == 0) return;
+        if (cnt_ == cmp || (just_hit_top_ && prev_cnt == cmp)) {
+            intflags_ |= flag;
+            if (wg == 1) wo_states_[wo_idx] = !(ctrlc_ & pol_bit);
+        }
+    };
+
+    check_match(cca_, 0x10, 0, 0x10);
+    check_match(ccb_, 0x20, 1, 0x20);
+    if (desc_.ccc_address) check_match(ccc_, 0x40, 2, 0x40);
+    if (desc_.ccd_address) check_match(ccd_, 0x80, 3, 0x80);
 }
 
 void Tc::commit_buffers() noexcept {
@@ -253,13 +249,13 @@ void Tc::update_outputs() noexcept {
     bool wo2_en = (ctrlb_ & 0x40) != 0;
     bool wo3_en = (ctrlb_ & 0x80) != 0;
 
-    port_mux_->drive_tca0_wo(0, get_wo_level(0), wo0_en);
-    port_mux_->drive_tca0_wo(1, get_wo_level(1), wo1_en);
-    port_mux_->drive_tca0_wo(2, get_wo_level(2), wo2_en);
+    port_mux_->drive_tca0_wo(0, get_wo_level(0), wo0_en, port_index_);
+    port_mux_->drive_tca0_wo(1, get_wo_level(1), wo1_en, port_index_);
+    port_mux_->drive_tca0_wo(2, get_wo_level(2), wo2_en, port_index_);
     if (desc_.ccd_address) {
-        port_mux_->drive_tca0_wo(3, get_wo_level(3), wo3_en);
+        port_mux_->drive_tca0_wo(3, get_wo_level(3), wo3_en, port_index_);
     } else {
-        port_mux_->drive_tca0_wo(3, false, false);
+        port_mux_->drive_tca0_wo(3, false, false, port_index_);
     }
 }
 
@@ -468,10 +464,26 @@ void Tc::write(u16 address, u8 value) noexcept {
         update_interrupt_state();
     }
     else if (address == desc_.ctrlb_address) {
-        ctrlb_ = value & 0x87;
+        u8 old_wg = ctrlb_ & 0x07;
+        ctrlb_ = value & 0xF7;
+        u8 new_wg = ctrlb_ & 0x07;
+        if (new_wg == 1 && old_wg != 1) {
+            wo_states_[0] = (ctrlc_ & 0x10) != 0;
+            wo_states_[1] = (ctrlc_ & 0x20) != 0;
+            wo_states_[2] = (ctrlc_ & 0x40) != 0;
+            wo_states_[3] = (ctrlc_ & 0x80) != 0;
+        }
         update_outputs();
     }
-    else if (address == desc_.ctrlc_address) ctrlc_ = value;
+    else if (address == desc_.ctrlc_address) {
+        ctrlc_ = value;
+        if (get_wg_mode() == 1) {
+            wo_states_[0] = (ctrlc_ & 0x10) != 0;
+            wo_states_[1] = (ctrlc_ & 0x20) != 0;
+            wo_states_[2] = (ctrlc_ & 0x40) != 0;
+            wo_states_[3] = (ctrlc_ & 0x80) != 0;
+        }
+    }
     else if (address == desc_.ctrld_address) ctrld_ = value & 0x1F;
     else if (address == desc_.ctrle_address) {
         ctrle_ = value & 0x18;

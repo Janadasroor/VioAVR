@@ -63,7 +63,6 @@ private:
 
     std::deque<u16> tx_output_queue_;
 
-    void update_pin_ownership() noexcept;
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
     void update_interrupt_state() noexcept;
 };

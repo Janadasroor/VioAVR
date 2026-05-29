@@ -40,6 +40,7 @@ set(TEST_SOURCES
     xmega/xmega_tc_fidelity_test.cpp
     xmega/xmega_awex_fidelity_test.cpp
     xmega/xmega_adc_fidelity_test.cpp
+    xmega/xmega_ac_fidelity_test.cpp
     avr8x/avr8x_adcea_fidelity_test.cpp
     avr8x/avr8x_tca_frq_mode_test.cpp
     avr8x/avr8x_tca_pwm_period_test.cpp
@@ -233,7 +234,9 @@ set(TEST_SOURCES
     viospice/viospice_timer2_async_test.cpp
     viospice/viospice_all_devices_test.cpp
     viospice/viospice_ngspice_all_devices_test.cpp
+    viospice/hc05_fidelity_test.cpp
     viospice/viospice_attiny_tca_pwm_test.cpp
+    viospice/viospice_peripheral_functional_test.cpp
     attiny/attiny13_fidelity_test.cpp
     attiny/attiny85_fidelity_test.cpp
     attiny/attiny861_fidelity_test.cpp

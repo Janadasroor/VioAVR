@@ -81,6 +81,22 @@ uint64_t vioavr_get_cycles(VioSpiceHandle handle) {
     return static_cast<VioSpice*>(handle)->cpu().cycles();
 }
 
+void vioavr_enable_hc05(VioSpiceHandle handle) {
+    static_cast<VioSpice*>(handle)->enable_hc05();
+}
+
+bool vioavr_hc05_has_tx_byte(VioSpiceHandle handle) {
+    return static_cast<VioSpice*>(handle)->hc05().has_tx_byte();
+}
+
+uint8_t vioavr_hc05_read_tx_byte(VioSpiceHandle handle) {
+    return static_cast<VioSpice*>(handle)->hc05().read_tx_byte();
+}
+
+void vioavr_hc05_inject_data(VioSpiceHandle handle, const uint8_t* data, uint16_t len) {
+    static_cast<VioSpice*>(handle)->hc05().inject_external_data(data, len);
+}
+
 int vioavr_consume_pin_changes(VioSpiceHandle handle, VioAvrPinChange* changes, int max_changes) {
     VioSpice* spice = static_cast<VioSpice*>(handle);
     auto internal_changes = spice->consume_pin_changes();

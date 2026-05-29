@@ -1,0 +1,18 @@
+* BT emulator with native HC-05 — single AVR + native C++ Bluetooth bridge
+* UART handled internally via native HC-05 model.
+* PA1 (TXD) observable via dac_bridge for debugging.
+
+.model dac_bt dac_bridge(out_low=0.0 out_high=5.0 out_delay=1e-9)
+.model d_cosim_bt d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega4809","app.hex","hc05","pty_bt_sim"] queue_size=1024 irreversible=1 delay=1e-9)
+
+R_pull pa1_dig 0 10k
+A_dac_pa1 [pa1_dig] [pa1_an 0] dac_bt
+A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [0 pa1_dig 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_bt
+
+.save v(pa1_an)
+.tran 0.1u 5000u
+
+.control
+run
+print v(pa1_an) > sim_matrix.log
+.endc

@@ -288,8 +288,8 @@ inline constexpr DeviceDescriptor atmega4809 {
             .evctrl_address = 0x80CU,
             .rx_vector_index = 17U, .tx_vector_index = 19U, .dre_vector_index = 18U,
             .user_event_address = 0x1AFU,
-            .txd_pin_address = 0x404U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x408U, .rxd_pin_bit = 1U,
+            .txd_pin_address = 0x404U, .txd_pin_bit = 1U,
+            .rxd_pin_address = 0x408U, .rxd_pin_bit = 0U,
             .index = 0U
         },
         {

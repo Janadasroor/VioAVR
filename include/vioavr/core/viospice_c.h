@@ -38,6 +38,12 @@ void vioavr_set_operating_voltage(VioSpiceHandle handle, double vcc_volts);
 // Query analog outputs (DAC voltages)
 int vioavr_get_analog_outputs(VioSpiceHandle handle, double* outputs, int max_outputs);
 
+// HC-05 Bluetooth bridge
+void vioavr_enable_hc05(VioSpiceHandle handle);
+bool vioavr_hc05_has_tx_byte(VioSpiceHandle handle);
+uint8_t vioavr_hc05_read_tx_byte(VioSpiceHandle handle);
+void vioavr_hc05_inject_data(VioSpiceHandle handle, const uint8_t* data, uint16_t len);
+
 // Query
 uint64_t vioavr_get_cycles(VioSpiceHandle handle);
 

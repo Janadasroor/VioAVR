@@ -1,0 +1,12 @@
+* Minimal code model load test
+.title avr_adc_bridge load test
+
+V_adc adc_in 0 DC 2.5
+A_avr_adc adc_in dummy avr_adc_bridge
+.model avr_adc_bridge avr_adc_bridge(channel=0)
+
+R_dummy dummy 0 1k
+
+.op
+.print v(adc_in) v(dummy)
+.end

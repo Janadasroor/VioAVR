@@ -110,36 +110,46 @@ int main(void) {
     return true;
 }
 
-static bool generate_circuit(const fs::path& cir_path, const std::string& chip,
+    static constexpr int kPinCount = 32;
+
+    static bool generate_circuit(const fs::path& cir_path, const std::string& chip,
                              const fs::path& hex_path, const fs::path& cosim_so,
                              char first_port) {
-    std::string chip_lower = to_lowercase(chip);
-    std::string cosim_rel = "./cosim/libavr_cosim.so";
-    std::string hex_rel = hex_path.filename().string();
-    char pl = static_cast<char>(std::tolower(static_cast<unsigned char>(first_port)));
+        std::string chip_lower = to_lowercase(chip);
+        std::string cosim_rel = "./cosim/libavr_cosim.so";
+        std::string hex_rel = hex_path.filename().string();
+        char pl = static_cast<char>(std::tolower(static_cast<unsigned char>(first_port)));
 
-    std::ofstream of(cir_path);
-    of << "* VioAVR co-simulation test for " << chip << "\n";
-    of << "\n";
-    of << "R_pull p" << pl << "0_dig 0 10k\n";
-    of << "A_dac [p" << pl << "0_dig] [p" << pl << "0_an] dac_bridge_model_dac\n";
-    of << ".model dac_bridge_model_dac dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
-    of << "\n";
+        // Map port letter to d_out position: A=0, B=8, C=16, D=24
+        int port_offset = (first_port - 'A') * 8;
 
-    of << "A_AVR [";
-    for (int i = 0; i < 24; i++) {
-        if (i > 0) of << " ";
-        of << "0";
-    }
-    of << "] [";
-    for (int i = 0; i < 24; i++) {
-        if (i > 0) of << " ";
-        if (i == 0) of << "pa0_dig";
-        else if (i == 8) of << "pb0_dig";
-        else if (i == 16) of << "pc0_dig";
-        else of << "0";
-    }
-    of << "] d_cosim_model\n";
+        std::ofstream of(cir_path);
+        of << "* VioAVR co-simulation test for " << chip << "\n";
+        of << "\n";
+        of << "R_pull p" << pl << "0_dig 0 10k\n";
+        of << "A_dac [p" << pl << "0_dig] [p" << pl << "0_an] dac_bridge_model_dac\n";
+        of << ".model dac_bridge_model_dac dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
+        of << "\n";
+
+        of << "A_AVR [";
+        for (int i = 0; i < kPinCount; i++) {
+            if (i > 0) of << " ";
+            of << "0";
+        }
+        of << "] [";
+        for (int i = 0; i < kPinCount; i++) {
+            if (i > 0) of << " ";
+            if (i >= port_offset && i < port_offset + 8) {
+                int bit = i - port_offset;
+                if (bit == 0)
+                    of << "p" << pl << "0_dig";
+                else
+                    of << "0";
+            } else {
+                of << "0";
+            }
+        }
+        of << "] d_cosim_model\n";
 
     of << ".model d_cosim_model d_cosim(simulation=\"" << cosim_rel;
     of << "\" sim_args=[\"" << chip_lower << "\",\"" << hex_rel << "\"] queue_size=1024 irreversible=1 delay=1e-9)\n";
