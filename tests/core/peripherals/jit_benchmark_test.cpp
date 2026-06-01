@@ -1,4 +1,6 @@
 #include "doctest.h"
+
+#ifndef _WIN32
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
@@ -182,3 +184,7 @@ TEST_CASE("JIT vs Interpreter: Real Benchmark Hex") {
                     (unsigned long long)stats.execute_cycles);
     }
 }
+#else
+TEST_CASE("JIT Performance Benchmark") {}
+TEST_CASE("JIT vs Interpreter: Real Benchmark Hex") {}
+#endif

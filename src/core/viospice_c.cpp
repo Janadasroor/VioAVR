@@ -35,9 +35,11 @@ void vioavr_set_quantum(VioSpiceHandle handle, uint64_t cycles) {
     static_cast<VioSpice*>(handle)->set_quantum(cycles);
 }
 
+#ifndef _WIN32
 void vioavr_enable_jit(VioSpiceHandle handle, bool enabled) {
     static_cast<VioSpice*>(handle)->cpu().enable_jit(enabled);
 }
+#endif
 
 void vioavr_step_duration(VioSpiceHandle handle, double seconds) {
     static_cast<VioSpice*>(handle)->step_duration(seconds);
