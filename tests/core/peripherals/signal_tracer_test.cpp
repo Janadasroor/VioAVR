@@ -5,6 +5,11 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <filesystem>
+
+static std::string temp_path(const char* name) {
+    return (std::filesystem::temp_directory_path() / name).string();
+}
 
 std::string read_file(const std::string& path) {
     std::ifstream f(path);
@@ -26,9 +31,9 @@ TEST_CASE("VCD format basics")
 
     tracer.record("data", 3, (uint64_t)0x5);
 
-    REQUIRE(tracer.dump("/tmp/vcd_test.vcd"));
+    REQUIRE(tracer.dump(temp_path("vcd_test.vcd")));
 
-    std::string vcd = read_file("/tmp/vcd_test.vcd");
+    std::string vcd = read_file(temp_path("vcd_test.vcd"));
 
     CHECK(vcd.find("$timescale 10 ns $end") != std::string::npos);
     CHECK(vcd.find("$var wire 1 ! clk $end") != std::string::npos);
@@ -57,8 +62,8 @@ TEST_CASE("VCD deduplicates identical consecutive values")
     tracer.record("x", 10, true); // change
     tracer.record("x", 20, true); // same — suppressed
 
-    REQUIRE(tracer.dump("/tmp/vcd_dedup.vcd"));
-    std::string vcd = read_file("/tmp/vcd_dedup.vcd");
+    REQUIRE(tracer.dump(temp_path("vcd_dedup.vcd")));
+    std::string vcd = read_file(temp_path("vcd_dedup.vcd"));
 
     CHECK(vcd.find("#5") == std::string::npos);  // suppressed
     CHECK(vcd.find("#20") == std::string::npos); // suppressed
@@ -70,8 +75,8 @@ TEST_CASE("VCD signal not recorded — initial value is x")
     vcd::SignalTracer tracer;
     tracer.add_signal("z");
 
-    REQUIRE(tracer.dump("/tmp/vcd_z.vcd"));
-    std::string vcd = read_file("/tmp/vcd_z.vcd");
+    REQUIRE(tracer.dump(temp_path("vcd_z.vcd")));
+    std::string vcd = read_file(temp_path("vcd_z.vcd"));
 
     // First signal gets VCD ID '!' (ASCII 33); unknown initial → "x!"
     CHECK(vcd.find("x!") != std::string::npos);
@@ -84,8 +89,8 @@ TEST_CASE("VCD clears correctly")
     tracer.record("a", 0, true);
     tracer.clear();
 
-    REQUIRE(tracer.dump("/tmp/vcd_clear.vcd"));
-    std::string vcd = read_file("/tmp/vcd_clear.vcd");
+    REQUIRE(tracer.dump(temp_path("vcd_clear.vcd")));
+    std::string vcd = read_file(temp_path("vcd_clear.vcd"));
 
     // After clear, signal should be unknown ("x!") again
     CHECK(vcd.find("x!") != std::string::npos);
@@ -102,8 +107,8 @@ TEST_CASE("VCD multi-cycle PWM waveform round-trip")
         tracer.record("pwm", t, (t % 10) < 5);
     }
 
-    REQUIRE(tracer.dump("/tmp/vcd_pwm.vcd"));
-    std::string vcd = read_file("/tmp/vcd_pwm.vcd");
+    REQUIRE(tracer.dump(temp_path("vcd_pwm.vcd")));
+    std::string vcd = read_file(temp_path("vcd_pwm.vcd"));
 
     // dumpvars: pwm=1 at time 0 (first value is true since 0%10 < 5)
     CHECK(vcd.find("1!") != std::string::npos);
