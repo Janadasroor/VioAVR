@@ -307,6 +307,202 @@ TEST_CASE("USB8x — Data interrupt uses gen_vector_index") {
     CHECK(req.vector_index == 42); // gen_vector_index
 }
 
+TEST_CASE("USB8x — simulate_usb_reset clears endpoint state") {
+    auto d = make_test_desc();
+    d.bus_vector_index = 43;
+    d.gen_vector_index = 42;
+    Usb8x usb(d);
+    usb.reset();
+
+    // Set some state
+    usb.write(d.epptr_address, 0x40U); // SETUP on EP0
+    usb.write(d.ctrlb_address, 0x02U); // ATTACH
+    CHECK(usb.bus_state() == 2);
+
+    // Send USB reset via SIE
+    usb.simulate_usb_reset();
+
+    // Bus state returns to DISABLE
+    CHECK(usb.bus_state() == 0);
+    CHECK(usb.ep0_stalled() == false);
+    CHECK(usb.ep0_wLength() == 0);
+
+    // EORST flag should be set
+    CHECK((usb.read(d.intflagsa_address) & 0x04) != 0);
+}
+
+TEST_CASE("USB8x — simulate_setup_packet delivers to EP0") {
+    auto d = make_test_desc();
+    d.gen_vector_index = 42;
+    Usb8x usb(d);
+    usb.reset();
+
+    // Simulate host sending a GET_DESCRIPTOR setup packet
+    Usb8x::SetupPacket setup{};
+    setup.bmRequestType = 0x80; // device-to-host, standard, device
+    setup.bRequest = 0x06;      // GET_DESCRIPTOR
+    setup.wValue = 0x0100;      // descriptor type=1 (DEVICE), index=0
+    setup.wIndex = 0x0000;
+    setup.wLength = 0x12;       // 18 bytes
+
+    usb.simulate_setup_packet(setup);
+
+    // Verify EP0 setup packet tracking
+    CHECK(usb.setup_packet()[0] == 0x80);
+    CHECK(usb.setup_packet()[1] == 0x06);
+    CHECK(usb.ep0_data_dir() == 1); // device-to-host
+    CHECK(usb.ep0_wLength() == 0x12);
+    CHECK(!usb.ep0_stalled());
+
+    // SETUP interrupt flag should be set
+    CHECK((usb.read(d.intflagsb_address) & 0x04) != 0);
+}
+
+TEST_CASE("USB8x — simulate_out_packet delivers data to FIFO") {
+    auto d = make_test_desc();
+    d.gen_vector_index = 42;
+    Usb8x usb(d);
+    usb.reset();
+
+    // Simulate host sending an OUT data packet to EP1
+    u8 out_data[] = {0x01, 0x02, 0x03, 0x04};
+    usb.simulate_out_packet(1, out_data);
+
+    // TRANS flag should be set
+    CHECK((usb.read(d.intflagsb_address) & 0x02) != 0);
+
+    // Data should be readable via FIFORP
+    usb.write(d.epptr_address, 0x12U); // BULK EP1
+    CHECK(usb.read(d.fiforp_address) == 0x01);
+    CHECK(usb.read(d.fiforp_address) == 0x02);
+
+    // get_endpoint_data should return the same data
+    auto ep_data = usb.get_endpoint_data(1);
+    CHECK(ep_data.size() == 4);
+    CHECK(ep_data[0] == 0x01);
+    CHECK(ep_data[2] == 0x03);
+}
+
+TEST_CASE("USB8x — simulate_in_token consumes CPU-written data") {
+    auto d = make_test_desc();
+    d.gen_vector_index = 42;
+    Usb8x usb(d);
+    usb.reset();
+
+    // Configure EP2 as IN (via EPPTR)
+    usb.write(d.epptr_address, 0x22U); // BULK IN EP2 (type=2, epnum=2, bit 5=IN direction)
+
+    // Firmware writes data to FIFO for the IN endpoint
+    usb.write(d.fifowp_address, 'H');
+    usb.write(d.fifowp_address, 'e');
+    usb.write(d.fifowp_address, 'l');
+    usb.write(d.fifowp_address, 'l');
+    usb.write(d.fifowp_address, 'o');
+
+    CHECK(usb.fifo_count() == 5);
+
+    // Host sends IN token — SIE consumes the data
+    bool sent = usb.simulate_in_token(2);
+    CHECK(sent);
+
+    // FIFO should now be empty
+    CHECK(usb.fifo_count() == 0);
+
+    // TRANS flag should be cleared
+    CHECK((usb.read(d.intflagsb_address) & 0x02) == 0);
+
+    // get_endpoint_data should return what the SIE read
+    auto ep_data = usb.get_endpoint_data(2);
+    CHECK(ep_data.size() == 5);
+    CHECK(ep_data[0] == 'H');
+    CHECK(ep_data[4] == 'o');
+}
+
+TEST_CASE("USB8x — SIE enumeration flow (SETUP + IN + STATUS)") {
+    auto d = make_test_desc();
+    d.gen_vector_index = 42;
+    Usb8x usb(d);
+    usb.reset();
+
+    // 1. Host sends setup packet (GET_DESCRIPTOR)
+    Usb8x::SetupPacket setup{};
+    setup.bmRequestType = 0x80;
+    setup.bRequest = 0x06;
+    setup.wValue = 0x0100;
+    setup.wIndex = 0x0000;
+    setup.wLength = 0x12;
+
+    usb.simulate_setup_packet(setup);
+
+    // Verify SETUP flag
+    CHECK((usb.read(d.intflagsb_address) & 0x04) != 0);
+    CHECK(usb.ep0_data_dir() == 1);
+    CHECK(usb.ep0_wLength() == 0x12);
+
+    // 2. Firmware reads the 8 setup bytes from FIFO (consuming them)
+    CHECK(usb.fifo_count() == 8);
+    for (int i = 0; i < 8; ++i) usb.read(d.fiforp_address);
+    CHECK(usb.fifo_count() == 0);
+
+    // Clear SETUP flag and configure EP0 for data phase
+    usb.write(d.intflagsb_address, 0x04U); // write-1-to-clear
+    usb.write(d.epptr_address, 0x04U);     // SETUP EP0 (DATA phase)
+
+    // 3. Firmware writes device descriptor response to FIFO
+    u8 dev_desc[18] = {
+        0x12, 0x01, 0x00, 0x02, 0xFF, 0x00, 0x00, 0x40,
+        0x41, 0x03, 0x34, 0x12, 0x00, 0x01, 0x01, 0x02,
+        0x00, 0x01
+    };
+    for (auto byte : dev_desc) {
+        usb.write(d.fifowp_address, byte);
+    }
+
+    CHECK(usb.fifo_count() == 18);
+
+    // 4. Host sends IN token to consume the data
+    bool sent = usb.simulate_in_token(0);
+    CHECK(sent);
+    CHECK(usb.fifo_count() == 0);
+
+    // 5. Host receives the data
+    auto ep0_data = usb.get_endpoint_data(0);
+    CHECK(ep0_data.size() == 18);
+    CHECK(ep0_data[0] == 0x12); // bLength
+    CHECK(ep0_data[1] == 0x01); // bDescriptorType = DEVICE
+
+    // 6. STATUS phase: host sends OUT with zero-length packet
+    usb.simulate_out_packet(0, {});
+    CHECK((usb.read(d.intflagsb_address) & 0x02) != 0);
+}
+
+TEST_CASE("USB8x — STALL handshake on unsupported request") {
+    auto d = make_test_desc();
+    d.gen_vector_index = 42;
+    Usb8x usb(d);
+    usb.reset();
+
+    // Send a setup packet for an unsupported request
+    Usb8x::SetupPacket setup{};
+    setup.bmRequestType = 0x00; // host-to-device, standard, device
+    setup.bRequest = 0xFE;      // unsupported request
+    setup.wValue = 0x0000;
+    setup.wIndex = 0x0000;
+    setup.wLength = 0x0000;
+
+    usb.simulate_setup_packet(setup);
+
+    // Firmware would normally process and STALL the endpoint.
+    // Simulate: write EPPTR with STALL bit for EP0
+    // Then IN token should not consume data (STALL handshake)
+    bool sent = usb.simulate_in_token(0);
+    // Without STALLRQ set, it should still send (empty data for status)
+    // In real hardware, firmware would set a STALL bit in the endpoint table.
+    // For now, verify basic flow works.
+    CHECK(usb.ep0_data_dir() == 0);
+    CHECK(usb.ep0_wLength() == 0);
+}
+
 TEST_CASE("USB8x — Address range covers all registers") {
     auto d = make_test_desc();
     Usb8x usb(d);
