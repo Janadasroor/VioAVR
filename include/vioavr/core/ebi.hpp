@@ -30,7 +30,7 @@ public:
     [[nodiscard]] u8 external_read(u16 address) noexcept;
     void external_write(u16 address, u8 value) noexcept;
 
-    void set_memory_bus(MemoryBus* bus) noexcept { bus_ = bus; }
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
 
     [[nodiscard]] bool is_cs0_active() const noexcept { return cs0_enabled_; }
     [[nodiscard]] u16 cs0_start() const noexcept { return cs0_start_; }
