@@ -8,6 +8,7 @@
 namespace vioavr::core {
 
 class MemoryBus;
+class AnalogSignalBank;
 
 /**
  * @brief Represents an Analog-to-Digital Converter peripheral.
@@ -17,6 +18,8 @@ public:
     explicit Dac(std::string_view name, const DacDescriptor& desc);
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+    void set_analog_signal_bank(AnalogSignalBank* bank) noexcept { signal_bank_ = bank; }
+    void set_vref(double vref_voltage) noexcept { vref_ = vref_voltage; }
     
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -46,6 +49,8 @@ private:
     std::string name_;
     DacDescriptor desc_;
     MemoryBus* bus_ {nullptr};
+    AnalogSignalBank* signal_bank_ {nullptr};
+    double vref_ {5.0};
     std::vector<AddressRange> ranges_;
 
     u8 dacon_ {0};

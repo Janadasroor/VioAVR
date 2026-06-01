@@ -1,5 +1,6 @@
 #include "vioavr/core/dac.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/pin_mux.hpp"
 #include <algorithm>
 
@@ -131,10 +132,12 @@ bool Dac::power_reduction_enabled() const noexcept {
 void Dac::update_voltage() noexcept {
     if (power_reduction_enabled() || !(dacon_ & desc_.daen_mask)) {
         voltage_ = 0.0;
+        if (signal_bank_) signal_bank_->set_voltage(0, 0.0);
         return;
     }
-    // Convert 10-bit data to 0.0-1.0 range
+    // Convert 10-bit data to 0.0-1.0 normalized range
     voltage_ = static_cast<double>(data_) / 1024.0;
+    if (signal_bank_) signal_bank_->set_voltage(0, voltage_ * vref_);
 }
 
 } // namespace vioavr::core
