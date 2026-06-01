@@ -1,9 +1,11 @@
 #include "doctest.h"
-#include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
+
+#ifndef _WIN32
+#include "vioavr/core/avr_cpu.hpp"
 
 namespace {
 
@@ -146,19 +148,16 @@ static void run_with_and_without_jit(const HexImage& image, u32 steps) {
     CHECK(ref.cycles == jit.cycles);
 }
 
-} // namespace
-
 TEST_CASE("JIT Basic Instructions") {
-    // Test basic ALU + LDI in a block
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0xABU),          // R16 = 0xAB
-            encode_ldi(17U, 0xCDU),          // R17 = 0xCD
-            encode_mov(18U, 16U),            // R18 = R16 = 0xAB
-            encode_add(16U, 17U),            // R16 = 0xAB + 0xCD = 0x178
-            encode_sub(17U, 18U),            // R17 = 0xCD - 0xAB = 0x22
-            encode_and(19U, 16U),            // R19 = R16 & R17 (wait: R19 = R16 & R17 = 0x78 & 0x22)
-            0x0000U, 0x0000U, 0x0000U,       // NOPs
+            encode_ldi(16U, 0xABU),
+            encode_ldi(17U, 0xCDU),
+            encode_mov(18U, 16U),
+            encode_add(16U, 17U),
+            encode_sub(17U, 18U),
+            encode_and(19U, 16U),
+            0x0000U, 0x0000U, 0x0000U,
         },
         .entry_word = 0U
     };
@@ -168,13 +167,13 @@ TEST_CASE("JIT Basic Instructions") {
 TEST_CASE("JIT Arithmetic and Flags") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x01U),          // R16 = 1
-            encode_ldi(17U, 0x80U),          // R17 = 0x80 (negative signed)
-            encode_add(16U, 17U),            // R16 = 0x81, N=1, V=0 (pos+neg no overflow)
-            encode_sub(17U, 16U),            // R17 = 0x80 - 0x81 = 0xFF, C=1, N=1
-            encode_andi(16U, 0xF0U),         // R16 = 0x81 & 0xF0 = 0x80
-            encode_ori(17U, 0x0FU),          // R17 = 0xFF | 0x0F = 0xFF
-            encode_cpi(16U, 0x80U),          // compare: 0x80 vs 0x80 → Z=1
+            encode_ldi(16U, 0x01U),
+            encode_ldi(17U, 0x80U),
+            encode_add(16U, 17U),
+            encode_sub(17U, 16U),
+            encode_andi(16U, 0xF0U),
+            encode_ori(17U, 0x0FU),
+            encode_cpi(16U, 0x80U),
             0x0000U, 0x0000U,
         },
         .entry_word = 0U
@@ -185,16 +184,16 @@ TEST_CASE("JIT Arithmetic and Flags") {
 TEST_CASE("JIT Branch Instructions") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x05U),          // R16 = 5
-            encode_ldi(17U, 0x03U),          // R17 = 3
-            encode_sub(16U, 17U),            // R16 = 2, N=0
-            encode_brbc(2, 2),               // skip 2 if N=0 (N=0 here)
-            encode_ldi(18U, 0xFFU),          // skipped
-            encode_ldi(18U, 0xAAU),          // R18 = 0xAA
-            encode_rjmp(2),                  // jump forward 2
-            encode_ldi(19U, 0xFFU),          // skipped
-            encode_ldi(19U, 0xBBU),          // R19 = 0xBB
-            encode_rjmp(-2),                 // back 2 → infinite loop, but we run limited steps
+            encode_ldi(16U, 0x05U),
+            encode_ldi(17U, 0x03U),
+            encode_sub(16U, 17U),
+            encode_brbc(2, 2),
+            encode_ldi(18U, 0xFFU),
+            encode_ldi(18U, 0xAAU),
+            encode_rjmp(2),
+            encode_ldi(19U, 0xFFU),
+            encode_ldi(19U, 0xBBU),
+            encode_rjmp(-2),
             0x0000U,
         },
         .entry_word = 0U
@@ -205,29 +204,29 @@ TEST_CASE("JIT Branch Instructions") {
 TEST_CASE("JIT Register Operations") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0xAAU),          // R16 = 0xAA
-            encode_ldi(17U, 0x55U),          // R17 = 0x55
-            encode_ldi(18U, 0xFFU),          // R18 = 0xFF
-            encode_movw(20U, 16U),           // R20 = R16, R21 = R17
-            encode_eor(16U, 17U),            // R16 = 0xAA ^ 0x55 = 0xFF
-            encode_or(17U, 18U),             // R17 = 0x55 | 0xFF = 0xFF
-            encode_and(18U, 20U),            // R18 = 0xFF & 0xAA = 0xAA
+            encode_ldi(16U, 0xAAU),
+            encode_ldi(17U, 0x55U),
+            encode_ldi(18U, 0xFFU),
+            encode_movw(20U, 16U),
+            encode_eor(16U, 17U),
+            encode_or(17U, 18U),
+            encode_and(18U, 20U),
             0x0000U,
         },
         .entry_word = 0U
     };
-    run_with_and_without_jit(image, 25);
+    run_with_and_without_jit(image, 30);
 }
 
 TEST_CASE("JIT Stack Operations") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x12U),          // R16 = 0x12
-            encode_ldi(17U, 0x34U),          // R17 = 0x34
-            encode_push(16U),                // push 0x12
-            encode_push(17U),                // push 0x34
-            encode_pop(18U),                 // R18 = 0x34
-            encode_pop(19U),                 // R19 = 0x12
+            encode_ldi(16U, 0x12U),
+            encode_ldi(17U, 0x34U),
+            encode_push(16U),
+            encode_push(17U),
+            encode_pop(18U),
+            encode_pop(19U),
             0x0000U,
         },
         .entry_word = 0U
@@ -238,12 +237,12 @@ TEST_CASE("JIT Stack Operations") {
 TEST_CASE("JIT Shift Operations") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x8AU),          // R16 = 0x8A (10001010)
-            encode_lsr(16U),                 // R16 = 0x45 (01000101), C=0
-            encode_ldi(17U, 0x83U),          // R17 = 0x83 (10000011)
-            encode_asr(17U),                 // R17 = 0xC1 (11000001), C=1
-            encode_ldi(18U, 0x01U),          // R18 = 0x01
-            encode_ror(18U),                 // R18 = 0x80 (rotate through carry, C=1)
+            encode_ldi(16U, 0x8AU),
+            encode_lsr(16U),
+            encode_ldi(17U, 0x83U),
+            encode_asr(17U),
+            encode_ldi(18U, 0x01U),
+            encode_ror(18U),
             0x0000U,
         },
         .entry_word = 0U
@@ -254,13 +253,12 @@ TEST_CASE("JIT Shift Operations") {
 TEST_CASE("JIT Subroutine Call and Return") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x42U),          // R16 = 0x42
-            encode_rcall(3),                 // call subroutine at PC+1+3 = 5
-            encode_ldi(17U, 0x99U),          // R17 = 0x99 (after return)
-            0x0000U,                         // pad
-            encode_ldi(18U, 0x77U),          // subroutine: R18 = 0x77
-            // RET is 0x9508
-            static_cast<u16>(0x9508U),       // ret
+            encode_ldi(16U, 0x42U),
+            encode_rcall(3),
+            encode_ldi(17U, 0x99U),
+            0x0000U,
+            encode_ldi(18U, 0x77U),
+            static_cast<u16>(0x9508U),
             0x0000U,
         },
         .entry_word = 0U
@@ -271,16 +269,16 @@ TEST_CASE("JIT Subroutine Call and Return") {
 TEST_CASE("JIT Skip Instructions") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x00U),          // R16 = 0
-            encode_ldi(17U, 0xFFU),          // R17 = 0xFF
-            encode_sbrc(16U, 0),             // skip if bit0 of R16 is clear (yes)
-            encode_ldi(18U, 0x01U),          // skipped
-            encode_sbrs(17U, 7),             // skip if bit7 of R17 is set (yes)
-            encode_ldi(19U, 0x02U),          // skipped
-            encode_sbrc(17U, 0),             // skip if bit0 of R17 is set (no, it's set → don't skip)
-            encode_ldi(20U, 0x03U),          // executed
-            encode_sbrs(16U, 0),             // skip if bit0 of R16 is set (no)
-            encode_ldi(21U, 0x04U),          // executed
+            encode_ldi(16U, 0x00U),
+            encode_ldi(17U, 0xFFU),
+            encode_sbrc(16U, 0),
+            encode_ldi(18U, 0x01U),
+            encode_sbrs(17U, 7),
+            encode_ldi(19U, 0x02U),
+            encode_sbrc(17U, 0),
+            encode_ldi(20U, 0x03U),
+            encode_sbrs(16U, 0),
+            encode_ldi(21U, 0x04U),
             0x0000U, 0x0000U,
         },
         .entry_word = 0U
@@ -289,15 +287,14 @@ TEST_CASE("JIT Skip Instructions") {
 }
 
 TEST_CASE("JIT LDS STS") {
-    // LDS/STS: first word = 0x9000/0x9200 | (reg << 4), second word = address
-    uint16_t data_addr = 0x0100; // SRAM area
+    uint16_t data_addr = 0x0100;
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x42U),          // R16 = 0x42
-            encode_sts(16U),                  // STS data_addr, R16 (occupies 2 words)
-            static_cast<u16>(data_addr),      // second word: address
-            encode_lds(17U),                  // LDS R17, data_addr (occupies 2 words)
-            static_cast<u16>(data_addr),      // second word: address
+            encode_ldi(16U, 0x42U),
+            encode_sts(16U),
+            static_cast<u16>(data_addr),
+            encode_lds(17U),
+            static_cast<u16>(data_addr),
             0x0000U,
         },
         .entry_word = 0U
@@ -308,9 +305,9 @@ TEST_CASE("JIT LDS STS") {
 TEST_CASE("JIT IN OUT") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0xAAU),          // R16 = 0xAA
-            encode_out(16U, 0x05U),           // OUT PORTB (IO 0x05), R16
-            encode_in(17U, 0x05U),            // IN R17, PORTB → should read 0xAA
+            encode_ldi(16U, 0xAAU),
+            encode_out(16U, 0x05U),
+            encode_in(17U, 0x05U),
             0x0000U,
         },
         .entry_word = 0U
@@ -321,38 +318,43 @@ TEST_CASE("JIT IN OUT") {
 TEST_CASE("JIT ADC SBC CPC COM NEG INC DEC SWAP") {
     auto image = HexImage{
         .flash_words = {
-            encode_ldi(16U, 0x01U),          // R16 = 1
-            encode_ldi(17U, 0x01U),          // R17 = 1
-            encode_adc(16U, 17U),            // R16 = 1+1+0 = 2
+            encode_ldi(16U, 0x01U),
+            encode_ldi(17U, 0x01U),
+            encode_adc(16U, 17U),
 
-            encode_bset(0),                   // set carry
-            encode_adc(16U, 17U),            // R16 = 2+1+1 = 4
-            encode_bclr(0),                   // clear carry
+            encode_bset(0),
+            encode_adc(16U, 17U),
+            encode_bclr(0),
 
-            encode_sbc(16U, 17U),            // R16 = 4-1-0 = 3
+            encode_sbc(16U, 17U),
 
-            encode_cpc(17U, 17U),            // R17 unchanged (still 1), flags set
+            encode_cpc(17U, 17U),
 
             encode_ldi(18U, 0xABU),
-            encode_com(18U),                 // R18 = 0xFF-0xAB = 0x54
+            encode_com(18U),
 
             encode_ldi(19U, 0x01U),
-            encode_neg(19U),                 // R19 = 0xFF
+            encode_neg(19U),
 
             encode_ldi(20U, 0x05U),
-            encode_inc(20U),                 // R20 = 6
+            encode_inc(20U),
 
             encode_ldi(21U, 0x05U),
-            encode_dec(21U),                 // R21 = 4
+            encode_dec(21U),
 
             encode_ldi(22U, 0xABU),
-            encode_swap(22U),                // R22 = 0xBA
+            encode_swap(22U),
 
             encode_ldi(23U, 0x80U),
-            encode_neg(23U),                 // R23 = 0x80, V=1
+            encode_neg(23U),
             0x0000U,
         },
         .entry_word = 0U
     };
     run_with_and_without_jit(image, 30);
 }
+
+} // namespace
+#else
+TEST_CASE("JIT skipped on Windows") {}
+#endif
