@@ -4,7 +4,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
 
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
 #include "vioavr/core/avr_cpu.hpp"
 
 namespace {

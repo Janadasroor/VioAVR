@@ -1,5 +1,5 @@
 #include "vioavr/core/avr_cpu.hpp"
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
 #include "vioavr/core/avr_jit.hpp"
 #endif
 #include "vioavr/core/wdt8x.hpp"
@@ -23,7 +23,7 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
     : bus_(&bus), 
       control_regs_(std::make_unique<CpuControl>(*this, bus.device())),
       register_file_(std::make_unique<RegisterFile>(*this, bus.device().register_file_range))
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
       , jit_(std::make_unique<jit::AvrJit>())
 #endif
 {
@@ -95,7 +95,7 @@ void AvrCpu::reset(ResetCause cause) noexcept
     reset_triggered_ = true;
     interrupt_pending_ = false;
     interrupt_depth_ = 0U;
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
     if (jit_) jit_->invalidate_all();
 #endif
     state_ = (bus_ != nullptr && bus_->loaded_program_words() > 0U) ? CpuState::running : CpuState::halted;
@@ -119,7 +119,7 @@ void AvrCpu::reset(ResetCause cause) noexcept
     }
 }
 
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
 jit::JitDebugStats AvrCpu::jit_debug_stats() const noexcept
 {
     if (!jit_) return {0, 0, 0};
@@ -170,7 +170,7 @@ void AvrCpu::run(const u64 cycle_budget)
     u32 pending_cycles = 0;
     const u64 check_interval = interrupt_check_interval_;
 
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
     jit::JitState jit_state;
 #endif
 
@@ -214,7 +214,7 @@ void AvrCpu::run(const u64 cycle_budget)
             break;
         }
 
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
         // JIT execution path
         if (__builtin_expect(jit_enabled_ && jit_ && (trace_hook_ == nullptr || !trace_hook_->is_active()), 0)) {
             if (pending_cycles > 0) {

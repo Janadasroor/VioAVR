@@ -5,6 +5,12 @@ find_package(Threads REQUIRED)
 add_library(vioavr_core STATIC)
 add_library(VioAVR::core ALIAS vioavr_core)
 
+# JIT generates x86-64 System V ABI code — only available on x86-64 non-Windows
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64" AND NOT WIN32)
+    set(VIOAVR_HAVE_JIT TRUE)
+    target_compile_definitions(vioavr_core PUBLIC VIOAVR_HAVE_JIT=1)
+endif()
+
 target_sources(vioavr_core
     PRIVATE
         adc.cpp
@@ -13,7 +19,7 @@ target_sources(vioavr_core
         ac8x.cpp
         analog_comparator.cpp
         avr_cpu.cpp
-        $<$<NOT:$<PLATFORM_ID:Windows>>:avr_jit.cpp>
+        $<$<BOOL:${VIOAVR_HAVE_JIT}>:avr_jit.cpp>
         cpu_control.cpp
         device.cpp
         device_catalog.cpp
