@@ -86,7 +86,11 @@ struct JitBlock {
 
     void release_code() {
         if (code != nullptr && code_size > 0) {
+#ifdef _WIN32
+            VirtualFree(code, 0, MEM_RELEASE);
+#else
             munmap(code, code_size);
+#endif
             code = nullptr;
             code_size = 0;
         }

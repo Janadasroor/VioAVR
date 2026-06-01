@@ -36,7 +36,9 @@ constexpr vioavr::core::u16 encode_sts(const vioavr::core::u8 source)
 }  // namespace
 
 using namespace vioavr::core;
+namespace {
 void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
+} // namespace
 
 TEST_CASE("ADC Free Running Firmware Integration Test")
 {
