@@ -4,7 +4,6 @@
 
 namespace {
 using namespace vioavr::core;
-}
 
 OpampDescriptor make_desc() noexcept {
     OpampDescriptor desc {};
@@ -102,3 +101,4 @@ TEST_CASE("OPAMP: Mapped ranges") {
     CHECK(ranges[0].begin == desc.ctrla_address);
     CHECK(ranges[0].end == desc.muxctrl_address);
 }
+} // namespace

@@ -3,7 +3,6 @@
 
 namespace {
 using namespace vioavr::core;
-}
 
 TcdDescriptor make_desc() noexcept {
     TcdDescriptor desc{};
@@ -266,3 +265,4 @@ TEST_CASE("TCD: Not pending when disabled") {
     CHECK_FALSE(tcd.pending_interrupt_request(req));
     CHECK_FALSE(tcd.consume_interrupt_request(req));
 }
+} // namespace

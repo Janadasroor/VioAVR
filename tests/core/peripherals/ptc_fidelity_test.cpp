@@ -3,7 +3,6 @@
 
 namespace {
 using namespace vioavr::core;
-}
 
 PtcDescriptor make_desc() noexcept {
     PtcDescriptor desc {};
@@ -135,3 +134,4 @@ TEST_CASE("PTC: Disable aborts conversion") {
     u8 flags = ptc.read(desc.base_address + 0x06);
     CHECK((flags & 0x01) == 0);
 }
+} // namespace
