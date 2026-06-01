@@ -407,6 +407,8 @@ function(add_doctest_group TARGET_NAME)
             list(APPEND deps integration_stress_hex)
         elseif(test_name STREQUAL "jit_divergence_test")
             list(APPEND deps integration_stress_hex)
+        elseif(test_name STREQUAL "uart_stress_test_runner")
+            list(APPEND deps uart_stress_test_hex)
         endif()
     endforeach()
     

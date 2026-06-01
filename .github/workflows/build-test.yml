@@ -62,6 +62,7 @@ jobs:
     - name: Install dependencies
       run: |
         brew update
+        brew tap osx-cross/avr
         brew install ninja ccache avr-gcc
 
     - name: Configure CMake
@@ -100,6 +101,7 @@ jobs:
           mingw-w64-x86_64-cmake
           mingw-w64-x86_64-ninja
           mingw-w64-x86_64-avr-gcc
+          mingw-w64-x86_64-avr-libc
 
     - name: Cache Microchip DFP packs
       uses: actions/cache@v4
