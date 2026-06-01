@@ -191,9 +191,13 @@ inline constexpr DeviceDescriptor avr16du14 {
     },
 
     .portmux = {
+        .twispiroutea_address = 0U,
         .usartroutea_address = 0x5E2U,
         .evoutroutea_address = 0x5E0U,
         .tcaroutea_address = 0x5E7U,
+        .usart = {},
+        .spi = {},
+        .twi = {},
     },
 
     .vref = {
@@ -251,10 +255,10 @@ inline constexpr DeviceDescriptor avr16du14 {
             .rx_vector_index = 19U,
             .tx_vector_index = 21U,
             .dre_vector_index = 20U,
-            .txd_pin_address = 0x404U,
-            .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x404U,
-            .rxd_pin_bit = 1U,
+            .txd_pin_address = 0x464U,
+            .txd_pin_bit = 4U,
+            .rxd_pin_address = 0x464U,
+            .rxd_pin_bit = 5U,
             .index = 0U,
         },
         {

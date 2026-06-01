@@ -1,3 +1,4 @@
+#pragma once
 #include "vioavr/core/port_mux.hpp"
 #include <array>
 #include <string>

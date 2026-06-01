@@ -1,10 +1,12 @@
 #include "vioavr/core/dac8x.hpp"
+#include "vioavr/core/analog_signal_bank.hpp"
 
 namespace vioavr::core {
 
-Dac8x::Dac8x(const Dac8xDescriptor& desc) noexcept
-    : desc_(desc) {
-    if (desc_.ctrla_address != 0) {
+Dac8x::Dac8x(const Dac8xDescriptor& desc, u8 instance_index) noexcept
+    : desc_(desc), instance_index_(instance_index)
+{
+    if (desc_.ctrla_address != 0 && desc_.data_address != 0) {
         ranges_[0] = {desc_.ctrla_address, desc_.data_address};
     }
 }
@@ -17,9 +19,34 @@ std::span<const AddressRange> Dac8x::mapped_ranges() const noexcept {
 void Dac8x::reset() noexcept {
     ctrla_ = 0;
     data_ = 0;
+    cycles_remaining_ = 0;
+    converting_ = false;
 }
 
-void Dac8x::tick(u64) noexcept {}
+void Dac8x::start_conversion() {
+    if (!(ctrla_ & 0x01)) return;
+    if (converting_) return;
+    converting_ = true;
+    cycles_remaining_ = 1;
+}
+
+void Dac8x::complete_conversion() {
+    double vout = output_voltage();
+    if (signal_bank_) {
+        signal_bank_->set_voltage(64 + instance_index_, vout);
+    }
+    converting_ = false;
+}
+
+void Dac8x::tick(u64 elapsed_cycles) noexcept {
+    if (!converting_) return;
+    if (cycles_remaining_ > elapsed_cycles) {
+        cycles_remaining_ -= static_cast<u16>(elapsed_cycles);
+        return;
+    }
+    cycles_remaining_ = 0;
+    complete_conversion();
+}
 
 u8 Dac8x::read(u16 address) noexcept {
     if (address == desc_.ctrla_address) return ctrla_;
@@ -28,8 +55,12 @@ u8 Dac8x::read(u16 address) noexcept {
 }
 
 void Dac8x::write(u16 address, u8 value) noexcept {
-    if (address == desc_.ctrla_address) ctrla_ = value;
-    else if (address == desc_.data_address) data_ = value;
+    if (address == desc_.ctrla_address) {
+        ctrla_ = value;
+    } else if (address == desc_.data_address) {
+        data_ = value;
+        start_conversion();
+    }
 }
 
 } // namespace vioavr::core

@@ -207,7 +207,16 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
     // Composite pullup state
     entry.state.pullup_enabled = ((entry.pullup_mask & highest_owner_bit) != 0) && !pullup_suppressed_;
  
-    if (callback_) callback_(port_idx, bit_idx, entry.state);
+    if (callback_) {
+        const auto& st = entry.state;
+        auto& ls = entry.last_sent_state_;
+        if (st.owner != ls.owner || st.drive_level != ls.drive_level ||
+            st.is_output != ls.is_output || st.pullup_enabled != ls.pullup_enabled ||
+            st.is_wired_and != ls.is_wired_and) {
+            ls = st;
+            callback_(port_idx, bit_idx, st);
+        }
+    }
 }
 
 } // namespace vioavr::core

@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/tc.hpp"
 #include "vioavr/core/memory_bus.hpp"
@@ -57,7 +56,7 @@ TEST_CASE("XMEGA TC Fidelity: Normal Mode Counting") {
     Tc tc("TCC0", d);
     tc.reset();
 
-    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.ctrla_address, 0x03);
     tc.tick(1);
     CHECK(tc.read(d.cnt_address) == 1);
 
@@ -70,7 +69,7 @@ TEST_CASE("XMEGA TC Fidelity: Period Match and Wrap") {
     Tc tc("TCC0", d);
     tc.reset();
 
-    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.ctrla_address, 0x03);
     tc.write(d.period_address, 10);
     tc.write(d.period_address + 1, 0);
 
@@ -92,7 +91,7 @@ TEST_CASE("XMEGA TC Fidelity: Compare Match") {
     tc.set_memory_bus(&bus);
     tc.reset();
 
-    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.ctrla_address, 0x03);
     tc.write(d.period_address, 20);
     tc.write(d.period_address + 1, 0);
     tc.write(d.cca_address, 7);
@@ -118,7 +117,7 @@ TEST_CASE("XMEGA TC Fidelity: Double Buffering") {
     Tc tc("TCC0", d);
     tc.reset();
 
-    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.ctrla_address, 0x03);
     tc.write(d.period_address, 10);
     tc.write(d.period_address + 1, 0);
 
@@ -141,19 +140,20 @@ TEST_CASE("XMEGA TC Fidelity: Double Buffering") {
 TEST_CASE("XMEGA TC Fidelity: Single-Slope PWM WO Output") {
     auto d = make_test_tc0();
     Tc tc("TCC0", d);
+    tc.set_wg_mode_in_ctrld(true);
     tc.reset();
 
-    // Enable, single-slope PWM (wg_mode=1), non-inverting
-    tc.write(d.ctrla_address, 0x01);
-    tc.write(d.ctrlb_address, 0x01); // wg_mode=1, no WO output enable
+    // Enable, single-slope PWM (wg_mode=3 in CTRLD on XMEGA), non-inverting
+    tc.write(d.ctrla_address, 0x03);
+    tc.write(d.ctrld_address, 0x03); // wg_mode=3 (XMEGA single-slope)
     tc.write(d.period_address, 10);
     tc.write(d.period_address + 1, 0);
     tc.write(d.cca_address, 5);
     tc.write(d.cca_address + 1, 0);
 
-    // With wg_mode==1 but WOEN clear, outputs are not enabled
-    // Enable WO0 (bit 4 in CTRLB)
-    tc.write(d.ctrlb_address, 0x11); // wg_mode=1 | WO0EN
+    // With SS mode but CCAEN clear, outputs are not enabled
+    // Enable CCAEN (bit 4 in CTRLB)
+    tc.write(d.ctrlb_address, 0x10); // CCAEN (WO0 enable)
 
     // After reset, no ticks yet: wo should be false (BOTTOM state)
     CHECK(tc.get_wo_level(0) == false);
@@ -174,8 +174,9 @@ TEST_CASE("XMEGA TC Fidelity: Single-Slope PWM WO Output") {
     // Inverting mode: set CMPPOL bit
     tc.write(d.ctrlc_address, 0x10);
     tc.reset();
-    tc.write(d.ctrla_address, 0x01);
-    tc.write(d.ctrlb_address, 0x11);
+    tc.write(d.ctrla_address, 0x03);
+    tc.write(d.ctrld_address, 0x03); // wg_mode=3 (XMEGA single-slope)
+    tc.write(d.ctrlb_address, 0x10); // CCAEN (WO0 enable)
     tc.write(d.period_address, 10);
     tc.write(d.period_address + 1, 0);
     tc.write(d.cca_address, 5);
@@ -202,7 +203,7 @@ TEST_CASE("XMEGA TC Fidelity: CMP==PER Boundary Match") {
     tc.set_memory_bus(&bus);
     tc.reset();
 
-    tc.write(d.ctrla_address, 0x01);
+    tc.write(d.ctrla_address, 0x03);
     tc.write(d.period_address, 5);
     tc.write(d.period_address + 1, 0);
     tc.write(d.cca_address, 5);
@@ -227,10 +228,11 @@ TEST_CASE("XMEGA TC Fidelity: CMP==PER Boundary Match") {
 TEST_CASE("XMEGA TC Fidelity: Dual Slope Mode") {
     auto d = make_test_tc0();
     Tc tc("TCC0", d);
+    tc.set_wg_mode_in_ctrld(true);
     tc.reset();
 
-    tc.write(d.ctrla_address, 0x01);
-    tc.write(d.ctrlb_address, 0x04);
+    tc.write(d.ctrla_address, 0x03);
+    tc.write(d.ctrld_address, 0x04); // wg_mode=4 (XMEGA dual-slope in CTRLD)
 
     tc.tick(1);
     CHECK(tc.read(d.cnt_address) == 1);

@@ -92,6 +92,7 @@ inline constexpr DeviceDescriptor atxmega64b1 {
             .ccb_vector_index = 17U,
             .ccc_vector_index = 18U,
             .ccd_vector_index = 19U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2112U,
@@ -118,6 +119,7 @@ inline constexpr DeviceDescriptor atxmega64b1 {
             .err_vector_index = 21U,
             .cca_vector_index = 22U,
             .ccb_vector_index = 23U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2560U,
@@ -150,6 +152,24 @@ inline constexpr DeviceDescriptor atxmega64b1 {
             .ccb_vector_index = 61U,
             .ccc_vector_index = 62U,
             .ccd_vector_index = 63U,
+            .port_letter = 69U,
+        }
+    }},
+
+    .awex_count = 1U,
+    .awexs = {{
+        {
+            .ctrl_address = 2176U,
+            .fdemask_address = 2178U,
+            .fdctrl_address = 2179U,
+            .status_address = 2180U,
+            .dtboth_address = 2182U,
+            .dtbothbuf_address = 2183U,
+            .dtls_address = 2184U,
+            .dths_address = 2185U,
+            .dtlsbuf_address = 2186U,
+            .dthsbuf_address = 2187U,
+            .outoven_address = 2188U,
         }
     }},
 
@@ -269,6 +289,43 @@ inline constexpr DeviceDescriptor atxmega64b1 {
             .ctrla_address = 208U,
             .status_address = 209U,
             .data_address = 211U,
+            .checksum_address = 212U,
+        }}},
+
+    .usb8x_count = 1U,
+    .usbs8x = {{
+        {
+            .ctrla_address = 1216U,
+            .ctrlb_address = 1217U,
+            .busstate_address = 1218U,
+            .addr_address = 1219U,
+            .fifowp_address = 1220U,
+            .fiforp_address = 1221U,
+            .epptr_address = 1222U,
+            .intctrla_address = 1224U,
+            .intctrlb_address = 1225U,
+            .intflagsa_address = 1226U,
+            .intflagsb_address = 1228U,
+            .cal0_address = 1274U,
+            .cal1_address = 1275U,
+            .gen_vector_index = 32U,
+            .bus_vector_index = 31U,
+        }}},
+
+    .ircom_count = 1U,
+    .ircoms = {{
+        {
+            .ctrl_address = 2296U,
+            .txplctrl_address = 2297U,
+            .rxplctrl_address = 2298U,
+        }}},
+
+    .dma_count = 1U,
+    .dmas = {{
+        {
+            .ctrla_address = 256U,
+            .status_address = 260U,
+            .intflags_address = 259U,
         }}},
     .fuse_address = 0x0000U,
     .lockbit_address = 0x0000U,

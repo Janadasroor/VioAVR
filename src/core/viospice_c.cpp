@@ -1,6 +1,7 @@
 #include "vioavr/core/viospice_c.h"
 #include "vioavr/core/viospice.hpp"
 #include "vioavr/core/device_catalog.hpp"
+#include <cstdio>
 #include <cstring>
 
 using namespace vioavr::core;
@@ -95,6 +96,14 @@ uint8_t vioavr_hc05_read_tx_byte(VioSpiceHandle handle) {
 
 void vioavr_hc05_inject_data(VioSpiceHandle handle, const uint8_t* data, uint16_t len) {
     static_cast<VioSpice*>(handle)->hc05().inject_external_data(data, len);
+}
+
+void vioavr_set_hc05_pty_fd(VioSpiceHandle handle, int fd) {
+    static_cast<VioSpice*>(handle)->set_hc05_pty_fd(fd);
+}
+
+void vioavr_set_ircom_output_pin(VioSpiceHandle handle, uint32_t external_id) {
+    static_cast<VioSpice*>(handle)->set_ircom_output_pin(external_id);
 }
 
 int vioavr_consume_pin_changes(VioSpiceHandle handle, VioAvrPinChange* changes, int max_changes) {

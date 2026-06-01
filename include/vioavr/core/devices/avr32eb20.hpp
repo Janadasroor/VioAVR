@@ -5,7 +5,7 @@ namespace vioavr::core::devices {
 
 inline constexpr DeviceDescriptor avr32eb20 {
     .name = "AVR32EB20",
-    .flash_words = 14336U,
+    .flash_words = 16384U,
     .sram_bytes = 3072U,
     .sram_start = 0x7400U,
     .eeprom_bytes = 0U,
@@ -263,9 +263,9 @@ inline constexpr DeviceDescriptor avr32eb20 {
             .tx_vector_index = 20U,
             .dre_vector_index = 19U,
             .txd_pin_address = 0x404U,
-            .txd_pin_bit = 0U,
+            .txd_pin_bit = 4U,
             .rxd_pin_address = 0x404U,
-            .rxd_pin_bit = 1U,
+            .rxd_pin_bit = 5U,
             .index = 0U,
         }
     }},

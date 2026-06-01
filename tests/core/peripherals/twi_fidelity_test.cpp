@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/twi.hpp"
 #include "vioavr/core/memory_bus.hpp"

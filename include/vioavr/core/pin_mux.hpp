@@ -28,6 +28,8 @@ enum class PinOwner : u8 {
     dac = 12,
     psc = 13,
     amplifier = 14,
+    ircom = 15,
+    evout = 16,
     external = 31
 };
 
@@ -43,6 +45,8 @@ enum class PinOwner : u8 {
         case PinOwner::psc: return 80;
         case PinOwner::spi: return 70;
         case PinOwner::uart: return 60;
+        case PinOwner::ircom: return 65;
+        case PinOwner::evout: return 67;
         case PinOwner::twi: return 55;
         case PinOwner::timer: return 50;
         case PinOwner::ccl: return 45;
@@ -131,6 +135,7 @@ private:
         u32 wired_and_mask {0}; // Bitmask of who wants wired-and
         u32 last_claims_for_owner_ {0}; // Cached: active_claims at last owner scan
         u8 cached_owner_ {0}; // Cached: highest-priority owner index
+        PinState last_sent_state_ {}; // Cached: last state sent via callback
     };
 
     std::vector<std::vector<PinEntry>> ports_;

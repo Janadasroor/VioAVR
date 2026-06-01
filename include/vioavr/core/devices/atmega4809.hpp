@@ -154,7 +154,9 @@ inline constexpr DeviceDescriptor atmega4809 {
             .channels_address = 0x190U,
             .users_address = 0x1A0U,
             .channel_count = 8U,
-            .user_count = 24U
+            .user_count = 24U,
+            .evout_user_start = 2U,
+            .evout_user_count = 2U,
         },
 
     .ccl = {
@@ -288,41 +290,23 @@ inline constexpr DeviceDescriptor atmega4809 {
             .evctrl_address = 0x80CU,
             .rx_vector_index = 17U, .tx_vector_index = 19U, .dre_vector_index = 18U,
             .user_event_address = 0x1AFU,
-            .txd_pin_address = 0x404U, .txd_pin_bit = 1U,
-            .rxd_pin_address = 0x408U, .rxd_pin_bit = 0U,
+            .txd_pin_address = 0x404U, .txd_pin_bit = 0U,
+            .rxd_pin_address = 0x404U, .rxd_pin_bit = 1U,
             .index = 0U
         },
         {
-            .ctrla_address = 0x825U, .ctrlb_address = 0x826U, .ctrlc_address = 0x827U,
-            .ctrld_address = 0x82AU, .status_address = 0x824U, .baud_address = 0x828U,
-            .rxdata_address = 0x820U, .txdata_address = 0x822U, .dbgctrl_address = 0x82BU,
-            .evctrl_address = 0x82CU,
-            .rx_vector_index = 26U, .tx_vector_index = 28U, .dre_vector_index = 27U,
-            .user_event_address = 0x1B0U,
             .txd_pin_address = 0x444U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x448U, .rxd_pin_bit = 1U,
+            .rxd_pin_address = 0x444U, .rxd_pin_bit = 1U,
             .index = 1U
         },
         {
-            .ctrla_address = 0x845U, .ctrlb_address = 0x846U, .ctrlc_address = 0x847U,
-            .ctrld_address = 0x84AU, .status_address = 0x844U, .baud_address = 0x848U,
-            .rxdata_address = 0x840U, .txdata_address = 0x842U, .dbgctrl_address = 0x84BU,
-            .evctrl_address = 0x84CU,
-            .rx_vector_index = 31U, .tx_vector_index = 33U, .dre_vector_index = 32U,
-            .user_event_address = 0x1B1U,
             .txd_pin_address = 0x4A4U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x4A8U, .rxd_pin_bit = 1U,
+            .rxd_pin_address = 0x4A4U, .rxd_pin_bit = 1U,
             .index = 2U
         },
         {
-            .ctrla_address = 0x865U, .ctrlb_address = 0x866U, .ctrlc_address = 0x867U,
-            .ctrld_address = 0x86AU, .status_address = 0x864U, .baud_address = 0x868U,
-            .rxdata_address = 0x860U, .txdata_address = 0x862U, .dbgctrl_address = 0x86BU,
-            .evctrl_address = 0x86CU,
-            .rx_vector_index = 37U, .tx_vector_index = 39U, .dre_vector_index = 38U,
-            .user_event_address = 0x1B2U,
             .txd_pin_address = 0x424U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x428U, .rxd_pin_bit = 1U,
+            .rxd_pin_address = 0x424U, .rxd_pin_bit = 1U,
             .index = 3U
         } }},
 

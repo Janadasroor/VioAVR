@@ -17,6 +17,7 @@
 
 // Include peripheral headers for inline implementations
 #include "vioavr/core/xmem.hpp"
+#include "vioavr/core/ebi.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
 #include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/cpu_int.hpp"
@@ -183,6 +184,8 @@ public:
 
     void set_xmem(class Xmem* xmem) noexcept { xmem_ = xmem; }
     [[nodiscard]] class Xmem* xmem() const noexcept { return xmem_; }
+    void set_ebi(class Ebi* ebi) noexcept { ebi_ = ebi; }
+    [[nodiscard]] class Ebi* ebi() const noexcept { return ebi_; }
     void set_nvm_ctrl(class NvmCtrl* nvm_ctrl) noexcept;
     [[nodiscard]] class NvmCtrl* nvm_ctrl() const noexcept { return nvm_ctrl_; }
     void set_eeprom(class Eeprom* eeprom) noexcept { eeprom_ = eeprom; }
@@ -237,6 +240,7 @@ private:
     bool flash_rww_busy_ {false};
     bool has_pending_pin_changes_ {false};
     Xmem* xmem_ {nullptr};
+    class Ebi* ebi_ {nullptr};
     class NvmCtrl* nvm_ctrl_ {nullptr};
     class Eeprom* eeprom_ {nullptr};
     class CpuInt* cpu_int_ {nullptr};
@@ -347,6 +351,12 @@ inline u8 MemoryBus::read_data(const u16 address) noexcept
         return xmem_->read_external(address);
     }
 
+    if (ebi_ != nullptr) {
+        u8 val = ebi_->external_read(address);
+        if (val != 0xFF || (address >= ebi_->cs0_start() && address <= ebi_->cs0_end()))
+            return val;
+    }
+
     return 0xFFU;
 }
 
@@ -444,6 +454,11 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
 
     if (xmem_ != nullptr) {
         xmem_->write_external(address, value);
+        return;
+    }
+
+    if (ebi_ != nullptr && address >= ebi_->cs0_start() && address <= ebi_->cs0_end()) {
+        ebi_->external_write(address, value);
     }
 }
 
@@ -451,7 +466,10 @@ inline u8 MemoryBus::get_wait_states(const u16 address) const noexcept
 {
     // Fast path: internal memory has 0 wait states
     if (address < data_.size()) return 0U;
-    return (xmem_ != nullptr) ? xmem_->get_wait_states(address) : 0U;
+    if (xmem_ != nullptr) return xmem_->get_wait_states(address);
+    if (ebi_ != nullptr && address >= ebi_->cs0_start() && address <= ebi_->cs0_end())
+        return ebi_->get_wait_states();
+    return 0U;
 }
 
 } // namespace vioavr::core

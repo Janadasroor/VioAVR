@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/device_catalog.hpp"

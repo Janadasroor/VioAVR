@@ -7,19 +7,67 @@ project(
     LANGUAGES C CXX
 )
 
+# ── Enforce canonical build system ─────────────────────────────────
+# Only Ninja is supported. The old Makefile-based build is removed.
+# Override with -DVIOAVR_ALLOW_ANY_GENERATOR=ON for CI or cross-platform builds.
+# Use: cmake -B build --preset release
+if(NOT VIOAVR_ALLOW_ANY_GENERATOR AND NOT CMAKE_GENERATOR STREQUAL "Ninja")
+    message(FATAL_ERROR
+        "Unsupported generator '${CMAKE_GENERATOR}'. "
+        "VioAVR requires Ninja. Use:\n"
+        "  cmake -B build --preset release\n"
+        "or:\n"
+        "  cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release\n"
+        "To allow other generators (e.g., on CI), pass -DVIOAVR_ALLOW_ANY_GENERATOR=ON"
+    )
+endif()
+
+# ── Enforce unity build for core library ───────────────────────────
+# Without unity, the 87-source-file core library takes ~25× longer to compile.
+option(VIOAVR_DISABLE_UNITY "Disable unity/jumbo build (NOT RECOMMENDED)" OFF)
+if(VIOAVR_DISABLE_UNITY)
+    message(WARNING
+        "Unity build disabled — expect significantly slower builds. "
+        "Enable it by removing -DVIOAVR_DISABLE_UNITY=ON"
+    )
+endif()
+
 option(VIOAVR_BUILD_TESTS "Build unit tests" ON)
 option(VIOAVR_ENABLE_QT "Build Qt integration layer" OFF)
 option(VIOAVR_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(VIOAVR_ENABLE_COVERAGE "Enable code coverage instrumentation (GCC)" OFF)
 option(VIOAVR_ENABLE_WERROR "Treat compiler warnings as errors" OFF)
+option(VIOAVR_USE_NATIVE_ARCH "Enable -march=native for Release builds (disable for CI/cross-compile)" ON)
+option(VIOAVR_ALLOW_ANY_GENERATOR "Allow non-Ninja generators (for CI/compatibility)" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Fetch device family packs (each pack gets its own subdirectory under avr-pack/)
+# ── ccache ──────────────────────────────────────────────────────────
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros")
+    set(ENV{CCACHE_FILECLONE} "true")
+    message(STATUS "ccache: enabled (${CCACHE_PROGRAM})")
+else()
+    message(WARNING
+        "ccache not found — rebuilds will be slower. "
+        "Install ccache for faster incremental builds."
+    )
+endif()
+
+# ── Fetch device family packs ───────────────────────────────────────
+# After first fetch, packs are cached locally in avr-pack/.
+# Skip network if already populated (detect by presence of a known file).
+if(EXISTS "${CMAKE_SOURCE_DIR}/avr-pack/atmega/include/avr/io.h")
+    set(FETCHCONTENT_FULLY_DISCONNECTED ON)
+endif()
 include(FetchContent)
+set(FETCHCONTENT_QUIET ON)
 
 # Microchip ATmega DFP
 FetchContent_Declare(
@@ -78,22 +126,33 @@ set(AVR_SX_DFP_DIR ${avr_sx_dfp_SOURCE_DIR} CACHE PATH "Path to AVR-Sx DFP")
 # Note: XMEGA DFP is split into 5 packs (Atmel.XMEGAA/B/C/D/E_DFP).
 # These are not auto-fetched — manually install to avr-pack/xmega/atdf/
 
-# Optimization and LTO
+# ── Optimization, LTO, arch flags ──────────────────────────────────
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Guard -march=native with VIOAVR_USE_NATIVE_ARCH (disable in CI for consistent caching)
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
-    if(ipo_supported)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-    endif()
-    
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    if(VIOAVR_USE_NATIVE_ARCH AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
         add_compile_options(-O3 -march=native)
     endif()
 endif()
+
+# LTO is applied PER-TARGET (not globally) so tests build fast.
+# Production targets use it; test targets don't.
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
+if(ipo_supported)
+    message(STATUS "LTO supported: yes (applied per-target)")
+else()
+    message(STATUS "LTO supported: no")
+endif()
+
+macro(enable_lto target)
+    if(ipo_supported)
+        set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION ON)
+    endif()
+endmacro()
 
 if(PROJECT_IS_TOP_LEVEL)
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -122,6 +181,15 @@ if(VIOAVR_ENABLE_WERROR)
     endif()
 endif()
 
+# ── Detect POSIX shared memory (shm_open) for the SHM bridge ──────
+# Available on Linux/macOS; not available on Windows (even with MinGW).
+# Must be before add_subdirectory() calls so subdirectories see the variable.
+include(CheckSymbolExists)
+if(CMAKE_SYSTEM_NAME MATCHES "Linux|Darwin")
+    set(HAVE_SHM_OPEN TRUE)
+else()
+    check_symbol_exists(shm_open "sys/mman.h" HAVE_SHM_OPEN)
+endif()
 add_subdirectory(src/core)
 add_subdirectory(apps/vioavr-cli)
 add_subdirectory(apps/viospice-poc)
@@ -139,10 +207,24 @@ else()
     message(STATUS "vioavr_oscope: disabled (Qt6 Charts not found)")
 endif()
 
+if(Qt6_FOUND)
+    add_subdirectory(tools/term)
+    message(STATUS "vioavr_term: enabled (Qt6 Widgets found)")
+else()
+    message(STATUS "vioavr_term: disabled (Qt6 not found)")
+endif()
+
 if(VIOAVR_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
     add_subdirectory(tests/core)
 endif()
-add_executable(vioavr-bridge-daemon apps/vioavr-bridge-daemon/main.cpp)
-target_link_libraries(vioavr-bridge-daemon PRIVATE VioAVR::core)
+
+# ── SHM bridge daemon (requires shm_open, detected above) ─────────
+if(HAVE_SHM_OPEN)
+    add_executable(vioavr-bridge-daemon apps/vioavr-bridge-daemon/main.cpp)
+    target_link_libraries(vioavr-bridge-daemon PRIVATE VioAVR::core)
+    enable_lto(vioavr-bridge-daemon)
+else()
+    message(STATUS "vioavr-bridge-daemon: disabled (shm_open not available on this platform)")
+endif()

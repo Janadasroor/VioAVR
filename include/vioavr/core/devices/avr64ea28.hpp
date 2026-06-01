@@ -5,7 +5,7 @@ namespace vioavr::core::devices {
 
 inline constexpr DeviceDescriptor avr64ea28 {
     .name = "AVR64EA28",
-    .flash_words = 28672U,
+    .flash_words = 32768U,
     .sram_bytes = 6144U,
     .sram_start = 0x6800U,
     .eeprom_bytes = 0U,
@@ -323,9 +323,9 @@ inline constexpr DeviceDescriptor avr64ea28 {
             .tx_vector_index = 20U,
             .dre_vector_index = 19U,
             .txd_pin_address = 0x404U,
-            .txd_pin_bit = 0U,
+            .txd_pin_bit = 4U,
             .rxd_pin_address = 0x404U,
-            .rxd_pin_bit = 1U,
+            .rxd_pin_bit = 5U,
             .index = 0U,
         },
         {
@@ -342,10 +342,10 @@ inline constexpr DeviceDescriptor avr64ea28 {
             .rx_vector_index = 29U,
             .tx_vector_index = 31U,
             .dre_vector_index = 30U,
-            .txd_pin_address = 0x444U,
-            .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x444U,
-            .rxd_pin_bit = 1U,
+            .txd_pin_address = 0x464U,
+            .txd_pin_bit = 6U,
+            .rxd_pin_address = 0x464U,
+            .rxd_pin_bit = 7U,
             .index = 1U,
         },
         {

@@ -1,5 +1,7 @@
 #include "vioavr/core/awex.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/port_mux.hpp"
+#include "vioavr/core/pin_mux.hpp"
 
 namespace vioavr::core {
 
@@ -54,26 +56,33 @@ void Awex::reset() noexcept {
     wo_levels_ = 0;
     for (auto& p : dt_pending_) p = false;
     for (auto& c : dt_counters_) c = 0;
+    drive_outputs();
 }
 
 void Awex::tick(u64 elapsed_cycles) noexcept {
     if (elapsed_cycles == 0) return;
+    bool changed = false;
     for (u8 ch = 0; ch < 4; ++ch) {
         if (dt_pending_[ch]) {
             if (dt_counters_[ch] <= elapsed_cycles) {
                 dt_counters_[ch] = 0;
                 dt_pending_[ch] = false;
+                changed = true;
             } else {
                 dt_counters_[ch] -= static_cast<u16>(elapsed_cycles);
             }
         }
     }
+    if (changed) drive_outputs();
 }
 
 void Awex::set_wo_level(u8 channel, bool level) noexcept {
     if (channel >= 4) return;
     bool old = (wo_levels_ >> channel) & 0x01;
-    if (old == level) return;
+    if (old == level) {
+        drive_outputs();
+        return;
+    }
 
     if (level) {
         wo_levels_ |= (1 << channel);
@@ -85,6 +94,8 @@ void Awex::set_wo_level(u8 channel, bool level) noexcept {
         dt_pending_[channel] = true;
         dt_counters_[channel] = dtboth_;
     }
+
+    drive_outputs();
 }
 
 bool Awex::dt_enabled_for_channel(u8 ch) const noexcept {
@@ -103,7 +114,8 @@ bool Awex::get_dh_level(u8 ch) const noexcept {
 
 bool Awex::get_dl_level(u8 ch) const noexcept {
     if (dt_pending_[ch]) {
-        return !(wo_levels_ >> ch) & 0x01;
+        // During dead-time: DL = !new_WO (new WO already in wo_levels_)
+        return !((wo_levels_ >> ch) & 0x01);
     }
     return !get_dh_level(ch);
 }
@@ -126,11 +138,15 @@ u8 Awex::read(u16 address) noexcept {
 void Awex::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrl_address) {
         ctrl_ = value & 0x3F;
+        drive_outputs();
     }
     else if (address == desc_.fdemask_address) fdemask_ = value;
     else if (address == desc_.fdctrl_address) fdctrl_ = value & 0x17;
     else if (address == desc_.status_address) status_ &= ~value;
-    else if (address == desc_.dtboth_address) dtboth_ = value;
+    else if (address == desc_.dtboth_address) {
+        dtboth_ = value;
+        drive_outputs();
+    }
     else if (address == desc_.dtbothbuf_address) dtbothbuf_ = value;
     else if (address == desc_.dtls_address) dtls_ = value;
     else if (address == desc_.dths_address) dths_ = value;
@@ -138,6 +154,40 @@ void Awex::write(u16 address, u8 value) noexcept {
     else if (address == desc_.dthsbuf_address) dthsbuf_ = value;
     else if (address == desc_.outoven_address) {
         outoven_ = value & 0xFF;
+        drive_outputs();
+    }
+}
+
+static void drive_dh_dl_pins(PinMux* pm, u8 port_idx, u8 channel, bool dh, bool dl, bool enabled) noexcept {
+    if (!pm || channel >= 4) return;
+    if (port_idx >= 6) return;
+    static constexpr u8 DH_BITS[4] = {4, 6, 2, 0};
+    static constexpr u8 DL_BITS[4] = {5, 7, 3, 1};
+    u8 dh_bit = DH_BITS[channel];
+    u8 dl_bit = DL_BITS[channel];
+    if (enabled) {
+        pm->claim_pin(port_idx, dh_bit, PinOwner::timer);
+        pm->update_pin(port_idx, dh_bit, PinOwner::timer, true, dh, false);
+        pm->claim_pin(port_idx, dl_bit, PinOwner::timer);
+        pm->update_pin(port_idx, dl_bit, PinOwner::timer, true, dl, false);
+    } else {
+        pm->release_pin(port_idx, dh_bit, PinOwner::timer);
+        pm->release_pin(port_idx, dl_bit, PinOwner::timer);
+    }
+}
+
+void Awex::drive_outputs(u8 port_override) noexcept {
+    if (!port_mux_ && !pin_mux_) return;
+    u8 port_idx = (port_override != 0xFF) ? port_override : port_index_;
+    bool awex_enabled = (ctrl_ & 0x01) != 0;
+    for (u8 ch = 0; ch < 4; ++ch) {
+        bool enabled = awex_enabled;
+        if (port_mux_ && port_mux_->has_tc_routing()) {
+            port_mux_->drive_awex_dh_dl(ch, enabled ? get_dh_level(ch) : false,
+                                        enabled ? get_dl_level(ch) : false, enabled, port_idx);
+        } else if (pin_mux_) {
+            drive_dh_dl_pins(pin_mux_, port_idx, ch, get_dh_level(ch), get_dl_level(ch), enabled);
+        }
     }
 }
 

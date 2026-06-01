@@ -63,18 +63,99 @@ void Dma::reset() noexcept {
     intctrl_ = 0;
     intflags_ = 0;
     dbgctrl_ = 0;
+    int_pending_ = false;
     for (auto& c : channels_) {
         c = Channel{};
     }
 }
 
 void Dma::tick(u64 elapsed_cycles) noexcept {
-    (void)elapsed_cycles;
     if (!is_enabled()) return;
 
     for (u8 i = 0; i < desc_.channel_count; ++i) {
-        if (channels_[i].pending_trigger && !channels_[i].busy) {
-            perform_transfer(i);
+        auto& c = channels_[i];
+        if (c.pending_trigger && !c.busy && c.remaining_count > 0) {
+            start_transfer(i);
+        }
+        if (c.busy) {
+            c.xfer.cycle_accumulator += elapsed_cycles;
+            process_transfer_beats(i);
+        }
+    }
+}
+
+void Dma::start_transfer(u8 channel_idx) noexcept {
+    auto& c = channels_[channel_idx];
+    c.busy = true;
+    c.pending_trigger = false;
+    c.xfer.trigact = c.ctrlb & 0x03U;
+    u8 burstlen = ((c.ctrla >> 2) & 0x03U);
+    c.xfer.block_size = static_cast<u8>(1U << burstlen);
+    c.xfer.started = true;
+    c.xfer.beats_in_burst = 0;
+
+    switch (c.xfer.trigact) {
+        case 0: c.xfer.beats_remaining = static_cast<u16>(c.remaining_count); break;
+        case 1: c.xfer.beats_remaining = static_cast<u16>(c.remaining_count); break;
+        case 2: c.xfer.beats_remaining = c.xfer.block_size; break;
+        case 3: c.xfer.beats_remaining = c.xfer.block_size; break;
+        default: c.xfer.beats_remaining = 1; break;
+    }
+}
+
+void Dma::process_transfer_beats(u8 channel_idx) noexcept {
+    auto& c = channels_[channel_idx];
+
+    while (c.xfer.beats_remaining > 0 && c.remaining_count > 0) {
+        u8 ws_src = bus_->get_wait_states(c.srcaddr);
+        u8 ws_dst = bus_->get_wait_states(c.dstaddr);
+        u16 beat_cost = static_cast<u16>(1 + ws_src + 1 + ws_dst);
+
+        if (c.xfer.cycle_accumulator < beat_cost) break;
+
+        u8 data = bus_->read_data(c.srcaddr);
+        bus_->write_data(c.dstaddr, data);
+
+        u8 srcinc = (c.ctrla >> 6) & 0x03U;
+        u8 dstinc = (c.ctrla >> 4) & 0x03U;
+        if (srcinc == 0x01U) c.srcaddr++;
+        else if (srcinc >= 0x02U) c.srcaddr += 2;
+        if (dstinc == 0x01U) c.dstaddr++;
+        else if (dstinc >= 0x02U) c.dstaddr += 2;
+
+        c.remaining_count--;
+        c.xfer.beats_remaining--;
+        c.xfer.beats_in_burst++;
+        c.xfer.cycle_accumulator -= beat_cost;
+
+        if (c.remaining_count == 0) {
+            c.intflags |= 0x01;
+            if (c.intctrl & 0x01) int_pending_ = true;
+            c.busy = false;
+            c.xfer.started = false;
+            c.xfer.cycle_accumulator = 0;
+            return;
+        }
+    }
+
+    if (c.xfer.beats_remaining == 0 && c.remaining_count > 0) {
+        switch (c.xfer.trigact) {
+            case 0:
+                c.busy = false;
+                c.xfer.started = false;
+                c.xfer.cycle_accumulator = 0;
+                break;
+            case 1:
+                c.xfer.beats_remaining = static_cast<u16>(c.remaining_count);
+                break;
+            case 2:
+                c.busy = false;
+                c.xfer.started = false;
+                c.xfer.cycle_accumulator = 0;
+                break;
+            case 3:
+                c.xfer.beats_remaining = c.xfer.block_size;
+                break;
         }
     }
 }
@@ -115,11 +196,11 @@ void Dma::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value;
     } else if (address == desc_.status_address) {
-        // Status might be read-only or clear-on-write
     } else if (address == desc_.intctrl_address) {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value;
+        if (!(intflags_ & 0x01)) int_pending_ = false;
     } else if (address == desc_.dbgctrl_address) {
         dbgctrl_ = value;
     } else {
@@ -128,9 +209,8 @@ void Dma::write(u16 address, u8 value) noexcept {
             auto& c = channels_[i];
             if (address == cd.ctrla_address) {
                 c.ctrla = value;
-                if (value & 0x01) { // ENABLE
+                if (value & 0x01) {
                     c.remaining_count = c.cnt;
-                    Logger::debug("DMA Channel " + std::to_string(i) + " enabled, count=" + std::to_string(c.cnt));
                 }
             } else if (address == cd.ctrlb_address) {
                 c.ctrlb = value;
@@ -159,18 +239,46 @@ void Dma::write(u16 address, u8 value) noexcept {
     }
 }
 
+bool Dma::pending_interrupt_request(InterruptRequest& request) const noexcept {
+    if (int_pending_ && desc_.vector_index != 0xFF) {
+        request.vector_index = desc_.vector_index;
+        return true;
+    }
+    for (u8 i = 0; i < desc_.channel_count; ++i) {
+        if ((channels_[i].intflags & 0x01) && (channels_[i].intctrl & 0x01)) {
+            request.vector_index = desc_.vector_index;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Dma::consume_interrupt_request(InterruptRequest& request) noexcept {
+    if (int_pending_ && desc_.vector_index != 0xFF) {
+        request.vector_index = desc_.vector_index;
+        int_pending_ = false;
+        intflags_ &= ~0x01;
+        return true;
+    }
+    for (u8 i = 0; i < desc_.channel_count; ++i) {
+        if ((channels_[i].intflags & 0x01) && (channels_[i].intctrl & 0x01)) {
+            request.vector_index = desc_.vector_index;
+            channels_[i].intflags &= ~0x01;
+            return true;
+        }
+    }
+    return false;
+}
+
 void Dma::set_event_system(EventSystem* evsys) noexcept {
     evsys_ = evsys;
     if (evsys_) {
-        // 1. Direct Generator Listeners (for peripherals that bypass EVSYS channels)
-        // We register for a wide range of generators. 
         for (u8 i = 0; i < 128; ++i) {
             evsys_->register_generator_callback(i, [this, i](bool level) {
                 if (level) this->on_trigger(i);
             });
         }
 
-        // 2. EVSYS User Slot Listeners (for triggers routed through Channels)
         u16 user_base = evsys_->users_base();
         if (user_base != 0) {
             for (u8 i = 0; i < desc_.channel_count; ++i) {
@@ -178,8 +286,6 @@ void Dma::set_event_system(EventSystem* evsys) noexcept {
                 if (user_addr >= user_base) {
                     u8 user_idx = static_cast<u8>(user_addr - user_base);
                     evsys_->register_user_callback(user_idx, [this, i](bool level) {
-                        // In this case, the channel 'i' is triggered directly by its EVSYS user slot.
-                        // TRIGSRC is ignored if triggered via User slot callback.
                         if (level && is_enabled() && (channels_[i].ctrla & 0x01U)) {
                             channels_[i].pending_trigger = true;
                         }
@@ -190,70 +296,9 @@ void Dma::set_event_system(EventSystem* evsys) noexcept {
     }
 }
 
-void Dma::perform_transfer(u8 channel_idx) noexcept {
-    auto& c = channels_[channel_idx];
-    if (!bus_ || c.remaining_count == 0) {
-        c.pending_trigger = false;
-        return;
-    }
-
-    c.busy = true;
-    
-    // CTRLB[1:0] = TRIGACT: 00=REPEAT(block/trigger), 01=BURST(all blocks), 10=SINGLE(1 beat), 11=TRANSFERALL(all beats)
-    u8 trigact = c.ctrlb & 0x03U;
-    // CHCTRLA[3:2] = BURSTLEN: 00=1, 01=2, 10=4, 11=8 beats per block
-    u8 burstlen = ((c.ctrla >> 2) & 0x03U);
-    u8 block_size = static_cast<u8>(1U << burstlen); // 1, 2, 4, or 8
-
-    u16 xfer_limit;
-    switch (trigact) {
-        case 0: // REPEAT — one block (BURSTLEN beats)
-            xfer_limit = block_size;
-            break;
-        case 1: // BURST — all remaining (full transaction, block-by-block)
-            xfer_limit = c.remaining_count;
-            break;
-        case 2: // SINGLE — one beat
-            xfer_limit = 1;
-            break;
-        case 3: // TRANSFERALL — all remaining (full transaction, beat-by-beat)
-            xfer_limit = c.remaining_count;
-            break;
-        default:
-            xfer_limit = 1;
-            break;
-    }
-
-    u16 count = 0;
-    while (count < xfer_limit && c.remaining_count > 0) {
-        u8 data = bus_->read_data(c.srcaddr);
-        bus_->write_data(c.dstaddr, data);
-        
-        // Address increment logic (2-bit fields)
-        // CTRLA[7:6] = SRCINC: 00=no inc, 01=+1, 10=+2, 11=+2
-        // CTRLA[5:4] = DSTINC: 00=no inc, 01=+1, 10=+2, 11=+2
-        u8 srcinc = (c.ctrla >> 6) & 0x03U;
-        u8 dstinc = (c.ctrla >> 4) & 0x03U;
-        if (srcinc == 0x01U) c.srcaddr++;
-        else if (srcinc >= 0x02U) c.srcaddr += 2;
-        if (dstinc == 0x01U) c.dstaddr++;
-        else if (dstinc >= 0x02U) c.dstaddr += 2;
-
-        c.remaining_count--;
-        count++;
-    }
-
-    if (c.remaining_count == 0) {
-        c.intflags |= 0x01; // Transfer Complete flag
-    }
-
-    c.busy = false;
-    c.pending_trigger = false;
-}
-
 void Dma::on_trigger(u8 trigger_id) noexcept {
     if (!is_enabled()) return;
-    
+
     for (u8 i = 0; i < desc_.channel_count; ++i) {
         if (channels_[i].trigsrc == trigger_id && (channels_[i].ctrla & 0x01)) {
             channels_[i].pending_trigger = true;

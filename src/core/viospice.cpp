@@ -48,6 +48,9 @@
 #include "vioavr/core/cfd.hpp"
 #include "vioavr/core/ptc.hpp"
 #include "vioavr/core/lin.hpp"
+#include "vioavr/core/xmega_dac.hpp"
+#include "vioavr/core/ebi.hpp"
+#include "vioavr/core/ircom.hpp"
 #include "vioavr/core/dma.hpp"
 #include "vioavr/core/rstctrl.hpp"
 #include "vioavr/core/slpctrl.hpp"
@@ -65,7 +68,7 @@
 
 namespace vioavr::core {
 
-static u8 compute_pin_mux_port_count(const DeviceDescriptor& device) noexcept
+static u8 compute_pin_mux_port_count_viospice(const DeviceDescriptor& device) noexcept
 {
     u8 max_idx = 0;
     for (u8 i = 0; i < device.port_count; ++i) {
@@ -80,7 +83,7 @@ static u8 compute_pin_mux_port_count(const DeviceDescriptor& device) noexcept
 }
 
 VioSpice::VioSpice(const DeviceDescriptor& device)
-    : pin_mux_(compute_pin_mux_port_count(device)), bus_(device), cpu_(bus_)
+    : pin_mux_(compute_pin_mux_port_count_viospice(device)), bus_(device), cpu_(bus_)
 {
     pin_map_ = std::make_unique<PinMap>();
     bus_.set_pin_map(pin_map_.get());
@@ -145,6 +148,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     }
     if (device.mvio.intctrl_address != 0U) {
         auto p = std::make_unique<Mvio>(device.mvio);
+        p->set_memory_bus(&bus_);
         bus_.attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
@@ -177,6 +181,16 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     }
     if (dma && evsys) {
         dma->set_event_system(evsys);
+    }
+
+    // Wire EVOUT routing: EVSYS user callbacks drive PortMux pins
+    if (evsys && port_mux_ && device.evsys.evout_user_count > 0) {
+        u8 evout_start = device.evsys.evout_user_start;
+        for (u8 i = 0; i < device.evsys.evout_user_count; ++i) {
+            evsys->register_user_callback(evout_start + i, [pm = port_mux_, i](bool level) {
+                pm->drive_evout(i, level);
+            });
+        }
     }
 
     // 2. Classic Timers
@@ -236,6 +250,14 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
                 }
             }
         }
+        if (desc16.icp_pin_address != 0) {
+            for (auto* port : ports_) {
+                if (port->port_address() == desc16.icp_pin_address || port->pin_address() == desc16.icp_pin_address) {
+                    timer->connect_input_capture(*port, desc16.icp_pin_bit);
+                    break;
+                }
+            }
+        }
 
         bus_.attach_peripheral(*timer);
         owned_peripherals_.push_back(std::move(timer));
@@ -284,9 +306,12 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // 3. Analog
     for (u8 i = 0; i < device.adc_count; ++i) {
-        auto adc = std::make_unique<Adc>("ADC" + std::to_string(i), device.adcs[i], pin_mux_, 0, 15);
+        auto adc = std::make_unique<Adc>("ADC" + std::to_string(i), device.adcs[i], pin_mux_, i, 0);
+        adc->set_bus(bus_);
         adc->bind_signal_bank(analog_signal_bank_);
-        bus_.attach_peripheral(*adc.release());
+        adc->set_vref(device.operating_voltage_v);
+        bus_.attach_peripheral(*adc);
+        owned_peripherals_.push_back(std::move(adc));
     }
 
     for (u8 i = 0; i < device.adc8x_count; ++i) {
@@ -294,14 +319,16 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         adc->set_memory_bus(&bus_);
         adc->set_event_system(evsys);
         adc->set_analog_signal_bank(&analog_signal_bank_);
-        bus_.attach_peripheral(*adc.release());
+        bus_.attach_peripheral(*adc);
+        owned_peripherals_.push_back(std::move(adc));
     }
 
     for (u8 i = 0; i < device.adc10b_count; ++i) {
         auto adc = std::make_unique<Adc10b>(device.adcs10b[i]);
         adc->set_memory_bus(&bus_);
         adc->set_analog_signal_bank(&analog_signal_bank_);
-        bus_.attach_peripheral(*adc.release());
+        bus_.attach_peripheral(*adc);
+        owned_peripherals_.push_back(std::move(adc));
     }
 
     for (u8 i = 0; i < device.ac8x_count; ++i) {
@@ -316,13 +343,16 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     for (u8 i = 0; i < device.dac_count; ++i) {
         auto dac = std::make_unique<Dac>("DAC" + std::to_string(i), device.dacs[i]);
+        dac->set_memory_bus(&bus_);
         dacs_.push_back(dac.get());
         bus_.attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
     }
 
     for (u8 i = 0; i < device.dac8x_count; ++i) {
-        auto dac = std::make_unique<Dac8x>(device.dacs8x[i]);
+        auto dac = std::make_unique<Dac8x>(device.dacs8x[i], i);
+        dac->set_analog_signal_bank(&analog_signal_bank_);
+        dac->set_vref(device.operating_voltage_v);
         bus_.attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
     }
@@ -331,7 +361,8 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     for (u8 i = 0; i < device.uart_count; ++i) {
         auto u = std::make_unique<Uart>("UART" + std::to_string(i), device.uarts[i], pin_mux_);
         if (i == 0) uart0_ = u.get();
-        bus_.attach_peripheral(*u.release());
+        bus_.attach_peripheral(*u);
+        owned_peripherals_.push_back(std::move(u));
     }
 
     for (u8 i = 0; i < device.uart8x_count; ++i) {
@@ -339,8 +370,10 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         uart->set_memory_bus(&bus_);
         uart->set_event_system(evsys);
         uart->set_port_mux(port_mux_);
+        if (port_mux_) port_mux_->add_observer(uart.get());
         if (i == 0) uart8x0_ = uart.get();
-        bus_.attach_peripheral(*uart.release());
+        bus_.attach_peripheral(*uart);
+        owned_peripherals_.push_back(std::move(uart));
     }
 
     for (u8 i = 0; i < device.spi_count; ++i) {
@@ -379,6 +412,23 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(usi));
     }
 
+    // Wire Timer0 -> USI for USICS=10 clock source
+    if (device.usi_count > 0 && device.timer8_count > 0) {
+        Usi* usi_ptr = nullptr;
+        Timer8* t8_ptr = nullptr;
+        for (auto& p : owned_peripherals_) {
+            if (auto* u = dynamic_cast<Usi*>(p.get())) {
+                usi_ptr = u;
+            }
+            if (auto* t = dynamic_cast<Timer8*>(p.get())) {
+                if (t->name() == "TIMER8_0") t8_ptr = t;
+            }
+        }
+        if (usi_ptr && t8_ptr) {
+            t8_ptr->connect_usi_timer0_clock(*usi_ptr);
+        }
+    }
+
     for (u8 i = 0; i < device.eusart_count; ++i) {
         auto eusart = std::make_unique<Eusart>("EUSART", device.eusarts[i]);
         bus_.attach_peripheral(*eusart);
@@ -394,6 +444,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     // 5. EEPROM
     for (u8 i = 0; i < device.eeprom_count; ++i) {
         auto eeprom = std::make_unique<Eeprom>("EEPROM" + std::to_string(i), device.eeproms[i]);
+        eeprom->set_memory_bus(&bus_);
         if (i == 0) bus_.set_eeprom(eeprom.get());
         bus_.attach_peripheral(*eeprom);
         owned_peripherals_.push_back(std::move(eeprom));
@@ -462,6 +513,46 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(ac));
     }
 
+    // Wire ADC auto-trigger sources (AC, Timer8, Timer16, PSC)
+    {
+        Adc* adc = nullptr;
+        for (auto& p : owned_peripherals_) {
+            if (auto* a = dynamic_cast<Adc*>(p.get())) {
+                adc = a;
+                break;
+            }
+        }
+        if (adc) {
+            for (auto& p : owned_peripherals_) {
+                if (auto* ac = dynamic_cast<AnalogComparator*>(p.get())) {
+                    adc->connect_comparator_auto_trigger(*ac);
+                    u8 psc_idx = ac->name().back() - '0';
+                    for (auto& p2 : owned_peripherals_) {
+                        if (auto* psc = dynamic_cast<Psc*>(p2.get())) {
+                            std::string psc_target = "PSC" + std::to_string(psc_idx);
+                            if (psc->name() == psc_target || psc->name() == "PSC") {
+                                ac->connect_psc_fault(*psc);
+                            }
+                        }
+                    }
+                }
+                if (auto* t8 = dynamic_cast<Timer8*>(p.get())) {
+                    adc->connect_timer_compare_auto_trigger(*t8);
+                    adc->connect_timer_overflow_auto_trigger(*t8);
+                }
+                if (auto* t16 = dynamic_cast<Timer16*>(p.get())) {
+                    t16->connect_adc(*adc);
+                }
+                if (auto* ext = dynamic_cast<ExtInterrupt*>(p.get())) {
+                    adc->connect_external_interrupt_0_auto_trigger(*ext);
+                }
+                if (auto* psc = dynamic_cast<Psc*>(p.get())) {
+                    psc->connect_adc_trigger(*adc);
+                }
+            }
+        }
+    }
+
     // 12. CCL
     if (device.ccl.ctrla_address != 0) {
         auto c = std::make_unique<Ccl>(device.ccl);
@@ -499,7 +590,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(tce));
     }
 
-    // 14c. TC (XMEGA 16-bit Timer/Counter)
+    // 14c. TC (XMEGA 16-bit Timer/Counter) — collect raw pointers for AWEX pairing
+    std::vector<Tc*> tc_ptrs;
+    tc_ptrs.reserve(device.tc_count);
     for (u8 i = 0; i < device.tc_count; ++i) {
         auto tc = std::make_unique<Tc>("TC" + std::to_string(i), device.timers_tc[i]);
         tc->set_memory_bus(&bus_);
@@ -508,14 +601,18 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             tc->set_port_mux(port_mux_);
             port_mux_->add_observer(tc.get());
         }
+        tc->set_pin_mux(&pin_mux_);
         {
-            u16 tc_base = device.timers_tc[i].ctrla_address;
-            char port_letter = 0;
-            if (tc_base >= 0x0800 && tc_base < 0x0900) port_letter = 'C';
-            else if (tc_base >= 0x0900 && tc_base < 0x0A00) port_letter = 'D';
-            else if (tc_base >= 0x0A00 && tc_base < 0x0B00) port_letter = 'E';
-            else if (tc_base >= 0x0B00 && tc_base < 0x0C00) port_letter = 'F';
+            char port_letter = static_cast<char>(device.timers_tc[i].port_letter);
+            if (!port_letter) {
+                u16 tc_base = device.timers_tc[i].ctrla_address;
+                if (tc_base >= 0x0800 && tc_base < 0x0900) port_letter = 'C';
+                else if (tc_base >= 0x0900 && tc_base < 0x0A00) port_letter = 'D';
+                else if (tc_base >= 0x0A00 && tc_base < 0x0B00) port_letter = 'E';
+                else if (tc_base >= 0x0B00 && tc_base < 0x0C00) port_letter = 'F';
+            }
             if (port_letter) {
+                tc->set_wg_mode_in_ctrld(true);
                 for (u8 p = 0; p < device.port_count; ++p) {
                     auto& pn = device.ports[p].name;
                     if (pn.size() > 4 && pn[4] == port_letter) {
@@ -525,14 +622,22 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
                 }
             }
         }
+        tc_ptrs.push_back(tc.get());
         bus_.attach_peripheral(*tc);
         owned_peripherals_.push_back(std::move(tc));
     }
 
-    // 14d. AWEX (XMEGA Advanced Waveform Extension)
+    // 14d. AWEX (XMEGA Advanced Waveform Extension) — pair with companion TC
     for (u8 i = 0; i < device.awex_count; ++i) {
         auto awex = std::make_unique<Awex>("AWEX" + std::to_string(i), device.awexs[i]);
         awex->set_memory_bus(&bus_);
+        if (port_mux_) {
+            awex->set_port_mux(port_mux_);
+        }
+        awex->set_pin_mux(&pin_mux_);
+        if (i < tc_ptrs.size()) {
+            tc_ptrs[i]->set_awex(awex.get());
+        }
         bus_.attach_peripheral(*awex);
         owned_peripherals_.push_back(std::move(awex));
     }
@@ -577,6 +682,52 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(usb));
     }
 
+    // XMEGA DAC
+    for (u8 i = 0; i < device.xmega_dac_count; ++i) {
+        auto dac = std::make_unique<XmegaDac>("XDAC" + std::to_string(i), device.xmega_dacs[i]);
+        dac->set_memory_bus(&bus_);
+        dac->set_analog_signal_bank(&analog_signal_bank_);
+        dac->set_vref(bus_.device().operating_voltage_v);
+        bus_.attach_peripheral(*dac);
+        xmega_dacs_.push_back(dac.get());
+        owned_peripherals_.push_back(std::move(dac));
+    }
+
+    // EBI (External Bus Interface)
+    for (u8 i = 0; i < device.ebi_count; ++i) {
+        auto ebi = std::make_unique<Ebi>("EBI", device.ebis[i]);
+        ebi->set_memory_bus(&bus_);
+        bus_.attach_peripheral(*ebi);
+        bus_.set_ebi(ebi.get());
+        owned_peripherals_.push_back(std::move(ebi));
+    }
+
+    // IRCOM (IR Communication Module)
+    for (u8 i = 0; i < device.ircom_count; ++i) {
+        auto ircom = std::make_unique<Ircom>("IRCOM", device.ircoms[i]);
+        ircom->set_memory_bus(&bus_);
+        ircom->set_pin_mux(&pin_mux_);
+        if (device.ircoms[i].pin_address != 0) {
+            for (auto* port : ports_) {
+                if (port && port->port_address() == device.ircoms[i].pin_address) {
+                    u8 port_letter = port->name()[4] - 'A';
+                    ircom->set_output_pin(port_letter, device.ircoms[i].pin_bit_index);
+                    break;
+                }
+            }
+        } else {
+            // Default to first available GPIO port, bit 0
+            for (auto* port : ports_) {
+                if (port) {
+                    ircom->set_output_pin(port->name()[4] - 'A', 0);
+                    break;
+                }
+            }
+        }
+        bus_.attach_peripheral(*ircom);
+        owned_peripherals_.push_back(std::move(ircom));
+    }
+
     // 16. LCD
     for (u8 i = 0; i < device.lcd_count; ++i) {
         auto lcd = std::make_unique<LcdController>("LCD", device.lcds[i], pin_mux_);
@@ -601,7 +752,10 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // 19. ZCD
     for (u8 i = 0; i < device.zcd_count; ++i) {
-        auto zcd = std::make_unique<Zcd>(device.zcds[i]);
+        auto zcd = std::make_unique<Zcd>(device.zcds[i], i);
+        zcd->set_analog_signal_bank(&analog_signal_bank_);
+        zcd->set_input_channel(static_cast<u8>(100 + i));
+        zcd->set_vdd(device.operating_voltage_v);
         if (i == 0) bus_.set_zcd(zcd.get());
         bus_.attach_peripheral(*zcd);
         owned_peripherals_.push_back(std::move(zcd));
@@ -609,7 +763,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // 20. OPAMP
     for (u8 i = 0; i < device.opamp_count; ++i) {
-        auto op = std::make_unique<Opamp>(device.opamps[i]);
+        auto op = std::make_unique<Opamp>(device.opamps[i], i);
+        op->set_analog_signal_bank(&analog_signal_bank_);
+        op->set_vdd(device.operating_voltage_v);
         bus_.attach_peripheral(*op);
         owned_peripherals_.push_back(std::move(op));
     }
@@ -617,6 +773,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     // 21. CFD
     for (u8 i = 0; i < device.cfd_count; ++i) {
         auto cfd = std::make_unique<Cfd>(device.cfds[i]);
+        cfd->set_memory_bus(&bus_);
         bus_.attach_peripheral(*cfd);
         owned_peripherals_.push_back(std::move(cfd));
     }
@@ -631,6 +788,8 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     // 23. LIN
     for (u8 i = 0; i < device.lin_count; ++i) {
         auto lin = std::make_unique<LinUART>(device.lins[i]);
+        lin->set_memory_bus(&bus_);
+        lin->set_pin_mux(&pin_mux_);
         bus_.attach_peripheral(*lin);
         owned_peripherals_.push_back(std::move(lin));
     }
@@ -730,15 +889,16 @@ void VioSpice::set_external_voltage(u8 channel, double voltage_volts) {
 
 void VioSpice::set_external_voltage_to_digital(u32 external_id, double voltage) {
     if (!pin_map_) return;
-    
+    auto mapping = pin_map_->get_mapping_by_external(external_id);
+    if (!mapping) return;
+
     const double vcc = bus_.device().operating_voltage_v;
-    const double vil = vcc * bus_.device().vil_factor;
-    const double vih = vcc * bus_.device().vih_factor;
-    
-    if (voltage >= vih) {
-        set_external_pin(external_id, PinLevel::high);
-    } else if (voltage <= vil) {
-        set_external_pin(external_id, PinLevel::low);
+    const double clamped = (voltage < 0.0) ? 0.0 : (voltage > vcc) ? vcc : voltage;
+    const double normalized = clamped / vcc;
+
+    auto it = port_map_.find(mapping->port_name);
+    if (it != port_map_.end()) {
+        it->second->set_input_voltage(mapping->bit_index, normalized);
     }
 }
 
@@ -759,9 +919,13 @@ std::optional<u32> VioSpice::get_external_id(std::string_view port_name, u8 bit_
 
 std::vector<double> VioSpice::get_analog_outputs() {
     std::vector<double> results;
-    results.reserve(dacs_.size());
+    results.reserve(dacs_.size() + xmega_dacs_.size() * 2);
     for (auto* dac : dacs_) {
         results.push_back(dac->voltage());
+    }
+    for (auto* dac : xmega_dacs_) {
+        results.push_back(dac->ch0_voltage());
+        results.push_back(dac->ch1_voltage());
     }
     return results;
 }
@@ -791,6 +955,10 @@ void VioSpice::bridge_hc05() {
         data = hc05_.read_tx_byte();
         inject(uart0_, data);
         if (!uart0_) inject(uart8x0_, data);
+        if (hc05_pty_fd_ >= 0) {
+            u8 b = static_cast<u8>(data & 0xFF);
+            ::write(hc05_pty_fd_, &b, 1);
+        }
     }
     while (hc05_.has_external_data()) {
         data = hc05_.read_injected_byte();
@@ -817,6 +985,22 @@ void VioSpice::set_frequency(double hz) {
 
 void VioSpice::set_quantum(u64 cycles) {
     quantum_ = cycles;
+}
+
+void VioSpice::set_ircom_output_pin(u32 external_id) {
+    if (!pin_map_) return;
+    auto mapping = pin_map_->get_mapping_by_external(external_id);
+    if (!mapping) return;
+    for (auto& owned : owned_peripherals_) {
+        if (!owned) continue;
+        auto* ircom = dynamic_cast<Ircom*>(owned.get());
+        if (!ircom) continue;
+        if (mapping->port_name.size() >= 5) {
+            u8 port_letter = mapping->port_name[4] - 'A';
+            ircom->set_output_pin(port_letter, mapping->bit_index);
+        }
+        return;
+    }
 }
 
 } // namespace vioavr::core

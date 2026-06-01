@@ -3,6 +3,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/port_mux.hpp"
 #include "vioavr/core/analog_signal_bank.hpp"
 #include <array>
 #include <string>
@@ -10,9 +11,7 @@
 
 namespace vioavr::core {
 
-class PortMux;
-
-class Uart8x final : public IoPeripheral {
+class Uart8x final : public IoPeripheral, public IRoutingObserver {
 public:
     explicit Uart8x(const Uart8xDescriptor& descriptor, PinMux& pin_mux) noexcept;
 
@@ -27,6 +26,8 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
     [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
+
+    void on_routing_changed() noexcept override;
 
     void set_memory_bus(class MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(class EventSystem* evsys) noexcept;

@@ -1,10 +1,14 @@
 #include "vioavr/core/zcd.hpp"
+#include "vioavr/core/analog_signal_bank.hpp"
+#include "vioavr/core/memory_bus.hpp"
 
 namespace vioavr::core {
 
-Zcd::Zcd(const ZcdDescriptor& desc) noexcept : desc_(desc) {
+Zcd::Zcd(const ZcdDescriptor& desc, u8 instance_index) noexcept
+    : desc_(desc), instance_index_(instance_index) {
     if (desc_.ctrla_address != 0) {
-        ranges_[0] = {desc_.ctrla_address, desc_.ctrla_address};
+        u16 end = static_cast<u16>(desc_.ctrla_address + 3);
+        ranges_[0] = {desc_.ctrla_address, end};
     }
 }
 
@@ -14,48 +18,77 @@ std::span<const AddressRange> Zcd::mapped_ranges() const noexcept {
 
 void Zcd::reset() noexcept {
     ctrla_ = 0;
+    intctrl_ = 0;
+    status_ = 0;
     int_pending_ = false;
-    update_interrupt_pending();
+    sampled_ = false;
 }
 
-void Zcd::tick(u64) noexcept {}
-
-u8 Zcd::read(u16 address) noexcept {
-    if (address == desc_.ctrla_address) {
-        u8 val = ctrla_ & 0x7FU;
-        if (pin_state_) val |= 0x80U; // STATE bit
-        return val;
+void Zcd::set_state(bool high) noexcept {
+    bool old = (ctrla_ & 0x80) != 0;
+    if (high == old) return;
+    if (high) ctrla_ |= 0x80;
+    else ctrla_ &= ~0x80;
+    if (!(ctrla_ & 0x01)) return;
+    u8 edge = intctrl_ & 0x03;
+    bool fire = (edge == 0x00) || (edge == 0x01 && !high && old) || (edge == 0x02 && high && !old) || (edge == 0x03);
+    if (fire) {
+        status_ |= 0x01;
+        int_pending_ = true;
     }
-    return 0;
 }
 
-void Zcd::write(u16 address, u8 value) noexcept {
-    if (address == desc_.ctrla_address) {
-        ctrla_ = value & 0x7FU; // Bit 7 (STATE) is read-only
-        update_interrupt_pending();
+void Zcd::sample_analog() {
+    if (!signal_bank_) return;
+    double vin = signal_bank_->voltage(input_channel_);
+    double vth = (ctrla_ & 0x04) ? 1.5 : vdd_ * 0.5;
+    bool high = vin >= vth;
+    if (!sampled_) {
+        sampled_ = true;
+        if (high) ctrla_ |= 0x80;
+        else ctrla_ &= ~0x80;
+        return;
     }
+    set_state(high);
+}
+
+void Zcd::tick(u64) noexcept {
+    sample_analog();
 }
 
 bool Zcd::on_external_pin_change(u16 pin_address, u8 bit_index, PinLevel level) noexcept {
-    if (pin_address != desc_.pin_address) return false;
-    if (desc_.pin_bit != 0xFFU && bit_index != desc_.pin_bit) return false;
-    
-    bool new_state = (level == PinLevel::high);
-    if (new_state == pin_state_) return false;
-    
-    // We crossed zero!
-    pin_state_ = new_state;
-    
-    if (!(ctrla_ & 0x01U)) return true; // ENABLE bit is off, but pin state updated
-    
-    // ZCD typically triggers on crossing.
-    int_pending_ = true;
-    update_interrupt_pending();
+    if (pin_address != desc_.pin_address || bit_index != desc_.pin_bit)
+        return false;
+    set_state(level == PinLevel::high);
     return true;
 }
 
+u8 Zcd::read(u16 address) noexcept {
+    u16 offset = address - desc_.ctrla_address;
+    switch (offset) {
+        case 0: return ctrla_;
+        case 1: return intctrl_;
+        case 2: return status_;
+        default: return 0;
+    }
+}
+
+void Zcd::write(u16 address, u8 value) noexcept {
+    u16 offset = address - desc_.ctrla_address;
+    switch (offset) {
+        case 0:
+            ctrla_ = (ctrla_ & 0x80) | (value & 0x7F);
+            break;
+        case 1: intctrl_ = value & 0x03; break;
+        case 2:
+            status_ &= ~(value & 0x01);
+            int_pending_ = (intctrl_ != 0) && (status_ & 0x01);
+            break;
+    }
+}
+
 bool Zcd::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    if (int_pending_ && (ctrla_ & 0x01U)) {
+    if (int_pending_ && desc_.vector_index != 0xFF) {
         request.vector_index = desc_.vector_index;
         return true;
     }
@@ -63,17 +96,13 @@ bool Zcd::pending_interrupt_request(InterruptRequest& request) const noexcept {
 }
 
 bool Zcd::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (pending_interrupt_request(request)) {
+    if (int_pending_ && desc_.vector_index != 0xFF) {
+        request.vector_index = desc_.vector_index;
         int_pending_ = false;
-        update_interrupt_pending();
+        status_ &= ~0x01;
         return true;
     }
     return false;
-}
-
-void Zcd::update_interrupt_pending() noexcept {
-    InterruptRequest req;
-    set_interrupt_pending(pending_interrupt_request(req));
 }
 
 } // namespace vioavr::core

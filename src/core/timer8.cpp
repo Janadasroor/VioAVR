@@ -4,6 +4,7 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/dac.hpp"
+#include "vioavr/core/usi.hpp"
 #include <algorithm>
 #include <vector>
 
@@ -408,6 +409,11 @@ void Timer8::connect_dac_auto_trigger(Dac& dac) noexcept
     dac_trigger_ = &dac;
 }
 
+void Timer8::connect_usi_timer0_clock(Usi& usi) noexcept
+{
+    usi_timer0_trigger_ = &usi;
+}
+
 void Timer8::handle_compare_match_a() noexcept
 {
     tifr_ |= desc_.compare_a_enable_mask;
@@ -429,6 +435,9 @@ void Timer8::handle_compare_match_a() noexcept
     }
     if (dac_trigger_) {
         dac_trigger_->notify_auto_trigger(desc_.compare_a_trigger_source);
+    }
+    if (usi_timer0_trigger_) {
+        usi_timer0_trigger_->on_timer0_clock();
     }
 }
 

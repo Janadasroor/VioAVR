@@ -1,8 +1,9 @@
 #include "vioavr/core/tc.hpp"
+#include "vioavr/core/awex.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/evsys.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/port_mux.hpp"
-
 namespace vioavr::core {
 
 Tc::Tc(std::string name, const TcDescriptor& desc) noexcept
@@ -128,11 +129,16 @@ u8 Tc::get_clk_sel() const noexcept {
 }
 
 u8 Tc::get_wg_mode() const noexcept {
-    return ctrlb_ & 0x07;
+    return wg_mode_in_ctrld_ ? (ctrld_ & 0x07) : (ctrlb_ & 0x07);
+}
+
+bool Tc::is_single_slope_pwm() const noexcept {
+    u8 wg = get_wg_mode();
+    return wg_mode_in_ctrld_ ? (wg == 3) : (wg == 1);
 }
 
 void Tc::tick(u64 elapsed_cycles) noexcept {
-    if (elapsed_cycles == 0 || !is_enabled()) return;
+    if (elapsed_cycles == 0 || !is_enabled() || prescaler_limit_ == 0) return;
 
     bool any_tick = false;
     for (u64 i = 0; i < elapsed_cycles; ++i) {
@@ -170,8 +176,8 @@ void Tc::perform_tick() noexcept {
         if (cnt_ >= per_) { cnt_ = 0; just_hit_top_ = true; intflags_ |= 0x01; }
     }
 
-    // Single-slope PWM (wg_mode==1): reset WO states at TOP
-    if (just_hit_top_ && wg_mode == 1) {
+    // Single-slope PWM: reset WO states at TOP
+    if (just_hit_top_ && is_single_slope_pwm()) {
         wo_states_[0] = (ctrlc_ & 0x10) != 0;
         wo_states_[1] = (ctrlc_ & 0x20) != 0;
         wo_states_[2] = (ctrlc_ & 0x40) != 0;
@@ -187,13 +193,11 @@ void Tc::perform_tick() noexcept {
 }
 
 void Tc::handle_matches(u16 prev_cnt) noexcept {
-    u8 wg = get_wg_mode();
-
     auto check_match = [&](u16 cmp, u8 flag, u8 wo_idx, u8 pol_bit) {
         if (cmp == 0) return;
         if (cnt_ == cmp || (just_hit_top_ && prev_cnt == cmp)) {
             intflags_ |= flag;
-            if (wg == 1) wo_states_[wo_idx] = !(ctrlc_ & pol_bit);
+            if (is_single_slope_pwm()) wo_states_[wo_idx] = !(ctrlc_ & pol_bit);
         }
     };
 
@@ -237,25 +241,56 @@ void Tc::handle_cmd(u8 cmd) noexcept {
 }
 
 void Tc::update_prescaler() noexcept {
-    static const u64 presc_table[] = {1, 1, 2, 4, 8, 64, 256, 1024};
-    prescaler_limit_ = presc_table[get_clk_sel()];
+    static const u64 presc_table[] = {1, 2, 4, 8, 64, 256, 1024};
+    u8 clksel = get_clk_sel();
+    prescaler_limit_ = (clksel == 0) ? 0 : presc_table[clksel - 1];
+}
+
+static void drive_wo_pins_direct(PinMux* pm, u8 port_idx, u8 wo_index, bool level, bool enabled) noexcept {
+    if (!pm || wo_index >= 4 || port_idx >= 6) return;
+    static constexpr u8 WO_PIN_BITS[4] = {4, 5, 6, 7};
+    u8 pin_bit = WO_PIN_BITS[wo_index];
+    if (enabled) {
+        pm->claim_pin(port_idx, pin_bit, PinOwner::timer);
+        pm->update_pin(port_idx, pin_bit, PinOwner::timer, true, level, false);
+    } else {
+        pm->release_pin(port_idx, pin_bit, PinOwner::timer);
+    }
 }
 
 void Tc::update_outputs() noexcept {
-    if (!port_mux_) return;
-
+    if (!port_mux_ && !pin_mux_) return;
     bool wo0_en = (ctrlb_ & 0x10) != 0;
     bool wo1_en = (ctrlb_ & 0x20) != 0;
     bool wo2_en = (ctrlb_ & 0x40) != 0;
     bool wo3_en = (ctrlb_ & 0x80) != 0;
 
-    port_mux_->drive_tca0_wo(0, get_wo_level(0), wo0_en, port_index_);
-    port_mux_->drive_tca0_wo(1, get_wo_level(1), wo1_en, port_index_);
-    port_mux_->drive_tca0_wo(2, get_wo_level(2), wo2_en, port_index_);
-    if (desc_.ccd_address) {
-        port_mux_->drive_tca0_wo(3, get_wo_level(3), wo3_en, port_index_);
-    } else {
-        port_mux_->drive_tca0_wo(3, false, false, port_index_);
+    auto w0 = get_wo_level(0);
+    auto w1 = get_wo_level(1);
+    auto w2 = get_wo_level(2);
+    auto w3 = get_wo_level(3);
+
+    if (awex_companion_) {
+        awex_companion_->set_wo_level(0, w0);
+        awex_companion_->set_wo_level(1, w1);
+        awex_companion_->set_wo_level(2, w2);
+        awex_companion_->set_wo_level(3, w3);
+    }
+
+    if (port_mux_ && port_mux_->has_tc_routing()) {
+        port_mux_->drive_tca0_wo(0, w0, wo0_en, port_index_);
+        port_mux_->drive_tca0_wo(1, w1, wo1_en, port_index_);
+        port_mux_->drive_tca0_wo(2, w2, wo2_en, port_index_);
+        if (desc_.ccd_address) {
+            port_mux_->drive_tca0_wo(3, w3, wo3_en, port_index_);
+        } else {
+            port_mux_->drive_tca0_wo(3, false, false, port_index_);
+        }
+    } else if (pin_mux_) {
+        drive_wo_pins_direct(pin_mux_, port_index_, 0, w0, wo0_en);
+        drive_wo_pins_direct(pin_mux_, port_index_, 1, w1, wo1_en);
+        drive_wo_pins_direct(pin_mux_, port_index_, 2, w2, wo2_en);
+        drive_wo_pins_direct(pin_mux_, port_index_, 3, w3, desc_.ccd_address ? wo3_en : false);
     }
 }
 
@@ -274,7 +309,7 @@ bool Tc::get_wo_level(u8 index) const noexcept {
 
     if (ctrlc_ & cmp_ov) return (ctrlc_ & cmp_pol) != 0;
 
-    if (wg_mode == 1) {
+    if (is_single_slope_pwm()) {
         return wo_states_[index];
     }
 
@@ -464,27 +499,51 @@ void Tc::write(u16 address, u8 value) noexcept {
         update_interrupt_state();
     }
     else if (address == desc_.ctrlb_address) {
-        u8 old_wg = ctrlb_ & 0x07;
+        u8 old_ctrlb = ctrlb_;
         ctrlb_ = value & 0xF7;
-        u8 new_wg = ctrlb_ & 0x07;
-        if (new_wg == 1 && old_wg != 1) {
-            wo_states_[0] = (ctrlc_ & 0x10) != 0;
-            wo_states_[1] = (ctrlc_ & 0x20) != 0;
-            wo_states_[2] = (ctrlc_ & 0x40) != 0;
-            wo_states_[3] = (ctrlc_ & 0x80) != 0;
+        if (!wg_mode_in_ctrld_) {
+            u8 new_wg = ctrlb_ & 0x07;
+            u8 old_wg = old_ctrlb & 0x07;
+            if (new_wg == 1 && old_wg != 1) {
+                wo_states_[0] = (ctrlc_ & 0x10) != 0;
+                wo_states_[1] = (ctrlc_ & 0x20) != 0;
+                wo_states_[2] = (ctrlc_ & 0x40) != 0;
+                wo_states_[3] = (ctrlc_ & 0x80) != 0;
+            }
+        } else {
+            if ((ctrlb_ & 0x10) && !(old_ctrlb & 0x10) && is_single_slope_pwm()) {
+                wo_states_[0] = (ctrlc_ & 0x10) != 0;
+                wo_states_[1] = (ctrlc_ & 0x20) != 0;
+                wo_states_[2] = (ctrlc_ & 0x40) != 0;
+                wo_states_[3] = (ctrlc_ & 0x80) != 0;
+            }
         }
         update_outputs();
     }
     else if (address == desc_.ctrlc_address) {
         ctrlc_ = value;
-        if (get_wg_mode() == 1) {
+        if (is_single_slope_pwm()) {
             wo_states_[0] = (ctrlc_ & 0x10) != 0;
             wo_states_[1] = (ctrlc_ & 0x20) != 0;
             wo_states_[2] = (ctrlc_ & 0x40) != 0;
             wo_states_[3] = (ctrlc_ & 0x80) != 0;
         }
     }
-    else if (address == desc_.ctrld_address) ctrld_ = value & 0x1F;
+    else if (address == desc_.ctrld_address) {
+        u8 old_ctrld = ctrld_;
+        ctrld_ = value & 0x1F;
+        if (wg_mode_in_ctrld_) {
+            u8 new_wg = ctrld_ & 0x07;
+            u8 old_wg = old_ctrld & 0x07;
+            if (new_wg == 3 && old_wg != 3) {
+                wo_states_[0] = (ctrlc_ & 0x10) != 0;
+                wo_states_[1] = (ctrlc_ & 0x20) != 0;
+                wo_states_[2] = (ctrlc_ & 0x40) != 0;
+                wo_states_[3] = (ctrlc_ & 0x80) != 0;
+            }
+            update_outputs();
+        }
+    }
     else if (address == desc_.ctrle_address) {
         ctrle_ = value & 0x18;
         handle_cmd(value & 0x07);

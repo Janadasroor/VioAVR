@@ -155,7 +155,9 @@ inline constexpr DeviceDescriptor atmega809 {
             .channels_address = 0x190U,
             .users_address = 0x1A0U,
             .channel_count = 8U,
-            .user_count = 24U
+            .user_count = 24U,
+            .evout_user_start = 2U,
+            .evout_user_count = 2U,
         },
 
     .ccl = {
@@ -290,7 +292,7 @@ inline constexpr DeviceDescriptor atmega809 {
             .rx_vector_index = 17U, .tx_vector_index = 19U, .dre_vector_index = 18U,
             .user_event_address = 0x1AFU,
             .txd_pin_address = 0x404U, .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x408U, .rxd_pin_bit = 1U,
+            .rxd_pin_address = 0x404U, .rxd_pin_bit = 1U,
             .index = 0U
         },
         {
