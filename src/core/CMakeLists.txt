@@ -17,7 +17,7 @@ target_sources(vioavr_core
         cpu_control.cpp
         device.cpp
         device_catalog.cpp
-        gdb_stub.cpp
+        $<$<NOT:$<PLATFORM_ID:Windows>>:gdb_stub.cpp>
         eeprom.cpp
         ext_interrupt.cpp
         gpio_port.cpp
