@@ -314,8 +314,11 @@ set(CAN_GROUP_SRCS
 
 # ---- Non-doctest standalone tests ----
 set(NON_DOCTEST_TESTS
-    cpu/gdb_stub_test.cpp
 )
+
+if(NOT WIN32)
+    list(APPEND NON_DOCTEST_TESTS cpu/gdb_stub_test.cpp)
+endif()
 
 if(HAVE_SHM_OPEN)
     list(APPEND NON_DOCTEST_TESTS viospice/bridge_shm_test.cpp)
@@ -333,7 +336,9 @@ function(add_doctest_group TARGET_NAME)
     add_executable(${TARGET_NAME} _group_main.cpp ${sources})
     target_link_libraries(${TARGET_NAME} PRIVATE VioAVR::core)
     # Allow duplicate helper functions (e.g., step_to) across test files
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        target_link_options(${TARGET_NAME} PRIVATE "LINKER:-allow_multiple_definition")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         target_link_options(${TARGET_NAME} PRIVATE "LINKER:--allow-multiple-definition")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         target_link_options(${TARGET_NAME} PRIVATE "/FORCE:MULTIPLE")
