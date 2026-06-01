@@ -52,6 +52,7 @@ public:
         u8 old_tcb = tcbroutea_;
         u8 old_usart = usartroutea_;
         u8 old_twispi = twispiroutea_;
+        u8 old_evout = evoutroutea_;
 
         if (address == desc_.twispiroutea_address) twispiroutea_ = value;
         else if (address == desc_.usartroutea_address) usartroutea_ = value;
@@ -59,7 +60,7 @@ public:
         else if (address == desc_.tcaroutea_address) tcaroutea_ = value;
         else if (address == desc_.tcbroutea_address) tcbroutea_ = value;
 
-        if (tcaroutea_ != old_tca || tcbroutea_ != old_tcb || usartroutea_ != old_usart || twispiroutea_ != old_twispi) {
+        if (tcaroutea_ != old_tca || tcbroutea_ != old_tcb || usartroutea_ != old_usart || twispiroutea_ != old_twispi || evoutroutea_ != old_evout) {
              if (pin_mux_) {
                  // Release TCA0 old pins
                  u8 old_tca_port = old_tca & 0x07;
@@ -85,15 +86,25 @@ public:
                       for (u8 i = 0; i < 4; ++i) release_tcb(i);
                   }
 
-                  if (usartroutea_ != old_usart) {
-                      for (u8 i = 0; i < 4; ++i) {
-                          auto old_txd = get_usart_txd_pin(i, old_usart);
-                          auto old_rxd = get_usart_rxd_pin(i, old_usart);
-                          if (old_txd.first < 6) pin_mux_->release_pin(old_txd.first, old_txd.second, PinOwner::uart);
-                          if (old_rxd.first < 6) pin_mux_->release_pin(old_rxd.first, old_rxd.second, PinOwner::uart);
-                      }
-                  }
-              }
+                   if (usartroutea_ != old_usart) {
+                       for (u8 i = 0; i < 4; ++i) {
+                           auto old_txd = get_usart_txd_pin(i, old_usart);
+                           auto old_rxd = get_usart_rxd_pin(i, old_usart);
+                           if (old_txd.first < 6) pin_mux_->release_pin(old_txd.first, old_txd.second, PinOwner::uart);
+                           if (old_rxd.first < 6) pin_mux_->release_pin(old_rxd.first, old_rxd.second, PinOwner::uart);
+                       }
+                   }
+
+                   if (evoutroutea_ != old_evout) {
+                       for (u8 i = 0; i < 4; ++i) {
+                           if (evout_claimed_mask_ & (1 << i)) {
+                               u8 old_port = (old_evout >> (i * 2)) & 0x03;
+                               if (old_port < 6) pin_mux_->release_pin(old_port, i, PinOwner::evout);
+                           }
+                       }
+                       evout_claimed_mask_ = 0;
+                   }
+               }
 
              for (auto* observer : observers_) {
                  observer->on_routing_changed();
@@ -107,6 +118,7 @@ public:
         twispiroutea_ = 0;
         usartroutea_ = 0;
         evoutroutea_ = 0;
+        evout_claimed_mask_ = 0;
         tcaroutea_ = 0;
         tcbroutea_ = 0;
     }
@@ -118,6 +130,18 @@ public:
 
     void add_observer(IRoutingObserver* observer) noexcept {
         if (observer) observers_.push_back(observer);
+    }
+
+    void drive_evout(u8 channel, bool level) noexcept {
+        if (!pin_mux_ || channel >= 4) return;
+        u8 port_idx = (evoutroutea_ >> (channel * 2)) & 0x03;
+        if (port_idx >= 6) return;
+        u8 pin_bit = channel;
+        if (!(evout_claimed_mask_ & (1 << channel))) {
+            pin_mux_->claim_pin(port_idx, pin_bit, PinOwner::evout);
+            evout_claimed_mask_ |= (1 << channel);
+        }
+        pin_mux_->update_pin(port_idx, pin_bit, PinOwner::evout, true, level, false);
     }
 
     void drive_tca0_wo(u8 wo_index, bool level, bool enabled, u8 port_override = 0xFF) noexcept {
@@ -134,6 +158,30 @@ public:
         }
     }
 
+    /// Drive AWEX DH (drive-high) and DL (drive-low) complementary outputs to port pins
+    /// Standard XMEGA DH/DL pin mapping: DHn on pins {4,6,2,0}, DLn on pins {5,7,3,1}
+    void drive_awex_dh_dl(u8 channel, bool dh_level, bool dl_level, bool enabled, u8 port_override = 0xFF) noexcept {
+        if (!pin_mux_ || channel >= 4) return;
+        u8 port_idx = (port_override != 0xFF) ? port_override : (tcaroutea_ & 0x07);
+        if (port_idx >= 6) return;
+        static constexpr u8 DH_PIN_BITS[4] = {4, 6, 2, 0};
+        static constexpr u8 DL_PIN_BITS[4] = {5, 7, 3, 1};
+
+        u8 dh_bit = DH_PIN_BITS[channel];
+        u8 dl_bit = DL_PIN_BITS[channel];
+
+        if (enabled) {
+            pin_mux_->claim_pin(port_idx, dh_bit, PinOwner::timer);
+            pin_mux_->update_pin(port_idx, dh_bit, PinOwner::timer, true, dh_level, false);
+            pin_mux_->claim_pin(port_idx, dl_bit, PinOwner::timer);
+            pin_mux_->update_pin(port_idx, dl_bit, PinOwner::timer, true, dl_level, false);
+        } else {
+            pin_mux_->release_pin(port_idx, dh_bit, PinOwner::timer);
+            pin_mux_->release_pin(port_idx, dl_bit, PinOwner::timer);
+        }
+    }
+
+    [[nodiscard]] bool has_tc_routing() const noexcept { return desc_.tcaroutea_address != 0; }
     [[nodiscard]] bool usart_tx_is_routable(u8 usart_index) const noexcept {
         if (usart_index >= 4) return false;
         u8 val = (usartroutea_ >> (usart_index * 2)) & 0x03;
@@ -165,7 +213,6 @@ public:
         if (!pin_mux_ || usart_index >= 4) return PinLevel::high;
         auto [port_idx, pin_idx] = get_usart_rxd_pin(usart_index, usartroutea_);
         if (port_idx >= 6) return PinLevel::high;
-
         return pin_mux_->get_state(port_idx, pin_idx).drive_level ? PinLevel::high : PinLevel::low;
     }
 
@@ -335,6 +382,7 @@ private:
     u8 twispiroutea_{0};
     u8 usartroutea_{0};
     u8 evoutroutea_{0};
+    u8 evout_claimed_mask_{0};
     u8 tcaroutea_{0};
     u8 tcbroutea_{0};
     PinMux* pin_mux_{nullptr};

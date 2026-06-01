@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/analog_comparator.hpp"
 #include "vioavr/core/avr_cpu.hpp"

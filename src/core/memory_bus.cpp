@@ -2,6 +2,7 @@
 #include "vioavr/core/io_multiplexer.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/xmem.hpp"
+#include "vioavr/core/ebi.hpp"
 #include "vioavr/core/nvm_ctrl.hpp"
 #include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/cpu_int.hpp"

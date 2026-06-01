@@ -12,6 +12,7 @@ class MemoryBus;
 class Adc;
 class Dac;
 class PinMux;
+class Usi;
 
 class Timer8 final : public IoPeripheral {
 public:
@@ -59,6 +60,7 @@ public:
     void connect_adc_auto_trigger(class Adc& adc) noexcept;
     void connect_adc_overflow_auto_trigger(class Adc& adc) noexcept;
     void connect_dac_auto_trigger(class Dac& dac) noexcept;
+    void connect_usi_timer0_clock(Usi& usi) noexcept;
 
     [[nodiscard]] constexpr u8 interrupt_flags() const noexcept { return tifr_; }
     [[nodiscard]] constexpr u8 interrupt_mask() const noexcept { return timsk_; }
@@ -126,6 +128,7 @@ private:
     class Adc* adc_compare_trigger_ {};
     class Adc* adc_overflow_trigger_ {};
     class Dac* dac_trigger_ {};
+    class Usi* usi_timer0_trigger_ {};
 };
 
 }  // namespace vioavr::core

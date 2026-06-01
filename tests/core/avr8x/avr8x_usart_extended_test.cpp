@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/uart8x.hpp"
 #include "vioavr/core/pin_mux.hpp"

@@ -5,7 +5,7 @@ namespace vioavr::core::devices {
 
 inline constexpr DeviceDescriptor avr32ea48 {
     .name = "AVR32EA48",
-    .flash_words = 14336U,
+    .flash_words = 16384U,
     .sram_bytes = 4096U,
     .sram_start = 0x7000U,
     .eeprom_bytes = 0U,
@@ -325,9 +325,9 @@ inline constexpr DeviceDescriptor avr32ea48 {
             .tx_vector_index = 20U,
             .dre_vector_index = 19U,
             .txd_pin_address = 0x404U,
-            .txd_pin_bit = 0U,
+            .txd_pin_bit = 4U,
             .rxd_pin_address = 0x404U,
-            .rxd_pin_bit = 1U,
+            .rxd_pin_bit = 5U,
             .index = 0U,
         },
         {
@@ -345,9 +345,9 @@ inline constexpr DeviceDescriptor avr32ea48 {
             .tx_vector_index = 31U,
             .dre_vector_index = 30U,
             .txd_pin_address = 0x444U,
-            .txd_pin_bit = 0U,
+            .txd_pin_bit = 4U,
             .rxd_pin_address = 0x444U,
-            .rxd_pin_bit = 1U,
+            .rxd_pin_bit = 5U,
             .index = 1U,
         },
         {
@@ -365,9 +365,9 @@ inline constexpr DeviceDescriptor avr32ea48 {
             .tx_vector_index = 36U,
             .dre_vector_index = 35U,
             .txd_pin_address = 0x4A4U,
-            .txd_pin_bit = 0U,
+            .txd_pin_bit = 4U,
             .rxd_pin_address = 0x4A4U,
-            .rxd_pin_bit = 1U,
+            .rxd_pin_bit = 5U,
             .index = 2U,
         }
     }},

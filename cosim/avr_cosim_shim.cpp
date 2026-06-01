@@ -133,6 +133,7 @@ static void shim_step(struct co_info* info)
                 int n = vioavr_consume_pin_changes(chip->avr, changes, PINS_PER_CHIP * 2);
                 for (int i = 0; i < n; i++) {
                     unsigned int id = changes[i].external_id;
+                    {}  // pin change callback
                     if (id >= (unsigned int)PINS_PER_CHIP) continue;
 
                     Digital_t val;
@@ -485,6 +486,7 @@ void Cosim_setup(struct co_info* info)
                         int flags = fcntl(master, F_GETFL, 0);
                         fcntl(master, F_SETFL, flags | O_NONBLOCK);
                         multi->pty_fd = master;
+                        vioavr_set_hc05_pty_fd(multi->chips[0].avr, master);
                         size_t plen = strlen(cfg.pty_path);
                         if (plen >= sizeof(multi->pty_link_path))
                             plen = sizeof(multi->pty_link_path) - 1;

@@ -92,6 +92,7 @@ inline constexpr DeviceDescriptor atxmega384d3 {
             .ccb_vector_index = 17U,
             .ccc_vector_index = 18U,
             .ccd_vector_index = 19U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2112U,
@@ -118,6 +119,7 @@ inline constexpr DeviceDescriptor atxmega384d3 {
             .err_vector_index = 21U,
             .cca_vector_index = 22U,
             .ccb_vector_index = 23U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2304U,
@@ -150,6 +152,7 @@ inline constexpr DeviceDescriptor atxmega384d3 {
             .ccb_vector_index = 80U,
             .ccc_vector_index = 81U,
             .ccd_vector_index = 82U,
+            .port_letter = 68U,
         },
         {
             .ctrla_address = 2560U,
@@ -182,6 +185,7 @@ inline constexpr DeviceDescriptor atxmega384d3 {
             .ccb_vector_index = 50U,
             .ccc_vector_index = 51U,
             .ccd_vector_index = 52U,
+            .port_letter = 69U,
         },
         {
             .ctrla_address = 2816U,
@@ -214,6 +218,24 @@ inline constexpr DeviceDescriptor atxmega384d3 {
             .ccb_vector_index = 111U,
             .ccc_vector_index = 112U,
             .ccd_vector_index = 113U,
+            .port_letter = 70U,
+        }
+    }},
+
+    .awex_count = 1U,
+    .awexs = {{
+        {
+            .ctrl_address = 2176U,
+            .fdemask_address = 2178U,
+            .fdctrl_address = 2179U,
+            .status_address = 2180U,
+            .dtboth_address = 2182U,
+            .dtbothbuf_address = 2183U,
+            .dtls_address = 2184U,
+            .dths_address = 2185U,
+            .dtlsbuf_address = 2186U,
+            .dthsbuf_address = 2187U,
+            .outoven_address = 2188U,
         }
     }},
 
@@ -375,6 +397,15 @@ inline constexpr DeviceDescriptor atxmega384d3 {
             .ctrla_address = 208U,
             .status_address = 209U,
             .data_address = 211U,
+            .checksum_address = 212U,
+        }}},
+
+    .ircom_count = 1U,
+    .ircoms = {{
+        {
+            .ctrl_address = 2296U,
+            .txplctrl_address = 2297U,
+            .rxplctrl_address = 2298U,
         }}},
     .fuse_address = 0x0000U,
     .lockbit_address = 0x0000U,

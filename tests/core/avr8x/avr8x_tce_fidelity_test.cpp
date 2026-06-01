@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/tce.hpp"
 #include "vioavr/core/devices/avr16la28.hpp"

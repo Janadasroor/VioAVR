@@ -417,6 +417,13 @@ u8 GpioPort::sample_levels() noexcept
                 threshold.high_threshold = bus_->device().vih_factor;
             }
             apply_pin_voltage(i, voltage, threshold);
+        } else if (has_voltage_input_[i]) {
+            auto threshold = pin_bindings_[i].threshold;
+            if (threshold.use_device_defaults && bus_ != nullptr) {
+                threshold.low_threshold = bus_->device().vil_factor;
+                threshold.high_threshold = bus_->device().vih_factor;
+            }
+            apply_pin_voltage(i, pin_voltages_[i], threshold);
         }
     }
     return pin_latched_;
@@ -424,8 +431,9 @@ u8 GpioPort::sample_levels() noexcept
 
 void GpioPort::apply_pin_voltage(const u8 bit_index, const double voltage, const DigitalThresholdConfig threshold) noexcept
 {
+    const double clamped = (voltage < 0.0) ? 0.0 : (voltage > 1.0) ? 1.0 : voltage;
     const bool current_level = (pin_latched_ & (1U << bit_index)) != 0U;
-    const bool next_level = apply_schmitt_threshold(current_level, voltage, threshold);
+    const bool next_level = apply_schmitt_threshold(current_level, clamped, threshold);
     
     if (current_level != next_level) {
         u8 levels = pin_latched_;

@@ -20,6 +20,10 @@ constexpr u8 USIOIF    = 0x40;
 constexpr u8 USIPF     = 0x20;
 constexpr u8 USIDC     = 0x10;
 constexpr u8 USICNT_MASK = 0x0F;
+constexpr u8 USICS_EXTERNAL = 0x00;
+constexpr u8 USICS_EXTSW    = 0x04;
+constexpr u8 USICS_TIMER0   = 0x08;
+constexpr u8 USICS_SWONLY   = 0x0C;
 
 Usi::Usi(std::string_view name, const UsiDescriptor& desc) noexcept
     : name_(name), desc_(desc)
@@ -52,55 +56,87 @@ void Usi::reset() noexcept {
     prev_scl_ = false;
     prev_do_ = false;
     sda_driven_ = false;
+    timer0_clock_pending_ = 0;
+}
+
+void Usi::on_timer0_clock() noexcept {
+    u8 clk_src = usicr_ & (USICS1 | USICS0);
+    if (clk_src == USICS_TIMER0) {
+        timer0_clock_pending_++;
+    }
 }
 
 void Usi::tick(u64 elapsed_cycles) noexcept {
-    if (!bus_ || desc_.scl_pin_address == 0) return;
+    if (!bus_) return;
     auto* pm = bus_->pin_mux();
-    if (!pm) return;
+
+    u8 clk_src = usicr_ & (USICS1 | USICS0);
+    bool ext_mode = (clk_src == USICS_EXTERNAL || clk_src == USICS_EXTSW);
+    bool has_scl = (desc_.scl_pin_address != 0);
+    bool has_pins = has_scl && pm;
 
     for (u64 i = 0; i < elapsed_cycles; ++i) {
-        bool cur_sda = pm->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
-        bool cur_scl = pm->get_state_by_address(desc_.scl_pin_address, desc_.scl_pin_bit).drive_level;
+        bool cur_sda = false;
+        bool cur_scl = false;
+        if (has_pins) {
+            cur_sda = pm->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
+            cur_scl = pm->get_state_by_address(desc_.scl_pin_address, desc_.scl_pin_bit).drive_level;
 
-        if (is_twowire()) {
-            if (prev_scl_ && cur_scl && prev_sda_ && !cur_sda) {
-                usisr_ |= USISIF;
-                usisr_ &= ~(USIPF | USIDC);
-                update_interrupt_pending();
-            }
-            if (prev_scl_ && cur_scl && !prev_sda_ && cur_sda) {
-                usisr_ |= USIPF;
-                update_interrupt_pending();
-            }
-        }
-
-        if (!prev_scl_ && cur_scl) {
-            u8 clk_src = usicr_ & (USICS1 | USICS0);
-            if (clk_src == 0x00 || clk_src == 0x04) {
-                bool bit_in = cur_sda;
-                u8 cnt = usisr_ & USICNT_MASK;
-                if (cnt > 0) {
-                    usidr_ = (usidr_ << 1) | (bit_in ? 1 : 0);
+            if (is_twowire()) {
+                if (prev_scl_ && cur_scl && prev_sda_ && !cur_sda) {
+                    usisr_ |= USISIF;
+                    usisr_ &= ~(USIPF | USIDC);
+                    update_interrupt_pending();
                 }
-                if (cnt < 15) {
-                    usisr_ = (usisr_ & ~USICNT_MASK) | ((cnt + 1) & USICNT_MASK);
-                }
-                if ((cnt + 1) >= 16) {
-                    usisr_ &= ~USICNT_MASK;
-                    usisr_ |= USIOIF;
+                if (prev_scl_ && cur_scl && !prev_sda_ && cur_sda) {
+                    usisr_ |= USIPF;
                     update_interrupt_pending();
                 }
             }
+
+            if (ext_mode && !prev_scl_ && cur_scl) {
+                shift_clock(cur_sda);
+            }
         }
 
-        if (!is_twowire() && desc_.do_pin_address != 0) {
+        // Handle pending Timer0 clock events (no SCL pin needed)
+        if (clk_src == USICS_TIMER0 && timer0_clock_pending_ > 0) {
+            for (; timer0_clock_pending_ > 0; timer0_clock_pending_--) {
+                shift_clock(cur_sda);
+            }
+        }
+
+        // Update DO pin on change
+        if (pm && !is_twowire() && desc_.do_pin_address != 0) {
             bool do_val = (usidr_ & 0x80) != 0;
-            pm->update_pin_by_address(desc_.do_pin_address, desc_.do_pin_bit, PinOwner::spi, true, do_val);
+            if (do_val != prev_do_) {
+                pm->update_pin_by_address(desc_.do_pin_address, desc_.do_pin_bit, PinOwner::spi, true, do_val);
+                prev_do_ = do_val;
+            }
         }
 
         prev_sda_ = cur_sda;
         prev_scl_ = cur_scl;
+    }
+}
+
+void Usi::shift_clock(bool sda_level) noexcept {
+    u8 msb = usidr_ & 0x80;
+
+    // Data collision detection in 2-wire mode
+    if (is_twowire() && msb != 0 && !sda_level) {
+        usisr_ |= USIDC;
+    }
+
+    usidr_ = (usidr_ << 1) | (sda_level ? 1 : 0);
+    u8 cnt = usisr_ & USICNT_MASK;
+    if (cnt < 15) {
+        usisr_ = (usisr_ & ~USICNT_MASK) | ((cnt + 1) & USICNT_MASK);
+    }
+    if ((cnt + 1) >= 16) {
+        usisr_ &= ~USICNT_MASK;
+        usisr_ |= USIOIF;
+        update_interrupt_pending();
     }
 }
 
@@ -132,55 +168,48 @@ void Usi::write(u16 address, u8 value) noexcept {
         u8 clock_strobe = value & USICLK;
         u8 toggle_clock = value & USITC;
 
-        // Preserve USICLK (write-only, reads as 0) and USITC (reads as 0)
+        u8 clk_src = value & (USICS1 | USICS0);
+        bool sw_clock_enabled = (clk_src == USICS_EXTSW || clk_src == USICS_SWONLY);
+        bool ext_clock_enabled = (clk_src == USICS_EXTERNAL || clk_src == USICS_EXTSW);
+
+        // USICLK and USITC are write-only (read as 0)
         usicr_ = (value & (USISIE | USIOIE | USIWM1 | USIWM0 | USICS1 | USICS0)) | USICLK;
 
-        // Clock strobe: shift data and increment/decrement counter
-        if (clock_strobe) {
+        // USICLK: software clock strobe
+        if (clock_strobe && sw_clock_enabled) {
             usicr_ |= USICLK;
-            u8 cnt = usisr_ & USICNT_MASK;
-            bool bit_in = false;
+            bool sda_level = false;
             if (bus_ && bus_->pin_mux()) {
-                if (is_twowire()) {
-                    bit_in = bus_->pin_mux()->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
-                } else {
-                    bit_in = bus_->pin_mux()->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
-                }
+                sda_level = bus_->pin_mux()->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
             }
-            usidr_ = (usidr_ << 1) | (bit_in ? 1 : 0);
-            if (cnt < 15) {
-                usisr_ = (usisr_ & ~USICNT_MASK) | ((cnt + 1) & USICNT_MASK);
-            }
-            if ((cnt + 1) >= 16) {
-                usisr_ &= ~USICNT_MASK; // wrap to 0
-                usisr_ |= USIOIF;
-            }
-            update_interrupt_pending();
+            shift_clock(sda_level);
         } else {
             usicr_ &= ~USICLK;
         }
 
-        // Toggle clock pin
-        if (toggle_clock && desc_.scl_pin_address != 0) {
-            // Clock pin toggling handled externally via pin_mux
+        // USITC: toggle SCL pin, shift data if external clock enabled
+        if (toggle_clock) {
+            if (desc_.scl_pin_address != 0 && bus_ && bus_->pin_mux()) {
+                auto* pm = bus_->pin_mux();
+                bool cur = pm->get_state_by_address(desc_.scl_pin_address, desc_.scl_pin_bit).drive_level;
+                pm->update_pin_by_address(desc_.scl_pin_address, desc_.scl_pin_bit, PinOwner::timer, true, !cur);
+            }
+            if (ext_clock_enabled) {
+                bool sda_level = false;
+                if (bus_ && bus_->pin_mux()) {
+                    sda_level = bus_->pin_mux()->get_state_by_address(desc_.sda_pin_address, desc_.sda_pin_bit).drive_level;
+                }
+                shift_clock(sda_level);
+            }
         }
-
-        // If software clock source, counter also increments on USICLK=1
-        // handled above
-
-        // USICS field selects clock source
-        // 00 = external, 01 = external + software, 10 = reserved/TIMER0, 11 = software
         break;
     }
     case 1: {
-        // Write to USISR: USICNT lower nibble is written directly
-        // Upper nibble flags are write-1-to-clear
         u8 flag_clear = value & 0xF0;
         u8 cnt_set = value & USICNT_MASK;
 
-        usisr_ = (usisr_ & ~flag_clear); // Clear flags written as 1
-        usisr_ = (usisr_ & ~USICNT_MASK) | cnt_set; // Set counter
-        // Loading USICNT with non-zero clears USISIF per datasheet
+        usisr_ = (usisr_ & ~flag_clear);
+        usisr_ = (usisr_ & ~USICNT_MASK) | cnt_set;
         if (cnt_set > 0) usisr_ &= ~USISIF;
         update_interrupt_pending();
         break;
@@ -189,7 +218,6 @@ void Usi::write(u16 address, u8 value) noexcept {
         usidr_ = value;
         break;
     case 3:
-        // USIBR is read-only
         break;
     }
 }

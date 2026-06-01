@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include <cstdio>
 #include <cstdlib>
@@ -104,6 +103,26 @@ static bool setup_cosim_links(const fs::path& test_dir,
         if (fs::exists(hex_file))
             fs::create_symlink(hex_file.filename(), test_dir / "firmware.hex");
     }
+    return true;
+}
+
+static bool setup_spiceinit(const fs::path& test_dir,
+                            const fs::path& build_dir) {
+    std::ofstream of(test_dir / ".spiceinit");
+    if (!of) return false;
+    // Copy user's .spiceinit if it exists (provides digital.cm, analog.cm)
+    const char* home = getenv("HOME");
+    if (home) {
+        std::ifstream home_spice(std::string(home) + "/.spiceinit");
+        if (home_spice) {
+            of << home_spice.rdbuf();
+            of << "\n";
+        }
+    }
+    // Add custom avr_adc_bridge code model
+    fs::path adc_bridge_cm = build_dir / "cosim" / "avr_adc_bridge.cm";
+    if (!fs::exists(adc_bridge_cm)) return false;
+    of << "codemodel " << adc_bridge_cm.string() << "\n";
     return true;
 }
 
@@ -422,6 +441,7 @@ TEST_CASE("AC8X analog comparator") {
     fs::path hex_file = test_dir / "ac8x_fw.hex";
     REQUIRE(compile_firmware(AC8X_FIRMWARE, "atmega4809", hex_file));
     REQUIRE(setup_cosim_links(test_dir, build_dir, hex_file));
+    REQUIRE(setup_spiceinit(test_dir, build_dir));
 
     fs::path cosim_cm = build_dir / "cosim" / "avr_adc_bridge.cm";
     REQUIRE_MESSAGE(fs::exists(cosim_cm), "avr_adc_bridge.cm not built");

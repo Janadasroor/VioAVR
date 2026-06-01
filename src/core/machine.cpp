@@ -51,6 +51,10 @@
 #include "vioavr/core/cfd.hpp"
 #include "vioavr/core/tcd.hpp"
 #include "vioavr/core/tce.hpp"
+#include "vioavr/core/xmega_dac.hpp"
+#include "vioavr/core/ebi.hpp"
+#include "vioavr/core/ircom.hpp"
+#include "vioavr/core/xmem.hpp"
 #include "vioavr/core/adcea.hpp"
 #include "vioavr/core/xmegadc.hpp"
 #include "vioavr/core/xmegaac.hpp"
@@ -237,6 +241,7 @@ void Machine::initialize_peripherals()
     // 2b. MVIO (DB/DD)
     if (device_.mvio.intctrl_address != 0U) {
         auto p = std::make_unique<Mvio>(device_.mvio);
+        p->set_memory_bus(bus_.get());
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
@@ -266,6 +271,17 @@ void Machine::initialize_peripherals()
     if (dma && evsys) {
         dma->set_event_system(evsys);
     }
+
+    // Wire EVOUT routing: EVSYS user callbacks drive PortMux pins
+    if (evsys && port_mux_ && device_.evsys.evout_user_count > 0) {
+        u8 evout_start = device_.evsys.evout_user_start;
+        for (u8 i = 0; i < device_.evsys.evout_user_count; ++i) {
+            evsys->register_user_callback(evout_start + i, [pm = port_mux_, i](bool level) {
+                pm->drive_evout(i, level);
+            });
+        }
+    }
+
     for (u8 i = 0; i < device_.timer8_count; ++i) {
         auto timer = std::make_unique<Timer8>("TIMER" + std::to_string(device_.timers8[i].timer_index), device_.timers8[i], pin_mux_.get());
         timer->set_bus(*bus_);
@@ -336,6 +352,7 @@ void Machine::initialize_peripherals()
         uart->set_memory_bus(bus_.get());
         uart->set_event_system(evsys);
         uart->set_port_mux(port_mux_);
+        if (port_mux_) port_mux_->add_observer(uart.get());
         bus_->attach_peripheral(*uart);
         owned_peripherals_.push_back(std::move(uart));
     }
@@ -436,7 +453,9 @@ void Machine::initialize_peripherals()
 
     // 7b. DAC8x (AVR-Dx style)
     for (u8 i = 0; i < device_.dac8x_count; ++i) {
-        auto dac = std::make_unique<Dac8x>(device_.dacs8x[i]);
+        auto dac = std::make_unique<Dac8x>(device_.dacs8x[i], i);
+        dac->set_analog_signal_bank(&analog_signal_bank_);
+        dac->set_vref(device_.operating_voltage_v);
         bus_->attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
     }
@@ -559,7 +578,10 @@ void Machine::initialize_peripherals()
 
     // 14. ZCD
     for (u8 i = 0; i < device_.zcd_count; ++i) {
-        auto zcd = std::make_unique<Zcd>(device_.zcds[i]);
+        auto zcd = std::make_unique<Zcd>(device_.zcds[i], i);
+        zcd->set_analog_signal_bank(&analog_signal_bank_);
+        zcd->set_input_channel(static_cast<u8>(100 + i));
+        zcd->set_vdd(device_.operating_voltage_v);
         if (i == 0) bus_->set_zcd(zcd.get());
         bus_->attach_peripheral(*zcd);
         owned_peripherals_.push_back(std::move(zcd));
@@ -568,13 +590,17 @@ void Machine::initialize_peripherals()
     // 15. LIN
     for (u8 i = 0; i < device_.lin_count; ++i) {
         auto lin = std::make_unique<LinUART>(device_.lins[i]);
+        lin->set_memory_bus(bus_.get());
+        lin->set_pin_mux(pin_mux_.get());
         bus_->attach_peripheral(*lin);
         owned_peripherals_.push_back(std::move(lin));
     }
 
     // 16. OPAMP
     for (u8 i = 0; i < device_.opamp_count; ++i) {
-        auto op = std::make_unique<Opamp>(device_.opamps[i]);
+        auto op = std::make_unique<Opamp>(device_.opamps[i], i);
+        op->set_analog_signal_bank(&analog_signal_bank_);
+        op->set_vdd(device_.operating_voltage_v);
         bus_->attach_peripheral(*op);
         owned_peripherals_.push_back(std::move(op));
     }
@@ -582,6 +608,7 @@ void Machine::initialize_peripherals()
     // 17a. CFD (Clock Failure Detection)
     for (u8 i = 0; i < device_.cfd_count; ++i) {
         auto cfd = std::make_unique<Cfd>(device_.cfds[i]);
+        cfd->set_memory_bus(bus_.get());
         bus_->attach_peripheral(*cfd);
         owned_peripherals_.push_back(std::move(cfd));
     }
@@ -612,22 +639,29 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(tce));
     }
 
-    // TC (XMEGA 16-bit Timer/Counter)
+    // TC (XMEGA 16-bit Timer/Counter) — collect raw pointers for AWEX pairing
+    std::vector<Tc*> tc_ptrs;
+    tc_ptrs.reserve(device_.tc_count);
     for (u8 i = 0; i < device_.tc_count; ++i) {
         auto tc = std::make_unique<Tc>("TC" + std::to_string(i), device_.timers_tc[i]);
         tc->set_event_system(evsys);
         if (port_mux_) {
             tc->set_port_mux(port_mux_);
             port_mux_->add_observer(tc.get());
+        } else {
+            tc->set_pin_mux(pin_mux_.get());
         }
         {
-            u16 tc_base = device_.timers_tc[i].ctrla_address;
-            char port_letter = 0;
-            if (tc_base >= 0x0800 && tc_base < 0x0900) port_letter = 'C';
-            else if (tc_base >= 0x0900 && tc_base < 0x0A00) port_letter = 'D';
-            else if (tc_base >= 0x0A00 && tc_base < 0x0B00) port_letter = 'E';
-            else if (tc_base >= 0x0B00 && tc_base < 0x0C00) port_letter = 'F';
+            char port_letter = static_cast<char>(device_.timers_tc[i].port_letter);
+            if (!port_letter) {
+                u16 tc_base = device_.timers_tc[i].ctrla_address;
+                if (tc_base >= 0x0800 && tc_base < 0x0900) port_letter = 'C';
+                else if (tc_base >= 0x0900 && tc_base < 0x0A00) port_letter = 'D';
+                else if (tc_base >= 0x0A00 && tc_base < 0x0B00) port_letter = 'E';
+                else if (tc_base >= 0x0B00 && tc_base < 0x0C00) port_letter = 'F';
+            }
             if (port_letter) {
+                tc->set_wg_mode_in_ctrld(true);
                 for (u8 p = 0; p < device_.port_count; ++p) {
                     auto& pn = device_.ports[p].name;
                     if (pn.size() > 4 && pn[4] == port_letter) {
@@ -637,14 +671,25 @@ void Machine::initialize_peripherals()
                 }
             }
         }
+        tc_ptrs.push_back(tc.get());
         bus_->attach_peripheral(*tc);
         owned_peripherals_.push_back(std::move(tc));
     }
 
-    // AWEX (XMEGA Advanced Waveform Extension)
+    // AWEX (XMEGA Advanced Waveform Extension) — pair with companion TC
     for (u8 i = 0; i < device_.awex_count; ++i) {
         auto awex = std::make_unique<Awex>("AWEX" + std::to_string(i), device_.awexs[i]);
         awex->set_memory_bus(bus_.get());
+        if (port_mux_) {
+            awex->set_port_mux(port_mux_);
+        } else {
+            awex->set_pin_mux(pin_mux_.get());
+        }
+        // Match AWEX to companion TC by index (same order: AWEXC→TCC0, AWEXE→TCE0, etc.)
+        // Tc::set_awex() also propagates port_index_ to the AWEX.
+        if (i < tc_ptrs.size()) {
+            tc_ptrs[i]->set_awex(awex.get());
+        }
         bus_->attach_peripheral(*awex);
         owned_peripherals_.push_back(std::move(awex));
     }
@@ -700,11 +745,54 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(usb));
     }
 
-    // 18b. USB8x (DU)
+    // 18b. USB8x (DU / XMEGA)
     for (u8 i = 0; i < device_.usb8x_count; ++i) {
         auto usb = std::make_unique<Usb8x>(device_.usbs8x[i]);
         bus_->attach_peripheral(*usb);
         owned_peripherals_.push_back(std::move(usb));
+    }
+
+    // XMEGA DAC
+    for (u8 i = 0; i < device_.xmega_dac_count; ++i) {
+        auto dac = std::make_unique<XmegaDac>("XDAC" + std::to_string(i), device_.xmega_dacs[i]);
+        dac->set_memory_bus(bus_.get());
+        dac->set_analog_signal_bank(&analog_signal_bank_);
+        bus_->attach_peripheral(*dac);
+        owned_peripherals_.push_back(std::move(dac));
+    }
+
+    // XMEM (External Memory)
+    if (device_.xmem.xmcra_address != 0) {
+        auto xmem = std::make_unique<Xmem>(bus_->device(), cpu_->cpu_control());
+        bus_->attach_peripheral(*xmem);
+        owned_peripherals_.push_back(std::move(xmem));
+    }
+
+    // EBI (External Bus Interface)
+    for (u8 i = 0; i < device_.ebi_count; ++i) {
+        auto ebi = std::make_unique<Ebi>("EBI", device_.ebis[i]);
+        ebi->set_memory_bus(bus_.get());
+        bus_->attach_peripheral(*ebi);
+        bus_->set_ebi(ebi.get());
+        owned_peripherals_.push_back(std::move(ebi));
+    }
+
+    // IRCOM (IR Communication Module)
+    for (u8 i = 0; i < device_.ircom_count; ++i) {
+        auto ircom = std::make_unique<Ircom>("IRCOM", device_.ircoms[i]);
+        ircom->set_memory_bus(bus_.get());
+        ircom->set_pin_mux(pin_mux_.get());
+        if (device_.ircoms[i].pin_address != 0) {
+            for (auto* port : ports_) {
+                if (port && port->port_address() == device_.ircoms[i].pin_address) {
+                    u8 port_letter = port->name()[4] - 'A';
+                    ircom->set_output_pin(port_letter, device_.ircoms[i].pin_bit_index);
+                    break;
+                }
+            }
+        }
+        bus_->attach_peripheral(*ircom);
+        owned_peripherals_.push_back(std::move(ircom));
     }
 }
 
@@ -788,6 +876,27 @@ void Machine::wire_peripherals()
             }
             if (auto* psc = dynamic_cast<Psc*>(p.get())) {
                 psc->connect_adc_trigger(*adc);
+            }
+        }
+    }
+
+    // Wire Timer0 compare match -> USI (for USICS=10 clock source)
+    if (device_.usi_count > 0) {
+        Usi* usi = nullptr;
+        for (auto& p : owned_peripherals_) {
+            if (auto* u = dynamic_cast<Usi*>(p.get())) {
+                usi = u;
+                break;
+            }
+        }
+        if (usi) {
+            for (auto& p : owned_peripherals_) {
+                if (auto* t8 = dynamic_cast<Timer8*>(p.get())) {
+                    if (t8->name() == "TIMER0") {
+                        t8->connect_usi_timer0_clock(*usi);
+                        break;
+                    }
+                }
             }
         }
     }

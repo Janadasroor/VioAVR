@@ -90,6 +90,7 @@ inline constexpr DeviceDescriptor atxmega32a4 {
             .ccb_vector_index = 17U,
             .ccc_vector_index = 18U,
             .ccd_vector_index = 19U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2112U,
@@ -116,6 +117,7 @@ inline constexpr DeviceDescriptor atxmega32a4 {
             .err_vector_index = 21U,
             .cca_vector_index = 22U,
             .ccb_vector_index = 23U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2304U,
@@ -148,6 +150,7 @@ inline constexpr DeviceDescriptor atxmega32a4 {
             .ccb_vector_index = 80U,
             .ccc_vector_index = 81U,
             .ccd_vector_index = 82U,
+            .port_letter = 68U,
         },
         {
             .ctrla_address = 2368U,
@@ -174,6 +177,7 @@ inline constexpr DeviceDescriptor atxmega32a4 {
             .err_vector_index = 84U,
             .cca_vector_index = 85U,
             .ccb_vector_index = 86U,
+            .port_letter = 68U,
         },
         {
             .ctrla_address = 2560U,
@@ -206,6 +210,7 @@ inline constexpr DeviceDescriptor atxmega32a4 {
             .ccb_vector_index = 50U,
             .ccc_vector_index = 51U,
             .ccd_vector_index = 52U,
+            .port_letter = 69U,
         }
     }},
 
@@ -393,11 +398,33 @@ inline constexpr DeviceDescriptor atxmega32a4 {
             .status_address = 130U,
         }}},
 
-    .dac8x_count = 1U,
-    .dacs8x = {{
+    .xmega_dac_count = 1U,
+    .xmega_dacs = {{
         {
             .ctrla_address = 800U,
-            .data_address = 824U,
+            .ctrlb_address = 801U,
+            .ctrlc_address = 802U,
+            .evctrl_address = 803U,
+            .status_address = 805U,
+            .ch0data_address = 824U,
+            .ch1data_address = 826U,
+        }
+    }},
+
+    .ircom_count = 1U,
+    .ircoms = {{
+        {
+            .ctrl_address = 2296U,
+            .txplctrl_address = 2297U,
+            .rxplctrl_address = 2298U,
+        }}},
+
+    .dma_count = 1U,
+    .dmas = {{
+        {
+            .ctrla_address = 256U,
+            .status_address = 260U,
+            .intflags_address = 259U,
         }}},
     .fuse_address = 0x0000U,
     .lockbit_address = 0x0000U,

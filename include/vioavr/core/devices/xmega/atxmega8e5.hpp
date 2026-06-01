@@ -90,6 +90,7 @@ inline constexpr DeviceDescriptor atxmega8e5 {
             .ccb_vector_index = 15U,
             .ccc_vector_index = 16U,
             .ccd_vector_index = 17U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2112U,
@@ -114,6 +115,7 @@ inline constexpr DeviceDescriptor atxmega8e5 {
             .err_vector_index = 19U,
             .cca_vector_index = 20U,
             .ccb_vector_index = 21U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2368U,
@@ -138,6 +140,7 @@ inline constexpr DeviceDescriptor atxmega8e5 {
             .err_vector_index = 37U,
             .cca_vector_index = 38U,
             .ccb_vector_index = 39U,
+            .port_letter = 68U,
         }
     }},
 
@@ -261,21 +264,32 @@ inline constexpr DeviceDescriptor atxmega8e5 {
             .ctrla_address = 208U,
             .status_address = 209U,
             .data_address = 211U,
+            .checksum_address = 212U,
         }}},
 
-    .dac8x_count = 1U,
-    .dacs8x = {{
+    .xmega_dac_count = 1U,
+    .xmega_dacs = {{
         {
             .ctrla_address = 768U,
-            .data_address = 792U,
-        }}},
+            .ctrlb_address = 769U,
+            .ctrlc_address = 770U,
+            .evctrl_address = 771U,
+            .status_address = 773U,
+            .ch0gaincal_address = 776U,
+            .ch0offsetcal_address = 777U,
+            .ch1gaincal_address = 778U,
+            .ch1offsetcal_address = 779U,
+            .ch0data_address = 792U,
+            .ch1data_address = 794U,
+        }
+    }},
 
-    .dma_count = 1U,
-    .dmas = {{
+    .ircom_count = 1U,
+    .ircoms = {{
         {
-            .ctrla_address = 256U,
-            .status_address = 260U,
-            .intflags_address = 259U,
+            .ctrl_address = 2296U,
+            .txplctrl_address = 2297U,
+            .rxplctrl_address = 2298U,
         }}},
     .fuse_address = 0x0000U,
     .lockbit_address = 0x0000U,

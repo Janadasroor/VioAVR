@@ -2,6 +2,7 @@
 #include "vioavr/core/device.hpp"
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/port_mux.hpp"
+#include "vioavr/core/awex.hpp"
 #include <array>
 #include <string>
 
@@ -10,6 +11,7 @@ namespace vioavr::core {
 class MemoryBus;
 class EventSystem;
 class PortMux;
+class PinMux;
 
 class Tc final : public IoPeripheral, public IRoutingObserver {
 public:
@@ -18,7 +20,14 @@ public:
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept;
     void set_port_mux(PortMux* port_mux) noexcept { port_mux_ = port_mux; }
+    void set_pin_mux(PinMux* pm) noexcept { pin_mux_ = pm; }
     void set_port_index(u8 idx) noexcept { port_index_ = idx; }
+    [[nodiscard]] u8 port_index() const noexcept { return port_index_; }
+    void set_wg_mode_in_ctrld(bool v) noexcept { wg_mode_in_ctrld_ = v; }
+    void set_awex(Awex* awex) noexcept {
+        awex_companion_ = awex;
+        if (awex) awex->set_port_index(port_index_);
+    }
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -40,6 +49,7 @@ private:
     [[nodiscard]] bool is_enabled() const noexcept;
     [[nodiscard]] u8 get_clk_sel() const noexcept;
     [[nodiscard]] u8 get_wg_mode() const noexcept;
+    [[nodiscard]] bool is_single_slope_pwm() const noexcept;
 
     void perform_tick() noexcept;
     void handle_matches(u16 prev_cnt) noexcept;
@@ -57,6 +67,8 @@ private:
     MemoryBus* bus_ {};
     EventSystem* evsys_ {};
     PortMux* port_mux_ {};
+    PinMux* pin_mux_ {};
+    Awex* awex_companion_ {};
     u8 port_index_ {0xFF};
 
     u8 ctrla_ {};
@@ -95,6 +107,7 @@ private:
     bool just_hit_top_ {};
     bool just_hit_bottom_ {};
     bool wo_states_[4] {};
+    bool wg_mode_in_ctrld_ {};
 };
 
 } // namespace vioavr::core

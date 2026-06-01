@@ -1,6 +1,6 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/opamp.hpp"
+#include "vioavr/core/analog_signal_bank.hpp"
 
 namespace {
 using namespace vioavr::core;
@@ -24,7 +24,7 @@ OpampDescriptor make_desc() noexcept {
 
 TEST_CASE("OPAMP: Register Read/Write") {
     auto desc = make_desc();
-    Opamp opamp {desc};
+    Opamp opamp {desc, 0};
     opamp.reset();
 
     CHECK(opamp.read(desc.ctrla_address) == 0x00);
@@ -47,7 +47,7 @@ TEST_CASE("OPAMP: Register Read/Write") {
 
 TEST_CASE("OPAMP: Reset clears registers") {
     auto desc = make_desc();
-    Opamp opamp {desc};
+    Opamp opamp {desc, 0};
 
     opamp.write(desc.ctrla_address, 0xFF);
     opamp.write(desc.ctrlb_address, 0xFF);
@@ -62,21 +62,43 @@ TEST_CASE("OPAMP: Reset clears registers") {
     CHECK(opamp.read(desc.muxctrl_address) == 0x00);
 }
 
-TEST_CASE("OPAMP: Tick is a no-op") {
+TEST_CASE("OPAMP: Enable and disable output") {
     auto desc = make_desc();
-    Opamp opamp {desc};
+    Opamp opamp {desc, 0};
+    opamp.reset();
+
+    CHECK_FALSE(opamp.is_enabled());
+    CHECK(opamp.output_voltage() == 0.0);
 
     opamp.write(desc.ctrla_address, 0x01);
-    opamp.tick(1000);
-    CHECK(opamp.read(desc.ctrla_address) == 0x01);
+    CHECK(opamp.is_enabled());
+
+    opamp.tick(1);
+    CHECK(opamp.output_voltage() == 0.0);
+
+    opamp.write(desc.ctrla_address, 0x00);
+    CHECK_FALSE(opamp.is_enabled());
+}
+
+TEST_CASE("OPAMP: Gain selection via MUXCTRL") {
+    auto desc = make_desc();
+    Opamp opamp {desc, 0};
+    opamp.reset();
+
+    opamp.write(desc.ctrla_address, 0x01);
+    opamp.write(desc.muxctrl_address, 0x00);
+    opamp.tick(1);
+    CHECK(opamp.output_voltage() == 0.0);
+
+    opamp.write(desc.muxctrl_address, 0x01);
 }
 
 TEST_CASE("OPAMP: Mapped ranges") {
     auto desc = make_desc();
-    Opamp opamp {desc};
+    Opamp opamp {desc, 0};
 
     auto ranges = opamp.mapped_ranges();
     REQUIRE(ranges.size() == 1);
     CHECK(ranges[0].begin == desc.ctrla_address);
-    CHECK(ranges[0].end == desc.ctrla_address + 3);
+    CHECK(ranges[0].end == desc.muxctrl_address);
 }

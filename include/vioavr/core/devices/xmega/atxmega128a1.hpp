@@ -90,6 +90,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .ccb_vector_index = 17U,
             .ccc_vector_index = 18U,
             .ccd_vector_index = 19U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2112U,
@@ -116,6 +117,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .err_vector_index = 21U,
             .cca_vector_index = 22U,
             .ccb_vector_index = 23U,
+            .port_letter = 67U,
         },
         {
             .ctrla_address = 2304U,
@@ -148,6 +150,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .ccb_vector_index = 80U,
             .ccc_vector_index = 81U,
             .ccd_vector_index = 82U,
+            .port_letter = 68U,
         },
         {
             .ctrla_address = 2368U,
@@ -174,6 +177,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .err_vector_index = 84U,
             .cca_vector_index = 85U,
             .ccb_vector_index = 86U,
+            .port_letter = 68U,
         },
         {
             .ctrla_address = 2560U,
@@ -206,6 +210,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .ccb_vector_index = 50U,
             .ccc_vector_index = 51U,
             .ccd_vector_index = 52U,
+            .port_letter = 69U,
         },
         {
             .ctrla_address = 2624U,
@@ -232,6 +237,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .err_vector_index = 54U,
             .cca_vector_index = 55U,
             .ccb_vector_index = 56U,
+            .port_letter = 69U,
         },
         {
             .ctrla_address = 2816U,
@@ -264,6 +270,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .ccb_vector_index = 111U,
             .ccc_vector_index = 112U,
             .ccd_vector_index = 113U,
+            .port_letter = 70U,
         },
         {
             .ctrla_address = 2880U,
@@ -290,6 +297,7 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .err_vector_index = 115U,
             .cca_vector_index = 116U,
             .ccb_vector_index = 117U,
+            .port_letter = 70U,
         }
     }},
 
@@ -568,11 +576,56 @@ inline constexpr DeviceDescriptor atxmega128a1 {
             .status_address = 130U,
         }}},
 
-    .dac8x_count = 1U,
-    .dacs8x = {{
+    .xmega_dac_count = 2U,
+    .xmega_dacs = {{
         {
             .ctrla_address = 768U,
-            .data_address = 792U,
+            .ctrlb_address = 769U,
+            .ctrlc_address = 770U,
+            .evctrl_address = 771U,
+            .status_address = 773U,
+            .ch0data_address = 792U,
+            .ch1data_address = 794U,
+        },
+        {
+            .ctrla_address = 800U,
+            .ctrlb_address = 801U,
+            .ctrlc_address = 802U,
+            .evctrl_address = 803U,
+            .status_address = 805U,
+            .ch0data_address = 824U,
+            .ch1data_address = 826U,
+        }
+    }},
+
+    .ebi_count = 1U,
+    .ebis = {{
+        {
+            .ctrl_address = 1088U,
+            .sdramctrla_address = 1089U,
+            .refresh_address = 1092U,
+            .initdly_address = 1094U,
+            .sdramctrlb_address = 1096U,
+            .sdramctrlc_address = 1097U,
+            .cs0_ctrla_address = 1104U,
+            .cs0_ctrlb_address = 1105U,
+            .cs0_baseaddr_address = 1106U,
+        }}},
+
+    .ircom_count = 1U,
+    .ircoms = {{
+        {
+            .ctrl_address = 2296U,
+            .txplctrl_address = 2297U,
+            .rxplctrl_address = 2298U,
+        }}},
+
+    .dma_count = 1U,
+    .dmas = {{
+        {
+            .ctrla_address = 256U,
+            .status_address = 260U,
+            .intflags_address = 259U,
         }}},
     .fuse_address = 0x0000U,
     .lockbit_address = 0x0000U,

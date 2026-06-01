@@ -67,9 +67,52 @@ static constexpr u16 kCntPrescalers[]  = {1, 4, 32};
 // Approximate cycles per counter step (after prescaler)
 constexpr u64 kCounterClockCycles = 2;
 
+static u16 tcd_range_min(const TcdDescriptor& desc) noexcept {
+    u16 min_addr = desc.base_address;
+    auto update = [&](u16 addr) { if (addr && addr < min_addr) min_addr = addr; };
+    update(desc.ctrla_address); update(desc.ctrlb_address);
+    update(desc.ctrlc_address); update(desc.ctrld_address); update(desc.ctrle_address);
+    update(desc.evctrla_address); update(desc.evctrlB_address);
+    update(desc.intctrl_address); update(desc.intflags_address); update(desc.status_address);
+    update(desc.inputctrla_address); update(desc.inputctrlB_address);
+    update(desc.faultctrl_address);
+    update(desc.dlyctrl_address); update(desc.dlyval_address);
+    update(desc.ditctrl_address); update(desc.ditval_address);
+    update(desc.dbgctrl_address);
+    update(desc.capturea_address); update(desc.captureb_address);
+    update(desc.cmpaset_address); update(desc.cmpacl_address);
+    update(desc.cmpbset_address); update(desc.cmpbcl_address);
+    return min_addr;
+}
+
+static u16 tcd_range_max(const TcdDescriptor& desc) noexcept {
+    u16 max_addr = desc.base_address;
+    auto update = [&](u16 addr) { if (addr && addr > max_addr) max_addr = addr; };
+    update(desc.ctrla_address); update(desc.ctrlb_address);
+    update(desc.ctrlc_address); update(desc.ctrld_address); update(desc.ctrle_address);
+    update(desc.evctrla_address); update(desc.evctrlB_address);
+    update(desc.intctrl_address); update(desc.intflags_address); update(desc.status_address);
+    update(desc.inputctrla_address); update(desc.inputctrlB_address);
+    update(desc.faultctrl_address);
+    update(desc.dlyctrl_address); update(desc.dlyval_address);
+    update(desc.ditctrl_address); update(desc.ditval_address);
+    update(desc.dbgctrl_address);
+    update(desc.capturea_address); update(desc.captureb_address);
+    update(desc.cmpaset_address); update(desc.cmpacl_address);
+    update(desc.cmpbset_address); update(desc.cmpbcl_address);
+    return max_addr;
+}
+
 Tcd::Tcd(const TcdDescriptor& desc) noexcept : desc_(desc) {
     if (desc_.base_address != 0) {
-        ranges_[0] = {desc_.base_address, static_cast<u16>(desc_.base_address + 0x2E)};
+        u16 min_addr = tcd_range_min(desc_);
+        u16 max_addr = tcd_range_max(desc_);
+        if (max_addr <= min_addr) {
+            if (desc_.base_address != 0) {
+                max_addr = static_cast<u16>(desc_.base_address + 0x2E);
+            }
+        }
+        ranges_[0] = {min_addr, max_addr};
     }
 }
 

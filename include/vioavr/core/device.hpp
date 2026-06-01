@@ -83,7 +83,7 @@ struct AdcDescriptor {
     u8 adts_mask {0x07U};   // Mask for ADTS bits in ADCSRB
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
-    u8 mux5_mask {0x20U}; // Which bit of ADCSRB carries MUX5 (0x20=bit5 for ATmega32U4, 0x08=bit3 for ATmega328P/2560)
+    u8 mux5_mask {0x20U};
     std::array<AdcMuxEntry, 64> mux_table {};
 };
 
@@ -366,6 +366,43 @@ struct DacDescriptor {
 struct Dac8xDescriptor {
     u16 ctrla_address {};
     u16 data_address {};
+};
+
+struct XmegaDacDescriptor {
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 evctrl_address {};
+    u16 status_address {};
+    u16 ch0gaincal_address {};
+    u16 ch0offsetcal_address {};
+    u16 ch1gaincal_address {};
+    u16 ch1offsetcal_address {};
+    u16 ch0data_address {};
+    u16 ch1data_address {};
+    u8 vector_index {};
+};
+
+struct EbiDescriptor {
+    u16 ctrl_address {};
+    u16 sdramctrla_address {};
+    u16 refresh_address {};
+    u16 initdly_address {};
+    u16 sdramctrlb_address {};
+    u16 sdramctrlc_address {};
+    // Chip-select 0..3
+    u16 cs0_ctrla_address {};
+    u16 cs0_ctrlb_address {};
+    u16 cs0_baseaddr_address {};
+};
+
+struct IrcomDescriptor {
+    u16 ctrl_address {};
+    u16 txplctrl_address {};
+    u16 rxplctrl_address {};
+    u16 pin_address {};
+    u8 pin_bit_index {};
+    u8 vector_index {};
 };
 
 struct AmplifierDescriptor {
@@ -664,6 +701,32 @@ struct TcbDescriptor {
 
 struct TcdDescriptor {
     u16 base_address {0U};
+
+    u16 ctrla_address {};
+    u16 ctrlb_address {};
+    u16 ctrlc_address {};
+    u16 ctrld_address {};
+    u16 ctrle_address {};
+    u16 evctrla_address {};
+    u16 evctrlB_address {};
+    u16 intctrl_address {};
+    u16 intflags_address {};
+    u16 status_address {};
+    u16 inputctrla_address {};
+    u16 inputctrlB_address {};
+    u16 faultctrl_address {};
+    u16 dlyctrl_address {};
+    u16 dlyval_address {};
+    u16 ditctrl_address {};
+    u16 ditval_address {};
+    u16 dbgctrl_address {};
+    u16 capturea_address {};
+    u16 captureb_address {};
+    u16 cmpaset_address {};
+    u16 cmpacl_address {};
+    u16 cmpbset_address {};
+    u16 cmpbcl_address {};
+
     u8 ovf_vector_index {0U};
     u8 trig_vector_index {0U};
     u8 woa_pin_address {0U};
@@ -743,6 +806,7 @@ struct TcDescriptor {
     u8 ccb_vector_index {};
     u8 ccc_vector_index {};
     u8 ccd_vector_index {};
+    u8 port_letter {};
 };
 
 struct AwexDescriptor {
@@ -789,6 +853,8 @@ struct EvsysDescriptor {
     u16 users_address {};
     u8 channel_count {};
     u8 user_count {};
+    u8 evout_user_start {};  // First EVOUT user index (typically 2 on AVR8X)
+    u8 evout_user_count {};  // Number of EVOUT users
 };
 
 struct LutDescriptor {
@@ -917,6 +983,8 @@ struct Usb8xDescriptor {
     u16 intctrlb_address {};
     u16 intflagsa_address {};
     u16 intflagsb_address {};
+    u16 cal0_address {};
+    u16 cal1_address {};
     u16 pllcsr_address {};
     u8 gen_vector_index {};
     u8 bus_vector_index {};
@@ -947,6 +1015,7 @@ struct DmaDescriptor {
     
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    u8 vector_index {0xFFU};
 };
 
 struct ZcdDescriptor {
@@ -1464,6 +1533,15 @@ struct DeviceDescriptor {
     std::array<DacDescriptor, 1> dacs {};
     u8 dac8x_count {0U};
     std::array<Dac8xDescriptor, 3> dacs8x {};
+
+    u8 xmega_dac_count {0U};
+    std::array<XmegaDacDescriptor, 2> xmega_dacs {};
+
+    u8 ebi_count {0U};
+    std::array<EbiDescriptor, 1> ebis {};
+
+    u8 ircom_count {0U};
+    std::array<IrcomDescriptor, 1> ircoms {};
 
     u8 amplifier_count {};
     std::array<AmplifierDescriptor, 3> amplifiers {};

@@ -206,7 +206,9 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
             }
 
             PinLevel rx_level = PinLevel::high;
-            if (desc_.rxd_pin_address) {
+            if (port_mux_) {
+                rx_level = port_mux_->get_usart_rx_level(desc_.index);
+            } else if (desc_.rxd_pin_address) {
                 bool rx_level_bit = pin_mux_->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit).drive_level;
                 rx_level = rx_level_bit ? PinLevel::high : PinLevel::low;
             }
@@ -410,12 +412,23 @@ void Uart8x::update_interrupt_state() noexcept {
 
 void Uart8x::drive_tx_pin(PinLevel level, bool claim) noexcept {
     if (desc_.txd_pin_address == 0) return;
-    
-    if (claim) {
-        pin_mux_->claim_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
-        pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart, true, level == PinLevel::high, false);
+
+    if (port_mux_) {
+        port_mux_->drive_usart_tx(desc_.index, level, claim);
     } else {
-        pin_mux_->release_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+        if (claim) {
+            pin_mux_->claim_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+            pin_mux_->update_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart, true, level == PinLevel::high, false);
+        } else {
+            pin_mux_->release_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
+        }
+    }
+}
+
+void Uart8x::on_routing_changed() noexcept {
+    if (!port_mux_) return;
+    if (ctrlb_ & CTRLB_TXEN) {
+        port_mux_->drive_usart_tx(desc_.index, PinLevel::high, true);
     }
 }
 

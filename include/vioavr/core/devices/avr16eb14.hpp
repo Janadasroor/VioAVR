@@ -5,7 +5,7 @@ namespace vioavr::core::devices {
 
 inline constexpr DeviceDescriptor avr16eb14 {
     .name = "AVR16EB14",
-    .flash_words = 6144U,
+    .flash_words = 8192U,
     .sram_bytes = 2048U,
     .sram_start = 0x7800U,
     .eeprom_bytes = 0U,
@@ -259,10 +259,10 @@ inline constexpr DeviceDescriptor avr16eb14 {
             .rx_vector_index = 18U,
             .tx_vector_index = 20U,
             .dre_vector_index = 19U,
-            .txd_pin_address = 0x404U,
-            .txd_pin_bit = 0U,
-            .rxd_pin_address = 0x404U,
-            .rxd_pin_bit = 1U,
+            .txd_pin_address = 0x464U,
+            .txd_pin_bit = 4U,
+            .rxd_pin_address = 0x464U,
+            .rxd_pin_bit = 5U,
             .index = 0U,
         }
     }},

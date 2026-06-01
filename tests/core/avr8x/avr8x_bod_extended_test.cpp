@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/bodctrl.hpp"
 #include "vioavr/core/devices/atmega4809.hpp"

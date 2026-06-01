@@ -1,21 +1,22 @@
 * VioAVR ATxmega8E5 TC PWM Co-Simulation Demo (d_cosim)
-* TCC4 (TCC0) single-slope PWM output on PC0.
-* PWM: 32MHz / (399+1) = 80kHz, ~50% duty (200/400)
-* PC0 reaches external ID 16 (cosim shim map: PORTC=16-23)
+* TCC4 single-slope PWM on PORTC bit 4 (WO0, external ID 20).
+* XMEGA default 32MHz: PER=399, CCA=200 => 80kHz PWM, ~50% duty
+* PC4 = Port idx 2 (PORTC) * 8 + bit 4 (WO0) = external ID 20
+* Port letter derived from TC instance's port_letter field in descriptor
 
-A_dac [pc0_dig] [pc0_an] dac_bridge_model
+A_pc4 [pc4_dig] [pc4_an] dac_bridge_model
 .model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
 
-R_pull pc0_dig 0 10k
+R_pull_pc4 pc4_dig 0 10k
 
-A_AVR [gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd] [gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd pc0_dig gnd gnd gnd gnd gnd gnd gnd] d_cosim_model
+A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 pc4_dig 0 0 0 0 0 0 0 0 0 0 0] d_cosim_model
 .model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atxmega8e5","firmware.hex"] queue_size=1024 irreversible=1 delay=1e-9)
 
 .tran 1us 2ms
 
 .control
 run
-print v(pc0_an) > sim_matrix.log
-plot v(pc0_an)
+print v(pc4_an) v(pc4_dig) > sim_matrix.log
+plot v(pc4_an)
 .endc
 .end

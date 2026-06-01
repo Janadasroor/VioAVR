@@ -71,6 +71,7 @@ void Adc::reset() noexcept {
     pending_ = false;
     first_conversion_ = true;
     cycles_remaining_ = 0;
+    auto_trigger_source_ = AutoTriggerSource::none;
     update_pin_ownership();
 }
 

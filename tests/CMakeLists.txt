@@ -3,6 +3,14 @@ cmake_minimum_required(VERSION 3.25)
 find_program(AVR_GCC avr-gcc)
 find_program(AVR_OBJCOPY avr-objcopy)
 
+# Track whether firmware hex targets are available
+# (used by tests/core/CMakeLists.txt to skip deps on missing fw targets)
+if(AVR_GCC AND AVR_OBJCOPY)
+    set(AVR_FW_AVAILABLE TRUE)
+else()
+    set(AVR_FW_AVAILABLE FALSE)
+endif()
+
 if(AVR_GCC AND AVR_OBJCOPY)
     message(STATUS "Found avr-gcc: ${AVR_GCC}")
     message(STATUS "Found avr-objcopy: ${AVR_OBJCOPY}")
@@ -88,7 +96,11 @@ if(_INCLUDE_DIR AND _LIBRARY)
 
     add_executable(_tracer programs/_tracer.c)
     target_include_directories(_tracer PRIVATE ${_INCLUDE_DIR})
-    target_link_libraries(_tracer PRIVATE ${_LIBRARY} rt)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_libraries(_tracer PRIVATE ${_LIBRARY} rt)
+    else()
+        target_link_libraries(_tracer PRIVATE ${_LIBRARY})
+    endif()
     set_target_properties(_tracer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
 
     function(add_comparison_test test_name cycles)

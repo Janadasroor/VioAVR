@@ -14,6 +14,7 @@ if(VIOAVR_BUILD_COSIM)
         "${VioMATRIXC_ROOT}/src/include"
     )
 
+    enable_lto(avr_cosim)
     set_target_properties(avr_cosim PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/cosim"
     )
@@ -40,6 +41,7 @@ if(VIOAVR_BUILD_COSIM)
     )
     target_link_libraries(viospice_cm PRIVATE ${CMAKE_DL_LIBS})
 
+    enable_lto(viospice_cm)
     set_target_properties(viospice_cm PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
         PREFIX ""
@@ -54,6 +56,7 @@ if(VIOAVR_BUILD_COSIM)
     )
     target_link_libraries(avr_adc_bridge PRIVATE ${CMAKE_DL_LIBS})
 
+    enable_lto(avr_adc_bridge)
     set_target_properties(avr_adc_bridge PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/cosim"
         PREFIX ""

@@ -1,4 +1,3 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/device_catalog.hpp"
@@ -104,23 +103,29 @@ TEST_CASE("AVR8X USART - Receiver Fidelity") {
     
     // 1. RXSIF should be set now (during reception)
     CHECK((bus.read_data(0x0804) & 0x10) != 0); 
+
+    // Debug: check PinMux before data bits
+    {
+        auto ps = machine.pin_mux().get_state_by_address(desc.rxd_pin_address, desc.rxd_pin_bit);
+        MESSAGE("After start: pin_lev=" << (int)ps.drive_level << " owner=" << (int)ps.owner);
+    }
     
     // Data bits (0x5A = LSB: 0, 1, 0, 1, 1, 0, 1, 0)
-    drive_bit(false); // Bit 0: 0
-    drive_bit(true);  // Bit 1: 1
-    drive_bit(false); // Bit 2: 0
-    drive_bit(true);  // Bit 3: 1
-    drive_bit(true);  // Bit 4: 1
-    drive_bit(false); // Bit 5: 0
-    drive_bit(true);  // Bit 6: 1
-    drive_bit(false); // Bit 7: 0
+    for (int bi = 0; bi < 8; bi++) {
+        bool level = (bi==0?false:(bi==1?true:(bi==2?false:(bi==3?true:(bi==4?true:(bi==5?false:(bi==6?true:false)))))));
+        drive_bit(level);
+        auto ps = machine.pin_mux().get_state_by_address(desc.rxd_pin_address, desc.rxd_pin_bit);
+        MESSAGE("After bit " << bi << " (level=" << level << "): pin_lev=" << (int)ps.drive_level << " owner=" << (int)ps.owner);
+    }
     
     // Stop bit
     drive_bit(true);
 
     // 4. RXCIF should be set bit now
     CHECK((bus.read_data(0x0804) & 0x80) != 0);
-    CHECK(bus.read_data(0x0800) == 0x5A); // RXDATA
+    u8 rxdata = bus.read_data(0x0800);
+    MESSAGE("RXDATA=" << (int)rxdata << " STATUS=" << (int)bus.read_data(0x0804));
+    CHECK(rxdata == 0x5A); // RXDATA
 }
 
 TEST_CASE("AVR8X USART - PORTMUX Routing Fidelity") {

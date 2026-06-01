@@ -16,10 +16,18 @@
 #include <unordered_map>
 #include <optional>
 
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace vioavr::core {
 
 class Dac;
+class XmegaDac;
 class GpioPort;
+class Ircom;
 class LcdController;
 class PortMux;
 class EventSystem;
@@ -56,10 +64,12 @@ public:
     void enable_hc05();
     [[nodiscard]] bool hc05_enabled() const noexcept { return hc05_enabled_; }
     [[nodiscard]] Hc05& hc05() noexcept { return hc05_; }
+    void set_hc05_pty_fd(int fd) noexcept { hc05_pty_fd_ = fd; }
 
     std::vector<PinStateChange> consume_pin_changes();
     [[nodiscard]] std::optional<u32> get_external_id(std::string_view port_name, u8 bit_index) const;
     std::vector<double> get_analog_outputs();
+    void set_ircom_output_pin(u32 external_id);
 
     [[nodiscard]] AvrCpu& cpu() noexcept { return cpu_; }
     [[nodiscard]] MemoryBus& bus() noexcept { return bus_; }
@@ -74,6 +84,7 @@ private:
     AnalogSignalBank analog_signal_bank_;
     Timer8* timer2_ {};
     std::vector<Dac*> dacs_;
+    std::vector<XmegaDac*> xmega_dacs_;
     std::vector<GpioPort*> ports_;
     std::unordered_map<std::string, GpioPort*> port_map_;
     std::unordered_map<u8, std::string> port_idx_to_name_;
@@ -92,6 +103,7 @@ private:
     Uart8x* uart8x0_ {nullptr};
     Hc05 hc05_;
     bool hc05_enabled_ {false};
+    int  hc05_pty_fd_ {-1};
 
     void bridge_hc05();
 };

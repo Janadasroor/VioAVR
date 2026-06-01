@@ -8,12 +8,16 @@ namespace vioavr::core {
 
 class MemoryBus;
 class PortMux;
+class PinMux;
 
 class Awex final : public IoPeripheral {
 public:
     explicit Awex(std::string name, const AwexDescriptor& desc) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
+    void set_port_mux(PortMux* pm) noexcept { port_mux_ = pm; }
+    void set_pin_mux(PinMux* pm) noexcept { pin_mux_ = pm; }
+    void set_port_index(u8 idx) noexcept { port_index_ = idx; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -30,6 +34,9 @@ public:
     [[nodiscard]] bool get_dh_level(u8 channel) const noexcept;
     [[nodiscard]] bool get_dl_level(u8 channel) const noexcept;
 
+    /// Drive DH/DL outputs to port pins via PortMux
+    void drive_outputs(u8 port_override = 0xFF) noexcept;
+
     [[nodiscard]] ClockDomain clock_domain() const noexcept override { return ClockDomain::io; }
 
 private:
@@ -37,8 +44,11 @@ private:
 
     std::string name_;
     const AwexDescriptor desc_;
-    std::array<AddressRange, 4> ranges_;
+    std::array<AddressRange, 8> ranges_;
     MemoryBus* bus_ {};
+    PortMux* port_mux_ {};
+    PinMux* pin_mux_ {};
+    u8 port_index_ {0};
 
     u8 ctrl_ {};
     u8 fdemask_ {};

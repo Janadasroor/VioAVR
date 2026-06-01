@@ -43,6 +43,9 @@ void vioavr_enable_hc05(VioSpiceHandle handle);
 bool vioavr_hc05_has_tx_byte(VioSpiceHandle handle);
 uint8_t vioavr_hc05_read_tx_byte(VioSpiceHandle handle);
 void vioavr_hc05_inject_data(VioSpiceHandle handle, const uint8_t* data, uint16_t len);
+void vioavr_set_hc05_pty_fd(VioSpiceHandle handle, int fd);
+
+void vioavr_set_ircom_output_pin(VioSpiceHandle handle, uint32_t external_id);
 
 // Query
 uint64_t vioavr_get_cycles(VioSpiceHandle handle);

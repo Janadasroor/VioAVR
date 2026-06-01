@@ -1,4 +1,4 @@
-name: C++ Build and Test
+name: Build and Test
 
 on:
   push:
@@ -6,24 +6,118 @@ on:
   pull_request:
     branches: [ main, master ]
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+
+    - name: Cache Microchip DFP packs
+      uses: actions/cache@v4
+      with:
+        path: avr-pack/
+        key: dfp-linux-${{ hashFiles('CMakeLists.txt') }}
 
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake build-essential python3
+        sudo apt-get install -y \
+          ninja-build ccache \
+          gcc-avr avr-libc binutils-avr \
+          python3
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+      run: >
+        cmake -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DVIOAVR_USE_NATIVE_ARCH=OFF
+        -DVIOAVR_ALLOW_ANY_GENERATOR=ON
+        -DVIOAVR_BUILD_COSIM=OFF
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config Release -j$(nproc)
+      run: cmake --build build
 
     - name: Test
-      working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure
+      working-directory: build
+      run: ctest --output-on-failure -j4
+
+  macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache Microchip DFP packs
+      uses: actions/cache@v4
+      with:
+        path: avr-pack/
+        key: dfp-macos-${{ hashFiles('CMakeLists.txt') }}
+
+    - name: Install dependencies
+      run: |
+        brew update
+        brew install ninja ccache avr-gcc
+
+    - name: Configure CMake
+      run: >
+        cmake -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DVIOAVR_USE_NATIVE_ARCH=OFF
+        -DVIOAVR_ALLOW_ANY_GENERATOR=ON
+        -DVIOAVR_BUILD_COSIM=OFF
+      env:
+        CC: clang
+        CXX: clang++
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Test
+      working-directory: build
+      run: ctest --output-on-failure -j4
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-toolchain
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-avr-gcc
+
+    - name: Cache Microchip DFP packs
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/avr-pack/
+        key: dfp-windows-${{ hashFiles('CMakeLists.txt') }}
+
+    - name: Configure CMake
+      run: >
+        cmake -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=Release
+        -DVIOAVR_USE_NATIVE_ARCH=OFF
+        -DVIOAVR_ALLOW_ANY_GENERATOR=ON
+        -DVIOAVR_BUILD_COSIM=OFF
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Test
+      working-directory: build
+      run: ctest --output-on-failure -j4

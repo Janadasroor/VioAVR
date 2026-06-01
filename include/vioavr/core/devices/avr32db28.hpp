@@ -152,6 +152,30 @@ inline constexpr DeviceDescriptor avr32db28 {
     .timers_tcd = {{
         {
             .base_address = 0x0B80U,
+            .ctrla_address = 0x0B80U,
+            .ctrlb_address = 0x0B81U,
+            .ctrlc_address = 0x0B82U,
+            .ctrld_address = 0x0B83U,
+            .ctrle_address = 0x0B84U,
+            .evctrla_address = 0x0B88U,
+            .evctrlB_address = 0x0B89U,
+            .intctrl_address = 0x0B8CU,
+            .intflags_address = 0x0B8DU,
+            .status_address = 0x0B8EU,
+            .inputctrla_address = 0x0B90U,
+            .inputctrlB_address = 0x0B91U,
+            .faultctrl_address = 0x0B92U,
+            .dlyctrl_address = 0x0B94U,
+            .dlyval_address = 0x0B95U,
+            .ditctrl_address = 0x0B98U,
+            .ditval_address = 0x0B99U,
+            .dbgctrl_address = 0x0B9EU,
+            .capturea_address = 0x0BA2U,
+            .captureb_address = 0x0BA4U,
+            .cmpaset_address = 0x0BA8U,
+            .cmpacl_address = 0x0BAAU,
+            .cmpbset_address = 0x0BACU,
+            .cmpbcl_address = 0x0BAEU,
             .ovf_vector_index = 16U,
             .trig_vector_index = 17U,
         }
@@ -225,10 +249,14 @@ inline constexpr DeviceDescriptor avr32db28 {
     },
 
     .portmux = {
+        .twispiroutea_address = 0U,
         .usartroutea_address = 0x5E2U,
         .evoutroutea_address = 0x5E0U,
         .tcaroutea_address = 0x5E6U,
         .tcbroutea_address = 0x5E7U,
+        .usart = {},
+        .spi = {},
+        .twi = {},
     },
 
     .vref = {
@@ -292,9 +320,9 @@ inline constexpr DeviceDescriptor avr32db28 {
             .tx_vector_index = 23U,
             .dre_vector_index = 22U,
             .txd_pin_address = 0x404U,
-            .txd_pin_bit = 0U,
+            .txd_pin_bit = 4U,
             .rxd_pin_address = 0x404U,
-            .rxd_pin_bit = 1U,
+            .rxd_pin_bit = 5U,
             .index = 0U,
         },
         {

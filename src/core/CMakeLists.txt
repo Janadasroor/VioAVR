@@ -39,8 +39,6 @@ target_sources(vioavr_core
         trace_buffer.cpp
         viospice.cpp
         viospice_c.cpp
-        bridge_shm_server.cpp
-        bridge_shm_client.cpp
         timer8.cpp
         timer16.cpp
         timer10.cpp
@@ -78,6 +76,9 @@ target_sources(vioavr_core
         tc.cpp
         adcea.cpp
         awex.cpp
+        ebi.cpp
+        ircom.cpp
+        xmega_dac.cpp
         xmegadc.cpp
         xmegaac.cpp
         vcd_writer.cpp
@@ -96,5 +97,29 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
 endif()
 
 set_target_properties(vioavr_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if(NOT VIOAVR_DISABLE_UNITY)
+    set_target_properties(vioavr_core PROPERTIES UNITY_BUILD ON)
+    set_target_properties(vioavr_core PROPERTIES UNITY_BUILD_BATCH_SIZE 12)
+endif()
+if(DEFINED VIOAVR_DISABLE_UNITY AND VIOAVR_DISABLE_UNITY)
+    message(STATUS "vioavr_core: unity build disabled by VIOAVR_DISABLE_UNITY=ON")
+endif()
 
-target_link_libraries(vioavr_core PRIVATE rt Threads::Threads)
+if(NOT VIOAVR_DISABLE_UNITY)
+    set_source_files_properties(tcd.cpp ptc.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+endif()
+
+# ── POSIX SHM bridge (Linux/macOS only) ────────────────────────────
+if(HAVE_SHM_OPEN)
+    target_sources(vioavr_core PRIVATE
+        bridge_shm_server.cpp
+        bridge_shm_client.cpp
+    )
+    target_compile_definitions(vioavr_core PUBLIC HAVE_SHM_OPEN=1)
+endif()
+
+# rt library is Linux-only (clock_gettime etc. in libc on macOS/BSD)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(vioavr_core PRIVATE rt)
+endif()
+target_link_libraries(vioavr_core PRIVATE Threads::Threads)

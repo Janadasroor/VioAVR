@@ -1,5 +1,4 @@
 // JIT vs interpreter divergence test for integration_stress firmware
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/hex_image.hpp"

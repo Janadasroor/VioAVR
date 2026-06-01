@@ -21,8 +21,11 @@ public:
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     [[nodiscard]] bool consume_interrupt_request(InterruptRequest& request) noexcept override;
 
+    void on_timer0_clock() noexcept;
+
 private:
     void update_interrupt_pending() noexcept;
+    void shift_clock(bool sda_level) noexcept;
     bool is_twowire() const noexcept;
     u8 reg_offset(u16 address) const noexcept;
 
@@ -40,6 +43,7 @@ private:
     bool prev_scl_{false};
     bool prev_do_{false};
     bool sda_driven_{false};
+    u8 timer0_clock_pending_{0};
 };
 
 } // namespace vioavr::core
