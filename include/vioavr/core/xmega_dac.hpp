@@ -17,7 +17,7 @@ public:
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
 
     void set_analog_signal_bank(AnalogSignalBank* bank) noexcept { signal_bank_ = bank; }
-    void set_event_system(EventSystem* evsys) noexcept { evsys_ = evsys; }
+    void set_event_system(EventSystem* evsys) noexcept override { evsys_ = evsys; }
     void set_vref(double v) noexcept { vref_ = v; }
 
     [[nodiscard]] double ch0_voltage() const noexcept {

@@ -36,7 +36,7 @@ public:
         port_idx_ = port_idx;
         bit_idx_ = bit_idx;
     }
-    void set_memory_bus(MemoryBus* bus) noexcept { bus_ = bus; }
+    void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
 
     [[nodiscard]] ClockDomain clock_domain() const noexcept override { return ClockDomain::io; }
 

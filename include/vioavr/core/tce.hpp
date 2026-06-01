@@ -16,7 +16,7 @@ public:
     explicit Tce(std::string name, const TceDescriptor& desc) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
-    void set_event_system(EventSystem* evsys) noexcept;
+    void set_event_system(EventSystem* evsys) noexcept override;
     void set_port_mux(PortMux* port_mux) noexcept { port_mux_ = port_mux; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return name_; }

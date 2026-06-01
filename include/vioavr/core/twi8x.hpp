@@ -42,7 +42,7 @@ public:
     [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     void set_port_mux(class PortMux* port_mux) noexcept;
-    void set_event_system(class EventSystem* evsys) noexcept;
+    void set_event_system(class EventSystem* evsys) noexcept override;
 
     void inject_bus_start() noexcept;
     void inject_bus_address(u8 address) noexcept;

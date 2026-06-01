@@ -25,7 +25,7 @@ public:
     virtual bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
     virtual bool consume_interrupt_request(InterruptRequest& request) noexcept override;
     
-    void set_event_system(class EventSystem* evsys) noexcept;
+    void set_event_system(class EventSystem* evsys) noexcept override;
     void set_port_mux(class PortMux* pm) noexcept { port_mux_ = pm; }
 
 private:
