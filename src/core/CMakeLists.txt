@@ -13,7 +13,7 @@ target_sources(vioavr_core
         ac8x.cpp
         analog_comparator.cpp
         avr_cpu.cpp
-        avr_jit.cpp
+        $<$<NOT:$<PLATFORM_ID:Windows>>:avr_jit.cpp>
         cpu_control.cpp
         device.cpp
         device_catalog.cpp

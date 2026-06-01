@@ -2,9 +2,7 @@
 
 #include "vioavr/core/types.hpp"
 #include "vioavr/core/x86_assembler.hpp"
-#ifdef _WIN32
-#include <windows.h>
-#else
+#ifndef _WIN32
 #include <sys/mman.h>
 #endif
 #include <cstdint>
@@ -88,11 +86,7 @@ struct JitBlock {
 
     void release_code() {
         if (code != nullptr && code_size > 0) {
-#ifdef _WIN32
-            VirtualFree(code, 0, MEM_RELEASE);
-#else
             munmap(code, code_size);
-#endif
             code = nullptr;
             code_size = 0;
         }
