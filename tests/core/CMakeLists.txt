@@ -337,7 +337,7 @@ function(add_doctest_group TARGET_NAME)
     target_link_libraries(${TARGET_NAME} PRIVATE VioAVR::core)
     # Allow duplicate helper functions (e.g., step_to) across test files
     if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-        target_link_options(${TARGET_NAME} PRIVATE "-ld_classic" "LINKER:--allow-multiple-definition")
+        target_link_options(${TARGET_NAME} PRIVATE "-ld_classic" "LINKER:-allow_multiple_definition")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         target_link_options(${TARGET_NAME} PRIVATE "LINKER:--allow-multiple-definition")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
