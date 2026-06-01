@@ -750,6 +750,7 @@ void Machine::initialize_peripherals()
     // 18b. USB8x (DU / XMEGA)
     for (u8 i = 0; i < device_.usb8x_count; ++i) {
         auto usb = std::make_unique<Usb8x>(device_.usbs8x[i]);
+        usb->set_memory_bus(bus_.get());
         bus_->attach_peripheral(*usb);
         owned_peripherals_.push_back(std::move(usb));
     }

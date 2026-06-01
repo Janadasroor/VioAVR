@@ -58,6 +58,14 @@ void Usb8x::reset() noexcept {
     ep0_data_dir_ = 0;
     ep0_wLength_ = 0;
     prev_bus_state_ = 0;
+    for (auto& ep : endpoints_) {
+        ep.type = 0;
+        ep.number = 0;
+        ep.is_in = false;
+        ep.data_toggle = false;
+        ep.stalled = false;
+        ep.data_count = 0;
+    }
 }
 
 void Usb8x::detect_setup_packet() noexcept {
@@ -65,7 +73,6 @@ void Usb8x::detect_setup_packet() noexcept {
     u8 ep_num = (epptr_ >> 4) & 0x07U;
     if (ep_type != 4 || ep_num != 0) return;
 
-    // Store the byte that was just written (before fifo_wp_ was incremented)
     u8 last_byte = fifo_buf_[(fifo_wp_ == 0) ? 63 : (fifo_wp_ - 1)];
     if (ep0_setup_count_ < 8) {
         ep0_setup_pkt_[ep0_setup_count_] = last_byte;
@@ -73,7 +80,6 @@ void Usb8x::detect_setup_packet() noexcept {
     ++ep0_setup_count_;
 
     if (ep0_setup_count_ >= 8 && fifo_count_ >= 8) {
-        // Full setup packet received (ep0_setup_pkt_ already contains all 8 bytes)
         ep0_data_dir_ = (ep0_setup_pkt_[0] & 0x80) ? 1 : 0;
         ep0_wLength_ = static_cast<u16>(ep0_setup_pkt_[6]) |
                        (static_cast<u16>(ep0_setup_pkt_[7]) << 8);
@@ -83,22 +89,19 @@ void Usb8x::detect_setup_packet() noexcept {
 }
 
 void Usb8x::handle_bus_state_change(u8 old_state, u8 new_state) noexcept {
-    // BUSSTATE bits 1:0: 0=DISABLE, 1=DISCON, 2=CONN, 3=SUSPEND
     if (old_state == new_state) return;
 
     if (new_state == 3) {
-        intflagsa_ |= 0x01; // SUSPEND
+        intflagsa_ |= 0x01;
     } else if (new_state == 2 && old_state == 1) {
-        intflagsa_ |= 0x04; // EORST (connect after disconnect)
+        intflagsa_ |= 0x04;
     } else if (new_state == 1 && old_state == 3) {
-        intflagsa_ |= 0x08; // WAKEUP (resume from suspend)
+        intflagsa_ |= 0x08;
     }
 }
 
 void Usb8x::tick(u64 elapsed_cycles) noexcept {
     bool usb_enabled = (ctrla_ & 0x01) != 0;
-    // XMEGA has no PLLCSR register; PLL is always available when USB is.
-    // AVR DU devices use PLLCSR bit 0 to enable the PLL.
     bool pll_enabled = (desc_.pllcsr_address == 0) || (pllcsr_ & 0x01) != 0;
     bool usb_running = usb_enabled && pll_enabled;
     if (usb_running && sof_frame_cycles_ > 0) {
@@ -121,6 +124,9 @@ u8 Usb8x::read(u16 address) noexcept {
     if (address == desc_.addr_address) return addr_;
     if (address == desc_.fifowp_address) return fifowp_;
     if (address == desc_.fiforp_address) {
+        // If current EPPTR points to an OUT/SETUP endpoint with pending SIE data,
+        // return SIE data first (before the regular FIFO).
+        // SIE data for setup/out is in the FIFO (sie_push_fifo).
         u8 byte = 0;
         if (fifo_count_ > 0) {
             byte = fifo_buf_[fifo_rp_];
@@ -147,12 +153,10 @@ void Usb8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.ctrlb_address) {
         ctrlb_ = value;
         if (ctrlb_ & 0x01) {
-            // RST: reset bus state to DISABLE
             busstate_ = 0;
             prev_bus_state_ = 0;
         }
         if (ctrlb_ & 0x02) {
-            // ATTACH: transition to CONN state
             u8 old = busstate_ & 0x03U;
             busstate_ = (busstate_ & 0xFCU) | 0x02U;
             handle_bus_state_change(old, 2);
@@ -185,7 +189,6 @@ void Usb8x::write(u16 address, u8 value) noexcept {
     else if (address == desc_.epptr_address) {
         epptr_ = value;
         u8 ep_type = epptr_ & 0x07U;
-        // Changing to SETUP type resets setup count
         if (ep_type == 4) {
             ep0_setup_count_ = 0;
         }
@@ -212,12 +215,10 @@ bool Usb8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
     u8 pending_b = intflagsb_ & intctrlb_;
     if (!(pending_a || pending_b)) return false;
 
-    // Bus events (SUSPEND, WAKEUP, EORST) use bus_vector_index
     if (desc_.bus_vector_index && (pending_a & 0x0DU)) {
         request.vector_index = desc_.bus_vector_index;
         return true;
     }
-    // Data events (SOF, SETUP, TRANS, STALL) use gen_vector_index
     if (desc_.gen_vector_index) {
         request.vector_index = desc_.gen_vector_index;
         return true;
@@ -232,7 +233,6 @@ bool Usb8x::consume_interrupt_request(InterruptRequest& request) noexcept {
 
     if (desc_.bus_vector_index && (pending_a & 0x0DU)) {
         request.vector_index = desc_.bus_vector_index;
-        // Only clear bus events
         intflagsa_ &= ~(pending_a & 0x0DU);
         return true;
     }
@@ -243,6 +243,145 @@ bool Usb8x::consume_interrupt_request(InterruptRequest& request) noexcept {
         return true;
     }
     return false;
+}
+
+// ── SIE Simulation ───────────────────────────────────────
+
+void Usb8x::simulate_usb_reset() noexcept {
+    busstate_ = 0;
+    prev_bus_state_ = 0;
+    addr_ = 0;
+    intflagsa_ &= ~0x0FU;
+    intflagsb_ &= ~0x07U;
+    intflagsa_ |= 0x04;
+    ep0_setup_count_ = 0;
+    ep0_stalled_ = false;
+    ep0_data_dir_ = 0;
+    ep0_wLength_ = 0;
+    for (auto& ep : endpoints_) {
+        ep.type = 0;
+        ep.number = 0;
+        ep.is_in = false;
+        ep.data_toggle = false;
+        ep.stalled = false;
+        ep.data_count = 0;
+    }
+}
+
+void Usb8x::simulate_setup_packet(const SetupPacket& setup) noexcept {
+    // Write 8-byte setup packet into FIFO at the current write position
+    u8 pkt[8];
+    pkt[0] = setup.bmRequestType;
+    pkt[1] = setup.bRequest;
+    pkt[2] = static_cast<u8>(setup.wValue & 0xFF);
+    pkt[3] = static_cast<u8>((setup.wValue >> 8) & 0xFF);
+    pkt[4] = static_cast<u8>(setup.wIndex & 0xFF);
+    pkt[5] = static_cast<u8>((setup.wIndex >> 8) & 0xFF);
+    pkt[6] = static_cast<u8>(setup.wLength & 0xFF);
+    pkt[7] = static_cast<u8>((setup.wLength >> 8) & 0xFF);
+
+    for (int i = 0; i < 8 && fifo_count_ < 64; ++i) {
+        fifo_buf_[fifo_wp_] = pkt[i];
+        fifo_wp_ = (fifo_wp_ + 1) & 0x3F;
+        ++fifo_count_;
+    }
+
+    // Copy to EP0 setup packet tracking
+    for (int i = 0; i < 8; ++i) {
+        ep0_setup_pkt_[i] = pkt[i];
+    }
+    ep0_setup_count_ = 8;
+
+    ep0_data_dir_ = (setup.bmRequestType & 0x80) ? 1 : 0;
+    ep0_wLength_ = setup.wLength;
+    ep0_stalled_ = false;
+
+    // Store in endpoint 0 data buffer (OUT direction = SIE has data for CPU)
+    auto& ep0 = endpoints_[0];
+    ep0.type = 4;
+    ep0.number = 0;
+    ep0.is_in = false; // SETUP is always OUT (SIE→CPU)
+    for (int i = 0; i < 8 && i < 64; ++i) {
+        ep0.data[i] = pkt[i];
+    }
+    ep0.data_count = 8;
+
+    intflagsb_ |= 0x04; // SETUP flag
+}
+
+void Usb8x::simulate_out_packet(u8 ep_num, std::span<const u8> data) noexcept {
+    if (ep_num >= 8) return;
+    auto& ep = endpoints_[ep_num];
+    ep.type = get_ep_type();
+    ep.number = ep_num;
+    ep.is_in = false;
+
+    // Check STALL
+    if (ep.stalled) {
+        return;
+    }
+
+    // Write data into FIFO at current write position
+    for (size_t i = 0; i < data.size() && fifo_count_ < 64; ++i) {
+        fifo_buf_[fifo_wp_] = data[i];
+        fifo_wp_ = (fifo_wp_ + 1) & 0x3F;
+        ++fifo_count_;
+    }
+
+    // Store in endpoint buffer
+    size_t to_copy = data.size() > 64 ? 64 : data.size();
+    for (size_t i = 0; i < to_copy; ++i) {
+        ep.data[i] = data[i];
+    }
+    ep.data_count = static_cast<u8>(to_copy);
+
+    // Toggle DATA0/DATA1
+    ep.data_toggle = !ep.data_toggle;
+
+    intflagsb_ |= 0x02; // TRANS flag
+}
+
+bool Usb8x::simulate_in_token(u8 ep_num) noexcept {
+    if (ep_num >= 8) return false;
+    auto& ep = endpoints_[ep_num];
+    ep.type = get_ep_type();
+    ep.number = ep_num;
+    ep.is_in = true;
+
+    if (ep.stalled) {
+        return false;
+    }
+
+    // Read data from FIFO at the read position (where CPU wrote it)
+    // We read up to whatever the CPU has written
+    u8 temp[64];
+    u8 count = 0;
+    while (fifo_count_ > 0 && count < 64) {
+        temp[count] = fifo_buf_[fifo_rp_];
+        fifo_rp_ = (fifo_rp_ + 1) & 0x3F;
+        --fifo_count_;
+        ++count;
+    }
+
+    // Store what we read in the endpoint buffer (for host test to verify)
+    if (count > 0) {
+        for (u8 i = 0; i < count; ++i) {
+            ep.data[i] = temp[i];
+        }
+        ep.data_count = count;
+    }
+
+    ep.data_toggle = !ep.data_toggle;
+    intflagsb_ &= ~0x02U; // Clear TRANS flag (data consumed)
+
+    return count > 0;
+}
+
+std::span<const u8> Usb8x::get_endpoint_data(u8 ep_num) const noexcept {
+    if (ep_num >= 8) return {};
+    const auto& ep = endpoints_[ep_num];
+    if (ep.data_count == 0) return {};
+    return {ep.data, ep.data_count};
 }
 
 } // namespace vioavr::core

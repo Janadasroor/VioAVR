@@ -678,8 +678,10 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(usb));
     }
 
+    // USB8x (DU / XMEGA)
     for (u8 i = 0; i < device.usb8x_count; ++i) {
         auto usb = std::make_unique<Usb8x>(device.usbs8x[i]);
+        usb->set_memory_bus(&bus_);
         bus_.attach_peripheral(*usb);
         owned_peripherals_.push_back(std::move(usb));
     }
