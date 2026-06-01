@@ -810,6 +810,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     if (device.xmem.xmcra_address != 0) {
         auto xmem = std::make_unique<Xmem>(bus_.device(), cpu_.cpu_control());
         bus_.attach_peripheral(*xmem);
+        bus_.set_xmem(xmem.get());
         owned_peripherals_.push_back(std::move(xmem));
     }
 
