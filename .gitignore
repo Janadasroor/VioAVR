@@ -85,3 +85,48 @@ external_projects/
 
 # Profiling artifacts
 gmon.out
+
+# ngspice build artifacts (VioMATRIXC source in workspace)
+/Makefile
+/config.status
+/libtool
+/man/
+/ngspice.pc
+/tests/Makefile
+/tests/bsim*/
+/tests/filters/
+/tests/general/
+/tests/hfet/
+/tests/hicum2/
+/tests/hisim/
+/tests/hisimhv1/
+/tests/hisimhv2/
+/tests/jfet/
+/tests/mes/
+/tests/mesa/
+/tests/mos6/
+/tests/polezero/
+/tests/regression/
+/tests/resistance/
+/tests/sensitivity/
+/tests/transient/
+/tests/transmission/
+/tests/vbic/
+/tests/xspice/
+/tools/term/
+/src/Makefile
+/src/ciderlib/
+/src/frontend/
+/src/include/
+/src/maths/
+/src/misc/
+/src/osdi/
+/src/spicelib/
+/src/xspice/
+
+# Scratch demo build artifacts (not source)
+scratch/**/*.elf
+scratch/**/*.o
+scratch/**/sim_matrix.log
+scratch/**/ngspice.log
+scratch/**/*_sim

@@ -1,0 +1,48 @@
+* 8 A-devices - XSPICE fix N>4 verification test
+R_pull0 pb5_d0 0 10k
+A_dac0 [pb5_d0] [pb5_an0 0] dac_bridge
+R_pull1 pb5_d1 0 10k
+A_dac1 [pb5_d1] [pb5_an1 0] dac_bridge
+R_pull2 pb5_d2 0 10k
+A_dac2 [pb5_d2] [pb5_an2 0] dac_bridge
+R_pull3 pb5_d3 0 10k
+A_dac3 [pb5_d3] [pb5_an3 0] dac_bridge
+R_pull4 pb5_d4 0 10k
+A_dac4 [pb5_d4] [pb5_an4 0] dac_bridge
+R_pull5 pb5_d5 0 10k
+A_dac5 [pb5_d5] [pb5_an5 0] dac_bridge
+R_pull6 pb5_d6 0 10k
+A_dac6 [pb5_d6] [pb5_an6 0] dac_bridge
+R_pull7 pb5_d7 0 10k
+A_dac7 [pb5_d7] [pb5_an7 0] dac_bridge
+A_DEV1 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_1
+A_DEV2 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_2
+A_DEV3 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_3
+A_DEV4 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_4
+A_DEV5 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_5
+A_DEV6 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_6
+A_DEV7 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_7
+A_DEV8 [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 pb5_d7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_8
+.model d_cosim_1 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model d_cosim_2 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model d_cosim_3 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model d_cosim_4 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model d_cosim_5 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model d_cosim_6 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model d_cosim_7 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model d_cosim_8 d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1)
+.model dac_bridge dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 1u 20u
+.control
+run
+.endc
+.end

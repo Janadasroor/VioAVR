@@ -1,0 +1,10 @@
+test avr_dac_bridge
+V1 dummy 0 DC 0
+A_dac [dummy 0] [dac_out 0] avr_dac_bridge_model
+.model avr_dac_bridge_model avr_dac_bridge(channel=0)
+.dc V1 0 1 1
+.control
+op
+print v(dac_out)
+.endc
+.end
