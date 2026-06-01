@@ -47,7 +47,9 @@ constexpr vioavr::core::u16 encode_out(const vioavr::core::u8 io_offset, const v
 }  // namespace
 
 using namespace vioavr::core;
+namespace {
 void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
+} // namespace
 
 TEST_CASE("ADC Timer Overflow Auto-Trigger Firmware Integrated Test")
 {
