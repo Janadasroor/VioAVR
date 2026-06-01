@@ -4,15 +4,33 @@ if(VIOAVR_BUILD_COSIM)
     set(VioMATRIXC_ROOT "${PROJECT_SOURCE_DIR}/../VioMATRIXC"
         CACHE PATH "Path to VioMATRIXC source tree")
 
+    # Auto-detect ngspice build tree for generated headers (config.h)
+    if(EXISTS "${VioMATRIXC_ROOT}/build/src/include/ngspice/config.h")
+        set(VioMATRIXC_BUILD_INCLUDE "${VioMATRIXC_ROOT}/build/src/include")
+    elseif(EXISTS "${VioMATRIXC_ROOT}/release/src/include/ngspice/config.h")
+        set(VioMATRIXC_BUILD_INCLUDE "${VioMATRIXC_ROOT}/release/src/include")
+    else()
+        set(VioMATRIXC_BUILD_INCLUDE "${VioMATRIXC_ROOT}/src/include"
+            CACHE PATH "Path to VioMATRIXC build include dir (for ngspice/config.h)")
+        if(NOT EXISTS "${VioMATRIXC_BUILD_INCLUDE}/ngspice/config.h")
+            message(WARNING "ngspice/config.h not found in VioMATRIXC build tree.
+                ngspice must be configured (./configure) before building cosim targets.
+                Set VioMATRIXC_BUILD_INCLUDE cache variable to the correct path.")
+        endif()
+    endif()
+
+    set(VioAVR_COSIM_INCLUDES
+        "${VioMATRIXC_ROOT}/src/include"
+        "${VioMATRIXC_BUILD_INCLUDE}"
+    )
+
     # ------------------------------------------------------------------
     # d_cosim co-simulation shim (loaded by VioMATRIXC's d_cosim code model)
     # ------------------------------------------------------------------
     add_library(avr_cosim SHARED avr_cosim_shim.cpp)
     target_link_libraries(avr_cosim PRIVATE VioAVR::core)
 
-    target_include_directories(avr_cosim PRIVATE
-        "${VioMATRIXC_ROOT}/src/include"
-    )
+    target_include_directories(avr_cosim PRIVATE ${VioAVR_COSIM_INCLUDES})
 
     enable_lto(avr_cosim)
     set_target_properties(avr_cosim PROPERTIES
@@ -36,9 +54,7 @@ if(VIOAVR_BUILD_COSIM)
     )
 
     add_library(viospice_cm MODULE ${VIOSPICE_CM_SRCS})
-    target_include_directories(viospice_cm PRIVATE
-        "${VioMATRIXC_ROOT}/src/include"
-    )
+    target_include_directories(viospice_cm PRIVATE ${VioAVR_COSIM_INCLUDES})
     target_link_libraries(viospice_cm PRIVATE ${CMAKE_DL_LIBS})
 
     enable_lto(viospice_cm)
@@ -51,9 +67,7 @@ if(VIOAVR_BUILD_COSIM)
 
     # Also build as avr_adc_bridge.cm in cosim/ subdir for direct reference
     add_library(avr_adc_bridge MODULE ${VIOSPICE_CM_SRCS})
-    target_include_directories(avr_adc_bridge PRIVATE
-        "${VioMATRIXC_ROOT}/src/include"
-    )
+    target_include_directories(avr_adc_bridge PRIVATE ${VioAVR_COSIM_INCLUDES})
     target_link_libraries(avr_adc_bridge PRIVATE ${CMAKE_DL_LIBS})
 
     enable_lto(avr_adc_bridge)
