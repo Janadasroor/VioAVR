@@ -1,5 +1,7 @@
 #include "vioavr/core/bridge_shm_server.hpp"
+#ifndef _WIN32
 #include "vioavr/core/gdb_stub.hpp"
+#endif
 #include "vioavr/core/lcd_controller.hpp"
 #include <sys/mman.h>
 #include <sys/stat.h>
