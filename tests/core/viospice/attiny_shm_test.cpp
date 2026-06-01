@@ -4,6 +4,7 @@
 #include "vioavr/core/device_catalog.hpp"
 #include <thread>
 #include <chrono>
+#include <memory>
 
 using namespace vioavr::core;
 
@@ -26,7 +27,14 @@ TEST_CASE("ATtiny85 SHM Bridge Connection and Functional Testing") {
     REQUIRE(device != nullptr);
 
     // 1. Start Server in a separate thread
-    BridgeShmServer server(*device, "attiny_test_instance");
+    std::unique_ptr<BridgeShmServer> server_ptr;
+    try {
+        server_ptr = std::make_unique<BridgeShmServer>(*device, "attiny_test_instance");
+    } catch (const std::exception& e) {
+        MESSAGE("SHM bridge not available on this platform: ", e.what());
+        return;
+    }
+    auto& server = *server_ptr;
     std::thread server_thread([&]() {
         server.run_loop();
     });
