@@ -28,7 +28,7 @@ class ClkCtrl;
 class SlpCtrl;
 class RstCtrl;
 
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
 namespace jit {
 class AvrJit;
 struct JitDebugStats {
@@ -207,7 +207,7 @@ public:
     [[nodiscard]] u64 interrupt_check_interval() const noexcept { return interrupt_check_interval_; }
     void set_interrupt_check_interval(u64 cycles) noexcept { interrupt_check_interval_ = cycles; }
 
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
     void enable_jit(bool enabled) noexcept { jit_enabled_ = enabled; }
     [[nodiscard]] bool jit_enabled() const noexcept { return jit_enabled_; }
     [[nodiscard]] jit::JitDebugStats jit_debug_stats() const noexcept;
@@ -425,7 +425,7 @@ private:
     CpuState state_ {CpuState::halted};
     bool reset_triggered_ {false};
     u64 interrupt_check_interval_ {64};
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
     bool jit_enabled_ {false};
     std::unique_ptr<jit::AvrJit> jit_ {};
 #endif

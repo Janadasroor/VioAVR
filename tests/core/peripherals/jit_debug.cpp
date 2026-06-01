@@ -1,6 +1,6 @@
 #include "doctest.h"
 
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include <string>

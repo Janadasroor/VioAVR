@@ -20,7 +20,7 @@ void vioavr_destroy(VioSpiceHandle handle);
 bool vioavr_load_hex(VioSpiceHandle handle, const char* path);
 void vioavr_reset(VioSpiceHandle handle);
 void vioavr_set_quantum(VioSpiceHandle handle, uint64_t cycles);
-#ifndef _WIN32
+#ifdef VIOAVR_HAVE_JIT
 void vioavr_enable_jit(VioSpiceHandle handle, bool enabled);
 #endif
 
