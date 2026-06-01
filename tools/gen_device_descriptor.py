@@ -3183,12 +3183,14 @@ def generate_xmega(root, output_file=sys.stdout):
         for rn, field in ebi_base_map:
             if rn in ebi_regs:
                 out.append(f"            .{field} = {ebi_regs[rn]}U,")
-        # CS0 registers at base+0x10 (computed from EBI base)
+        # CS0..CS3 registers at base+0x10, base+0x14, base+0x18, base+0x1C
         ebi_base = ebi_regs.get("CTRL", 0)
         if ebi_base:
-            out.append(f"            .cs0_ctrla_address = {ebi_base + 0x10}U,")
-            out.append(f"            .cs0_ctrlb_address = {ebi_base + 0x11}U,")
-            out.append(f"            .cs0_baseaddr_address = {ebi_base + 0x12}U,")
+            for cs_idx in range(4):
+                cs_base = ebi_base + 0x10 + cs_idx * 4
+                out.append(f"            .cs{cs_idx}_ctrla_address = {cs_base}U,")
+                out.append(f"            .cs{cs_idx}_ctrlb_address = {cs_base + 1}U,")
+                out.append(f"            .cs{cs_idx}_baseaddr_address = {cs_base + 2}U,")
         out.append(f"        }}}}}},")
     
     # ---- IRCOM (IR Communication Module) ----

@@ -14,6 +14,15 @@ static EbiDescriptor make_test_desc() noexcept {
     d.cs0_ctrla_address = 0x20;
     d.cs0_ctrlb_address = 0x21;
     d.cs0_baseaddr_address = 0x22;
+    d.cs1_ctrla_address = 0x24;
+    d.cs1_ctrlb_address = 0x25;
+    d.cs1_baseaddr_address = 0x26;
+    d.cs2_ctrla_address = 0x28;
+    d.cs2_ctrlb_address = 0x29;
+    d.cs2_baseaddr_address = 0x2A;
+    d.cs3_ctrla_address = 0x2C;
+    d.cs3_ctrlb_address = 0x2D;
+    d.cs3_baseaddr_address = 0x2E;
     return d;
 }
 
@@ -101,8 +110,9 @@ TEST_CASE("XMEGA EBI — CS0 range updates on ENABLE + BASEADDR") {
 
     CHECK(!ebi.is_cs0_active());
 
-    // Enable EBI and set base address
+    // Enable EBI, set CS0 mode and base address
     ebi.write(d.ctrl_address, 0x01U);
+    ebi.write(d.cs0_ctrla_address, 0x01U);  // SRAM mode
     ebi.write(d.cs0_baseaddr_address, 0x00U);
     ebi.write(d.cs0_baseaddr_address + 1, 0x80U);
 
@@ -119,8 +129,9 @@ TEST_CASE("XMEGA EBI — External memory read/write through EBI") {
     Ebi ebi("EBI", d);
     ebi.reset();
 
-    // Enable + base = 0x8000
+    // Enable + mode + base = 0x8000
     ebi.write(d.ctrl_address, 0x01U);
+    ebi.write(d.cs0_ctrla_address, 0x01U);
     ebi.write(d.cs0_baseaddr_address, 0x00U);
     ebi.write(d.cs0_baseaddr_address + 1, 0x80U);
     CHECK(ebi.is_cs0_active());
@@ -154,8 +165,9 @@ TEST_CASE("XMEGA EBI — External memory returns 0xFF when disabled") {
     ebi.external_write(0x8000, 0xAAU);
     CHECK(ebi.external_read(0x8000) == 0xFFU);
 
-    // Enable, write, then disable
+    // Enable + mode + base = 0x8000
     ebi.write(d.ctrl_address, 0x01U);
+    ebi.write(d.cs0_ctrla_address, 0x01U);
     ebi.write(d.cs0_baseaddr_address, 0x00U);
     ebi.write(d.cs0_baseaddr_address + 1, 0x80U);
 
@@ -172,6 +184,7 @@ TEST_CASE("XMEGA EBI — External memory out-of-range returns 0xFF") {
     ebi.reset();
 
     ebi.write(d.ctrl_address, 0x01U);
+    ebi.write(d.cs0_ctrla_address, 0x01U);
     ebi.write(d.cs0_baseaddr_address, 0x00U);
     ebi.write(d.cs0_baseaddr_address + 1, 0x80U);
 
@@ -188,6 +201,7 @@ TEST_CASE("XMEGA EBI — Wait states from CS0_CTRLB") {
     ebi.reset();
 
     ebi.write(d.ctrl_address, 0x01U);
+    ebi.write(d.cs0_ctrla_address, 0x01U);
     ebi.write(d.cs0_baseaddr_address, 0x00U);
     ebi.write(d.cs0_baseaddr_address + 1, 0x80U);
 
@@ -203,6 +217,121 @@ TEST_CASE("XMEGA EBI — Wait states from CS0_CTRLB") {
     CHECK(ebi.get_wait_states() == 15);
 
     // Disable EBI → 0 wait states
+    ebi.write(d.ctrl_address, 0x00U);
+    CHECK(ebi.get_wait_states() == 0);
+}
+
+TEST_CASE("XMEGA EBI — CS1-CS3 chip select register access") {
+    auto d = make_test_desc();
+    Ebi ebi("EBI", d);
+    ebi.reset();
+
+    // CS1
+    ebi.write(d.cs1_ctrla_address, 0x03U);
+    CHECK(ebi.read(d.cs1_ctrla_address) == 0x03U);
+    ebi.write(d.cs1_ctrlb_address, 0x05U);
+    CHECK(ebi.read(d.cs1_ctrlb_address) == 0x05U);
+    ebi.write(d.cs1_baseaddr_address, 0x00U);
+    ebi.write(d.cs1_baseaddr_address + 1, 0x40U);
+    CHECK(ebi.read(d.cs1_baseaddr_address) == 0x00U);
+    CHECK(ebi.read(d.cs1_baseaddr_address + 1) == 0x40U);
+
+    // CS2
+    ebi.write(d.cs2_ctrla_address, 0x07U);
+    CHECK(ebi.read(d.cs2_ctrla_address) == 0x07U);
+    ebi.write(d.cs2_ctrlb_address, 0x09U);
+    CHECK(ebi.read(d.cs2_ctrlb_address) == 0x09U);
+    ebi.write(d.cs2_baseaddr_address, 0x00U);
+    ebi.write(d.cs2_baseaddr_address + 1, 0xC0U);
+    CHECK(ebi.read(d.cs2_baseaddr_address) == 0x00U);
+    CHECK(ebi.read(d.cs2_baseaddr_address + 1) == 0xC0U);
+
+    // CS3
+    ebi.write(d.cs3_ctrla_address, 0x01U);
+    CHECK(ebi.read(d.cs3_ctrla_address) == 0x01U);
+    ebi.write(d.cs3_ctrlb_address, 0x0FU);
+    CHECK(ebi.read(d.cs3_ctrlb_address) == 0x0FU);
+    ebi.write(d.cs3_baseaddr_address, 0x00U);
+    ebi.write(d.cs3_baseaddr_address + 1, 0xE0U);
+    CHECK(ebi.read(d.cs3_baseaddr_address) == 0x00U);
+    CHECK(ebi.read(d.cs3_baseaddr_address + 1) == 0xE0U);
+}
+
+TEST_CASE("XMEGA EBI — CS1-CS3 range updates on ENABLE + BASEADDR") {
+    auto d = make_test_desc();
+    Ebi ebi("EBI", d);
+    ebi.reset();
+
+    // All CS start disabled
+    CHECK(!ebi.is_cs_active(0));
+    CHECK(!ebi.is_cs_active(1));
+    CHECK(!ebi.is_cs_active(2));
+    CHECK(!ebi.is_cs_active(3));
+
+    // Enable EBI and set mode for all CS
+    ebi.write(d.ctrl_address, 0x01U);
+    ebi.write(d.cs0_ctrla_address, 0x01U);
+    ebi.write(d.cs0_baseaddr_address, 0x00U);
+    ebi.write(d.cs0_baseaddr_address + 1, 0x80U);
+    CHECK(ebi.is_cs_active(0));
+
+    ebi.write(d.cs1_ctrla_address, 0x01U);
+    ebi.write(d.cs1_baseaddr_address, 0x00U);
+    ebi.write(d.cs1_baseaddr_address + 1, 0x40U);
+    CHECK(ebi.is_cs_active(1));
+
+    ebi.write(d.cs2_ctrla_address, 0x01U);
+    ebi.write(d.cs2_baseaddr_address, 0x00U);
+    ebi.write(d.cs2_baseaddr_address + 1, 0xC0U);
+    CHECK(ebi.is_cs_active(2));
+
+    ebi.write(d.cs3_ctrla_address, 0x01U);
+    ebi.write(d.cs3_baseaddr_address, 0x00U);
+    ebi.write(d.cs3_baseaddr_address + 1, 0xE0U);
+    CHECK(ebi.is_cs_active(3));
+
+    // Changing CS0 base address updates its range
+    ebi.write(d.cs0_baseaddr_address + 1, 0x00U);
+    CHECK(ebi.cs_start(0) == 0x0000U);
+
+    // Other CS ranges unchanged
+    CHECK(ebi.cs_start(1) == 0x4000U);
+    CHECK(ebi.cs_start(2) == 0xC000U);
+    CHECK(ebi.cs_start(3) == 0xE000U);
+}
+
+TEST_CASE("XMEGA EBI — Wait states from multiple CS ranges") {
+    auto d = make_test_desc();
+    Ebi ebi("EBI", d);
+    ebi.reset();
+
+    ebi.write(d.ctrl_address, 0x01U);
+    ebi.write(d.cs0_ctrla_address, 0x01U);
+    ebi.write(d.cs0_baseaddr_address, 0x00U);
+    ebi.write(d.cs0_baseaddr_address + 1, 0x80U);
+
+    // No wait states initially
+    CHECK(ebi.get_wait_states() == 0);
+
+    // Set CS0 wait states to 3
+    ebi.write(d.cs0_ctrlb_address, 0x03U);
+    CHECK(ebi.get_wait_states() == 3);
+
+    // Set CS1 wait states to 7 — enable CS1 first
+    ebi.write(d.cs1_ctrla_address, 0x01U);
+    ebi.write(d.cs1_baseaddr_address, 0x00U);
+    ebi.write(d.cs1_baseaddr_address + 1, 0x40U);
+    ebi.write(d.cs1_ctrlb_address, 0x07U);
+    CHECK(ebi.get_wait_states() == 7);
+
+    // Set CS2 wait states to 15 — enable CS2 first
+    ebi.write(d.cs2_ctrla_address, 0x01U);
+    ebi.write(d.cs2_baseaddr_address, 0x00U);
+    ebi.write(d.cs2_baseaddr_address + 1, 0xC0U);
+    ebi.write(d.cs2_ctrlb_address, 0x0FU);
+    CHECK(ebi.get_wait_states() == 15);
+
+    // CS0 not valid when disabled
     ebi.write(d.ctrl_address, 0x00U);
     CHECK(ebi.get_wait_states() == 0);
 }

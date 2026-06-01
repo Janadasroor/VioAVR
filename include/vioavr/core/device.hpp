@@ -394,6 +394,15 @@ struct EbiDescriptor {
     u16 cs0_ctrla_address {};
     u16 cs0_ctrlb_address {};
     u16 cs0_baseaddr_address {};
+    u16 cs1_ctrla_address {};
+    u16 cs1_ctrlb_address {};
+    u16 cs1_baseaddr_address {};
+    u16 cs2_ctrla_address {};
+    u16 cs2_ctrlb_address {};
+    u16 cs2_baseaddr_address {};
+    u16 cs3_ctrla_address {};
+    u16 cs3_ctrlb_address {};
+    u16 cs3_baseaddr_address {};
 };
 
 struct IrcomDescriptor {
