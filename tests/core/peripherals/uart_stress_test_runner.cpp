@@ -15,7 +15,7 @@ TEST_CASE("Legacy UART - Stress Test (Interrupt-driven Echo)") {
     auto& machine = *machine_ptr;
 
     // Load the compiled hex file
-    auto image = HexImageLoader::load_file("/home/jnd/cpp_projects/VioAVR/tests/uart_stress_test.hex", machine.bus().device());
+    auto image = HexImageLoader::load_file("../../tests/uart_stress_test.hex", machine.bus().device());
     machine.bus().load_image(image);
     machine.reset(); // Crucial for PC and state
 
