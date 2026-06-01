@@ -23,7 +23,7 @@ public:
     virtual u8 read(u16 address) noexcept override;
     virtual void write(u16 address, u8 value) noexcept override;
     
-    void set_event_system(class EventSystem* evsys) noexcept;
+    void set_event_system(class EventSystem* evsys) noexcept override;
 
 private:
     const Crc8xDescriptor desc_;

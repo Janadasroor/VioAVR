@@ -18,7 +18,7 @@ public:
     explicit Tc(std::string name, const TcDescriptor& desc) noexcept;
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
-    void set_event_system(EventSystem* evsys) noexcept;
+    void set_event_system(EventSystem* evsys) noexcept override;
     void set_port_mux(PortMux* port_mux) noexcept { port_mux_ = port_mux; }
     void set_pin_mux(PinMux* pm) noexcept { pin_mux_ = pm; }
     void set_port_index(u8 idx) noexcept { port_index_ = idx; }
