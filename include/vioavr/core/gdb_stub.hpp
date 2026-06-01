@@ -8,7 +8,9 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#ifndef _WIN32
 #include <netinet/in.h>
+#endif
 
 namespace vioavr::core {
 
