@@ -2,7 +2,9 @@
 
 #include "vioavr/core/types.hpp"
 #include "vioavr/core/x86_assembler.hpp"
+#ifndef _WIN32
 #include <sys/mman.h>
+#endif
 #include <cstdint>
 #include <cstddef>
 #include <unordered_map>
