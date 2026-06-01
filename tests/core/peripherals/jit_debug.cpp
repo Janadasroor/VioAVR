@@ -1,4 +1,6 @@
 #include "doctest.h"
+
+#ifndef _WIN32
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/hex_image.hpp"
 #include <string>
@@ -153,3 +155,6 @@ TEST_CASE("JIT divergence: pin down") {
         }
     }
 }
+#else
+TEST_CASE("JIT divergence: pin down") {}
+#endif
