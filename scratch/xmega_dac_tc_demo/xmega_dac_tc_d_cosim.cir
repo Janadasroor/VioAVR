@@ -1,0 +1,28 @@
+* VioAVR ATxmega8E5 DAC + TC Co-Simulation Demo (d_cosim)
+* - TC4 single-slope PWM on PORTC bit 4 (WO0), ~80kHz, ~50% duty
+* - DACA channel 0 analog output on PA2, data=0x09B2 at Vref=5.0V => ~3.03V
+* PORTA=0-7, PORT[C]=16-23 (letter-based idx=2), PORTD=24-31 (idx=3)
+* PORTC bit 4 = ext_id 20 = d_out[20]
+
+* dac_bridge: digital PC4 -> analog pc4_an (digital model, uses brackets)
+A_pc4 [pc4_dig] [pc4_an] dac_bridge_model
+.model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+R_pull_pc4 pc4_dig 0 10k
+
+* avr_dac_bridge: VioAVR DAC analog output (analog model, scalar connections)
+A_dac0 0 dac_ch0_an avr_dac_bridge_model
+.model avr_dac_bridge_model avr_dac_bridge(channel=0)
+
+* d_cosim: 32-element vectors, d_out[20] = PORTC bit 4 = pc4_dig
+A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 pc4_dig 0 0 0 0 0 0 0 0 0 0 0] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atxmega8e5","firmware.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+
+.tran 1us 5ms
+
+.control
+run
+print v(pc4_an) v(pc4_dig) v(dac_ch0_an) > sim_matrix.log
+plot v(pc4_an) v(dac_ch0_an)
+.endc
+.end

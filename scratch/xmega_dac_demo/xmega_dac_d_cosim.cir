@@ -1,0 +1,25 @@
+* VioAVR ATxmega8E5 DAC + TC Co-Simulation Demo (d_cosim)
+* DAC CH0 ramps through voltage levels
+* TCC4 single-slope PWM output on PC4 (WO0, external ID 20)
+* PC0 (external ID 16) tracks DAC > half-scale
+
+A_pc4 [pc4_dig] [pc4_an] dac_bridge_model
+.model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+A_pc0 [pc0_dig] [pc0_an] dac_bridge_model2
+.model dac_bridge_model2 dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+R_pull_pc4 pc4_dig 0 10k
+R_pull_pc0 pc0_dig 0 10k
+
+A_AVR [gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd] [gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd gnd pc0_dig gnd gnd gnd pc4_dig gnd gnd gnd] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atxmega8e5","firmware.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+
+.tran 1us 2ms
+
+.control
+run
+print v(pc4_an) v(pc0_an) > sim_matrix.log
+plot v(pc4_an) v(pc0_an)
+.endc
+.end
