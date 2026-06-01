@@ -344,6 +344,8 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     for (u8 i = 0; i < device.dac_count; ++i) {
         auto dac = std::make_unique<Dac>("DAC" + std::to_string(i), device.dacs[i]);
         dac->set_memory_bus(&bus_);
+        dac->set_analog_signal_bank(&analog_signal_bank_);
+        dac->set_vref(device.operating_voltage_v);
         dacs_.push_back(dac.get());
         bus_.attach_peripheral(*dac);
         owned_peripherals_.push_back(std::move(dac));
