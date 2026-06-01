@@ -767,6 +767,7 @@ void Machine::initialize_peripherals()
     if (device_.xmem.xmcra_address != 0) {
         auto xmem = std::make_unique<Xmem>(bus_->device(), cpu_->cpu_control());
         bus_->attach_peripheral(*xmem);
+        bus_->set_xmem(xmem.get());
         owned_peripherals_.push_back(std::move(xmem));
     }
 
@@ -875,6 +876,9 @@ void Machine::wire_peripherals()
             }
             if (auto* t16 = dynamic_cast<Timer16*>(p.get())) {
                 t16->connect_adc(*adc);
+            }
+            if (auto* ext = dynamic_cast<ExtInterrupt*>(p.get())) {
+                adc->connect_external_interrupt_0_auto_trigger(*ext);
             }
             if (auto* psc = dynamic_cast<Psc*>(p.get())) {
                 psc->connect_adc_trigger(*adc);
