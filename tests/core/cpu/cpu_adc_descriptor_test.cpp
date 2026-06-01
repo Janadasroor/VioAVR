@@ -6,7 +6,9 @@
 #include "vioavr/core/devices/atmega328p.hpp"
 
 using namespace vioavr::core;
+namespace {
 void step_to(AvrCpu& cpu, u32 target_pc) { while (cpu.program_counter() < target_pc && cpu.state() != CpuState::halted) { cpu.step(); } }
+} // namespace
 TEST_CASE("ADC Descriptor and Trigger Logic Test")
 {
     using vioavr::core::Adc;
