@@ -245,8 +245,13 @@ static int parse_sim_args(struct co_info* info, struct SimConfig* cfg)
         for (int i = argc - 1; i >= 2; i--) {
             const char* a = info->sim_argv[i];
             if (!a) continue;
-            if (a[0] == '1' || a[0] == '0') {
-                if (a[1] == '\0') { flags++; continue; }
+            if (a[0] == '1' && a[1] == '\0') { flags++; continue; }
+            if (a[0] == '0' && a[1] == '\0') { flags++; continue; }
+            /* Numeric voltage (e.g. "3.0") - must be non-negative, <= 5.0 */
+            if (a[0] >= '0' && a[0] <= '5') {
+                char* end = NULL;
+                double v = strtod(a, &end);
+                if (end != a && *end == '\0' && v >= 0.0 && v <= 5.0) { flags++; continue; }
             }
             if (strcmp(a, "hc05") == 0) { flags++; continue; }
             if (strncmp(a, "data=", 5) == 0) { flags++; continue; }

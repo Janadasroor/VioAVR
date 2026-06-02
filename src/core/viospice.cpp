@@ -309,6 +309,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         auto adc = std::make_unique<Adc>("ADC" + std::to_string(i), device.adcs[i], pin_mux_, i, 0);
         adc->set_bus(bus_);
         adc->bind_signal_bank(analog_signal_bank_);
+        if (pin_map_) {
+            adc->bind_pin_map(*pin_map_);
+        }
         adc->set_vref(device.operating_voltage_v);
         bus_.attach_peripheral(*adc);
         owned_peripherals_.push_back(std::move(adc));
@@ -319,6 +322,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         adc->set_memory_bus(&bus_);
         adc->set_event_system(evsys);
         adc->set_analog_signal_bank(&analog_signal_bank_);
+        adc->set_vdd(5.0);
         bus_.attach_peripheral(*adc);
         owned_peripherals_.push_back(std::move(adc));
     }
@@ -505,7 +509,21 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // 11. Analog Comparator
     for (int i = 0; i < static_cast<int>(device.ac_count); ++i) {
-        auto ac = std::make_unique<AnalogComparator>("AC" + std::to_string(i), device.acs[i], pin_mux_, static_cast<u8>(i));
+        const auto& desc = device.acs[i];
+        auto ac = std::make_unique<AnalogComparator>("AC" + std::to_string(i), desc, pin_mux_, static_cast<u8>(i));
+        
+        u8 pos_chan = 0;
+        u8 neg_chan = 0;
+        if (pin_map_) {
+            if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aip_pin_address, desc.aip_pin_bit)) {
+                pos_chan = *ext_id;
+            }
+            if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aim_pin_address, desc.aim_pin_bit)) {
+                neg_chan = *ext_id;
+            }
+        }
+        ac->bind_signal_bank(analog_signal_bank_, pos_chan, neg_chan);
+
         for (auto& p : owned_peripherals_) {
             if (auto* t16 = dynamic_cast<Timer16*>(p.get())) {
                 if (t16->name() == "TIMER1") t16->connect_analog_comparator(*ac);
@@ -862,6 +880,24 @@ bool VioSpice::load_hex_image(const HexImage& image) {
 void VioSpice::set_pin_map(std::unique_ptr<PinMap> pin_map) {
     pin_map_ = std::move(pin_map);
     bus_.set_pin_map(pin_map_.get());
+    if (pin_map_) {
+        for (auto& p : owned_peripherals_) {
+            if (auto* adc = dynamic_cast<Adc*>(p.get())) {
+                adc->bind_pin_map(*pin_map_);
+            } else if (auto* ac = dynamic_cast<AnalogComparator*>(p.get())) {
+                const auto& desc = ac->descriptor();
+                u8 pos_chan = 0;
+                u8 neg_chan = 0;
+                if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aip_pin_address, desc.aip_pin_bit)) {
+                    pos_chan = *ext_id;
+                }
+                if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aim_pin_address, desc.aim_pin_bit)) {
+                    neg_chan = *ext_id;
+                }
+                ac->bind_signal_bank(analog_signal_bank_, pos_chan, neg_chan);
+            }
+        }
+    }
 }
 
 void VioSpice::add_pin_mapping(std::string_view port_name, u8 bit_index, u32 external_id, std::string_view label) {
@@ -870,6 +906,22 @@ void VioSpice::add_pin_mapping(std::string_view port_name, u8 bit_index, u32 ext
         auto it = port_map_.find(std::string(port_name));
         if (it != port_map_.end()) addr = it->second->pin_address();
         pin_map_->add_mapping(port_name, addr, bit_index, external_id, label);
+
+        // Re-bind analog comparators since the pin map has been updated
+        for (auto& p : owned_peripherals_) {
+            if (auto* ac = dynamic_cast<AnalogComparator*>(p.get())) {
+                const auto& desc = ac->descriptor();
+                u8 pos_chan = 0;
+                u8 neg_chan = 0;
+                if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aip_pin_address, desc.aip_pin_bit)) {
+                    pos_chan = *ext_id;
+                }
+                if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aim_pin_address, desc.aim_pin_bit)) {
+                    neg_chan = *ext_id;
+                }
+                ac->bind_signal_bank(analog_signal_bank_, pos_chan, neg_chan);
+            }
+        }
     }
 }
 
@@ -909,6 +961,27 @@ void VioSpice::set_external_voltage_to_digital(u32 external_id, double voltage) 
 
 void VioSpice::set_operating_voltage(double vcc) {
     bus_.device().operating_voltage_v = vcc;
+
+    for (auto& p : owned_peripherals_) {
+        IoPeripheral* ptr = p.get();
+        if (auto* adc8x = dynamic_cast<Adc8x*>(ptr)) {
+            adc8x->set_vdd(vcc);
+        } else if (auto* ac8x = dynamic_cast<Ac8x*>(ptr)) {
+            ac8x->set_vdd(vcc);
+        } else if (auto* zcd = dynamic_cast<Zcd*>(ptr)) {
+            zcd->set_vdd(vcc);
+        } else if (auto* opamp = dynamic_cast<Opamp*>(ptr)) {
+            opamp->set_vdd(vcc);
+        } else if (auto* dac = dynamic_cast<Dac*>(ptr)) {
+            dac->set_vref(vcc);
+        } else if (auto* dac8x = dynamic_cast<Dac8x*>(ptr)) {
+            dac8x->set_vref(vcc);
+        } else if (auto* xdac = dynamic_cast<XmegaDac*>(ptr)) {
+            xdac->set_vref(vcc);
+        } else if (auto* adc = dynamic_cast<Adc*>(ptr)) {
+            adc->set_vref(vcc);
+        }
+    }
 }
 
 std::vector<PinStateChange> VioSpice::consume_pin_changes() {

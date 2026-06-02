@@ -26,7 +26,11 @@ struct alignas(64) JitState {
     uint8_t sreg{0};
     uint8_t reserved1{0};
     uint64_t cycles{0};
-    MemoryBus* bus{nullptr};  // for memory access helpers (set by run())
+    MemoryBus* bus{nullptr};
+    uint8_t* bus_data{nullptr};  // points to bus->data_space() for fast I/O access
+    uint8_t interrupt_depth{0};  // for JIT-compiled RETI
+    uint8_t interrupt_delay{0};  // one-instruction delay after SEI/RETI
+    uint8_t _pad[54]{};          // pad to 128 bytes (2×64 cache lines)
 };
 
 inline uint8_t sreg_to_byte(bool c, bool z, bool n, bool v, bool s, bool h, bool t, bool i) {
@@ -103,7 +107,8 @@ public:
     AvrJit& operator=(const AvrJit&) = delete;
 
     // Try to translate a block starting at PC. Returns true on success.
-    bool translate(uint32_t start_pc, const u16* flash, uint32_t flash_size);
+    bool translate(uint32_t start_pc, const u16* flash, uint32_t flash_size,
+                   u16 sreg_address = 0x5F);
 
     // Execute a cached block. JitState is pre-populated with current CPU state.
     void execute(uint32_t start_pc, JitState* state);
@@ -136,6 +141,7 @@ private:
 
     const u16* flash_{nullptr};
     uint32_t flash_size_{0};
+    u16 sreg_address_{0x5F};
 
     // Debug counters
     uint64_t translate_count_{0};

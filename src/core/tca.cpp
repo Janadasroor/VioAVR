@@ -292,7 +292,7 @@ void Tca::write(u16 address, u8 value) noexcept {
         else if (address == desc_.period_address) temp_ = value;
         else if (address == desc_.period_address + 1) norm_.per = (static_cast<u16>(value) << 8U) | temp_;
         else if (address == desc_.cmp0_address) temp_ = value;
-        else if (address == desc_.cmp0_address + 1) norm_.cmp0 = (static_cast<u16>(value) << 8U) | temp_;
+        else if (address == desc_.cmp0_address + 1) { norm_.cmp0 = (static_cast<u16>(value) << 8U) | temp_; }
         else if (address == desc_.cmp1_address) temp_ = value;
         else if (address == desc_.cmp1_address + 1) norm_.cmp1 = (static_cast<u16>(value) << 8U) | temp_;
         else if (address == desc_.cmp2_address) temp_ = value;

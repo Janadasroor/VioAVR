@@ -1,0 +1,57 @@
+* VioAVR SMPS Buck Converter — Simplified for debugging
+.title SMPS Buck — Simplified
+
+.options method=trap reltol=1e-3 trtol=3
+
+* 12V Input
+V_in vin 0 12
+
+* Gate Drive: B-source directly drives gate vs sw
+R_pb0_dig pb0_dig 0 10k
+B_gs gate_sw sw V= 10 * (V(pb0_dig) > 2.5)
+R_gate gate_sw gate 22
+
+* VDMOS
+M1 vin gate sw 0 VDMOS_PWR
+.model VDMOS_PWR VDMOS(Vto=2.5 Rd=0.1 Rds=1e6 Cgs=200p Cgd=50p)
+
+* Freewheeling diode
+D1 0 sw SCHOTTKY
+.model SCHOTTKY D(Is=1e-7 N=1.05)
+
+* LC filter
+L1 sw vout 100uH IC=0
+C1 vout 0 47uF IC=0
+R_load vout 0 10
+
+* Feedback: avr_adc_bridge monitors Vout
+A_adc_fb vout dummy_fb adc_fb_model
+.model adc_fb_model avr_adc_bridge(channel=0)
+R_dummy_fb dummy_fb 0 1k
+
+* AVR (ATmega4809)
+A_AVR
++ [0 0 0 0 0 0 0 0
++  pb0_dig 0 0 0 0 0 0 0
++  pc0_dig 0 0 0 0 0 0 0
++  0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 0 0 0
++  pb0_dig 0 0 0 0 0 0 0
++  pc0_dig 0 0 0 0 0 0 0
++  0 0 0 0 0 0 0 0]
++ d_cosim_model
+
+.model d_cosim_model d_cosim(
++ simulation="./cosim/libavr_cosim.so"
++ sim_args=["atmega4809","firmware.hex","1"]
++ queue_size=1024 irreversible=1 delay=1e-9)
+
+.tran 0.1u 5m uic
+
+.control
+run
+print v(vout) v(sw) v(pb0_dig) > sim_matrix.log
+plot v(vout)
+.endc
+
+.end

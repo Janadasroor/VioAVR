@@ -1,0 +1,3 @@
+codemodel /home/jnd/cpp_projects/VioMATRIXC/release/src/xspice/icm/digital/digital.cm
+codemodel /home/jnd/cpp_projects/VioMATRIXC/release/src/xspice/icm/analog/analog.cm
+codemodel /home/jnd/cpp_projects/VioAVR/build/cosim/avr_adc_bridge.cm

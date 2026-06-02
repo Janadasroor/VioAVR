@@ -1,0 +1,151 @@
+
+fw.elf:     file format elf32-avr
+
+
+Disassembly of section .text:
+
+00000000 <__vectors>:
+   0:	0c 94 50 00 	jmp	0xa0	; 0xa0 <__ctors_end>
+   4:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+   8:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+   c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  10:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  14:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  18:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  1c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  20:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  24:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  28:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  2c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  30:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  34:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  38:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  3c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  40:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  44:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  48:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  4c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  50:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  54:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  58:	0c 94 5c 00 	jmp	0xb8	; 0xb8 <__vector_22>
+  5c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  60:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  64:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  68:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  6c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  70:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  74:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  78:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  7c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  80:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  84:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  88:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  8c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  90:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  94:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  98:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+  9c:	0c 94 5a 00 	jmp	0xb4	; 0xb4 <__bad_interrupt>
+
+000000a0 <__ctors_end>:
+  a0:	11 24       	eor	r1, r1
+  a2:	1f be       	out	0x3f, r1	; 63
+  a4:	cf ef       	ldi	r28, 0xFF	; 255
+  a6:	cd bf       	out	0x3d, r28	; 61
+  a8:	df e3       	ldi	r29, 0x3F	; 63
+  aa:	de bf       	out	0x3e, r29	; 62
+  ac:	0e 94 8d 00 	call	0x11a	; 0x11a <main>
+  b0:	0c 94 bb 00 	jmp	0x176	; 0x176 <_exit>
+
+000000b4 <__bad_interrupt>:
+  b4:	0c 94 00 00 	jmp	0	; 0x0 <__vectors>
+
+000000b8 <__vector_22>:
+  b8:	1f 92       	push	r1
+  ba:	1f b6       	in	r1, 0x3f	; 63
+  bc:	1f 92       	push	r1
+  be:	11 24       	eor	r1, r1
+  c0:	2f 93       	push	r18
+  c2:	3f 93       	push	r19
+  c4:	8f 93       	push	r24
+  c6:	9f 93       	push	r25
+  c8:	20 91 10 06 	lds	r18, 0x0610	; 0x800610 <__TEXT_REGION_LENGTH__+0x7f4610>
+  cc:	30 91 11 06 	lds	r19, 0x0611	; 0x800611 <__TEXT_REGION_LENGTH__+0x7f4611>
+  d0:	83 ea       	ldi	r24, 0xA3	; 163
+  d2:	92 e0       	ldi	r25, 0x02	; 2
+  d4:	82 1b       	sub	r24, r18
+  d6:	93 0b       	sbc	r25, r19
+  d8:	97 fd       	sbrc	r25, 7
+  da:	4f 96       	adiw	r24, 0x1f	; 31
+  dc:	35 e0       	ldi	r19, 0x05	; 5
+
+000000de <.L1^B1>:
+  de:	95 95       	asr	r25
+  e0:	87 95       	ror	r24
+  e2:	3a 95       	dec	r19
+  e4:	e1 f7       	brne	.-8      	; 0xde <.L1^B1>
+  e6:	89 96       	adiw	r24, 0x29	; 41
+  e8:	80 3a       	cpi	r24, 0xA0	; 160
+  ea:	91 05       	cpc	r25, r1
+  ec:	8c f0       	brlt	.+34     	; 0x110 <.L3>
+  ee:	8f e9       	ldi	r24, 0x9F	; 159
+  f0:	90 e0       	ldi	r25, 0x00	; 0
+
+000000f2 <.L4>:
+  f2:	80 93 28 0a 	sts	0x0A28, r24	; 0x800a28 <__TEXT_REGION_LENGTH__+0x7f4a28>
+  f6:	90 93 29 0a 	sts	0x0A29, r25	; 0x800a29 <__TEXT_REGION_LENGTH__+0x7f4a29>
+  fa:	81 e0       	ldi	r24, 0x01	; 1
+  fc:	80 93 08 06 	sts	0x0608, r24	; 0x800608 <__TEXT_REGION_LENGTH__+0x7f4608>
+ 100:	9f 91       	pop	r25
+ 102:	8f 91       	pop	r24
+ 104:	3f 91       	pop	r19
+ 106:	2f 91       	pop	r18
+ 108:	1f 90       	pop	r1
+ 10a:	1f be       	out	0x3f, r1	; 63
+ 10c:	1f 90       	pop	r1
+ 10e:	18 95       	reti
+
+00000110 <.L3>:
+ 110:	97 ff       	sbrs	r25, 7
+ 112:	ef cf       	rjmp	.-34     	; 0xf2 <.L4>
+ 114:	80 e0       	ldi	r24, 0x00	; 0
+ 116:	90 e0       	ldi	r25, 0x00	; 0
+ 118:	ec cf       	rjmp	.-40     	; 0xf2 <.L4>
+
+0000011a <main>:
+ 11a:	80 91 20 04 	lds	r24, 0x0420	; 0x800420 <__TEXT_REGION_LENGTH__+0x7f4420>
+ 11e:	81 60       	ori	r24, 0x01	; 1
+ 120:	80 93 20 04 	sts	0x0420, r24	; 0x800420 <__TEXT_REGION_LENGTH__+0x7f4420>
+ 124:	80 91 40 04 	lds	r24, 0x0440	; 0x800440 <__TEXT_REGION_LENGTH__+0x7f4440>
+ 128:	81 60       	ori	r24, 0x01	; 1
+ 12a:	80 93 40 04 	sts	0x0440, r24	; 0x800440 <__TEXT_REGION_LENGTH__+0x7f4440>
+ 12e:	81 e0       	ldi	r24, 0x01	; 1
+ 130:	80 93 e4 05 	sts	0x05E4, r24	; 0x8005e4 <__TEXT_REGION_LENGTH__+0x7f45e4>
+ 134:	2f e9       	ldi	r18, 0x9F	; 159
+ 136:	30 e0       	ldi	r19, 0x00	; 0
+ 138:	20 93 26 0a 	sts	0x0A26, r18	; 0x800a26 <__TEXT_REGION_LENGTH__+0x7f4a26>
+ 13c:	30 93 27 0a 	sts	0x0A27, r19	; 0x800a27 <__TEXT_REGION_LENGTH__+0x7f4a27>
+ 140:	29 e2       	ldi	r18, 0x29	; 41
+ 142:	30 e0       	ldi	r19, 0x00	; 0
+ 144:	20 93 28 0a 	sts	0x0A28, r18	; 0x800a28 <__TEXT_REGION_LENGTH__+0x7f4a28>
+ 148:	30 93 29 0a 	sts	0x0A29, r19	; 0x800a29 <__TEXT_REGION_LENGTH__+0x7f4a29>
+ 14c:	93 e1       	ldi	r25, 0x13	; 19
+ 14e:	90 93 01 0a 	sts	0x0A01, r25	; 0x800a01 <__TEXT_REGION_LENGTH__+0x7f4a01>
+ 152:	80 93 00 0a 	sts	0x0A00, r24	; 0x800a00 <__TEXT_REGION_LENGTH__+0x7f4a00>
+ 156:	80 93 00 06 	sts	0x0600, r24	; 0x800600 <__TEXT_REGION_LENGTH__+0x7f4600>
+ 15a:	92 e0       	ldi	r25, 0x02	; 2
+ 15c:	90 93 01 06 	sts	0x0601, r25	; 0x800601 <__TEXT_REGION_LENGTH__+0x7f4601>
+ 160:	90 e1       	ldi	r25, 0x10	; 16
+ 162:	90 93 02 06 	sts	0x0602, r25	; 0x800602 <__TEXT_REGION_LENGTH__+0x7f4602>
+ 166:	10 92 06 06 	sts	0x0606, r1	; 0x800606 <__TEXT_REGION_LENGTH__+0x7f4606>
+ 16a:	80 93 0a 06 	sts	0x060A, r24	; 0x80060a <__TEXT_REGION_LENGTH__+0x7f460a>
+ 16e:	80 93 08 06 	sts	0x0608, r24	; 0x800608 <__TEXT_REGION_LENGTH__+0x7f4608>
+ 172:	78 94       	sei
+
+00000174 <.L6>:
+ 174:	ff cf       	rjmp	.-2      	; 0x174 <.L6>
+
+00000176 <_exit>:
+ 176:	f8 94       	cli
+
+00000178 <__stop_program>:
+ 178:	ff cf       	rjmp	.-2      	; 0x178 <__stop_program>

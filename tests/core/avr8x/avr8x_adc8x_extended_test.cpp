@@ -129,7 +129,8 @@ TEST_CASE("ADC8X — Basic conversion") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x01); // VREFSEL=VDD, PRESC=DIV4
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x00); // VREFSEL=INT
     bus.write_data(MUXPOS, 0x00);
     bus.write_data(CTRLA, 0x01); // ENABLE
 
@@ -159,7 +160,8 @@ TEST_CASE("ADC8X — INTFLAGS write-1-to-clear") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11); // VREFSEL=VDD, PRESC=DIV4
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(CTRLA, 0x01);
     bus.write_data(COMMAND, 0x01);
     machine.run(200);
@@ -185,7 +187,8 @@ TEST_CASE("ADC8X — 8-bit mode") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11); // VDD, DIV4
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(CTRLA, 0x05); // ENABLE + RESSEL=1 (8-bit)
     bus.write_data(COMMAND, 0x01);
     machine.run(200);
@@ -211,8 +214,8 @@ TEST_CASE("ADC8X — Accumulation mode") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11); // VDD, DIV4
-    bus.write_data(CTRLB, 0x01); // SAMPNUM=1 (2 samples)
+    bus.write_data(CTRLB, 0x11); // PRESC=DIV4, SAMPNUM=1 (2 samples)
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(CTRLA, 0x01); // ENABLE
     bus.write_data(COMMAND, 0x01);
     machine.run(500);
@@ -236,8 +239,9 @@ TEST_CASE("ADC8X — Window comparator BELOW") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11); // VDD, DIV4
-    bus.write_data(WINLT, 0xC8); // LOW threshold (200, result ~155 < 200)
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
+    bus.write_data(WINLT, 0xC8); // LOW threshold (200, result ~102 < 200)
     bus.write_data(WINHT, 0xFF);
     bus.write_data(CTRLE, 0x01); // WINCM=BELOW
     bus.write_data(CTRLA, 0x01);
@@ -263,9 +267,10 @@ TEST_CASE("ADC8X — Window comparator ABOVE") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11);
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(WINLT, 0x00);
-    bus.write_data(WINHT, 0x80); // HIGH threshold (2.58V)
+    bus.write_data(WINHT, 0x80); // HIGH threshold (0.625V at VDD=5V)
     bus.write_data(CTRLE, 0x02); // WINCM=ABOVE
     bus.write_data(CTRLA, 0x01);
     bus.write_data(COMMAND, 0x01);
@@ -290,10 +295,11 @@ TEST_CASE("ADC8X — Window comparator INSIDE") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11);
-    bus.write_data(WINLT, 0x00); // 0x02BC = 700
-    bus.write_data(WINLT + 1, 0x02);
-    bus.write_data(WINHT, 0x20); // 0x0320 = 800
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
+    bus.write_data(WINLT, 0x00); // 0x0100 = 256
+    bus.write_data(WINLT + 1, 0x01);
+    bus.write_data(WINHT, 0x00); // 0x0300 = 768
     bus.write_data(WINHT + 1, 0x03);
     bus.write_data(CTRLE, 0x03); // WINCM=INSIDE
     bus.write_data(CTRLA, 0x01);
@@ -319,9 +325,10 @@ TEST_CASE("ADC8X — Window comparator OUTSIDE") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11);
-    bus.write_data(WINLT, 0x80); // 1.65V
-    bus.write_data(WINHT, 0x90); // 1.86V
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
+    bus.write_data(WINLT, 0x80); // 0.625V at VDD=5V
+    bus.write_data(WINHT, 0x90); // 0.703V at VDD=5V
     bus.write_data(CTRLE, 0x04); // WINCM=OUTSIDE
     bus.write_data(CTRLA, 0x01);
     bus.write_data(COMMAND, 0x01);
@@ -367,13 +374,14 @@ TEST_CASE("ADC8X — MUXPOS different channel") {
     auto adcs = machine.peripherals_of_type<Adc8x>();
     adcs[0]->set_analog_signal_bank(&bank);
     bank.set_voltage(0, 0.0);
-    bank.set_voltage(1, 3.3);
+    bank.set_voltage(1, 5.0);
 
     std::vector<u16> prog(1000, 0x0000);
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11);
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(MUXPOS, 0x01); // AIN1
     bus.write_data(CTRLA, 0x01);
     bus.write_data(COMMAND, 0x01);
@@ -400,7 +408,8 @@ TEST_CASE("ADC8X — Interrupt enable RESRDY") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11);
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(INTCTRL, 0x01); // RESRDYIE
     bus.write_data(CTRLA, 0x01);
     bus.write_data(COMMAND, 0x01);
@@ -427,7 +436,8 @@ TEST_CASE("ADC8X — Interrupt disabled no pending") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    bus.write_data(CTRLC, 0x11);
+    bus.write_data(CTRLB, 0x10); // PRESC=DIV4
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(INTCTRL, 0x00); // Interrupts disabled
     bus.write_data(CTRLA, 0x01);
     bus.write_data(COMMAND, 0x01);
@@ -454,8 +464,9 @@ TEST_CASE("ADC8X — Prescaler affects timing") {
     bus.load_flash(prog);
     machine.cpu().reset();
 
-    // DIV128 (prescaler=7 -> 256) = very slow
-    bus.write_data(CTRLC, 0x17); // VDD, DIV128
+    // DIV256 (prescaler=7 -> 256) = very slow
+    bus.write_data(CTRLB, 0x70); // PRESC=DIV256
+    bus.write_data(CTRLC, 0x10); // VREFSEL=VDD
     bus.write_data(CTRLA, 0x01);
     bus.write_data(COMMAND, 0x01);
     machine.run(100);

@@ -359,6 +359,31 @@ void jit_ret(JitState* state) {
     state->pc = static_cast<uint32_t>(low) | (static_cast<uint32_t>(high) << 8);
 }
 
+void jit_reti(JitState* state) {
+    // Pop PC from stack (same as RET)
+    state->sp++;
+    uint8_t high = state->bus->read_data(state->sp);
+    state->sp++;
+    uint8_t low = state->bus->read_data(state->sp);
+    state->pc = static_cast<uint32_t>(low) | (static_cast<uint32_t>(high) << 8);
+
+    // Set I-flag in SREG
+    state->sreg |= 0x80U;
+
+    // Decrement interrupt depth (don't underflow)
+    if (state->interrupt_depth > 0) {
+        state->interrupt_depth--;
+    }
+
+    // One-instruction delay before next interrupt
+    state->interrupt_delay = 1;
+
+    // Notify peripherals (e.g., CPUINT) that RETI executed
+    if (state->bus != nullptr) {
+        state->bus->on_reti();
+    }
+}
+
 } // extern "C"
 
 // ---------------------------------------------------------------------------
@@ -638,8 +663,8 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
     }
 
     case 0x8000: case 0x9000: case 0xA000: case 0xB000: {
-        // RET only — RETI (0x9518) falls to interpreter to handle I-flag re-enable,
-        // interrupt_depth_ decrement, and bus_->on_reti() (not in JitState).
+        // RET (0x9508) and RETI (0x9518) — both JIT-compiled. RETI handles I-flag
+        // re-enable, interrupt_depth decrement, and bus->on_reti() via jit_reti().
         if (opcode == 0x9508) {
             buf.mov(Reg64::rdi, Reg64::r14);
             buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_ret));
@@ -649,7 +674,12 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             return 1;
         }
         if (opcode == 0x9518) {
-            return 0;  // unsupported — let interpreter handle RETI fully
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_reti));
+            buf.call(Reg64::r11);
+            buf.add_membase_imm32(Reg64::r14, 40, 4); // 4 cycles for 2-byte PC
+            block_ended = true;
+            return 1;
         }
 
         // LDD Y+q: (opcode & 0xD208) == 0x8008
@@ -734,17 +764,20 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             return 1;
         }
 
-        // IN: (opcode & 0xF800) == 0xB000
+        // IN: (opcode & 0xF800) == 0xB000 — inline x86 for fast I/O read
         if ((opcode & 0xF800) == 0xB000) {
             uint8_t reg = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t io_offset = static_cast<uint8_t>(((opcode >> 5) & 0x30) | (opcode & 0x0F));
             uint16_t data_addr = 0x20 + io_offset;
-            // Call jit_read_data(state, data_addr)
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
-            buf.call(Reg64::r11);
-            buf.mov_membase8(Reg8::al, Reg64::r14, reg);
+            // Inline: read from bus_data (or JitState.sreg for SREG)
+            // Avoids C function call + bus dispatch overhead.
+            if (data_addr == sreg_address_) {
+                buf.movzx_membase(Reg64::rax, Reg64::r14, 38); // al = JitState.sreg
+            } else {
+                buf.mov_load_reg(Reg64::rax, Reg64::r14, 56);  // rax = JitState.bus_data
+                buf.mov_load8(Reg8::al, Reg64::rax, data_addr); // al = bus_data[addr]
+            }
+            buf.mov_membase8(Reg8::al, Reg64::r14, reg);        // gpr[reg] = al
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -1217,9 +1250,11 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
 // ---------------------------------------------------------------------------
 // translate: build a basic block starting at start_pc
 // ---------------------------------------------------------------------------
-bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size) {
+bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size,
+                       u16 sreg_address) {
     flash_ = flash;
     flash_size_ = flash_size;
+    sreg_address_ = sreg_address;
     translate_count_++;
     CodeBuffer buf;
 
