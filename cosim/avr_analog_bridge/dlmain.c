@@ -18,13 +18,15 @@
 #include "ngspice/inpdefs.h"
 #include "ngspice/inertial.h"
 
-/* Two models in this .cm */
+/* Three models in this .cm */
 extern SPICEdev cm_avr_adc_bridge_info;
 extern SPICEdev cm_avr_dac_bridge_info;
+extern SPICEdev cm_avr_vcc_bridge_info;
 
 SPICEdev *cmDEVices[] = {
     &cm_avr_adc_bridge_info,
     &cm_avr_dac_bridge_info,
+    &cm_avr_vcc_bridge_info,
     NULL
 };
 
