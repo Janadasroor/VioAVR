@@ -1,14 +1,12 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define FEED_FWD 44
-
 ISR(ADC0_RESRDY_vect)
 {
     int adc = ADC0_RES;
     int error = (int)675 - adc;
-    int corr = error / 32;
-    int duty = FEED_FWD + corr;
+    int corr = error / 8;
+    int duty = 42 + corr;
     if (duty < 0) duty = 0;
     if (duty > 159) duty = 159;
     TCA0_SINGLE_CMP0 = (unsigned int)duty;
@@ -23,7 +21,7 @@ int main(void)
     PORTMUX_TCAROUTEA = PORTMUX_TCA0_PORTB_gc;
 
     TCA0_SINGLE_PER = 159;
-    TCA0_SINGLE_CMP0 = FEED_FWD;
+    TCA0_SINGLE_CMP0 = 42;
     TCA0_SINGLE_CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc | TCA_SINGLE_CMP0EN_bm;
     TCA0_SINGLE_CTRLA = TCA_SINGLE_CLKSEL_DIV1_gc | TCA_SINGLE_ENABLE_bm;
 

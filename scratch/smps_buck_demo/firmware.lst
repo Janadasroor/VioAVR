@@ -75,15 +75,15 @@ Disassembly of section .text:
   d4:	82 1b       	sub	r24, r18
   d6:	93 0b       	sbc	r25, r19
   d8:	97 fd       	sbrc	r25, 7
-  da:	4f 96       	adiw	r24, 0x1f	; 31
-  dc:	35 e0       	ldi	r19, 0x05	; 5
+  da:	07 96       	adiw	r24, 0x07	; 7
+  dc:	33 e0       	ldi	r19, 0x03	; 3
 
 000000de <.L1^B1>:
   de:	95 95       	asr	r25
   e0:	87 95       	ror	r24
   e2:	3a 95       	dec	r19
   e4:	e1 f7       	brne	.-8      	; 0xde <.L1^B1>
-  e6:	89 96       	adiw	r24, 0x29	; 41
+  e6:	8a 96       	adiw	r24, 0x2a	; 42
   e8:	80 3a       	cpi	r24, 0xA0	; 160
   ea:	91 05       	cpc	r25, r1
   ec:	8c f0       	brlt	.+34     	; 0x110 <.L3>
@@ -124,7 +124,7 @@ Disassembly of section .text:
  136:	30 e0       	ldi	r19, 0x00	; 0
  138:	20 93 26 0a 	sts	0x0A26, r18	; 0x800a26 <__TEXT_REGION_LENGTH__+0x7f4a26>
  13c:	30 93 27 0a 	sts	0x0A27, r19	; 0x800a27 <__TEXT_REGION_LENGTH__+0x7f4a27>
- 140:	29 e2       	ldi	r18, 0x29	; 41
+ 140:	2a e2       	ldi	r18, 0x2A	; 42
  142:	30 e0       	ldi	r19, 0x00	; 0
  144:	20 93 28 0a 	sts	0x0A28, r18	; 0x800a28 <__TEXT_REGION_LENGTH__+0x7f4a28>
  148:	30 93 29 0a 	sts	0x0A29, r19	; 0x800a29 <__TEXT_REGION_LENGTH__+0x7f4a29>

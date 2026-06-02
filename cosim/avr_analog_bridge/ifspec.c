@@ -117,6 +117,7 @@ static Mif_Param_Info_t MIFparamTable[] = {
 
 extern void cm_avr_adc_bridge(Mif_Private_t *);
 extern void cm_avr_dac_bridge(Mif_Private_t *);
+extern void cm_avr_vcc_bridge(Mif_Private_t *);
 
 /* ======================== avr_adc_bridge ======================== */
 
@@ -346,6 +347,173 @@ SPICEdev cm_avr_dac_bridge_info = {
     .DEVsoaCheck = NULL,
     .DEVinstSize = &dac_val_sizeofMIFinstance,
     .DEVmodSize = &dac_val_sizeofMIFmodel,
+
+#ifdef CIDER
+    .DEVdump = NULL,
+    .DEVacct = NULL,
+#endif
+
+#ifdef KLU
+    .DEVbindCSC = MIFbindCSC,
+    .DEVbindCSCComplex = MIFbindCSCComplex,
+    .DEVbindCSCComplexToReal = MIFbindCSCComplexToReal,
+#endif
+};
+
+/* ======================== avr_vcc_bridge ======================== */
+
+static IFparm VCC_MIFmPTable[] = {
+    IOP("dummy", 0, IF_REAL, "unused (no parameters needed)"),
+};
+
+static Mif_Port_Type_t VCC_MIFportEnum0[] = {
+    MIF_VOLTAGE,
+    MIF_DIFF_VOLTAGE,
+    MIF_CURRENT,
+    MIF_DIFF_CURRENT,
+};
+
+static char *VCC_MIFportStr0[] = {
+    "v",
+    "vd",
+    "i",
+    "id",
+};
+
+static Mif_Port_Type_t VCC_MIFportEnum1[] = {
+    MIF_VOLTAGE,
+    MIF_DIFF_VOLTAGE,
+    MIF_CURRENT,
+    MIF_DIFF_CURRENT,
+};
+
+static char *VCC_MIFportStr1[] = {
+    "v",
+    "vd",
+    "i",
+    "id",
+};
+
+static Mif_Conn_Info_t VCC_MIFconnTable[] = {
+  {
+    "vcc",
+    "VCC voltage input",
+    MIF_IN,
+    MIF_VOLTAGE,
+    "v",
+    4,
+    VCC_MIFportEnum0,
+    VCC_MIFportStr0,
+    MIF_FALSE,
+    MIF_FALSE,
+    0,
+    MIF_FALSE,
+    0,
+    MIF_TRUE,
+  },
+  {
+    "out",
+    "unity-gain output (mirror for Newton)",
+    MIF_OUT,
+    MIF_VOLTAGE,
+    "v",
+    4,
+    VCC_MIFportEnum1,
+    VCC_MIFportStr1,
+    MIF_FALSE,
+    MIF_FALSE,
+    0,
+    MIF_FALSE,
+    0,
+    MIF_TRUE,
+  },
+};
+
+static union Mif_Parse_Value VCC_dummy_default[] = {
+    { .rvalue=0.000000e+00 },
+};
+
+static Mif_Param_Info_t VCC_MIFparamTable[] = {
+  {
+    "dummy",
+    "unused (no parameters)",
+    MIF_REAL,
+    1,
+    VCC_dummy_default,
+    MIF_FALSE,
+    { .bvalue=MIF_FALSE },
+    MIF_FALSE,
+    { .bvalue=MIF_FALSE },
+    MIF_FALSE,
+    MIF_FALSE,
+    0,
+    MIF_FALSE,
+    0,
+    MIF_FALSE,
+    0,
+    MIF_TRUE,
+  },
+};
+
+static int vcc_val_terms             = 0;
+static int vcc_val_numNames          = 0;
+static int vcc_val_numInstanceParms  = 0;
+static int vcc_val_numModelParms     = 1;
+static int vcc_val_sizeofMIFinstance = sizeof(MIFinstance);
+static int vcc_val_sizeofMIFmodel    = sizeof(MIFmodel);
+
+SPICEdev cm_avr_vcc_bridge_info = {
+    .DEVpublic = {
+        .name = "avr_vcc_bridge",
+        .description = "VioAVR dynamic VCC tracking bridge",
+        .terms = &vcc_val_terms,
+        .numNames = &vcc_val_numNames,
+        .termNames = NULL,
+        .numInstanceParms = &vcc_val_numInstanceParms,
+        .instanceParms = NULL,
+        .numModelParms = &vcc_val_numModelParms,
+        .modelParms = VCC_MIFmPTable,
+        .flags = 0,
+
+        .cm_func = cm_avr_vcc_bridge,
+        .num_conn = 2,
+        .conn = VCC_MIFconnTable,
+        .num_param = 1,
+        .param = VCC_MIFparamTable,
+        .num_inst_var = 0,
+        .inst_var = NULL,
+    },
+
+    .DEVparam = NULL,
+    .DEVmodParam = MIFmParam,
+    .DEVload = MIFload,
+    .DEVsetup = MIFsetup,
+    .DEVunsetup = MIFunsetup,
+    .DEVpzSetup = NULL,
+    .DEVtemperature = NULL,
+    .DEVtrunc = MIFtrunc,
+    .DEVfindBranch = NULL,
+    .DEVacLoad = MIFload,
+    .DEVaccept = NULL,
+    .DEVdestroy = NULL,
+    .DEVmodDelete = MIFmDelete,
+    .DEVdelete = MIFdelete,
+    .DEVsetic = NULL,
+    .DEVask = MIFask,
+    .DEVmodAsk = MIFmAsk,
+    .DEVpzLoad = NULL,
+    .DEVconvTest = MIFconvTest,
+    .DEVsenSetup = NULL,
+    .DEVsenLoad = NULL,
+    .DEVsenUpdate = NULL,
+    .DEVsenAcLoad = NULL,
+    .DEVsenPrint = NULL,
+    .DEVsenTrunc = NULL,
+    .DEVdisto = NULL,
+    .DEVnoise = NULL,
+    .DEVsoaCheck = NULL,
+    .DEVinstSize = &vcc_val_sizeofMIFinstance,
+    .DEVmodSize = &vcc_val_sizeofMIFmodel,
 
 #ifdef CIDER
     .DEVdump = NULL,

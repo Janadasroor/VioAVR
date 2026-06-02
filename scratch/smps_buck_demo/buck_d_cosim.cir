@@ -3,8 +3,11 @@
 
 .options method=trap reltol=1e-3 trtol=3
 
-* 12V Input
-V_in vin 0 12
+* 12V Input with sag: 12V→9V at 2.5ms, recover at 3.5ms
+V_in vin 0 PWL(0 12 2.5m 12 2.55m 9 3.5m 9 3.55m 12 10m 12)
+
+* AVR VDD: regulated 5V supply (separate from buck input)
+V_avr 5v 0 5
 
 * Gate Drive: B-source directly drives gate vs sw
 R_pb0_dig pb0_dig 0 10k
@@ -24,10 +27,21 @@ L1 sw vout 100uH IC=0
 C1 vout 0 47uF IC=0
 R_load vout 0 10
 
+* Load step: switch from 10Ω to 5Ω at t=5ms (after sag recovery settles)
+V_step step_ctrl 0 PULSE(0 5 5m 1u 1u 2m 10m)
+S_loadstep step_drain 0 step_ctrl 0 LOAD_SW
+.model LOAD_SW SW(Von=3 Voff=1 Ron=1e-3 Roff=1e6)
+R_step vout step_drain 10
+
 * Feedback: avr_adc_bridge monitors Vout
 A_adc_fb vout dummy_fb adc_fb_model
 .model adc_fb_model avr_adc_bridge(channel=0)
 R_dummy_fb dummy_fb 0 1k
+
+* VCC tracking: avr_vcc_bridge feeds 5V (AVR VDD) to the AVR core
+A_vcc_bridge 5v dummy_vcc vcc_bridge_model
+.model vcc_bridge_model avr_vcc_bridge
+R_dummy_vcc dummy_vcc 0 1k
 
 * AVR (ATmega4809)
 A_AVR
@@ -46,11 +60,12 @@ A_AVR
 + sim_args=["atmega4809","firmware.hex","1"]
 + queue_size=1024 irreversible=1 delay=1e-9)
 
-.tran 0.1u 5m uic
+.tran 0.1u 8m uic
 
 .control
 run
-print v(vout) v(sw) v(pb0_dig) > sim_matrix.log
+set width=132
+print v(vout) v(sw) v(pb0_dig) v(vin) v(5v) > sim_matrix.log
 plot v(vout)
 .endc
 

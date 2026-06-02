@@ -1,6 +1,7 @@
 #include "ngspice/cm.h"
 extern void cm_avr_adc_bridge(Mif_Private_t *);
 extern void cm_avr_dac_bridge(Mif_Private_t *);
+extern void cm_avr_vcc_bridge(Mif_Private_t *);
 
 #include <dlfcn.h>
 #include <string.h>
@@ -160,5 +161,68 @@ void cm_avr_dac_bridge(Mif_Private_t *mif_private)
 
     /* Output: DAC voltage */
     mif_private->conn[1]->port[0]->output.rvalue = vout;
+    mif_private->conn[1]->port[0]->partial[0].port[0] = 1.0;
+}
+
+/* ------------------------------------------------------------------ */
+/* cm_avr_vcc_bridge — Dynamic VCC tracking for co-simulation          */
+/*                                                                     */
+/* Reads VCC voltage from an analog circuit node and injects it into   */
+/* the AVR core via vioavr_set_operating_voltage(), which propagates   */
+/* to all VDD-dependent peripherals (ADC, AC, DAC, ZCD, Opamp).       */
+/*                                                                     */
+/* Ports:                                                             */
+/*   vcc — analog voltage input (VCC node)                            */
+/*   out — unity-gain voltage output (mirrors input for Newton)       */
+/*                                                                     */
+/* Netlist usage:                                                     */
+/*   A_avr_vcc [vcc_node 0] [dummy 0] avr_vcc_bridge                  */
+/*   .model avr_vcc_bridge avr_vcc_bridge                             */
+/* ------------------------------------------------------------------ */
+
+static void (*g_set_operating_voltage)(void*, double) = NULL;
+static int g_vcc_initialized = 0;
+
+static void try_resolve_vcc_symbols(void)
+{
+    if (g_set_operating_voltage) return;
+
+    if (!g_get_handle) {
+        g_get_handle = (void* (*)(void))dlsym(RTLD_DEFAULT,
+                                              "vioavr_cosim_get_active_handle");
+    }
+    g_set_operating_voltage = (void (*)(void*, double))dlsym(
+        RTLD_DEFAULT, "vioavr_set_operating_voltage");
+
+    if (g_get_handle && g_set_operating_voltage) {
+        void* h = g_get_handle();
+        if (h) {
+            g_avr_handle = h;
+            g_initialized = 1;
+            g_vcc_initialized = 1;
+        }
+    }
+}
+
+void cm_avr_vcc_bridge(Mif_Private_t *mif_private)
+{
+    if (!g_vcc_initialized) {
+        try_resolve_vcc_symbols();
+    }
+
+    /* Read VCC voltage from analog input port */
+    double vcc = mif_private->conn[0]->port[0]->input.rvalue;
+
+    /* Inject into AVR core via set_operating_voltage (dlsym'd) */
+    if (g_vcc_initialized && g_avr_handle && g_set_operating_voltage) {
+        void* current_handle = g_get_handle ? g_get_handle() : NULL;
+        if (current_handle) {
+            g_avr_handle = current_handle;
+            g_set_operating_voltage(g_avr_handle, vcc);
+        }
+    }
+
+    /* Output: unity gain mirror for Newton coupling */
+    mif_private->conn[1]->port[0]->output.rvalue = vcc;
     mif_private->conn[1]->port[0]->partial[0].port[0] = 1.0;
 }
