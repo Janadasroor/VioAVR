@@ -1,0 +1,17 @@
+#include <avr/io.h>
+
+int main(void)
+{
+    PORTB_DIR |= PIN0_bm;
+    PORTC_DIR |= PIN0_bm;
+    PORTC_OUT = PIN0_bm;
+
+    PORTMUX_TCAROUTEA = PORTMUX_TCA0_PORTB_gc;
+
+    TCA0_SINGLE_PER = 159;
+    TCA0_SINGLE_CMP0 = 44;
+    TCA0_SINGLE_CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc | TCA_SINGLE_CMP0EN_bm;
+    TCA0_SINGLE_CTRLA = TCA_SINGLE_CLKSEL_DIV1_gc | TCA_SINGLE_ENABLE_bm;
+
+    for (;;) {}
+}

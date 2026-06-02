@@ -1,0 +1,34 @@
+* EVSYS->ADC->PWM: 5.0V analog input (CMP0=255, PWM always HIGH)
+.title 5.0V Test
+
+.options reltol=1e-6 vntol=1e-6 method=trap
+
+A_dac [pb0_dig pc0_dig] [pb0_an pc0_an] dac_bridge
+.model dac_bridge dac_bridge(out_low=0 out_high=5 input_load=1p t_rise=1n t_fall=1n)
+R_p_pwm pb0_dig 0 10k
+R_p_hb  pc0_dig 0 10k
+
+A_AVR [0 0 0 0 0 0 0 0
++       pb0_dig 0 0 0 0 0 0 0
++       pc0_dig 0 0 0 0 0 0 0
++       0 0 0 0 0 0 0 0]
++      [0 0 0 0 0 0 0 0
++       pb0_dig 0 0 0 0 0 0 0
++       pc0_dig 0 0 0 0 0 0 0
++       0 0 0 0 0 0 0 0]
++      d_cosim_model
+
+.model d_cosim_model d_cosim(
++ simulation="./cosim/libavr_cosim.so"
++ sim_args=["atmega4809","firmware.hex","0","5.0"]
++ queue_size=1024 irreversible=1 delay=1e-9)
+
+.tran 1us 500us
+
+.control
+run
+print v(pb0_an) v(pc0_an) > sim_matrix_5v.log
+plot v(pb0_an) v(pc0_an)
+.endc
+
+.end

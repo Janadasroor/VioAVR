@@ -1,0 +1,97 @@
+* VioAVR SMPS Buck Converter — Digital PI Control via ATmega4809
+*
+* 12V DC → VDMOS power stage (100kHz PWM on PB0) → LC filter → 3.3V out
+* ADC0 feedback via avr_adc_bridge → digital PI compensator in ISR
+* Dynamic load step (+5 Ohm) at t=2ms tests transient recovery
+*
+* External pin IDs (AVR8X megaAVR-0, 32-pin vectors):
+*   PORTA=0-7, PORTB=8-15, PORTC=16-23, PORTD=24-31
+*   PB0 (ext 8)  = TCA0 WO0 PWM → gate driver
+*   PC0 (ext 16) = Heartbeat (toggles in main loop)
+
+.title SMPS Buck Converter — Digital PI Control
+
+.options method=gear reltol=1e-5 vntol=1e-6 chgtol=1e-14 trtol=7
+
+* ===================================================================
+* 12V Input
+* ===================================================================
+V_in vin 0 12
+
+* ===================================================================
+* Gate Drive: PB0 PWM → dac_bridge (0-12V) → VDMOS gate
+* ===================================================================
+A_gate [pb0_dig] [pb0_an 0] gate_bridge
+.model gate_bridge dac_bridge(out_low=0 out_high=12 input_load=1e12 t_rise=20n t_fall=20n)
+R_gate_pull pb0_dig 0 10k
+
+* ===================================================================
+* Power MOSFET (VDMOS, Vto≈2.5V, Rd≈50mOhm)
+* ===================================================================
+M1 vin pb0_an sw 0 VDMOS_PWR
+.model VDMOS_PWR VDMOS(Vto=2.5 Rd=0.05 Rds=1e6 Cgs=500p Cgd=200p)
+
+* ===================================================================
+* Freewheeling Schottky Diode
+* ===================================================================
+D1 0 sw SCHOTTKY
+.model SCHOTTKY D(Is=1e-7 N=1.05 Rs=0.01 Cjo=200p VJ=0.5 M=0.5)
+
+* ===================================================================
+* LC Output Filter (100uH + 47uF with ESR)
+* ===================================================================
+L1 sw vout 100uH IC=0.3
+C1 vout 0 47uF IC=3.3
+R_esr vout vout_sense 0.1
+
+* ===================================================================
+* Static Load (10 Ohm)
+* ===================================================================
+R_load vout_sense 0 10
+
+* ===================================================================
+* Dynamic Load Step: +5 Ohm at t=2ms, stays on 1ms
+* ===================================================================
+V_step_ctrl step_gate 0 PULSE(0 5 2m 1u 1u 1m 10m)
+S_step vout_sense load_extra step_gate 0 LOAD_SW
+.model LOAD_SW SW(Ron=0.01 Roff=1e9 Vt=2.5 Vh=0.5)
+R_extra load_extra 0 5
+
+* ===================================================================
+* Feedback Path: Vout → avr_adc_bridge → signal bank ch0 → ADC0
+* ===================================================================
+A_adc_fb vout_sense dummy_fb adc_fb_model
+.model adc_fb_model avr_adc_bridge(channel=0)
+R_dummy_fb dummy_fb 0 1k
+
+* ===================================================================
+* AVR (ATmega4809)
+* ===================================================================
+A_AVR
++ [0 0 0 0 0 0 0 0
++  pb0_dig 0 0 0 0 0 0 0
++  pc0_dig 0 0 0 0 0 0 0
++  0 0 0 0 0 0 0 0]
++ [0 0 0 0 0 0 0 0
++  pb0_dig 0 0 0 0 0 0 0
++  pc0_dig 0 0 0 0 0 0 0
++  0 0 0 0 0 0 0 0]
++ d_cosim_model
+
+.model d_cosim_model d_cosim(
++ simulation="./cosim/libavr_cosim.so"
++ sim_args=["atmega4809","simple_pwm.hex","1"]
++ queue_size=1024 irreversible=1 delay=1e-9)
+
+* ===================================================================
+* Analysis: 5ms transient, use UIC for initial conditions
+* ===================================================================
+.tran 0.5u 5m uic
+
+.control
+run
+print v(vout_sense) v(sw) v(pb0_an) > sim_matrix.log
+plot v(vout_sense) v(sw)
+.endc
+
+.end

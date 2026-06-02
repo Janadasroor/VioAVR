@@ -1,0 +1,2 @@
+codemodel /home/jnd/cpp_projects/VioAVR/build/cosim/avr_adc_bridge.cm
+set num_threads=1

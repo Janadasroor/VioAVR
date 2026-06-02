@@ -18,6 +18,7 @@ public:
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
     void set_analog_signal_bank(AnalogSignalBank* bank) noexcept { signal_bank_ = bank; }
+    void set_vdd(double vdd) noexcept { vdd_ = vdd; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return "ADC"; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override { return {ranges_.data(), num_ranges_}; }
@@ -46,6 +47,7 @@ private:
     void start_conversion() noexcept;
     void complete_conversion() noexcept;
     void process_sample_result(u32 result) noexcept;
+    void sync_bus_data() noexcept;
     void update_interrupt_state() noexcept;
 
     Adc8xDescriptor desc_;
@@ -81,6 +83,7 @@ private:
     u16 res_latch_ {};
     bool res_latch_valid_ {false};
     bool converting_ {false};
+    double vdd_ {5.0};
 };
 
 } // namespace vioavr::core

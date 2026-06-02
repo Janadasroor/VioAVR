@@ -1,0 +1,53 @@
+* ADC oneshot: verify PORTC output = ADC0_RESL
+.title ADC Oneshot Test
+
+.options reltol=1e-6 vntol=1e-6 method=trap
+
+* Monitor PC0-PC7 (ext 16-23) to read ADC result
+A_dac [pc0_dig pc1_dig pc2_dig pc3_dig
++       pc4_dig pc5_dig pc6_dig pc7_dig]
++      [pc0_an pc1_an pc2_an pc3_an
++       pc4_an pc5_an pc6_an pc7_an]
++      dac_bridge
+.model dac_bridge dac_bridge(out_low=0 out_high=5 input_load=1p t_rise=1n t_fall=1n)
+
+* Pull-ups for all 8 PORTC pins
+R_pc0 pc0_dig 0 10k
+R_pc1 pc1_dig 0 10k
+R_pc2 pc2_dig 0 10k
+R_pc3 pc3_dig 0 10k
+R_pc4 pc4_dig 0 10k
+R_pc5 pc5_dig 0 10k
+R_pc6 pc6_dig 0 10k
+R_pc7 pc7_dig 0 10k
+
+* AVR: 32-pin vectors
+A_AVR [0 0 0 0 0 0 0 0
++       0 0 0 0 0 0 0 0
++       pc0_dig pc1_dig pc2_dig pc3_dig
++       pc4_dig pc5_dig pc6_dig pc7_dig
++       0 0 0 0 0 0 0 0]
++      [0 0 0 0 0 0 0 0
++       0 0 0 0 0 0 0 0
++       pc0_dig pc1_dig pc2_dig pc3_dig
++       pc4_dig pc5_dig pc6_dig pc7_dig
++       0 0 0 0 0 0 0 0]
++      d_cosim_model
+
+.model d_cosim_model d_cosim(
++ simulation="./cosim/libavr_cosim.so"
++ sim_args=["atmega4809","test_adc.hex","0","3.0"]
++ queue_size=1024 irreversible=1 delay=1e-9)
+
+.tran 0.1us 100us
+
+.control
+run
+print v(pc0_an) v(pc1_an) > adc_oneshot_01.log
+print v(pc2_an) v(pc3_an) > adc_oneshot_23.log
+print v(pc4_an) v(pc5_an) > adc_oneshot_45.log
+print v(pc6_an) v(pc7_an) > adc_oneshot_67.log
+plot v(pc0_an) v(pc1_an) v(pc2_an) v(pc3_an)
+.endc
+
+.end

@@ -152,6 +152,8 @@ void AvrCpu::run(const u64 cycle_budget)
         return;
     }
 
+    reset_triggered_ = false;
+
     if (state_ != CpuState::sleeping) {
         state_ = CpuState::running;
     }
@@ -175,6 +177,10 @@ void AvrCpu::run(const u64 cycle_budget)
 #endif
 
     while (state_ == CpuState::running && cycles_ + pending_cycles < cycle_target) {
+        if (__builtin_expect(reset_triggered_, 0)) {
+            pending_cycles = 0;
+            break;
+        }
         // Handle pending interrupt before fetching next instruction
         if (__builtin_expect(interrupt_pending_ != 0, 0)) {
             if (pending_cycles > 0) {
@@ -224,7 +230,8 @@ void AvrCpu::run(const u64 cycle_budget)
 
                 bool jit_ok = jit_->has_block(program_counter_);
             if (!jit_ok) {
-                jit_ok = jit_->translate(program_counter_, flash, loaded_words);
+                jit_ok = jit_->translate(program_counter_, flash, loaded_words,
+                                          bus_->device().sreg_address);
             }
 
             if (jit_ok) {
@@ -234,6 +241,9 @@ void AvrCpu::run(const u64 cycle_budget)
                 jit_state.sreg = sreg_;
                 jit_state.cycles = cycles_;
                 jit_state.bus = bus_;
+                jit_state.bus_data = bus_->data_space().data();
+                jit_state.interrupt_depth = interrupt_depth_;
+                jit_state.interrupt_delay = interrupt_delay_;
 
                 const u64 cycles_before = cycles_;
 
@@ -243,12 +253,18 @@ void AvrCpu::run(const u64 cycle_budget)
                 program_counter_ = jit_state.pc;
                 stack_pointer_ = jit_state.sp;
                 write_sreg(jit_state.sreg);
+                interrupt_depth_ = jit_state.interrupt_depth;
+                interrupt_delay_ = jit_state.interrupt_delay;
 
                 const u64 delta = jit_state.cycles - cycles_before;
                 cycles_ = jit_state.cycles;
 
                 if (bus_ != nullptr) {
                     bus_->tick_peripherals(delta, active_clock_domains());
+                    if (__builtin_expect(reset_triggered_, 0)) {
+                        pending_cycles = 0;
+                        break;
+                    }
                     if (bus_->has_pending_pin_changes())
                         publish_pending_pin_changes();
                 }
@@ -762,11 +778,16 @@ void AvrCpu::run(const u64 cycle_budget)
             if (handle_slow_path(opcode, pending_cycles, regs, flash, flash_size, bus_data, sram_begin, sram_end)) break;
             pc = program_counter_;
         }
+        if (__builtin_expect(reset_triggered_, 0)) {
+            pending_cycles = 0;
+            break;
+        }
         program_counter_ = pc;
 
         if (pending_cycles >= check_interval) {
             advance_cycles(pending_cycles);
             pending_cycles = 0;
+            if (__builtin_expect(reset_triggered_, 0)) break;
             synchronize_if_needed();
         }
     }
@@ -776,7 +797,7 @@ void AvrCpu::run(const u64 cycle_budget)
     }
 
     // Fallback to standard step for complex states or pending interrupts
-    while ((state_ == CpuState::running || state_ == CpuState::sleeping) && cycles_ < cycle_target) {
+    while ((state_ == CpuState::running || state_ == CpuState::sleeping) && !reset_triggered_ && cycles_ < cycle_target) {
         step();
     }
 }

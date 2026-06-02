@@ -4,6 +4,7 @@
 #include "vioavr/core/analog_signal_bank.hpp"
 #include "vioavr/core/logger.hpp"
 #include <algorithm>
+#include <cstdio>
 #include <vector>
 
 namespace vioavr::core {
@@ -104,13 +105,16 @@ void Adc8x::reset() noexcept {
 }
 
 void Adc8x::tick(u64 elapsed_cycles) noexcept {
+            // debug is_enabled()?1:0, (int)state_, (int)converting_);
     if (!is_enabled()) {
         state_ = AdcPhase::idle;
         converting_ = false;
         return;
     }
 
-    if (state_ == AdcPhase::idle) return;
+    if (state_ == AdcPhase::idle) {
+        return;
+    }
 
     u16 prescaler = get_prescaler();
     u64 total_cycles = elapsed_cycles + fractional_cycles_;
@@ -141,9 +145,18 @@ void Adc8x::tick(u64 elapsed_cycles) noexcept {
                     state_ = AdcPhase::sample;
                     cycles_in_phase_ = 2 + (sampctrl_ & 0x1FU);
                 } else {
-                    state_ = AdcPhase::idle;
-                    converting_ = false;
-                    process_sample_result(accumulated_res_);
+                    u32 result = accumulated_res_;
+                    process_sample_result(result);
+                    if (ctrla_ & 0x02U) { // FREERUN — auto-restart
+                        state_ = AdcPhase::sample;
+                        converting_ = true;
+                        current_sample_ = 0;
+                        accumulated_res_ = 0;
+                        cycles_in_phase_ = 2 + (sampctrl_ & 0x1FU);
+                    } else {
+                        state_ = AdcPhase::idle;
+                        converting_ = false;
+                    }
                 }
                 break;
             }
@@ -177,6 +190,7 @@ u8 Adc8x::read(u16 address) noexcept {
         res_latch_ = res_;
         res_latch_valid_ = true;
         intflags_ &= ~0x01U;
+        sync_bus_data();
     }
     else if (address == desc_.res_address + 1) val = static_cast<u8>((res_latch_valid_ ? res_latch_ : res_) >> 8);
     else if (address == desc_.winlt_address) val = static_cast<u8>(winlt_);
@@ -211,6 +225,7 @@ void Adc8x::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.muxneg_address) {
         muxneg_ = value;
     } else if (address == desc_.command_address) {
+        // debug removed
         if (value & 0x01U) start_conversion();
     } else if (address == desc_.evctrl_address) {
         evctrl_ = value;
@@ -218,6 +233,7 @@ void Adc8x::write(u16 address, u8 value) noexcept {
         intctrl_ = value;
     } else if (address == desc_.intflags_address) {
         intflags_ &= ~value; // Clear on write 1
+        sync_bus_data();
     } else if (address == desc_.dbgctrl_address) {
         dbgctrl_ = value;
     } else if (address == desc_.winlt_address) {
@@ -253,6 +269,7 @@ bool Adc8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     } else {
         intflags_ &= ~0x02U;  // WCOMP
     }
+    sync_bus_data();
     update_interrupt_state();
     return true;
 }
@@ -262,7 +279,7 @@ bool Adc8x::is_enabled() const noexcept {
 }
 
 u16 Adc8x::get_prescaler() const noexcept {
-    u8 p = ctrlc_ & 0x07U;
+    u8 p = (ctrlb_ >> 4) & 0x07U;
     return 2U << p; // 0->2, 1->4, ..., 7->256
 }
 
@@ -272,6 +289,7 @@ u32 Adc8x::get_sample_count() const noexcept {
 }
 
 void Adc8x::start_conversion() noexcept {
+    // debug removed
     if (converting_) return;
     converting_ = true;
     state_ = AdcPhase::startup;
@@ -291,31 +309,27 @@ void Adc8x::complete_conversion() noexcept {
     }
 
     // Reference Voltage logic
-    double vref = 3.3; // Default VDD
+    double vref = vdd_; // Default VDD
     u8 vrefsel = (ctrlc_ & 0x30U) >> 4U;
     if (vrefsel == 0x00U) {
-        // Internal reference. In a real 4809 this depends on VREF peripheral.
-        // For now, we'll assume a default internal reference of 1.1V for fidelity tests
-        // unless we implement the full VREF peripheral link.
         vref = 1.1; 
     } else if (vrefsel == 0x01U) {
-        vref = 3.3; // VDD
+        vref = vdd_; // VDD
     } else if (vrefsel == 0x02U) {
-        vref = 2.5; // External VREFA (dummy value for now)
+        vref = 2.5;
     }
 
     // Calculate 10-bit result
     u32 raw_result = static_cast<u32>((input_voltage / vref) * 1024.0);
     if (raw_result > 1023) raw_result = 1023;
 
-    // Handle Resolution (RESSEL)
     bool eight_bit = (ctrla_ & 0x04U);
     if (eight_bit) {
-        raw_result >>= 2U; // 10-bit to 8-bit
+        raw_result >>= 2U;
     }
 
-    // Handle Accumulation: we add it to the running sum
     accumulated_res_ += raw_result;
+    // debug trace removed
 }
 
 void Adc8x::process_sample_result(u32 raw_accumulated) noexcept {
@@ -325,6 +339,7 @@ void Adc8x::process_sample_result(u32 raw_accumulated) noexcept {
     res_ = result;
     res_latch_valid_ = false;
     intflags_ |= 0x01U; // RESRDY
+    // debug trace removed
     
     // Window Comparator Logic (WINCM in CTRLE)
     u8 wmode = ctrle_ & 0x07U;
@@ -340,6 +355,21 @@ void Adc8x::process_sample_result(u32 raw_accumulated) noexcept {
 
     if (evsys_ && desc_.resrd_generator_id != 0) {
         evsys_->trigger_event(desc_.resrd_generator_id);
+    }
+
+    sync_bus_data();
+    update_interrupt_state();
+}
+
+void Adc8x::sync_bus_data() noexcept {
+    if (bus_ == nullptr) return;
+    auto sp = bus_->data_space();
+    if (desc_.intflags_address != 0) {
+        sp[desc_.intflags_address] = intflags_;
+    }
+    if (desc_.res_address != 0) {
+        sp[desc_.res_address] = static_cast<u8>(res_ & 0xFF);
+        sp[desc_.res_address + 1] = static_cast<u8>((res_ >> 8) & 0xFF);
     }
 }
 

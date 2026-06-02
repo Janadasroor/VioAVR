@@ -478,3 +478,596 @@ TEST_CASE("AC8X analog comparator") {
     CHECK_MESSAGE(saw_high, "PA0 never HIGH — AC comparison did not trigger");
     CHECK_MESSAGE(transition, "PA0 shows no transition — AC not working");
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEST 4: Closed-loop Temperature Control PI Regulator
+// ═══════════════════════════════════════════════════════════════════
+
+static const char* THERMAL_REGULATOR_FIRMWARE = R"(
+#define F_CPU 16000000UL
+#include <avr/io.h>
+
+static void delay_cycles(unsigned int count) {
+    __asm__ volatile (
+        "1: subi %A0, 1"  "\n\t"
+        "   sbci %B0, 0"  "\n\t"
+        "   brne 1b"
+        : "+r" (count)
+        :
+        : "cc"
+    );
+}
+
+int main(void) {
+    DDRB |= (1 << PB0);
+    PORTB &= ~(1 << PB0);
+
+    ADMUX = (1 << REFS0);
+    ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1);
+
+    const int16_t setpoint = 717; // 3.5V -> (3.5 / 5.0) * 1024 = 716.8
+    int16_t integral = 0;
+    uint8_t pwm_counter = 0;
+
+    while (1) {
+        ADCSRA |= (1 << ADSC);
+        while (ADCSRA & (1 << ADSC));
+        uint16_t reading = ADC;
+
+        int16_t error = setpoint - (int16_t)reading;
+        integral += error;
+        
+        if (integral > 2000) integral = 2000;
+        else if (integral < -2000) integral = -2000;
+
+        int16_t drive = (8 * error) + (integral / 8);
+        if (drive < 0) drive = 0;
+        if (drive > 100) drive = 100;
+
+        if (pwm_counter < (drive / 10)) {
+            PORTB |= (1 << PB0);
+        } else {
+            PORTB &= ~(1 << PB0);
+        }
+
+        pwm_counter++;
+        if (pwm_counter >= 10) pwm_counter = 0;
+
+        delay_cycles(200);
+    }
+    return 0;
+}
+)";
+
+static void gen_thermal_circuit(const fs::path& cir_file, const fs::path& hex_file) {
+    std::ofstream of(cir_file);
+    of << "* Closed-loop temperature regulation test circuit\n";
+    of << "V_ambient ambient 0 DC 1.0\n";
+    of << "R_ambient chamber_temp ambient 100\n";
+    of << "C_thermal chamber_temp 0 10u IC=1.0\n";
+    of << "\n";
+    of << "A_dac [heater_dig] [heater_an 0] dac_bridge_model\n";
+    of << ".model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
+    of << "\n";
+    of << "G_heat 0 chamber_temp VALUE={V(heater_an) * 0.01}\n";
+    of << "\n";
+    of << "A_avr_adc chamber_temp dummy avr_adc_bridge_model\n";
+    of << ".model avr_adc_bridge_model avr_adc_bridge(channel=16)\n";
+    of << "R_dummy dummy 0 1k\n";
+    of << "\n";
+    of << "A_AVR [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        of << "0";
+    }
+    of << "] [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        if (i == 8) of << "heater_dig";
+        else of << "0";
+    }
+    of << "] d_cosim_model\n";
+    of << "\n";
+    of << ".model d_cosim_model d_cosim(simulation=\"./cosim/libavr_cosim.so\"";
+    of << " sim_args=[\"atmega328p\",\"" << hex_file.filename().string() << "\",\"1\"]";
+    of << " queue_size=1024 irreversible=1 delay=1e-9)\n";
+    of << "\n";
+    of << ".options reltol=0.005 method=gear trtol=7 chgtol=1e-13\n";
+    of << ".tran 1u 10m uic\n";
+    of << ".control\n";
+    of << "run\n";
+    of << "print v(chamber_temp)\n";
+    of << ".endc\n";
+    of << ".end\n";
+}
+
+TEST_CASE("Closed-loop Temperature Control PI Regulator") {
+    fs::path build_dir = find_build_dir();
+    REQUIRE_MESSAGE(!build_dir.empty(), "Build directory with libavr_cosim.so not found");
+
+    fs::path test_dir = build_dir / "cosim_tests" / "thermal_test";
+    fs::remove_all(test_dir);
+    fs::create_directories(test_dir);
+
+    fs::path hex_file = test_dir / "thermal_fw.hex";
+    REQUIRE(compile_firmware(THERMAL_REGULATOR_FIRMWARE, "atmega328p", hex_file));
+    REQUIRE(setup_cosim_links(test_dir, build_dir, hex_file));
+    REQUIRE(setup_spiceinit(test_dir, build_dir));
+
+    fs::path cir_file = test_dir / "thermal_test.cir";
+    gen_thermal_circuit(cir_file, hex_file);
+
+    fs::path log_file = test_dir / "sim_matrix.log";
+    int rc = run_ngspice(cir_file, test_dir, log_file);
+    REQUIRE_MESSAGE(rc == 0, "ngspice exited with code " << rc);
+
+    auto rows = parse_log(log_file);
+    REQUIRE_MESSAGE(rows.size() > 0, "No data rows in output");
+
+    double final_temp = rows.back().val;
+    MESSAGE("Thermal loop final temperature: " << final_temp << " V (" << rows.size() << " rows)");
+
+    // Initial temperature should be 1.0V (ambient)
+    CHECK_MESSAGE(rows.front().val >= 0.9, "Initial temperature not at ambient (~1.0V)");
+    CHECK_MESSAGE(rows.front().val <= 1.1, "Initial temperature not at ambient (~1.0V)");
+
+    // Max temperature should have risen significantly above 2.0V
+    double max_temp = 0.0;
+    for (const auto& r : rows) {
+        if (r.val > max_temp) max_temp = r.val;
+    }
+    CHECK_MESSAGE(max_temp > 2.5, "Temperature never rose above 2.5V — PI loop or heater failed");
+
+    // Final temperature should be regulated near target 3.5V setpoint
+    CHECK_MESSAGE(final_temp >= 3.3, "Final temperature unregulated (too low): " << final_temp << "V");
+    CHECK_MESSAGE(final_temp <= 3.7, "Final temperature unregulated (too high): " << final_temp << "V");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEST 5: PWM RC Filter and ADC Feedback Loop
+// ═══════════════════════════════════════════════════════════════════
+
+static const char* PWM_FILTER_FIRMWARE = R"(
+#define F_CPU 16000000UL
+#include <avr/io.h>
+
+int main(void) {
+    DDRB |= (1 << PB1);
+
+    TCCR1A = (1 << COM1A1) | (1 << WGM10);
+    TCCR1B = (1 << WGM12) | (1 << CS10);
+    OCR1A = 153; // 153 / 255 = 60% duty cycle
+
+    ADMUX = (1 << REFS0);
+    ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1);
+
+    while (1) {
+        ADCSRA |= (1 << ADSC);
+        while (ADCSRA & (1 << ADSC));
+        volatile uint16_t reading = ADC;
+        (void)reading;
+    }
+    return 0;
+}
+)";
+
+static void gen_pwm_filter_circuit(const fs::path& cir_file, const fs::path& hex_file) {
+    std::ofstream of(cir_file);
+    of << "* PWM RC Filter and ADC Feedback Loop\n";
+    of << "V_ref vdd 0 DC 5.0\n";
+    of << "\n";
+    of << "A_dac [pwm_dig] [pwm_an 0] dac_bridge_model\n";
+    of << ".model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
+    of << "\n";
+    of << "R1 pwm_an filter_out 1k\n";
+    of << "C1 filter_out 0 1u IC=0.0\n";
+    of << "\n";
+    of << "A_avr_adc filter_out dummy avr_adc_bridge_model\n";
+    of << ".model avr_adc_bridge_model avr_adc_bridge(channel=16)\n";
+    of << "R_dummy dummy 0 1k\n";
+    of << "\n";
+    of << "A_AVR [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        of << "0";
+    }
+    of << "] [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        if (i == 9) of << "pwm_dig"; // PB1 is ext ID 9
+        else of << "0";
+    }
+    of << "] d_cosim_model\n";
+    of << "\n";
+    of << ".model d_cosim_model d_cosim(simulation=\"./cosim/libavr_cosim.so\"";
+    of << " sim_args=[\"atmega328p\",\"" << hex_file.filename().string() << "\",\"1\"]";
+    of << " queue_size=1024 irreversible=1 delay=1e-9)\n";
+    of << "\n";
+    of << ".options reltol=0.005 method=gear trtol=7\n";
+    of << ".tran 2u 10m uic\n";
+    of << ".control\n";
+    of << "run\n";
+    of << "print v(filter_out)\n";
+    of << ".endc\n";
+    of << ".end\n";
+}
+
+TEST_CASE("PWM RC Filter and ADC Feedback Loop") {
+    fs::path build_dir = find_build_dir();
+    REQUIRE_MESSAGE(!build_dir.empty(), "Build directory with libavr_cosim.so not found");
+
+    fs::path test_dir = build_dir / "cosim_tests" / "pwm_filter_test";
+    fs::remove_all(test_dir);
+    fs::create_directories(test_dir);
+
+    fs::path hex_file = test_dir / "pwm_filter_fw.hex";
+    REQUIRE(compile_firmware(PWM_FILTER_FIRMWARE, "atmega328p", hex_file));
+    REQUIRE(setup_cosim_links(test_dir, build_dir, hex_file));
+    REQUIRE(setup_spiceinit(test_dir, build_dir));
+
+    fs::path cir_file = test_dir / "pwm_filter.cir";
+    gen_pwm_filter_circuit(cir_file, hex_file);
+
+    fs::path log_file = test_dir / "sim_matrix.log";
+    int rc = run_ngspice(cir_file, test_dir, log_file);
+    REQUIRE_MESSAGE(rc == 0, "ngspice exited with code " << rc);
+
+    auto rows = parse_log(log_file);
+    REQUIRE_MESSAGE(rows.size() > 0, "No data rows in output");
+
+    double final_voltage = rows.back().val;
+    MESSAGE("PWM Filter final voltage: " << final_voltage << " V (" << rows.size() << " rows)");
+
+    // Initial voltage on C should be 0.0V (as specified by UIC)
+    CHECK_MESSAGE(rows.front().val <= 0.1, "Initial voltage on C not 0V");
+
+    // Final settled voltage should be exactly 60% of VCC (5V) -> 3.0V
+    CHECK_MESSAGE(final_voltage >= 2.8, "Final voltage unregulated (too low): " << final_voltage << "V");
+    CHECK_MESSAGE(final_voltage <= 3.2, "Final voltage unregulated (too high): " << final_voltage << "V");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEST 6: Analog Comparator Edge Triggered Interrupt
+// ═══════════════════════════════════════════════════════════════════
+
+static const char* AC_INTERRUPT_FIRMWARE = R"(
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+ISR(ANALOG_COMP_vect) {
+    PORTB |= (1 << PB0); // Toggle PB0 HIGH
+}
+
+int main(void) {
+    DDRB |= (1 << PB0);
+    PORTB &= ~(1 << PB0);
+
+    // ACSR: Enable AC, ACIE = 1, ACIS1 = 1, ACIS0 = 1 (Rising Edge)
+    ACSR = (1 << ACIE) | (1 << ACIS1) | (1 << ACIS0);
+    sei();
+
+    while (1) {}
+    return 0;
+}
+)";
+
+static void gen_ac_interrupt_circuit(const fs::path& cir_file, const fs::path& hex_file) {
+    std::ofstream of(cir_file);
+    of << "* AC Edge Triggered Interrupt\n";
+    of << "V_sin ain0 0 SIN(1.5 2.0 200)\n";
+    of << "V_ref ain1 0 DC 2.5\n";
+    of << "\n";
+    of << "A_bridge0 ain0 dummy0 avr_adc_bridge_model0\n";
+    of << ".model avr_adc_bridge_model0 avr_adc_bridge(channel=30)\n";
+    of << "R_dummy0 dummy0 0 1k\n";
+    of << "\n";
+    of << "A_bridge1 ain1 dummy1 avr_adc_bridge_model1\n";
+    of << ".model avr_adc_bridge_model1 avr_adc_bridge(channel=31)\n";
+    of << "R_dummy1 dummy1 0 1k\n";
+    of << "\n";
+    of << "A_dac [pb0_dig] [pb0_an 0] dac_bridge_model\n";
+    of << ".model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
+    of << "\n";
+    of << "A_AVR [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        of << "0";
+    }
+    of << "] [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        if (i == 8) of << "pb0_dig"; // PB0 is ext ID 8
+        else of << "0";
+    }
+    of << "] d_cosim_model\n";
+    of << "\n";
+    of << ".model d_cosim_model d_cosim(simulation=\"./cosim/libavr_cosim.so\"";
+    of << " sim_args=[\"atmega328p\",\"" << hex_file.filename().string() << "\",\"1\"]";
+    of << " queue_size=1024 irreversible=1 delay=1e-9)\n";
+    of << "\n";
+    of << ".options reltol=0.005 method=gear\n";
+    of << ".tran 10u 4m\n";
+    of << ".control\n";
+    of << "run\n";
+    of << "print v(pb0_an)\n";
+    of << ".endc\n";
+    of << ".end\n";
+}
+
+TEST_CASE("Analog Comparator Edge Triggered Interrupt") {
+    fs::path build_dir = find_build_dir();
+    REQUIRE_MESSAGE(!build_dir.empty(), "Build directory with libavr_cosim.so not found");
+
+    fs::path test_dir = build_dir / "cosim_tests" / "ac_interrupt_test";
+    fs::remove_all(test_dir);
+    fs::create_directories(test_dir);
+
+    fs::path hex_file = test_dir / "ac_interrupt_fw.hex";
+    REQUIRE(compile_firmware(AC_INTERRUPT_FIRMWARE, "atmega328p", hex_file));
+    REQUIRE(setup_cosim_links(test_dir, build_dir, hex_file));
+    REQUIRE(setup_spiceinit(test_dir, build_dir));
+
+    fs::path cir_file = test_dir / "ac_interrupt.cir";
+    gen_ac_interrupt_circuit(cir_file, hex_file);
+
+    fs::path log_file = test_dir / "sim_matrix.log";
+    int rc = run_ngspice(cir_file, test_dir, log_file);
+    REQUIRE_MESSAGE(rc == 0, "ngspice exited with code " << rc);
+
+    auto rows = parse_log(log_file);
+    REQUIRE_MESSAGE(rows.size() > 0, "No data rows in output");
+
+    // Target crossing is exactly at 0.4167 ms
+    // Before 0.3 ms -> PB0 should be LOW
+    // After 0.5 ms -> PB0 should be HIGH
+    bool low_before = false;
+    bool high_after = false;
+
+    for (const auto& r : rows) {
+        if (r.time < 0.3e-3) {
+            CHECK_MESSAGE(r.val < 0.5, "PB0 went HIGH too early at " << (r.time * 1e3) << " ms");
+            low_before = true;
+        }
+        if (r.time > 0.5e-3) {
+            if (r.val > 4.0) high_after = true;
+        }
+    }
+
+    CHECK_MESSAGE(low_before, "No data checked before crossing threshold");
+    CHECK_MESSAGE(high_after, "PB0 never went HIGH after crossing threshold");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEST 7: GPIO Schmitt Trigger Hysteresis
+// ═══════════════════════════════════════════════════════════════════
+
+static const char* SCHMITT_TRIGGER_FIRMWARE = R"(
+#define F_CPU 16000000UL
+#include <avr/io.h>
+
+int main(void) {
+    DDRB &= ~(1 << PB0);
+    DDRD |= (1 << PD0);
+    
+    while (1) {
+        if (PINB & (1 << PB0)) {
+            PORTD |= (1 << PD0);
+        } else {
+            PORTD &= ~(1 << PD0);
+        }
+    }
+    return 0;
+}
+)";
+
+static void gen_schmitt_trigger_circuit(const fs::path& cir_file, const fs::path& hex_file) {
+    std::ofstream of(cir_file);
+    of << "* GPIO Schmitt Trigger Hysteresis\n";
+    of << "V_tri tri_in 0 pulse(0 5 0 5m 5m 1n 10m)\n";
+    of << "\n";
+    of << "A_AVR [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        of << (i == 8 ? "tri_in" : "0"); // PB0 is ext ID 8
+    }
+    of << "] [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        if (i == 24) of << "pd0_dig"; // PD0 is ext ID 24
+        else of << "0";
+    }
+    of << "] d_cosim_model\n";
+    of << "\n";
+    of << ".model d_cosim_model d_cosim(simulation=\"./cosim/libavr_cosim.so\"";
+    of << " sim_args=[\"atmega328p\",\"" << hex_file.filename().string() << "\",\"1\"]";
+    of << " queue_size=1024 irreversible=1 delay=1e-9)\n";
+    of << "\n";
+    of << "A_dac [pd0_dig] [pd0_an 0] dac_bridge_model\n";
+    of << ".model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
+    of << "\n";
+    of << ".options reltol=0.005 method=gear\n";
+    of << ".tran 10u 10m\n";
+    of << ".control\n";
+    of << "run\n";
+    of << "print v(pd0_an) v(tri_in)\n";
+    of << ".endc\n";
+    of << ".end\n";
+}
+
+TEST_CASE("GPIO Schmitt Trigger Hysteresis") {
+    fs::path build_dir = find_build_dir();
+    REQUIRE_MESSAGE(!build_dir.empty(), "Build directory with libavr_cosim.so not found");
+
+    fs::path test_dir = build_dir / "cosim_tests" / "schmitt_test";
+    fs::remove_all(test_dir);
+    fs::create_directories(test_dir);
+
+    fs::path hex_file = test_dir / "schmitt_fw.hex";
+    REQUIRE(compile_firmware(SCHMITT_TRIGGER_FIRMWARE, "atmega328p", hex_file));
+    REQUIRE(setup_cosim_links(test_dir, build_dir, hex_file));
+    REQUIRE(setup_spiceinit(test_dir, build_dir));
+
+    fs::path cir_file = test_dir / "schmitt.cir";
+    gen_schmitt_trigger_circuit(cir_file, hex_file);
+
+    fs::path log_file = test_dir / "sim_matrix.log";
+    int rc = run_ngspice(cir_file, test_dir, log_file);
+    REQUIRE_MESSAGE(rc == 0, "ngspice exited with code " << rc);
+
+    std::ifstream log(log_file);
+    REQUIRE(log);
+    std::string line;
+    
+    // Parse time, pd0_an, tri_in
+    struct SchmittRow {
+        double time;
+        double pd0;
+        double tri;
+    };
+    std::vector<SchmittRow> rows;
+    while (std::getline(log, line)) {
+        if (line.empty() || !std::isdigit(line[0])) continue;
+        std::istringstream iss(line);
+        int idx; double time, pd0, tri;
+        if (!(iss >> idx >> time >> pd0 >> tri)) continue;
+        rows.push_back({time, pd0, tri});
+    }
+    REQUIRE_MESSAGE(rows.size() > 0, "No data rows in output");
+
+    bool saw_low_start = false;
+    bool saw_high_rising = false;
+    bool saw_low_falling = false;
+
+    for (const auto& r : rows) {
+        if (r.time < 1e-3) {
+            // Initially should be LOW
+            CHECK_MESSAGE(r.pd0 < 0.5, "PD0 went HIGH too early at t=" << (r.time*1e3) << "ms");
+            saw_low_start = true;
+        }
+        
+        // Rising edge crossing: transitions around 1.66V due to ngspice auto-inserted adc_bridge.
+        if (r.time > 1e-3 && r.time < 5e-3) {
+            if (r.tri < 1.6) {
+                CHECK_MESSAGE(r.pd0 < 0.5, "PD0 went HIGH before crossing rising threshold (1.66V) at tri=" << r.tri << "V");
+            }
+            if (r.tri > 1.8) {
+                if (r.pd0 > 4.0) saw_high_rising = true;
+            }
+        }
+
+        // Falling edge crossing: transitions around 1.63V due to ngspice auto-inserted adc_bridge.
+        if (r.time > 5e-3 && r.time < 9e-3) {
+            if (r.tri > 1.7) {
+                CHECK_MESSAGE(r.pd0 > 4.0, "PD0 went LOW before crossing falling threshold (1.63V) at tri=" << r.tri << "V");
+            }
+            if (r.tri < 1.5) {
+                if (r.pd0 < 0.5) saw_low_falling = true;
+            }
+        }
+    }
+
+    CHECK_MESSAGE(saw_low_start, "No initial low checked");
+    CHECK_MESSAGE(saw_high_rising, "PD0 never went HIGH on rising edge above 3.0V");
+    CHECK_MESSAGE(saw_low_falling, "PD0 never went LOW on falling edge below 1.5V");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEST 8: Watchdog Timer System Reset Pulse
+// ═══════════════════════════════════════════════════════════════════
+
+static const char* WDT_RESET_FIRMWARE = R"(
+#define F_CPU 16000000UL
+#include <avr/io.h>
+#include <avr/wdt.h>
+
+int main(void) {
+    DDRB |= (1 << PB0);
+    PORTB |= (1 << PB0);
+
+    wdt_enable(WDTO_15MS);
+
+    while (1) {}
+    return 0;
+}
+)";
+
+static void gen_wdt_reset_circuit(const fs::path& cir_file, const fs::path& hex_file) {
+    std::ofstream of(cir_file);
+    of << "* WDT Reset Pulse\n";
+    of << "A_dac [pb0_dig] [pb0_an 0] dac_bridge_model\n";
+    of << ".model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)\n";
+    of << "R_pulldown pb0_an 0 10k\n";
+    of << "\n";
+    of << "A_AVR [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        of << "0";
+    }
+    of << "] [";
+    for (int i = 0; i < 32; i++) {
+        if (i > 0) of << " ";
+        if (i == 8) of << "pb0_dig"; // PB0 is ext ID 8
+        else of << "0";
+    }
+    of << "] d_cosim_model\n";
+    of << "\n";
+    of << ".model d_cosim_model d_cosim(simulation=\"./cosim/libavr_cosim.so\"";
+    of << " sim_args=[\"atmega328p\",\"" << hex_file.filename().string() << "\",\"1\"]";
+    of << " queue_size=1024 irreversible=1 delay=1e-9)\n";
+    of << "\n";
+    of << ".options reltol=0.005 method=gear\n";
+    of << ".tran 100u 40m\n";
+    of << ".control\n";
+    of << "run\n";
+    of << "print v(pb0_an)\n";
+    of << ".endc\n";
+    of << ".end\n";
+}
+
+TEST_CASE("Watchdog Timer System Reset Pulse") {
+    fs::path build_dir = find_build_dir();
+    REQUIRE_MESSAGE(!build_dir.empty(), "Build directory with libavr_cosim.so not found");
+
+    fs::path test_dir = build_dir / "cosim_tests" / "wdt_reset_test";
+    fs::remove_all(test_dir);
+    fs::create_directories(test_dir);
+
+    fs::path hex_file = test_dir / "wdt_reset_fw.hex";
+    REQUIRE(compile_firmware(WDT_RESET_FIRMWARE, "atmega328p", hex_file));
+    REQUIRE(setup_cosim_links(test_dir, build_dir, hex_file));
+    REQUIRE(setup_spiceinit(test_dir, build_dir));
+
+    fs::path cir_file = test_dir / "wdt_reset.cir";
+    gen_wdt_reset_circuit(cir_file, hex_file);
+
+    fs::path log_file = test_dir / "sim_matrix.log";
+    int rc = run_ngspice(cir_file, test_dir, log_file);
+    REQUIRE_MESSAGE(rc == 0, "ngspice exited with code " << rc);
+
+    auto rows = parse_log(log_file);
+    REQUIRE_MESSAGE(rows.size() > 0, "No data rows in output");
+
+    // WDT timeout WDTO_15MS triggers around 15-20 ms.
+    // Assert that PB0 starts HIGH, goes LOW around 15-20 ms (reset condition),
+    // and goes HIGH again after reset initialization (reboot).
+    bool saw_high_initial = false;
+    bool saw_low_reset = false;
+    bool saw_high_reboot = false;
+
+    for (const auto& r : rows) {
+        if (r.time < 10.0e-3) {
+            if (r.val > 4.0) saw_high_initial = true;
+        }
+        if (r.time > 13.0e-3 && r.time < 22.0e-3) {
+            if (r.val < 0.5) saw_low_reset = true;
+        }
+        if (r.time > 25.0e-3) {
+            if (r.val > 4.0) saw_high_reboot = true;
+        }
+    }
+
+    CHECK_MESSAGE(saw_high_initial, "PB0 was never HIGH initially before WDT reset");
+    CHECK_MESSAGE(saw_low_reset, "PB0 never dropped to LOW around WDT timeout (15-20ms)");
+    CHECK_MESSAGE(saw_high_reboot, "PB0 never went HIGH again after reboot");
+}

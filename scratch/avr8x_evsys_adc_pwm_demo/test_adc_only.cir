@@ -1,0 +1,8 @@
+.title ADC bridge only test
+V_adc adc_in 0 PULSE(0 5 0 1m 1m 0 10m)
+A_avr_adc adc_in dummy avr_adc_bridge
+.model avr_adc_bridge avr_adc_bridge(channel=0)
+R_dummy dummy 0 1k
+.tran 10us 3ms
+.print tran v(adc_in) v(dummy)
+.end
