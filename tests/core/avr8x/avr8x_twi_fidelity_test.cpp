@@ -117,22 +117,22 @@ TEST_CASE("AVR8X TWI - Master Physical Timing") {
     CHECK(machine.pin_mux().get_state_by_address(0x400, 3).drive_level == true);
 
     // 2. Tick to first bit (MSB = 1)
-    // Bit duration 40. First bit: 0..20 SCL Low, 20..40 SCL High.
-    bus.tick_peripherals(10); 
+    // Bit duration 40. START holds SCL HIGH for half/2 = 10 cycles.
+    bus.tick_peripherals(11); // Past START hold (11 > 10)
     CHECK(machine.pin_mux().get_state_by_address(0x400, 3).drive_level == false); // SCL Low
     CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == true);  // SDA High (bit 7 of 0xA0 is 1)
 
-    bus.tick_peripherals(15);
+    bus.tick_peripherals(10);
     CHECK(machine.pin_mux().get_state_by_address(0x400, 3).drive_level == true);  // SCL High
     CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == true);  // SDA High stable
 
     // 3. Next bit (bit 6 = 0)
-    bus.tick_peripherals(20); // total 45
+    bus.tick_peripherals(20); // total 41
     CHECK(machine.pin_mux().get_state_by_address(0x400, 2).drive_level == false); // SDA Low (bit 6)
     
     // 4. Fast forward to ACK bit (9th bit)
-    // Start + 8 bits * 40 = 360 (+ a bit for start logic)
-    bus.tick_peripherals(40 * 7); 
+    // Start + 8 bits * 40 = 360 (+ 11 for start hold)
+    bus.tick_peripherals(40 * 7 + 9); 
     // Now at ACK bit phase. Master should release SDA.
     CHECK(machine.pin_mux().get_state_by_address(0x400, 2).owner == PinOwner::gpio); // Released
 }

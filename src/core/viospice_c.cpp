@@ -112,7 +112,6 @@ int vioavr_consume_pin_changes(VioSpiceHandle handle, VioAvrPinChange* changes, 
     VioSpice* spice = static_cast<VioSpice*>(handle);
     auto internal_changes = spice->consume_pin_changes();
     int count = 0;
-    
     for (const auto& change : internal_changes) {
         if (count >= max_changes) break;
         
@@ -120,6 +119,7 @@ int vioavr_consume_pin_changes(VioSpiceHandle handle, VioAvrPinChange* changes, 
         if (ext_id) {
             changes[count].external_id = *ext_id;
             changes[count].level = change.level ? VIOAVR_LEVEL_HIGH : VIOAVR_LEVEL_LOW;
+            changes[count].is_output = change.is_output;
             count++;
         }
     }

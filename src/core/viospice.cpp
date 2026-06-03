@@ -845,6 +845,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         }
         change.bit_index = bit_idx;
         change.level = state.drive_level;
+        change.is_output = state.is_output;
         change.cycle_stamp = cpu_.cycles();
         pending_pin_changes_.push_back(std::move(change));
     });
@@ -855,6 +856,10 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             cpu_.set_wdt8x(wdt);
         } else if (auto* rst = dynamic_cast<RstCtrl*>(p.get())) {
             cpu_.set_rst_ctrl(rst);
+        } else if (auto* slp = dynamic_cast<SlpCtrl*>(p.get())) {
+            cpu_.set_slp_ctrl(slp);
+        } else if (auto* clk = dynamic_cast<ClkCtrl*>(p.get())) {
+            cpu_.set_clk_ctrl(clk);
         }
     }
 

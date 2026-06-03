@@ -56,6 +56,10 @@ void PinMux::release_pin(u8 port_idx, u8 bit_idx, PinOwner owner) noexcept
 
     if (entry.active_claims & claim_bit) {
         entry.active_claims &= ~claim_bit;
+        entry.drive_levels &= ~claim_bit;
+        entry.output_mask &= ~claim_bit;
+        entry.pullup_mask &= ~claim_bit;
+        entry.wired_and_mask &= ~claim_bit;
         reevaluate_ownership(port_idx, bit_idx);
     }
 }
@@ -192,7 +196,21 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
         // I.e., it is HIGH only if ALL active outputs drive HIGH.
         u32 active_outputs = entry.active_claims & entry.output_mask;
         if (active_outputs == 0) {
-            entry.state.drive_level = true; // Weak HIGH (floating or pullup)
+            // No active Wired-AND output drivers. The bus level is
+            // determined by external factors (pull-ups, other chips).
+            // Fall back to the highest-priority non-wired-and claimant's
+            // drive level (usually GPIO reflecting actual pin voltage).
+            bool found = false;
+            for (u8 i = 0; i < 32; ++i) {
+                if ((entry.active_claims & (1U << i)) && !(entry.wired_and_mask & (1U << i))) {
+                    entry.state.drive_level = (entry.drive_levels & (1U << i)) != 0;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                entry.state.drive_level = true;
+            }
         } else {
             entry.state.drive_level = (entry.drive_levels & active_outputs) == active_outputs;
         }

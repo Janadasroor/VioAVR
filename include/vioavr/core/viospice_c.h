@@ -56,6 +56,7 @@ uint64_t vioavr_get_cycles(VioSpiceHandle handle);
 typedef struct {
     uint32_t external_id;
     VioAvrPinLevel level;
+    bool is_output;
 } VioAvrPinChange;
 
 // Returns the number of changes collected

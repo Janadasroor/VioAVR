@@ -3,6 +3,12 @@
  * Shared library loaded by ngspice's d_cosim XSPICE code model.
  * Embeds 1..MAX_CHIPS VioAVR ISS instances in-process. No daemon or SHM.
  *
+ * Pin I/O design:
+ *   Output pins (DDR=1): {ZERO/ONE, STRONG} — chip drives the bus
+ *   Input pins  (DDR=0): {ZERO/ONE, HI_IMPEDANCE} — chip does NOT drive;
+ *     state reflects the PORT register (pull-up config), strength is high-Z
+ *     so external drivers and pull-ups define the bus voltage freely.
+ *
  * Netlist port vector size = NUM_CHIPS * 32.
  *   Single-chip: 32 d_in + 32 d_out (sim_args=["mcu"] or ["mcu","hex"])
  *   Dual-chip:   64 d_in + 64 d_out (sim_args=["m1","h1","m2","h2"])
@@ -11,6 +17,10 @@
  * Pin mapping per chip (local ID 0-31):
  *   PORTA=0-7, PORTB=8-15, PORTC=16-23, PORTD=24-31
  * Global pin ID = chip_index * 32 + local_id.
+ *
+ * XSPICE initialises all digital outputs to {ZERO, STRONG} at time 0.
+ * We match this in prev_out so the first pin-change callback always
+ * triggers an update.
  */
 
 extern "C" {
@@ -39,6 +49,7 @@ struct ChipState {
     double         last_vtime;
     double         accumulated_time;
     Digital_t      prev_out[PINS_PER_CHIP];
+    unsigned char  prev_is_output[PINS_PER_CHIP];
 };
 
 /* Converts a hex nibble char to its value (0-15). Returns -1 on error. */
@@ -76,6 +87,7 @@ struct MultiCosimInst {
     /* Live PTY for interactive Bluetooth data injection */
     int      pty_fd;
     char     pty_link_path[256]; /* symlink path to unlink on cleanup */
+    int      pins_initialized;   /* flag: override XSPICE's default {ZERO,STRONG} once */
 };
 
 /* Process-global active handle (chip 0, for avr_adc_bridge) */
@@ -91,13 +103,31 @@ static void shim_step(struct co_info* info)
     struct MultiCosimInst* multi = (struct MultiCosimInst*)info->handle;
     if (!multi) return;
 
+    /* On the first step, override XSPICE's default {ZERO, STRONG}
+     * with {ZERO, HI_IMPEDANCE} so that pull-up resistors and
+     * external drivers define the bus voltage, not the A-device.
+     * Without this, SDA/SCL appear stuck at 0V from time 0. */
+    if (!multi->pins_initialized) {
+        multi->pins_initialized = 1;
+        for (int c = 0; c < multi->num_chips; c++) {
+            int base = c * PINS_PER_CHIP;
+            for (int i = 0; i < PINS_PER_CHIP; i++) {
+                Digital_t hiz = {ZERO, HI_IMPEDANCE};
+                multi->chips[c].prev_out[i] = hiz;
+                multi->chips[c].prev_is_output[i] = 0;
+                (*info->out_fn)(info, (unsigned int)(base + i), &hiz);
+            }
+        }
+    }
+
     for (int c = 0; c < multi->num_chips; c++) {
         struct ChipState* chip = &multi->chips[c];
+
         double delta = info->vtime - chip->last_vtime;
         if (delta > 0) {
             chip->last_vtime = info->vtime;
             chip->accumulated_time += delta;
-            const double min_step = 1.0e-6;
+            const double min_step = 1.0e-7;
             if (chip->accumulated_time >= min_step) {
                 vioavr_step_duration(chip->avr, chip->accumulated_time);
                 chip->accumulated_time = 0.0;
@@ -123,7 +153,7 @@ static void shim_step(struct co_info* info)
                                 (uint16_t)multi->inject_len[i]);
                             fprintf(stderr, "[COSIM] HC-05 timed inject %d at %.6f s (%d bytes)\n",
                                     i, info->vtime, multi->inject_len[i]);
-                            multi->inject_vtime[i] = -1.0; /* fire once */
+                            multi->inject_vtime[i] = -1.0;
                         }
                     }
                 }
@@ -133,12 +163,26 @@ static void shim_step(struct co_info* info)
                 int n = vioavr_consume_pin_changes(chip->avr, changes, PINS_PER_CHIP * 2);
                 for (int i = 0; i < n; i++) {
                     unsigned int id = changes[i].external_id;
-                    {}  // pin change callback
                     if (id >= (unsigned int)PINS_PER_CHIP) continue;
 
                     Digital_t val;
-                    val.state    = (changes[i].level == VIOAVR_LEVEL_HIGH) ? ONE : ZERO;
-                    val.strength = STRONG;
+                    bool was_output = chip->prev_is_output[id];
+                    chip->prev_is_output[id] = changes[i].is_output ? 1 : 0;
+
+                    if (changes[i].is_output) {
+                        val.state    = (changes[i].level == VIOAVR_LEVEL_HIGH) ? ONE : ZERO;
+                        val.strength = STRONG;
+                    } else if (was_output) {
+                        /* Transition from output to input: release the pin
+                         * (e.g. TWI releasing SDA for slave ACK). */
+                        val.state    = (changes[i].level == VIOAVR_LEVEL_HIGH) ? ONE : ZERO;
+                        val.strength = HI_IMPEDANCE;
+                    } else {
+                        /* Internal input change (readback from external bus).
+                         * Do not forward to d_out — this would fight the
+                         * external driver or create an unnecessary update. */
+                        continue;
+                    }
 
                     unsigned int global_id = base_id + id;
                     if (val.state != chip->prev_out[id].state ||
@@ -179,6 +223,7 @@ static void shim_cleanup(struct co_info* info)
             if (multi->pty_link_path[0])
                 unlink(multi->pty_link_path);
         }
+
         for (int c = 0; c < multi->num_chips; c++) {
             if (multi->chips[c].avr) vioavr_destroy(multi->chips[c].avr);
         }
@@ -364,10 +409,8 @@ static int setup_chip(struct ChipState* chip, const char* mcu,
 
     chip->last_vtime = 0.0;
     chip->accumulated_time = 0.0;
-    for (int i = 0; i < PINS_PER_CHIP; i++) {
-        chip->prev_out[i].state    = ZERO;
-        chip->prev_out[i].strength = STRONG;
-    }
+    /* prev_out is initialized unconditionally by shim_step's
+     * first_step_done block before any AVR execution. */
 
     vioavr_reset(chip->avr);
 

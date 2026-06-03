@@ -1,0 +1,34 @@
+* I2C Repeated START Test
+* Master: ATmega4809 writes 0xA5, then repeated START + reads
+* Slave:  ATmega328P echoes written byte on read
+* Verifies: PA0=5V after successful round-trip (rx == tx)
+
+V_supply 5v 0 DC 5.0
+R_sda_pull v_sda 5v 10k
+R_scl_pull v_scl 5v 10k
+R_pa0_pd pa0_dig 0 1MEG
+
+A_dac_sda [v_sda] [v_a_sda 0] dac_bridge_i2c
+A_dac_scl [v_scl] [v_a_scl 0] dac_bridge_i2c
+A_dac_pa0 [pa0_dig] [v_a_pa0 0] dac_bridge_model
+.model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+.model dac_bridge_i2c dac_bridge(out_low=0.0 out_high=5.0 out_undef=5.0 input_load=1e12)
+
+A_DUAL
++ [0 0 v_sda v_scl 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
++ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
++ 0 0 0 0 0 0 0 0 v_scl v_sda 0 0 0 0 0 0]
++ [pa0_dig 0 v_sda v_scl 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
++ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
++ 0 0 0 0 0 0 0 0 v_scl v_sda 0 0 0 0 0 0]
++ d_cosim_dual
+
+.model d_cosim_dual d_cosim(simulation="./cosim/libavr_cosim.so"
++ sim_args=["atmega4809","master.hex","atmega328p","slave.hex"]
++ queue_size=1024 irreversible=1 delay=1e-9)
+
+.control
+tran 200n 10m
+set width=120
+print v(v_a_pa0) v(v_sda) v(v_scl) > sim_matrix.log
+.endc

@@ -81,19 +81,25 @@ void Twi8x::tick(u64 elapsed_cycles) noexcept {
         PinLevel sda = port_mux_->get_twi_sda_level(desc_.index);
         PinLevel scl = port_mux_->get_twi_scl_level(desc_.index);
         
-        // Signal driving (Slave & Master)
-        PinLevel target_sda = PinLevel::high;
-        bool do_ack = (sstatus_ & SSTATUS_AP) != 0;
-        if (slave_phase_ == TwiSlavePhase::tx_data) {
-            if (slave_bits_left_ > 0) {
-                target_sda = (slave_shift_register_ >> (slave_bits_left_ - 1)) & 1 ? PinLevel::high : PinLevel::low;
+        // Slave SDA drive (only when actively participating)
+        if (slave_phase_ == TwiSlavePhase::tx_data ||
+            slave_phase_ == TwiSlavePhase::ack_pulse ||
+            slave_phase_ == TwiSlavePhase::ack_setup) {
+            PinLevel target_sda = PinLevel::high;
+            bool do_ack = (sstatus_ & SSTATUS_AP) != 0;
+            if (slave_phase_ == TwiSlavePhase::tx_data) {
+                if (slave_bits_left_ > 0) {
+                    target_sda = (slave_shift_register_ >> (slave_bits_left_ - 1)) & 1 ? PinLevel::high : PinLevel::low;
+                }
+            } else {
+                if (do_ack) target_sda = address_ack_ ? PinLevel::low : ((sctrlb_ & SCTRLB_ACKACT) ? PinLevel::high : PinLevel::low);
             }
-        } else if (slave_phase_ == TwiSlavePhase::ack_pulse || slave_phase_ == TwiSlavePhase::ack_setup) {
-            if (do_ack) target_sda = address_ack_ ? PinLevel::low : ((sctrlb_ & SCTRLB_ACKACT) ? PinLevel::high : PinLevel::low);
+            port_mux_->drive_twi_sda(desc_.index, target_sda, true);
+            last_intended_sda_ = target_sda;
+        } else {
+            // Slave idle  release SDA so master (or external master) can drive the bus
+            port_mux_->drive_twi_sda(desc_.index, PinLevel::high, false);
         }
-        
-        port_mux_->drive_twi_sda(desc_.index, target_sda, true);
-        last_intended_sda_ = target_sda;
 
         // Slave Monitor
         if (sctrla_ & 0x01U) {
@@ -211,22 +217,35 @@ void Twi8x::tick_master_core() noexcept {
 
     cycle_counter_++;
     u64 half = bit_duration_ / 2;
-    bool scl_high = (cycle_counter_ >= half);
     
+    // Hold START (SCL HIGH, SDA LOW) for the first 1/4 of the first bit time.
+    // Without this, START lasts only 0-1 CPU cycle — too brief for bit-banged
+    // slaves polling PIND in ~4 cycle loops to detect.
+    bool scl_high;
+    if (host_phase_ == TwiPhase::address && bits_left_ == 9 &&
+        cycle_counter_ <= half / 2) {
+        scl_high = true;
+    } else {
+        scl_high = (cycle_counter_ >= half);
+    }
+    
+    // SDA level is the data bit for the ENTIRE bit duration (both halves),
+    // not just the first half. The I2C spec requires SDA stable during SCL HIGH.
     PinLevel sda_level = PinLevel::high;
     bool sda_enabled = true;
     
-    if (cycle_counter_ < half) {
-        if (bits_left_ > 1) {
-            bool sda_bit = (shift_register_ >> (bits_left_ - 2)) & 1;
-            sda_level = sda_bit ? PinLevel::high : PinLevel::low;
-        } else {
-            if (host_phase_ == TwiPhase::read_data) {
-                bool nack = (mctrlb_ & MCTRLB_ACKACT);
-                sda_level = nack ? PinLevel::high : PinLevel::low;
-            } else sda_enabled = false;
-        }
-    } else if (cycle_counter_ == half + (half / 2)) {
+    if (bits_left_ > 1) {
+        bool sda_bit = (shift_register_ >> (bits_left_ - 2)) & 1;
+        sda_level = sda_bit ? PinLevel::high : PinLevel::low;
+    } else if (host_phase_ == TwiPhase::read_data) {
+        bool nack = (mctrlb_ & MCTRLB_ACKACT);
+        sda_level = nack ? PinLevel::high : PinLevel::low;
+    } else {
+        // ACK bit for write: release SDA so slave can drive ACK
+        sda_enabled = false;
+    }
+    
+    if (cycle_counter_ == half + (half / 2)) {
         if (bits_left_ > 1) {
             if (host_phase_ == TwiPhase::read_data) {
                 if (port_mux_->get_twi_sda_level(desc_.index) == PinLevel::high) {
