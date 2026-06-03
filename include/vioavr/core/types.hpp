@@ -59,6 +59,7 @@ struct PinStateChange {
     std::string_view port_name {};
     u8 bit_index {};
     bool level {};
+    bool is_output {};
     u64 cycle_stamp {};
     u8 change_mask {};
 };

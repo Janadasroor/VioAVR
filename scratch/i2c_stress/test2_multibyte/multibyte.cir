@@ -1,0 +1,59 @@
+* I2C Multi-byte Burst Test
+* Master: ATmega4809 sends 16 bytes to Slave: ATmega328P
+* Slave computes XOR checksum, outputs to R-2R DAC on PORTB
+
+V_supply 5v 0 DC 5.0
+R_sda_pull v_sda 5v 10k
+R_scl_pull v_scl 5v 10k
+
+* R-2R DAC
+R_b0 pb0_dig v_j0 20k
+R_pd0 pb0_dig 0 1MEG
+R_b1 pb1_dig v_j1 20k
+R_pd1 pb1_dig 0 1MEG
+R_b2 pb2_dig v_j2 20k
+R_pd2 pb2_dig 0 1MEG
+R_b3 pb3_dig v_j3 20k
+R_pd3 pb3_dig 0 1MEG
+R_b4 pb4_dig v_j4 20k
+R_pd4 pb4_dig 0 1MEG
+R_b5 pb5_dig v_j5 20k
+R_pd5 pb5_dig 0 1MEG
+R_b6 pb6_dig v_j6 20k
+R_pd6 pb6_dig 0 1MEG
+R_b7 pb7_dig v_j7 20k
+R_pd7 pb7_dig 0 1MEG
+R_s0 v_j0 v_j1 10k
+R_s1 v_j1 v_j2 10k
+R_s2 v_j2 v_j3 10k
+R_s3 v_j3 v_j4 10k
+R_s4 v_j4 v_j5 10k
+R_s5 v_j5 v_j6 10k
+R_s6 v_j6 v_j7 10k
+R_s7 v_j7 v_dac_out 10k
+R_term v_dac_out 0 20k
+
+A_dac_sda [v_sda] [v_a_sda 0] dac_bridge_i2c
+A_dac_scl [v_scl] [v_a_scl 0] dac_bridge_i2c
+A_dac_dac [v_dac_out] [v_a_dac 0] dac_bridge_model
+.model dac_bridge_model dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+.model dac_bridge_i2c dac_bridge(out_low=0.0 out_high=5.0 out_undef=5.0 input_load=1e12)
+
+A_DUAL
++ [0 0 v_sda v_scl 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
++ 0 0 0 0 0 0 0 0 pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig
++ 0 0 0 0 0 0 0 0 v_scl v_sda 0 0 0 0 0 0]
++ [0 0 v_sda v_scl 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
++ 0 0 0 0 0 0 0 0 pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig
++ 0 0 0 0 0 0 0 0 v_scl v_sda 0 0 0 0 0 0]
++ d_cosim_dual
+
+.model d_cosim_dual d_cosim(simulation="./cosim/libavr_cosim.so"
++ sim_args=["atmega4809","master.hex","atmega328p","slave.hex"]
++ queue_size=1024 irreversible=1 delay=1e-9)
+
+.control
+tran 200n 5m
+set width=120
+print v(v_dac_out) v(v_sda) v(v_scl) v(v_a_sda) v(v_a_scl) > sim_matrix.log
+.endc

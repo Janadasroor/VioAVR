@@ -378,12 +378,9 @@ void MainWindow::runNgspiceFor(const QString &cirPath)
     connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this, proc, cirDir, cirName](int exitCode, QProcess::ExitStatus) {
         m_progressBar->hide();
+        // The .cir's .control section writes data directly to sim_matrix.log
+        // via .print > sim_matrix.log. Do NOT overwrite it with stdout.
         QString logPath = cirDir + "/sim_matrix.log";
-        QFile f(logPath);
-        if (f.open(QIODevice::WriteOnly)) {
-            f.write(proc->readAllStandardOutput());
-            f.close();
-        }
 
         // Always load the log regardless of exit code — even if the AVR
         // was dead (all 0.0) the log tells the user something useful.

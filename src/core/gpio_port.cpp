@@ -307,7 +307,13 @@ void GpioPort::update_pin_latched() noexcept
         const bool input_disabled = (isc == 0x04U);
 
         bool is_out = (ddr_ & (1U << i)) != 0U;
-        bool level = (port_ & (1U << i)) != 0U;
+        bool port_level = (port_ & (1U << i)) != 0U;
+        
+        // For output pins: PinMux reflects the PORT register (intended output level).
+        // For input pins:  PinMux reflects the actual external voltage, so that
+        // peripherals reading the pin level (e.g., TWI ACK) get the bus voltage,
+        // not the PORT register value.
+        bool level = is_out ? port_level : ((external_levels_ & (1U << i)) != 0U);
         
         // Output inversion
         if (inven && is_out) level = !level;
@@ -319,7 +325,7 @@ void GpioPort::update_pin_latched() noexcept
             pullup = !is_out && pullupen;
         } else {
             // Classic AVR (ATmega328P, etc.)
-            pullup = !is_out && level;
+            pullup = !is_out && port_level;
         }
  
         // Notify PinMux of GPIO's intended state

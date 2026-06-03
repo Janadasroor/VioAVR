@@ -109,18 +109,19 @@ int main(int argc, char *argv[])
         proc.setWorkingDirectory(cirDir);
         proc.setProcessChannelMode(QProcess::MergedChannels);
         proc.start(ngspice, {"-b", cirName});
-        if (!proc.waitForFinished(30000)) {
+        if (!proc.waitForFinished(600000)) {
             proc.kill();
             QMessageBox::warning(nullptr, "Simulation Timed Out",
-                "ngspice did not finish within 30 seconds.");
+                "ngspice did not finish within 600 seconds.");
             return 1;
         }
 
-        QFile f(logPath);
-        if (f.open(QIODevice::WriteOnly)) {
-            f.write(proc.readAllStandardOutput());
-            f.close();
-        }
+        // Note: the .cir's .control section writes data directly to sim_matrix.log
+        // via .print > sim_matrix.log. We do NOT overwrite it with stdout here.
+        // The captured stdout is only printed to stderr for debugging.
+        QByteArray stdoutData = proc.readAllStandardOutput();
+        if (!stdoutData.isEmpty())
+            qDebug().noquote() << "[ngspice]" << stdoutData;
 
         if (proc.exitCode() != 0) {
             QMessageBox::warning(nullptr, "Simulation Failed",
