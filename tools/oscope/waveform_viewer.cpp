@@ -1210,6 +1210,7 @@ void WaveformViewer::onMouseMoved(const QPointF &value) {
 
     m_lastMouseValue = value;
     m_hasLastMouseValue = true;
+    emit probeTimeChanged(value.x());
 
     if (m_acMode) {
         const QString coordStr = QString("Freq: %1 | Mag: %2")
@@ -1292,6 +1293,10 @@ void WaveformViewer::updateCursors() {
 
     m_cursor1X = m_panes.first()->view->cursor1X();
     m_cursor2X = m_panes.first()->view->cursor2X();
+
+    // Notify instrument panels of cursor time
+    if (m_cursor1X >= 0)
+        emit probeTimeChanged(m_cursor1X);
 
     auto getY = [&](QLineSeries* s, double x) {
         if (!s) return 0.0;
@@ -2735,6 +2740,10 @@ void WaveformViewer::loadCsv(const QString& filePath) {
     }
 
     updatePlot(true);
+
+    // Notify instrument panels that new data is available
+    emit dataLoaded();
+
     // Suppressed: success popup is handled by the status bar in standalone mode
 }
 

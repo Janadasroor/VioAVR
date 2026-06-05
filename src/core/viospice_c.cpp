@@ -114,12 +114,13 @@ int vioavr_consume_pin_changes(VioSpiceHandle handle, VioAvrPinChange* changes, 
     int count = 0;
     for (const auto& change : internal_changes) {
         if (count >= max_changes) break;
-        
+
         auto ext_id = spice->get_external_id(change.port_name, change.bit_index);
         if (ext_id) {
             changes[count].external_id = *ext_id;
             changes[count].level = change.level ? VIOAVR_LEVEL_HIGH : VIOAVR_LEVEL_LOW;
             changes[count].is_output = change.is_output;
+            changes[count].wired_and = change.wired_and;
             count++;
         }
     }

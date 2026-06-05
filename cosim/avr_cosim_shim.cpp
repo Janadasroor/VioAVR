@@ -170,8 +170,14 @@ static void shim_step(struct co_info* info)
                     chip->prev_is_output[id] = changes[i].is_output ? 1 : 0;
 
                     if (changes[i].is_output) {
-                        val.state    = (changes[i].level == VIOAVR_LEVEL_HIGH) ? ONE : ZERO;
-                        val.strength = STRONG;
+                        if (changes[i].wired_and) {
+                            /* Open-drain: drive LOW actively, release for HIGH */
+                            val.state    = ZERO;
+                            val.strength = (changes[i].level == VIOAVR_LEVEL_HIGH) ? HI_IMPEDANCE : STRONG;
+                        } else {
+                            val.state    = (changes[i].level == VIOAVR_LEVEL_HIGH) ? ONE : ZERO;
+                            val.strength = STRONG;
+                        }
                     } else if (was_output) {
                         /* Transition from output to input: release the pin
                          * (e.g. TWI releasing SDA for slave ACK). */

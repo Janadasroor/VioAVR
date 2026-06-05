@@ -26,6 +26,22 @@ add_executable(vioavr_oscope
     theme_manager.cpp
     theme_manager.h
     si_formatter.h
+    instrument_panel.cpp
+    instrument_panel.h
+    led_matrix_widget.cpp
+    led_matrix_widget.h
+    instrument_detector.cpp
+    instrument_detector.h
+    led_matrix_window.cpp
+    led_matrix_window.h
+    segment7_widget.cpp
+    segment7_widget.h
+    segment7_window.cpp
+    segment7_window.h
+    lcd_widget.cpp
+    lcd_widget.h
+    lcd_window.cpp
+    lcd_window.h
 )
 
 target_include_directories(vioavr_oscope PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

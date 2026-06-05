@@ -1,0 +1,13 @@
+* HD44780 Character LCD (4-bit mode, write-only)
+* Pins: RS E D4 D5 D6 D7
+* The C++ oscilloscope instrument decodes the HD44780 protocol
+* from dac_bridge analog waveforms on these 6 pins.
+
+.subckt lcd_hd44780 rs e d4 d5 d6 d7
+R_rs rs 0 1MEG
+R_e  e  0 1MEG
+R_d4 d4 0 1MEG
+R_d5 d5 0 1MEG
+R_d6 d6 0 1MEG
+R_d7 d7 0 1MEG
+.ends lcd_hd44780

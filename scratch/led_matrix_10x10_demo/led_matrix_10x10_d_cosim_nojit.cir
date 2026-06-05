@@ -1,0 +1,57 @@
+* 10x10 LED Matrix Demo — d_cosim
+* AVR drives rows (PB0-7 + PC0-1) and columns (PD0-7 + PC2-3)
+* The oscilloscope instrument panel detects the led_matrix_10x10
+* subcircuit and renders a standalone LED grid window.
+
+.include led_matrix_10x10.lib
+
+* --- DAC bridges for subcircuit node monitoring ---
+A_dac [pb0 pb1 pb2 pb3 pb4 pb5 pb6 pb7 pc0 pc1 pd0 pd1 pd2 pd3 pd4 pd5 pd6 pd7 pc2 pc3] [pb0_an pb1_an pb2_an pb3_an pb4_an pb5_an pb6_an pb7_an pc0_an pc1_an pd0_an pd1_an pd2_an pd3_an pd4_an pd5_an pd6_an pd7_an pc2_an pc3_an] dac_bridge
+.model dac_bridge dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+* --- Pull-ups for dac_bridge inputs ---
+R_pb0 pb0 0 10k
+R_pb1 pb1 0 10k
+R_pb2 pb2 0 10k
+R_pb3 pb3 0 10k
+R_pb4 pb4 0 10k
+R_pb5 pb5 0 10k
+R_pb6 pb6 0 10k
+R_pb7 pb7 0 10k
+R_pc0 pc0 0 10k
+R_pc1 pc1 0 10k
+R_pd0 pd0 0 10k
+R_pd1 pd1 0 10k
+R_pd2 pd2 0 10k
+R_pd3 pd3 0 10k
+R_pd4 pd4 0 10k
+R_pd5 pd5 0 10k
+R_pd6 pd6 0 10k
+R_pd7 pd7 0 10k
+R_pc2 pc2 0 10k
+R_pc3 pc3 0 10k
+
+* --- 10x10 LED Matrix subcircuit ---
+Xmatrix [pb0 pb1 pb2 pb3 pb4 pb5 pb6 pb7 pc0 pc1] [pd0 pd1 pd2 pd3 pd4 pd5 pd6 pd7 pc2 pc3] led_matrix_10x10
+
+* --- AVR MCU via d_cosim (32 pins) ---
+* d_in: all 0 (no external inputs)
+* d_out positions:
+*   8-15: PORTB = pb0..pb7  (rows)
+*   16-17: PORTC = pc0, pc1  (rows)
+*   18-19: PORTC = pc2, pc3  (cols)
+*   24-31: PORTD = pd0..pd7  (cols)
+A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [0 0 0 0 0 0 0 0 pb0 pb1 pb2 pb3 pb4 pb5 pb6 pb7 pc0 pc1 pc2 pc3 0 0 0 0 pd0 pd1 pd2 pd3 pd4 pd5 pd6 pd7] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex","0"] queue_size=1024 irreversible=1 delay=1e-9)
+
+* --- Solver ---
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 5ms
+
+.control
+set width=512
+set numdgt=7
+run
+print > sim_matrix.log v(pb0_an) v(pb1_an) v(pb2_an) v(pb3_an) v(pb4_an) v(pb5_an) v(pb6_an) v(pb7_an) v(pc0_an) v(pc1_an) v(pd0_an) v(pd1_an) v(pd2_an) v(pd3_an) v(pd4_an) v(pd5_an) v(pd6_an) v(pd7_an) v(pc2_an) v(pc3_an)
+.endc
+.end

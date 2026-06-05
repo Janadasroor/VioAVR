@@ -60,6 +60,7 @@ struct PinStateChange {
     u8 bit_index {};
     bool level {};
     bool is_output {};
+    bool wired_and {};
     u64 cycle_stamp {};
     u8 change_mask {};
 };

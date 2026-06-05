@@ -121,7 +121,7 @@ void Tc::reset() noexcept {
 }
 
 bool Tc::is_enabled() const noexcept {
-    return (ctrla_ & 0x01) != 0;
+    return (ctrla_ & 0x0F) != 0;
 }
 
 u8 Tc::get_clk_sel() const noexcept {
@@ -277,20 +277,23 @@ void Tc::update_outputs() noexcept {
         awex_companion_->set_wo_level(3, w3);
     }
 
-    if (port_mux_ && port_mux_->has_tc_routing()) {
-        port_mux_->drive_tca0_wo(0, w0, wo0_en, port_index_);
-        port_mux_->drive_tca0_wo(1, w1, wo1_en, port_index_);
-        port_mux_->drive_tca0_wo(2, w2, wo2_en, port_index_);
-        if (desc_.ccd_address) {
-            port_mux_->drive_tca0_wo(3, w3, wo3_en, port_index_);
-        } else {
-            port_mux_->drive_tca0_wo(3, false, false, port_index_);
+    bool awex_controls_pins = awex_companion_ && awex_companion_->is_enabled();
+    if (!awex_controls_pins) {
+        if (port_mux_ && port_mux_->has_tc_routing()) {
+            port_mux_->drive_tca0_wo(0, w0, wo0_en, port_index_);
+            port_mux_->drive_tca0_wo(1, w1, wo1_en, port_index_);
+            port_mux_->drive_tca0_wo(2, w2, wo2_en, port_index_);
+            if (desc_.ccd_address) {
+                port_mux_->drive_tca0_wo(3, w3, wo3_en, port_index_);
+            } else {
+                port_mux_->drive_tca0_wo(3, false, false, port_index_);
+            }
+        } else if (pin_mux_) {
+            drive_wo_pins_direct(pin_mux_, port_index_, 0, w0, wo0_en);
+            drive_wo_pins_direct(pin_mux_, port_index_, 1, w1, wo1_en);
+            drive_wo_pins_direct(pin_mux_, port_index_, 2, w2, wo2_en);
+            drive_wo_pins_direct(pin_mux_, port_index_, 3, w3, desc_.ccd_address ? wo3_en : false);
         }
-    } else if (pin_mux_) {
-        drive_wo_pins_direct(pin_mux_, port_index_, 0, w0, wo0_en);
-        drive_wo_pins_direct(pin_mux_, port_index_, 1, w1, wo1_en);
-        drive_wo_pins_direct(pin_mux_, port_index_, 2, w2, wo2_en);
-        drive_wo_pins_direct(pin_mux_, port_index_, 3, w3, desc_.ccd_address ? wo3_en : false);
     }
 }
 

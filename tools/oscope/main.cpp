@@ -107,29 +107,55 @@ int main(int argc, char *argv[])
 
         QProcess proc;
         proc.setWorkingDirectory(cirDir);
-        proc.setProcessChannelMode(QProcess::MergedChannels);
+        // Separate channels to avoid pipe buffer deadlock
+        proc.setProcessChannelMode(QProcess::SeparateChannels);
         proc.start(ngspice, {"-b", cirName});
-        if (!proc.waitForFinished(600000)) {
+
+        // Read stdout while running to prevent pipe buffer deadlock
+        QByteArray allStdout;
+        int timeoutMs = 600000; // 10 minute overall timeout
+        while (timeoutMs > 0 && !proc.waitForFinished(50)) {
+            timeoutMs -= 50;
+            proc.setReadChannel(QProcess::StandardOutput);
+            allStdout.append(proc.readAll());
+            if (proc.state() == QProcess::NotRunning) break;
+        }
+        proc.setReadChannel(QProcess::StandardOutput);
+        allStdout.append(proc.readAll());
+
+        if (timeoutMs <= 0) {
             proc.kill();
             QMessageBox::warning(nullptr, "Simulation Timed Out",
                 "ngspice did not finish within 600 seconds.");
             return 1;
         }
 
-        // Note: the .cir's .control section writes data directly to sim_matrix.log
-        // via .print > sim_matrix.log. We do NOT overwrite it with stdout here.
-        // The captured stdout is only printed to stderr for debugging.
-        QByteArray stdoutData = proc.readAllStandardOutput();
-        if (!stdoutData.isEmpty())
-            qDebug().noquote() << "[ngspice]" << stdoutData;
+        if (proc.exitStatus() != QProcess::NormalExit) {
+            QMessageBox::warning(nullptr, "Simulation Error",
+                "ngspice crashed or was killed.");
+            return 1;
+        }
 
         if (proc.exitCode() != 0) {
             QMessageBox::warning(nullptr, "Simulation Failed",
                 QString("ngspice exited with code %1").arg(proc.exitCode()));
         }
 
-        if (QFileInfo::exists(logPath))
+        // If the .cir's .control section doesn't write sim_matrix.log
+        // (uses plain `print` without `> file`), save stdout output as the log.
+        if (!QFileInfo::exists(logPath) && !allStdout.isEmpty()) {
+            QFile f(logPath);
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(allStdout);
+                f.close();
+            }
+        }
+
+        if (QFileInfo::exists(logPath)) {
+            // Set the .cir path so detectAndShowInstruments() can scan it
+            window->setCurrentCirPath(cirPath);
             window->loadLogFile(logPath);
+        }
     }
 
     // Positional arg: directly open a log file

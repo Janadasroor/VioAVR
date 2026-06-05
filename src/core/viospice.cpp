@@ -152,7 +152,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         bus_.attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
-    if (device.clkctrl.ctrla_address != 0U) {
+    // XMEGA devices have a different CLKCTRL register layout (CLK.CTRL/PSCTRL/LOCK/RTCCTRL
+    // vs AVR8X MCLKCTRLA/MCLKCTRLB/MCLKLOCK/MCLKSTATUS) — skip the AVR8X ClkCtrl model.
+    if (device.clkctrl.ctrla_address != 0U && device.tc_count == 0U) {
         auto p = std::make_unique<ClkCtrl>(device.clkctrl, 20'000'000U);
         bus_.attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
@@ -846,6 +848,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         change.bit_index = bit_idx;
         change.level = state.drive_level;
         change.is_output = state.is_output;
+        change.wired_and = state.is_wired_and;
         change.cycle_stamp = cpu_.cycles();
         pending_pin_changes_.push_back(std::move(change));
     });

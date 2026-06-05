@@ -233,8 +233,8 @@ void Machine::initialize_peripherals()
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
-    if (device_.clkctrl.ctrla_address != 0U) {
-        // Default base = 20 MHz. The prescaler-on reset default divides by 6 → 3.333 MHz.
+    // XMEGA devices have a different CLKCTRL register layout — skip the AVR8X ClkCtrl model.
+    if (device_.clkctrl.ctrla_address != 0U && device_.tc_count == 0U) {
         auto p = std::make_unique<ClkCtrl>(device_.clkctrl, 20'000'000U);
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
