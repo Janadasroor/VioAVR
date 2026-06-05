@@ -1,0 +1,22 @@
+* 7-Segment Display (common cathode)
+* Pins: a b c d e f g
+* Each segment is an LED with 330-ohm series resistor to GND.
+
+.model led_diode D(Is=1e-14 N=1.5 BV=5 IBV=1e-3)
+
+.subckt 7seg_display a b c d e f g
+Ra a seg_a_int 330
+Da seg_a_int 0 led_diode
+Rb b seg_b_int 330
+Db seg_b_int 0 led_diode
+Rc c seg_c_int 330
+Dc seg_c_int 0 led_diode
+Rd d seg_d_int 330
+Dd seg_d_int 0 led_diode
+Re e seg_e_int 330
+De seg_e_int 0 led_diode
+Rf f seg_f_int 330
+Df seg_f_int 0 led_diode
+Rg g seg_g_int 330
+Dg seg_g_int 0 led_diode
+.ends 7seg_display

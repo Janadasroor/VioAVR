@@ -101,6 +101,23 @@ public:
     PlotQuality plotQuality() const { return m_plotQuality; }
     void setSourceSchematicName(const QString& name);
 
+    // Access raw signal data for instrument panels
+    enum class SignalType { VOLTAGE, CURRENT, POWER, OTHER };
+    struct SignalData {
+        QString name;
+        SignalType type = SignalType::OTHER;
+        QVector<double> time;
+        QVector<double> values;
+        QVector<double> phase;
+        bool hasPhase = false;
+        QColor customColor;
+        double lineWidth = 1.5;
+        Qt::PenStyle penStyle = Qt::SolidLine;
+        int paneIndex = -1;
+    };
+    const QMap<QString, SignalData>& allSignals() const { return m_signals; }
+    bool getSignalData(const QString& name, QVector<double>& time, QVector<double>& values);
+
     struct SignalExport {
         QString name;
         QVector<double> time;
@@ -116,7 +133,6 @@ public:
     };
     QList<SignalExport> exportSignals() const;
     void importSignals(const QList<SignalExport>& signalExports);
-    bool getSignalData(const QString& name, QVector<double>& time, QVector<double>& values);
     QStringList getSignalNames() const;
     bool openExpressionDialogForSignal(const QString& name);
     bool renameSignal(const QString& oldName, const QString& newName);
@@ -129,6 +145,10 @@ public:
     void setSignalPaneIndex(const QString& name, int paneIndex);
     void setCurrentSignal(const QString& name);
     QStringList getSignalsInPane(int index) const;
+
+Q_SIGNALS:
+    void dataLoaded();
+    void probeTimeChanged(double timeSeconds);
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
@@ -157,8 +177,6 @@ private Q_SLOTS:
     void onZoomRectCompleted(const QRectF &valueRect);
 
 private:
-    enum class SignalType { VOLTAGE, CURRENT, POWER, OTHER };
-
     struct ChartPane {
         VioChartView* view = nullptr;
         QChart* chart = nullptr;
@@ -192,19 +210,6 @@ private:
     QString m_timeUnit = "s";
     double m_vMultiplier = 1.0, m_iMultiplier = 1.0, m_pMultiplier = 1.0;
     QString m_vUnit = "V", m_iUnit = "A", m_pUnit = "W";
-    
-    struct SignalData {
-        QString name;
-        SignalType type;
-        QVector<double> time;
-        QVector<double> values;
-        QVector<double> phase;
-        bool hasPhase = false;
-        QColor customColor;
-        double lineWidth = 1.5;
-        Qt::PenStyle penStyle = Qt::SolidLine;
-        int paneIndex = -1;
-    };
     
     QMap<QString, SignalData> m_signals;
     QMap<QString, int> m_pointCounters;

@@ -289,6 +289,11 @@ if(VIOAVR_BUILD_COSIM)
         viospice/viospice_ngspice_all_devices_test.cpp
         viospice/viospice_attiny_tca_pwm_test.cpp
         viospice/viospice_peripheral_functional_test.cpp
+        viospice/viospice_xmega_tc_pwm_test.cpp
+        viospice/viospice_xmega_ac_adc_test.cpp
+        viospice/viospice_xmega_awex_test.cpp
+        viospice/viospice_xmega_dac_test.cpp
+        viospice/viospice_multi_i2c_test.cpp
     )
 endif()
 

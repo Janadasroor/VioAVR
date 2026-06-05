@@ -1,0 +1,39 @@
+* 7-Segment Display Demo — d_cosim
+* AVR drives segments a-g via PORTB (PB0-PB6).
+* The oscilloscope instrument panel detects the 7seg_display
+* subcircuit and renders a digit window.
+
+.include 7seg_display.lib
+
+* --- DAC bridge for segment monitoring ---
+A_dac [pb0 pb1 pb2 pb3 pb4 pb5 pb6] [pb0_an pb1_an pb2_an pb3_an pb4_an pb5_an pb6_an] dac_bridge
+.model dac_bridge dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+* --- Pull-ups for dac_bridge inputs ---
+R_pb0 pb0 0 10k
+R_pb1 pb1 0 10k
+R_pb2 pb2 0 10k
+R_pb3 pb3 0 10k
+R_pb4 pb4 0 10k
+R_pb5 pb5 0 10k
+R_pb6 pb6 0 10k
+
+* --- 7-Segment Display subcircuit ---
+Xseg [pb0 pb1 pb2 pb3 pb4 pb5 pb6] 7seg_display
+
+* --- AVR MCU via d_cosim (32 pins) ---
+* d_out: PORTB=8-14 (pb0-pb6 segments a-g)
+A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [0 0 0 0 0 0 0 0 pb0 pb1 pb2 pb3 pb4 pb5 pb6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+
+* --- Solver ---
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 2us 5ms
+
+.control
+set width=512
+set numdgt=7
+run
+print > sim_matrix.log v(pb0_an) v(pb1_an) v(pb2_an) v(pb3_an) v(pb4_an) v(pb5_an) v(pb6_an)
+.endc
+.end

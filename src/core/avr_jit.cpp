@@ -100,6 +100,7 @@ void jit_write_data(JitState* state, uint16_t addr, uint8_t value) {
         return;
     }
     state->bus->write_data(addr, value);
+    state->bus_data[addr] = value;
 }
 
 void jit_push(JitState* state, uint8_t value) {

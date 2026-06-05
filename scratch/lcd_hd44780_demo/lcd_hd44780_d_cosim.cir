@@ -1,0 +1,38 @@
+* LCD HD44780 Demo — d_cosim
+* AVR drives HD44780 in 4-bit mode on PORTB:
+*   PB0=RS, PB1=E, PB4=D4, PB5=D5, PB6=D6, PB7=D7
+
+.include lcd_hd44780.lib
+
+* --- DAC bridge for LCD pin monitoring ---
+A_dac [pb0 pb1 pb4 pb5 pb6 pb7] [pb0_an pb1_an pb4_an pb5_an pb6_an pb7_an] dac_bridge
+.model dac_bridge dac_bridge(out_low=0.0 out_high=5.0 input_load=1e12)
+
+* --- Pull-downs for dac_bridge inputs ---
+R_pb0 pb0 0 10k
+R_pb1 pb1 0 10k
+R_pb4 pb4 0 10k
+R_pb5 pb5 0 10k
+R_pb6 pb6 0 10k
+R_pb7 pb7 0 10k
+
+* --- LCD subcircuit (for instrument detection) ---
+Xlcd [pb0_an pb1_an pb4_an pb5_an pb6_an pb7_an] lcd_hd44780
+
+* --- AVR MCU via d_cosim (32 pins) ---
+* PORTB = ext IDs 8-15
+*   pb0(RS)=8, pb1(E)=9, pb4=12, pb5=13, pb6=14, pb7=15
+A_AVR [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] [0 0 0 0 0 0 0 0 pb0 pb1 0 0 pb4 pb5 pb6 pb7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0] d_cosim_model
+.model d_cosim_model d_cosim(simulation="./cosim/libavr_cosim.so" sim_args=["atmega328p","firmware.hex"] queue_size=1024 irreversible=1 delay=1e-9)
+
+* --- Solver ---
+.options reltol=0.005 method=gear trtol=7 chgtol=1e-13
+.tran 1us 1ms
+
+.control
+set width=512
+set numdgt=7
+run
+print > sim_matrix.log v(pb0_an) v(pb1_an) v(pb4_an) v(pb5_an) v(pb6_an) v(pb7_an)
+.endc
+.end

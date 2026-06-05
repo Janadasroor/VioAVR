@@ -27,6 +27,8 @@ public:
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
 
+    [[nodiscard]] bool is_enabled() const noexcept { return (ctrl_ & 0x01) != 0; }
+
     /// Called by companion TC to set raw WO levels
     void set_wo_level(u8 channel, bool level) noexcept;
 

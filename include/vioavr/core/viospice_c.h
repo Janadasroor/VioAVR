@@ -57,6 +57,7 @@ typedef struct {
     uint32_t external_id;
     VioAvrPinLevel level;
     bool is_output;
+    bool wired_and;
 } VioAvrPinChange;
 
 // Returns the number of changes collected

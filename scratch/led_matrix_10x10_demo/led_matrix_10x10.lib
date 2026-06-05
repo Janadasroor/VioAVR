@@ -1,0 +1,119 @@
+* 10x10 LED Matrix Subcircuit
+* Pins: r0..r9 = row anodes, c0..c9 = column cathodes
+* Each LED is modeled as a 330-ohm resistor at the row/col intersection.
+* The oscilloscope instrument panel reads the row/col voltages
+* and renders the LED matrix visualization.
+
+.subckt led_matrix_10x10 r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 c0 c1 c2 c3 c4 c5 c6 c7 c8 c9
+
+R00 r0 c0 330
+R01 r0 c1 330
+R02 r0 c2 330
+R03 r0 c3 330
+R04 r0 c4 330
+R05 r0 c5 330
+R06 r0 c6 330
+R07 r0 c7 330
+R08 r0 c8 330
+R09 r0 c9 330
+
+R10 r1 c0 330
+R11 r1 c1 330
+R12 r1 c2 330
+R13 r1 c3 330
+R14 r1 c4 330
+R15 r1 c5 330
+R16 r1 c6 330
+R17 r1 c7 330
+R18 r1 c8 330
+R19 r1 c9 330
+
+R20 r2 c0 330
+R21 r2 c1 330
+R22 r2 c2 330
+R23 r2 c3 330
+R24 r2 c4 330
+R25 r2 c5 330
+R26 r2 c6 330
+R27 r2 c7 330
+R28 r2 c8 330
+R29 r2 c9 330
+
+R30 r3 c0 330
+R31 r3 c1 330
+R32 r3 c2 330
+R33 r3 c3 330
+R34 r3 c4 330
+R35 r3 c5 330
+R36 r3 c6 330
+R37 r3 c7 330
+R38 r3 c8 330
+R39 r3 c9 330
+
+R40 r4 c0 330
+R41 r4 c1 330
+R42 r4 c2 330
+R43 r4 c3 330
+R44 r4 c4 330
+R45 r4 c5 330
+R46 r4 c6 330
+R47 r4 c7 330
+R48 r4 c8 330
+R49 r4 c9 330
+
+R50 r5 c0 330
+R51 r5 c1 330
+R52 r5 c2 330
+R53 r5 c3 330
+R54 r5 c4 330
+R55 r5 c5 330
+R56 r5 c6 330
+R57 r5 c7 330
+R58 r5 c8 330
+R59 r5 c9 330
+
+R60 r6 c0 330
+R61 r6 c1 330
+R62 r6 c2 330
+R63 r6 c3 330
+R64 r6 c4 330
+R65 r6 c5 330
+R66 r6 c6 330
+R67 r6 c7 330
+R68 r6 c8 330
+R69 r6 c9 330
+
+R70 r7 c0 330
+R71 r7 c1 330
+R72 r7 c2 330
+R73 r7 c3 330
+R74 r7 c4 330
+R75 r7 c5 330
+R76 r7 c6 330
+R77 r7 c7 330
+R78 r7 c8 330
+R79 r7 c9 330
+
+R80 r8 c0 330
+R81 r8 c1 330
+R82 r8 c2 330
+R83 r8 c3 330
+R84 r8 c4 330
+R85 r8 c5 330
+R86 r8 c6 330
+R87 r8 c7 330
+R88 r8 c8 330
+R89 r8 c9 330
+
+R90 r9 c0 330
+R91 r9 c1 330
+R92 r9 c2 330
+R93 r9 c3 330
+R94 r9 c4 330
+R95 r9 c5 330
+R96 r9 c6 330
+R97 r9 c7 330
+R98 r9 c8 330
+R99 r9 c9 330
+
+.ends led_matrix_10x10

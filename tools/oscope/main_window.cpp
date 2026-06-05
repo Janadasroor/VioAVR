@@ -1,5 +1,8 @@
 #include "main_window.h"
 #include "theme_manager.h"
+#include "instrument_detector.h"
+#include "led_matrix_window.h"
+
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
@@ -29,8 +32,16 @@ MainWindow::MainWindow(QWidget *parent)
     m_viewer->setPlotQuality(WaveformViewer::PlotQuality::HighQuality);
     setCentralWidget(m_viewer);
 
+    m_instrumentPanel = new InstrumentPanel;
+    addDockWidget(Qt::BottomDockWidgetArea, m_instrumentPanel);
+    m_instrumentPanel->hide();
+
     setupMenuBar();
     setupSidebar();
+
+    // Wire instrument panel to waveform viewer
+    connect(m_viewer, &WaveformViewer::dataLoaded, this, &MainWindow::detectAndShowInstruments);
+    connect(m_viewer, &WaveformViewer::probeTimeChanged, m_instrumentPanel, &InstrumentPanel::setProbeTime);
 
     // statusMessage — WaveformViewer doesn't have one; we emit our own
 }
@@ -41,6 +52,149 @@ QString MainWindow::ngspicePath()
     return s.value(kSettingsNgspice, kDefaultNgspice).toString();
 }
 
+void MainWindow::detectAndShowInstruments()
+{
+    // Build SignalRef map from WaveformViewer signal data
+    const auto &sigs = m_viewer->allSignals();
+    if (sigs.isEmpty()) {
+        m_instrumentPanel->clearInstruments();
+        m_instrumentPanel->hide();
+        return;
+    }
+
+    // Build SignalRef map
+    QMap<QString, SignalRef> refs;
+    for (auto it = sigs.begin(); it != sigs.end(); ++it) {
+        SignalRef ref;
+        ref.time = &it.value().time;
+        ref.values = &it.value().values;
+        refs[it.key()] = ref;
+    }
+
+    // --- Pin status bar: detect GPIO signals ---
+    auto pinSignals = detectLedMatrixSignals(sigs.keys());
+    m_instrumentPanel->clearInstruments();
+
+    if (!pinSignals.isEmpty()) {
+        InstrumentDef def;
+        def.type = "led_matrix";
+        def.name = "LED Matrix";
+        QSet<QString> ports;
+        for (const auto &ps : pinSignals) {
+            ports.insert(QString(ps.port));
+        }
+        def.rows = ports.size();
+        def.cols = 8;
+        for (const auto &ps : pinSignals) {
+            def.signalNames.append(ps.name);
+        }
+        m_instrumentPanel->addLedMatrix(def, refs);
+        m_instrumentPanel->show();
+    }
+
+    // --- Standalone instrument windows: scan .cir for subcircuits ---
+    // Close any previously opened instrument windows
+    for (auto *w : m_matrixWindows) {
+        w->close();
+        w->deleteLater();
+    }
+    m_matrixWindows.clear();
+    for (auto *w : m_seg7Windows) {
+        w->close();
+        w->deleteLater();
+    }
+    m_seg7Windows.clear();
+    for (auto *w : m_lcdWindows) {
+        w->close();
+        w->deleteLater();
+    }
+    m_lcdWindows.clear();
+
+    // Normalize signal names in refs (strip v() wrapper, strip _an suffix)
+    // for matching against .cir node names
+    QMap<QString, SignalRef> normalizedRefs;
+    for (auto it = refs.begin(); it != refs.end(); ++it) {
+        QString key = pinSignalUserRole(it.key());
+        normalizedRefs[key] = it.value();
+        // Also register without _an suffix for .cir node name matching
+        if (key.endsWith("_an"))
+            normalizedRefs[key.left(key.size() - 3)] = it.value();
+    }
+    // Auto-detect companion .cir from log's directory if not set via --cir
+    if (m_currentCirPath.isEmpty() && m_lastLogPath.endsWith("sim_matrix.log")) {
+        QDir d = QFileInfo(m_lastLogPath).absoluteDir();
+        for (const auto &fi : d.entryInfoList({"*.cir"}, QDir::Files)) {
+            m_currentCirPath = fi.absoluteFilePath();
+            break;
+        }
+    }
+
+    if (!m_currentCirPath.isEmpty()) {
+        auto instruments = detectInstruments(m_currentCirPath);
+
+        for (const auto &def : instruments) {
+            if (def.type == "led_matrix_10x10") {
+                QMap<QString, SignalRef> matrixRefs;
+                for (const auto &sig : def.rowSignals)
+                    if (normalizedRefs.contains(sig))
+                        matrixRefs[sig] = normalizedRefs[sig];
+                for (const auto &sig : def.colSignals)
+                    if (normalizedRefs.contains(sig))
+                        matrixRefs[sig] = normalizedRefs[sig];
+
+                if (matrixRefs.size() == 20) {
+                    auto *win = new LedMatrixWindow(
+                        def.name.isEmpty() ? "LED Matrix" : def.name,
+                        def.rowSignals, def.colSignals, matrixRefs, this);
+                    win->show();
+                    m_matrixWindows.append(win);
+
+                    // Sync probe time: viewer → matrix window
+                    connect(m_viewer, &WaveformViewer::probeTimeChanged,
+                            win, &LedMatrixWindow::setProbeTime);
+                }
+            } else if (def.type == "7seg_display") {
+                QMap<QString, SignalRef> segRefs;
+                for (const auto &sig : def.signalNames) {
+                    if (normalizedRefs.contains(sig))
+                        segRefs[sig] = normalizedRefs[sig];
+                }
+
+                if (segRefs.size() == def.signalNames.size() &&
+                    segRefs.size() >= 7) {
+                    auto *win = new Segment7Window(
+                        def.name.isEmpty() ? "7-Segment Display" : def.name,
+                        def.signalNames, segRefs, this);
+                    win->show();
+                    m_seg7Windows.append(win);
+
+                    connect(m_viewer, &WaveformViewer::probeTimeChanged,
+                            win, &Segment7Window::setProbeTime);
+                }
+            } else if (def.type == "lcd_hd44780") {
+                QMap<QString, SignalRef> lcdRefs;
+                for (const auto &sig : def.signalNames) {
+                    if (normalizedRefs.contains(sig))
+                        lcdRefs[sig] = normalizedRefs[sig];
+                }
+
+                if (lcdRefs.size() == 6) {
+                    auto *win = new LcdWindow(
+                        def.name.isEmpty() ? "LCD (HD44780)" : def.name,
+                        def.signalNames, lcdRefs, this);
+                    win->show();
+                    win->raise();
+                    win->activateWindow();
+                    m_lcdWindows.append(win);
+
+                    connect(m_viewer, &WaveformViewer::probeTimeChanged,
+                            win, &LcdWindow::setProbeTime);
+                }
+            }
+        }
+    }
+}
+
 void MainWindow::loadLogFile(const QString &path)
 {
     if (!QFileInfo::exists(path)) {
@@ -49,6 +203,7 @@ void MainWindow::loadLogFile(const QString &path)
         updateRecentMenu();
         return;
     }
+    m_lastLogPath = path;
     m_viewer->loadCsv(path);
     m_lastDir = QFileInfo(path).absolutePath();
     addRecentFile(path);
@@ -89,9 +244,14 @@ void MainWindow::setupMenuBar()
     toggleSidebarAct->setCheckable(true);
     toggleSidebarAct->setChecked(true);
     connect(toggleSidebarAct, &QAction::toggled, this, [this](bool visible) {
-        auto *dock = findChild<QDockWidget*>();
+        auto *dock = findChild<QDockWidget*>("Explorer");
         if (dock) dock->setVisible(visible);
     });
+
+    auto *toggleInstrAct = m_viewMenu->addAction("Toggle &Instruments", QKeySequence("Ctrl+I"));
+    toggleInstrAct->setCheckable(true);
+    toggleInstrAct->setChecked(false);
+    connect(toggleInstrAct, &QAction::toggled, m_instrumentPanel, &QDockWidget::setVisible);
 
     // --- Simulation menu ---
     m_simMenu = menuBar()->addMenu("&Simulation");
@@ -173,8 +333,10 @@ void MainWindow::setupSidebar()
 
     connect(m_logList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
         QString path = item->data(Qt::UserRole).toString();
-        if (!path.isEmpty())
+        if (!path.isEmpty()) {
+            m_currentCirPath.clear();
             loadLogFile(path);
+        }
     });
 
     connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshCirList);
@@ -222,8 +384,10 @@ void MainWindow::onOpenFile()
     QString path = QFileDialog::getOpenFileName(
         this, "Open Simulation Log", m_lastDir,
         "Log Files (*.log *.out *.txt);;CSV Files (*.csv);;All Files (*)");
-    if (!path.isEmpty())
+    if (!path.isEmpty()) {
+        m_currentCirPath.clear();
         loadLogFile(path);
+    }
 }
 
 void MainWindow::onOpenRecent()
@@ -367,6 +531,7 @@ void MainWindow::runNgspiceFor(const QString &cirPath)
         return;
     }
 
+    m_currentCirPath = cirPath;
     m_progressBar->show();
     if (m_statusLabel)
         m_statusLabel->setText("Running: " + cirName + "...");
