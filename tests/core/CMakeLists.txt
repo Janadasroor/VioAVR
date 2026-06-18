@@ -245,7 +245,6 @@ if(AVR_FW_AVAILABLE)
         peripherals/jit_divergence_test.cpp
     )
 endif()
-)
 
 set(PERIPH_GROUP_3_SRCS
     peripherals/power_clock_fidelity_test.cpp
