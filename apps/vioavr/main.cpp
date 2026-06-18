@@ -31,6 +31,8 @@
 #include "ansi.hpp"
 #include "docs.hpp"
 
+int cmd_arduino(int argc, char** argv);
+
 #ifdef HAVE_SHM_OPEN
 vioavr::core::BridgeShmServer* g_bridge_server = nullptr;
 
@@ -348,6 +350,7 @@ int cmd_help(const Args& args, const std::string& prog) {
     cmd("info <device>",   "Show device information");
     cmd("list-devices",    "List all supported MCUs");
     cmd("bridge",          "Start co-simulation bridge daemon");
+    cmd("arduino",         "Arduino board management and sketch runner");
     cmd("docs [topic]",    "Show built-in documentation");
     cmd("gdb <hex>",       "Start GDB stub with firmware loaded");
     cmd("help",            "Show this help");
@@ -489,11 +492,12 @@ int cmd_run(const Args& args) {
             std::cout << Terminal::fg(Terminal::Color::bright_black)
                       << Terminal::style(Terminal::Style::bold)
                       << "═══ GPIO State ═══" << Terminal::reset_all() << "\n";
+            auto& pmux = machine->pin_mux();
             auto ports = machine->peripherals_of_type<GpioPort>();
             for (auto* port : ports) {
+                u8 port_idx = static_cast<u8>(port->name().back() - 'A');
                 u8 ddr = port->ddr_register();
                 u8 prt = port->port_register();
-                u8 pin = port->output_levels();
                 std::cout << "  " << Terminal::fg(Terminal::Color::green) << "PORT"
                           << port->name().back() << Terminal::reset_all()
                           << ": " << Terminal::fg(Terminal::Color::bright_black) << "DDR"
@@ -501,15 +505,14 @@ int cmd_run(const Args& args) {
                           << static_cast<int>(ddr)
                           << " " << Terminal::fg(Terminal::Color::bright_black) << "PORT"
                           << Terminal::reset_all() << "=0x" << static_cast<int>(prt)
-                          << " " << Terminal::fg(Terminal::Color::bright_black) << "OUT"
-                          << Terminal::reset_all() << "=0x" << static_cast<int>(pin)
                           << std::dec;
-                // Show pin states as bits
                 std::cout << " (";
                 for (int b = 7; b >= 0; --b) {
-                    if (ddr & (1 << b)) {
-                        std::cout << ((prt & (1 << b)) ? Terminal::fg(Terminal::Color::green) + "1"
-                                                       : Terminal::fg(Terminal::Color::red) + "0");
+                    auto ps = pmux.get_state(port_idx, static_cast<u8>(b));
+                    if (ps.is_output) {
+                        std::cout << (ps.drive_level
+                                     ? Terminal::fg(Terminal::Color::green) + "1"
+                                     : Terminal::fg(Terminal::Color::red) + "0");
                     } else {
                         std::cout << Terminal::fg(Terminal::Color::bright_black) << "z";
                     }
@@ -1002,6 +1005,11 @@ int main(int argc, char** argv) {
     // No subcommand -> show help
     if (args.subcommand.empty() || args.subcommand == "help") {
         return cmd_help(args, prog);
+    }
+
+    // arduino has its own sub-argument parsing
+    if (args.subcommand == "arduino") {
+        return cmd_arduino(argc - 1, argv + 1);
     }
 
     struct Cmd { std::string_view name; std::function<int(const Args&)> fn; };

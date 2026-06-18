@@ -1,4 +1,4 @@
-add_executable(vioavr main.cpp)
+add_executable(vioavr main.cpp cmd_arduino.cpp)
 
 target_link_libraries(vioavr
     PRIVATE
