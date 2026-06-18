@@ -5,8 +5,16 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
+#ifndef _WIN32
 #include <unistd.h>
 #include <sys/ioctl.h>
+#endif
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#define fileno _fileno
+#define isatty _isatty
+#endif
 
 // ---------------------------------------------------------------------------
 // ANSI terminal control — colors, cursor, screen, progress bars
@@ -53,16 +61,32 @@ public:
     static int width() {
         if (!is_tty()) return 80;
         if (auto e = getenv("COLUMNS")) return std::atoi(e);
+#ifdef _WIN32
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        if (GetStdHandle(STD_OUTPUT_HANDLE) != INVALID_HANDLE_VALUE &&
+            GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
+            return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+        return 80;
+#else
         struct winsize w;
         if (ioctl(fileno(stdout), TIOCGWINSZ, &w) == 0 && w.ws_col > 0) return w.ws_col;
         return 80;
+#endif
     }
 
     static int height() {
         if (!is_tty()) return 24;
+#ifdef _WIN32
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        if (GetStdHandle(STD_OUTPUT_HANDLE) != INVALID_HANDLE_VALUE &&
+            GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
+            return csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+        return 24;
+#else
         struct winsize w;
         if (ioctl(fileno(stdout), TIOCGWINSZ, &w) == 0 && w.ws_row > 0) return w.ws_row;
         return 24;
+#endif
     }
 
     // ── ANSI helpers ────────────────────────────────────────
