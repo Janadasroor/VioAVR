@@ -62,8 +62,7 @@ jobs:
     - name: Install dependencies
       run: |
         brew update
-        brew tap osx-cross/avr
-        brew install ninja ccache avr-gcc
+        brew install ninja ccache avr-gcc || brew install ninja ccache gcc-avr avr-libc
 
     - name: Configure CMake
       run: >
