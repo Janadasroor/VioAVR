@@ -12,6 +12,7 @@
 #include <array>
 #include <cerrno>
 #include <cstdio>
+#include <deque>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -24,6 +25,13 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#ifdef _WIN32
+#  include <conio.h>
+#else
+#  include <sys/select.h>
+#  include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -198,7 +206,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         opt("--board <name>",    "Arduino board (default: Uno)");
         opt("--max-cycles <n>",  "Cycle limit (e.g. 100k, 1M)");
         opt("--show-state",      "Show peripheral state after run");
-        opt("--serial",          "Attach Serial monitor (stdio)");
+        opt("--serial",          "Serial monitor: stdin → UART RX, UART TX → stdout");
         opt("--color <mode>",    "Color mode: auto, always, never");
         opt("--help",            "Show this help");
         return positional.empty() ? 1 : 0;
@@ -313,21 +321,102 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     }
 
     bool serial_enabled = options.find("serial") != options.end();
-    u64 last_serial_check = 0;
+    constexpr u64 kSerialPollInterval = 1000;
+    std::deque<u8> rx_pending;
+
+    auto drain_tx = [](Uart* uart) {
+        if (!uart) return;
+        u16 data = 0;
+        while (uart->consume_transmitted_byte(data))
+            std::cout.put(static_cast<char>(data & 0xFF));
+        std::cout.flush();
+    };
+
+    auto uart_can_rx = [](Uart* uart) -> bool {
+        if (!uart) return false;
+        u8 ucsra = uart->read(uart->descriptor().ucsra_address);
+        u8 ucsrb = uart->read(uart->descriptor().ucsrb_address);
+        bool rxen = (ucsrb & uart->descriptor().rxen_mask) != 0;
+        bool rxc_clear = (ucsra & uart->descriptor().rxc_mask) == 0;
+        return rxen && rxc_clear;
+    };
+
+    bool uart_is_at_baud = false;
+    u64 inject_count = 0;
+
+    auto inject_rx = [&](Uart* uart) {
+        if (!uart) return;
+        u8 ubrrl = uart->read(uart->descriptor().ubrrl_address);
+        u8 ubrrh = uart->read(uart->descriptor().ubrrh_address);
+        u16 ubrr = (static_cast<u16>(ubrrh & 0x0F) << 8) | ubrrl;
+        bool sketch_mode = (ubrr > 50);
+        if (sketch_mode) uart_is_at_baud = true;
+        if (!uart_is_at_baud) return;
+
+#ifndef _WIN32
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(STDIN_FILENO, &fds);
+        struct timeval tv = {0, 0};
+        while (select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv) > 0) {
+            char c;
+            if (read(STDIN_FILENO, &c, 1) > 0)
+                rx_pending.push_back(static_cast<u8>(c));
+            else break;
+        }
+#else
+        while (_kbhit()) {
+            int c = _getch();
+            if (c != EOF) rx_pending.push_back(static_cast<u8>(c));
+        }
+#endif
+        if (rx_pending.empty()) return;
+
+        if (uart->inject_received_byte(rx_pending.front())) {
+            rx_pending.pop_front();
+            ++inject_count;
+        }
+    };
+
+    Uart* serial_uart = nullptr;
+    if (serial_enabled && board->has_serial) {
+        auto uarts = machine->peripherals_of_type<Uart>();
+        if (!uarts.empty()) serial_uart = uarts[0];
+        if (serial_uart)
+            std::cout << Terminal::fg(Terminal::Color::bright_black)
+                      << "Serial monitor: stdin → UART RX, UART TX → stdout"
+                      << Terminal::reset_all() << "\n";
+    }
 
     while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
         machine->step();
 
-        // Print bytes transmitted by the AVR UART (Serial.print output)
-        if (serial_enabled && board->has_serial) {
-            auto uarts = machine->peripherals_of_type<Uart>();
-            if (!uarts.empty()) {
-                u16 data = 0;
-                while (uarts[0]->consume_transmitted_byte(data)) {
-                    std::cout.put(static_cast<char>(data & 0xFF));
-                }
+        if (serial_uart && (cpu.cycles() % kSerialPollInterval == 0)) {
+            drain_tx(serial_uart);
+            inject_rx(serial_uart);
+        }
+    }
+
+    if (serial_uart) {
+        drain_tx(serial_uart);
+        // Wait for remaining RX pipeline to drain and TX to complete
+        u64 drain_cycles = 0;
+        while (drain_cycles < 1'000'000) {
+            machine->step();
+            ++drain_cycles;
+            if (drain_cycles % kSerialPollInterval == 0) {
+                drain_tx(serial_uart);
+                if (!rx_pending.empty())
+                    inject_rx(serial_uart);
+                if (rx_pending.empty()) break;
             }
         }
+        // Extra cycles to let the last byte's TX complete
+        for (u64 i = 0; i < 50000; ++i) {
+            machine->step();
+        }
+        drain_tx(serial_uart);
+        std::cout.flush();
     }
 
     if (!options.empty() || true) {
