@@ -166,25 +166,29 @@ set(AVR8X_GROUP_2_SRCS
 # Peripherals (77 files → 4 groups of ~19)
 set(PERIPH_GROUP_0_SRCS
     peripherals/adc_fidelity_test.cpp
-    peripherals/atmega8_firmware_test.cpp
-    peripherals/atmega808_firmware_test.cpp
-    peripherals/at90pwm316_adc_pwm_integration_test.cpp
     peripherals/at90pwm316_fidelity_test.cpp
     peripherals/inverter_atmega328p_waveform_test.cpp
-    peripherals/inverter_atmega328p_firmware_test.cpp
-    peripherals/inverter_psc_firmware_test.cpp
     peripherals/inverter_psc_waveform_test.cpp
-    peripherals/inverter_atmega16_firmware_test.cpp
     peripherals/inverter_atmega16_waveform_test.cpp
-    peripherals/ext_int_firmware_test.cpp
-    peripherals/analog_comparator_firmware_test.cpp
-    peripherals/pin_change_firmware_test.cpp
-    peripherals/timer2_async_firmware_test.cpp
-    peripherals/twi_firmware_test.cpp
-    peripherals/i2c_scanner_firmware_test.cpp
-    peripherals/at90pwm316_pid_test.cpp
     peripherals/at90pwm_cycle_by_cycle_test.cpp
 )
+if(AVR_FW_AVAILABLE)
+    list(APPEND PERIPH_GROUP_0_SRCS
+        peripherals/atmega8_firmware_test.cpp
+        peripherals/atmega808_firmware_test.cpp
+        peripherals/at90pwm316_adc_pwm_integration_test.cpp
+        peripherals/inverter_atmega328p_firmware_test.cpp
+        peripherals/inverter_psc_firmware_test.cpp
+        peripherals/inverter_atmega16_firmware_test.cpp
+        peripherals/ext_int_firmware_test.cpp
+        peripherals/analog_comparator_firmware_test.cpp
+        peripherals/pin_change_firmware_test.cpp
+        peripherals/timer2_async_firmware_test.cpp
+        peripherals/twi_firmware_test.cpp
+        peripherals/i2c_scanner_firmware_test.cpp
+        peripherals/at90pwm316_pid_test.cpp
+    )
+endif()
 
 set(PERIPH_GROUP_1_SRCS
     peripherals/atmega2560_timers_test.cpp
