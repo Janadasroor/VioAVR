@@ -158,8 +158,19 @@ void Tcb::tick(u64 elapsed_cycles) noexcept {
             perform_tick(fire);
             if (fire) ticked = true;
         }
-    } else { // clksel == 3: Cascaded from TCA — handled via event callback
-        // Do not tick here; TCA OVF events trigger perform_tick via set_event_system
+    } else if (clksel >= 3 && clksel <= 6) { // CLK_PER /8/16/32/64
+        u8 divisor = 1U << clksel; // 8, 16, 32, 64
+        for (u64 i = 0; i < elapsed_cycles; ++i) {
+            bool fire = false;
+            if (++prescaler_counter_ >= divisor) {
+                prescaler_counter_ = 0;
+                fire = true;
+            }
+            perform_tick(fire);
+            if (fire) ticked = true;
+        }
+    } else { // clksel == 7: Event system — handled via event callback
+        // Do not tick here; event callbacks trigger perform_tick
     }
 
     if (ticked) {
@@ -236,7 +247,7 @@ void Tcb::set_event_system(EventSystem* evsys) noexcept {
         // We should ideally use desc_.tca_ovf_generator_id if added to descriptor.
         // For now, assume 128 as per most ATDFs for TCA0.
         evsys_->register_generator_callback(128, [this](bool) {
-            if (is_enabled() && get_clksel() == 3) {
+            if (is_enabled() && get_clksel() == 7) {
                 perform_tick(true);
                 update_interrupt_state();
             }

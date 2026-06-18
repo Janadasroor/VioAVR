@@ -233,6 +233,8 @@ def parse_hex(s):
     """Parse hex string like '0x3F' -> int."""
     if isinstance(s, int):
         return s
+    if s is None:
+        return 0
     s = s.strip()
     # Strip repeated "0x" prefixes (ATDF sometimes has "0x0x0000")
     while s.startswith("0x") or s.startswith("0X"):
@@ -740,6 +742,7 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
     
     # RAMPZ — search in CPU module (AVR8X: as a register, may not exist)
     rampz_addr = get_register(root, "CPU", "CPU", "RAMPZ")
+    eind_addr = get_register(root, "CPU", "CPU", "EIND")
     
     # SPMCSR / SPMCR — search in CPU module or NVMCTRL or standalone SPM module
     spmcsr = 0
@@ -784,6 +787,44 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                 sig1 = parse_hex(pval)
             elif pname == "SIGNATURE2":
                 sig2 = parse_hex(pval)
+    
+    # ---- Extract EVSYS USER register addresses and GENERATOR IDs ----
+    evsys_user_map = {}  # register name → full address
+    evsys_gen_map = {}   # EVSYS_GENERATOR name → value (int)
+    if is_avr8x:
+        # Find EVSYS base address (from peripherals instance first, then module)
+        evsys_base = 0
+        for mod in root.findall(".//peripherals/module[@name='EVSYS']"):
+            for inst in mod.findall("instance"):
+                for rg in inst.findall("register-group"):
+                    evsys_base = parse_hex(rg.get("offset", "0"))
+        if evsys_base == 0:
+            for mod in root.findall(".//module[@name='EVSYS']"):
+                for rg in mod.findall("register-group"):
+                    off = rg.get("offset")
+                    base = parse_hex(off) if off else 0
+                    if base:
+                        evsys_base = base
+        # Extract USER register addresses: find the register-group that has register children
+        for rg in root.findall(".//register-group"):
+            if rg.get("name") == "EVSYS" and len(list(rg)) > 0:
+                rg_off = rg.get("offset")
+                base = parse_hex(rg_off) if rg_off else evsys_base
+                if base == 0:
+                    base = evsys_base
+                for reg in rg.findall("register"):
+                    rname = reg.get("name", "")
+                    roff = parse_hex(reg.get("offset", "0"))
+                    if rname.startswith("USER") and not rname.startswith("USERROW") and not rname.startswith("USEREVOUT"):
+                        # Normalize: strip trailing "START" for AVR-Dx style
+                        norm = rname.replace("START", "")
+                        evsys_user_map[norm] = base + roff
+                break  # Use first register-group with children
+        # Extract GENERATOR IDs from EVSYS_GENERATOR value-group
+        for vg in root.iter("value-group"):
+            if vg.get("name") == "EVSYS_GENERATOR":
+                for val in vg:
+                    evsys_gen_map[val.get("name", "")] = parse_hex(val.get("value", "0"))
     
     # ---- Generate C++ output ----
     
@@ -844,6 +885,8 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
     out.append(f"    .sreg_address = 0x{sreg_addr:02X}U,")
     if rampz_addr:
         out.append(f"    .rampz_address = 0x{rampz_addr:02X}U,")
+    if eind_addr:
+        out.append(f"    .eind_address = 0x{eind_addr:02X}U,")
     if spmcsr:
         out.append(f"    .spmcsr_address = 0x{spmcsr:02X}U,")
     if ccp_address:
@@ -938,6 +981,14 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                 out.append(f"            .res_ready_vector_index = {resrdy_idx}U,")
             if wcomp_idx != 0xFF:
                 out.append(f"            .wcomp_vector_index = {wcomp_idx}U,")
+            # EVSYS user event address
+            user_key = f"USERADC{ai}"
+            if user_key in evsys_user_map:
+                out.append(f"            .user_event_address = 0x{evsys_user_map[user_key]:02X}U,")
+            # EVSYS generator IDs
+            gen_key = f"ADC{ai}_RESRDY"
+            if gen_key in evsys_gen_map:
+                out.append(f"            .resrd_generator_id = {evsys_gen_map[gen_key]}U,")
             out.append(f"        }}," if ai < len(adc8x_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
@@ -1071,6 +1122,13 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                     out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
             if ac_idx != 0xFF:
                 out.append(f"            .vector_index = {ac_idx}U,")
+            # EVSYS user event address
+            user_key = f"USERAC{ai}"
+            if user_key in evsys_user_map:
+                out.append(f"            .user_event_address = 0x{evsys_user_map[user_key]:02X}U,")
+            gen_key = f"AC{ai}_OUT"
+            if gen_key in evsys_gen_map:
+                out.append(f"            .out_generator_id = {evsys_gen_map[gen_key]}U,")
             out.append(f"        }}," if ai < len(ac8x_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
@@ -1208,6 +1266,23 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                 out.append(f"            .cmp2_vector_index = {use_cmp2}U,")
             if hunf_idx != 0xFF:
                 out.append(f"            .hunf_vector_index = {hunf_idx}U,")
+            # EVSYS user event address for TCA
+            user_key = f"USERTCA{ti}"
+            if user_key in evsys_user_map:
+                out.append(f"            .user_event_address = 0x{evsys_user_map[user_key]:02X}U,")
+            # EVSYS generator IDs
+            ovf_gen = f"TCA{ti}_OVF_LUNF"
+            cmp0_gen = f"TCA{ti}_CMP0"
+            cmp1_gen = f"TCA{ti}_CMP1"
+            cmp2_gen = f"TCA{ti}_CMP2"
+            if ovf_gen in evsys_gen_map:
+                out.append(f"            .ovf_generator_id = {evsys_gen_map[ovf_gen]}U,")
+            if cmp0_gen in evsys_gen_map:
+                out.append(f"            .cmp0_generator_id = {evsys_gen_map[cmp0_gen]}U,")
+            if cmp1_gen in evsys_gen_map:
+                out.append(f"            .cmp1_generator_id = {evsys_gen_map[cmp1_gen]}U,")
+            if cmp2_gen in evsys_gen_map:
+                out.append(f"            .cmp2_generator_id = {evsys_gen_map[cmp2_gen]}U,")
             out.append(f"        }}," if ti < len(tca_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
@@ -1235,6 +1310,14 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                     out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
             if int_idx != 0xFF:
                 out.append(f"            .vector_index = {int_idx}U,")
+            # EVSYS user event address
+            user_key = f"USERTCB{ti}"
+            if user_key in evsys_user_map:
+                out.append(f"            .user_event_address = 0x{evsys_user_map[user_key]:02X}U,")
+            # EVSYS generator ID
+            gen_key = f"TCB{ti}_CAPT"
+            if gen_key in evsys_gen_map:
+                out.append(f"            .capt_generator_id = {evsys_gen_map[gen_key]}U,")
             out.append(f"        }}," if ti < len(tcb_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
@@ -1374,6 +1457,13 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                 out.append(f"            .ovf_vector_index = {cnt_idx}U,")
             if pit_idx != 0xFF:
                 out.append(f"            .pit_vector_index = {pit_idx}U,")
+            # EVSYS generator IDs (RTC has no per-instance USER register)
+            ovf_gen = "RTC_OVF"
+            cmp_gen = "RTC_CMP"
+            if ovf_gen in evsys_gen_map:
+                out.append(f"            .ovf_generator_id = {evsys_gen_map[ovf_gen]}U,")
+            if cmp_gen in evsys_gen_map:
+                out.append(f"            .cmp_generator_id = {evsys_gen_map[cmp_gen]}U,")
             out.append(f"        }}," if ri < len(rtc_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     
@@ -1740,6 +1830,10 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                 out.append(f"            .tx_vector_index = {txc_idx}U,")
             if dre_idx != 0xFF:
                 out.append(f"            .dre_vector_index = {dre_idx}U,")
+            # EVSYS user event address (before pin fields per struct order)
+            user_key = f"USERUSART{uart_idx}"
+            if user_key in evsys_user_map:
+                out.append(f"            .user_event_address = 0x{evsys_user_map[user_key]:02X}U,")
             if txd_addr:
                 out.append(f"            .txd_pin_address = 0x{txd_addr:02X}U,")
                 out.append(f"            .txd_pin_bit = {txd_bit}U,")
@@ -1854,6 +1948,10 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                     out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
             if sp_idx != 0xFF:
                 out.append(f"            .vector_index = {sp_idx}U,")
+            # EVSYS user event address (before index per struct order)
+            user_key = f"USERSPI{spi_idx}"
+            if user_key in evsys_user_map:
+                out.append(f"            .user_event_address = 0x{evsys_user_map[user_key]:02X}U,")
             out.append(f"            .index = {spi_idx}U,")
             out.append(f"        }}," if si < len(spi8x_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
@@ -1906,6 +2004,10 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                 out.append(f"            .master_vector_index = {twim_idx}U,")
             if twis_idx != 0xFF:
                 out.append(f"            .slave_vector_index = {twis_idx}U,")
+            # EVSYS user event address (before index per struct order)
+            user_key = f"USERTWI{twi_idx}"
+            if user_key in evsys_user_map:
+                out.append(f"            .user_event_address = 0x{evsys_user_map[user_key]:02X}U,")
             out.append(f"            .index = {twi_idx}U,")
             out.append(f"        }}," if ti < len(twi8x_instances) - 1 else f"        }}")
         out.append(f"    }}}},")

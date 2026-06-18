@@ -294,6 +294,7 @@ if(VIOAVR_BUILD_COSIM)
         viospice/viospice_xmega_awex_test.cpp
         viospice/viospice_xmega_dac_test.cpp
         viospice/viospice_multi_i2c_test.cpp
+        viospice/viospice_atmega4809_tca_pwm_test.cpp
     )
 endif()
 
