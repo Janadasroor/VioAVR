@@ -232,6 +232,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         opt("--max-cycles <n>",  "Cycle limit (e.g. 100k, 1M)");
         opt("--show-state",      "Show peripheral state after run");
         opt("--serial [mode]",   "Serial monitor (default=stdio, or 'pty')");
+        opt("--board-options <kv>", "Comma-separated board options (e.g. cpu=16MHzatmega328)");
         opt("--color <mode>",    "Color mode: auto, always, never");
         opt("--help",            "Show this help");
         return positional.empty() ? 1 : 0;
@@ -246,6 +247,21 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
                   << Terminal::reset_all() << "unknown board '" << board_name << "'\n";
         return 1;
+    }
+
+    // Parse board options (e.g. "cpu=16MHzatmega328,speed=8MHz")
+    std::string fqbn(board->fqbn);
+    auto bo_it = options.find("board-options");
+    if (bo_it != options.end() && !bo_it->second.empty()) {
+        std::istringstream ss(bo_it->second);
+        std::string opt;
+        bool first = true;
+        while (std::getline(ss, opt, ',')) {
+            if (!opt.empty()) {
+                fqbn += (first ? ":" : ",") + opt;
+                first = false;
+            }
+        }
     }
 
     fs::path sketch_path(positional[0]);
@@ -272,7 +288,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     std::string arduino_bin = find_arduino_cli();
     std::cout << Terminal::fg(Terminal::Color::bright_black)
               << "Compiling " << ino_file.filename().string()
-              << " for " << board->name << " (" << board->fqbn << ")"
+              << " for " << board->name << " (" << fqbn << ")"
               << Terminal::reset_all() << "\n";
 
 #ifdef _WIN32
@@ -282,7 +298,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
 #endif
     std::ostringstream compile_cmd;
     compile_cmd << arduino_cmd
-                << " compile --fqbn " << board->fqbn
+                << " compile --fqbn " << fqbn
                 << " --output-dir \"" << build_dir.string() << "\""
                 << " \"" << sketch_path.string() << "\"";
 
