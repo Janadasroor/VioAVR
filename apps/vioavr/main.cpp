@@ -31,6 +31,7 @@
 #include "ansi.hpp"
 #include "docs.hpp"
 
+#ifdef HAVE_SHM_OPEN
 vioavr::core::BridgeShmServer* g_bridge_server = nullptr;
 
 extern "C" void bridge_signal_handler(int) {
@@ -39,6 +40,7 @@ extern "C" void bridge_signal_handler(int) {
         g_bridge_server->stop();
     }
 }
+#endif
 
 using namespace vioavr::core;
 
@@ -786,6 +788,7 @@ int cmd_list_devices(const Args& args) {
 // ---------------------------------------------------------------------------
 // Subcommand: bridge
 // ---------------------------------------------------------------------------
+#ifdef HAVE_SHM_OPEN
 int cmd_bridge(const Args& args) {
     using namespace vioavr::core;
 
@@ -855,6 +858,13 @@ int cmd_bridge(const Args& args) {
     g_bridge_server = nullptr;
     return 0;
 }
+#else
+int cmd_bridge(const Args&) {
+    std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+              << Terminal::reset_all() << "SHM bridge not available on this platform.\n";
+    return 1;
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Subcommand: gdb
