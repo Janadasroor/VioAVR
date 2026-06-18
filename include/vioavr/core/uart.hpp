@@ -30,7 +30,7 @@ public:
 
     [[nodiscard]] ClockDomain clock_domain() const noexcept override;
 
-    void inject_received_byte(u16 data) noexcept;
+    bool inject_received_byte(u16 data) noexcept;
     bool consume_transmitted_byte(u16& data) noexcept;
 
 private:

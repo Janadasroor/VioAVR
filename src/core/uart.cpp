@@ -255,13 +255,13 @@ bool Uart::consume_interrupt_request(InterruptRequest& request) noexcept
     return true;
 }
 
-void Uart::inject_received_byte(const u16 data) noexcept
+bool Uart::inject_received_byte(const u16 data) noexcept
 {
-    if ((ucsrb_ & desc_.rxen_mask) == 0U) return;
+    if ((ucsrb_ & desc_.rxen_mask) == 0U) return false;
 
     if ((ucsra_ & desc_.rxc_mask) != 0U || rx_active_) {
         ucsra_ |= kDorMask;
-        return;
+        return false;
     }
 
     rx_shift_reg_ = data;
@@ -270,6 +270,7 @@ void Uart::inject_received_byte(const u16 data) noexcept
     rx_cycle_accumulator_ = 0;
     rx_active_ = true;
     update_interrupt_state();
+    return true;
 }
 
 bool Uart::consume_transmitted_byte(u16& data) noexcept
