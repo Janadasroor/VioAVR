@@ -31,11 +31,17 @@
 #else
 #  include <sys/select.h>
 #  include <unistd.h>
+#  include <fcntl.h>
 #endif
 
 namespace fs = std::filesystem;
 
 namespace {
+
+// ---------------------------------------------------------------------------
+// Serial mode
+// ---------------------------------------------------------------------------
+enum class SerialMode { none, stdio, pty };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -134,6 +140,25 @@ void print_board_info(const vioavr::core::ArduinoBoard& board) {
 }
 
 // ---------------------------------------------------------------------------
+// PTY creation (Linux / macOS)
+// ---------------------------------------------------------------------------
+#ifndef _WIN32
+static int create_pty(std::string& slave_path) {
+    int master = posix_openpt(O_RDWR | O_NOCTTY);
+    if (master == -1) return -1;
+    if (grantpt(master) == -1) { close(master); return -1; }
+    if (unlockpt(master) == -1) { close(master); return -1; }
+    const char* name = ptsname(master);
+    if (!name) { close(master); return -1; }
+    slave_path = name;
+    // Non-blocking reads on master
+    int flags = fcntl(master, F_GETFL);
+    if (flags != -1) fcntl(master, F_SETFL, flags | O_NONBLOCK);
+    return master;
+}
+#endif
+
+// ---------------------------------------------------------------------------
 // Sub-subcommand: list
 // ---------------------------------------------------------------------------
 int cmd_arduino_list() {
@@ -206,7 +231,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         opt("--board <name>",    "Arduino board (default: Uno)");
         opt("--max-cycles <n>",  "Cycle limit (e.g. 100k, 1M)");
         opt("--show-state",      "Show peripheral state after run");
-        opt("--serial",          "Serial monitor: stdin → UART RX, UART TX → stdout");
+        opt("--serial [mode]",   "Serial monitor (default=stdio, or 'pty')");
         opt("--color <mode>",    "Color mode: auto, always, never");
         opt("--help",            "Show this help");
         return positional.empty() ? 1 : 0;
@@ -320,15 +345,30 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         return 2;
     }
 
-    bool serial_enabled = options.find("serial") != options.end();
+    // Parse --serial mode
+    SerialMode serial_mode = SerialMode::none;
+    auto serial_it = options.find("serial");
+    if (serial_it != options.end()) {
+        if (serial_it->second == "pty") serial_mode = SerialMode::pty;
+        else serial_mode = SerialMode::stdio;
+    }
+
     constexpr u64 kSerialPollInterval = 1000;
     std::deque<u8> rx_pending;
+    std::string pty_slave_path;
+    int pty_master_fd = -1;
 
-    auto drain_tx = [](Uart* uart) {
+    auto drain_tx = [&](Uart* uart) {
         if (!uart) return;
         u16 data = 0;
-        while (uart->consume_transmitted_byte(data))
-            std::cout.put(static_cast<char>(data & 0xFF));
+        while (uart->consume_transmitted_byte(data)) {
+            u8 byte = static_cast<u8>(data & 0xFF);
+            if (serial_mode == SerialMode::pty && pty_master_fd != -1) {
+                [[maybe_unused]] ssize_t n = ::write(pty_master_fd, &byte, 1);
+            } else {
+                std::cout.put(static_cast<char>(byte));
+            }
+        }
         std::cout.flush();
     };
 
@@ -353,21 +393,26 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         if (sketch_mode) uart_is_at_baud = true;
         if (!uart_is_at_baud) return;
 
+        int read_fd = (serial_mode == SerialMode::pty && pty_master_fd != -1)
+                      ? pty_master_fd : STDIN_FILENO;
+
 #ifndef _WIN32
         fd_set fds;
         FD_ZERO(&fds);
-        FD_SET(STDIN_FILENO, &fds);
+        FD_SET(read_fd, &fds);
         struct timeval tv = {0, 0};
-        while (select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv) > 0) {
+        while (select(read_fd + 1, &fds, nullptr, nullptr, &tv) > 0) {
             char c;
-            if (read(STDIN_FILENO, &c, 1) > 0)
+            if (::read(read_fd, &c, 1) > 0)
                 rx_pending.push_back(static_cast<u8>(c));
             else break;
         }
 #else
-        while (_kbhit()) {
-            int c = _getch();
-            if (c != EOF) rx_pending.push_back(static_cast<u8>(c));
+        if (serial_mode == SerialMode::stdio) {
+            while (_kbhit()) {
+                int c = _getch();
+                if (c != EOF) rx_pending.push_back(static_cast<u8>(c));
+            }
         }
 #endif
         if (rx_pending.empty()) return;
@@ -379,13 +424,38 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     };
 
     Uart* serial_uart = nullptr;
-    if (serial_enabled && board->has_serial) {
+    if (serial_mode != SerialMode::none && board->has_serial) {
         auto uarts = machine->peripherals_of_type<Uart>();
         if (!uarts.empty()) serial_uart = uarts[0];
-        if (serial_uart)
-            std::cout << Terminal::fg(Terminal::Color::bright_black)
-                      << "Serial monitor: stdin → UART RX, UART TX → stdout"
-                      << Terminal::reset_all() << "\n";
+        if (serial_uart) {
+#ifndef _WIN32
+            if (serial_mode == SerialMode::pty) {
+                pty_master_fd = create_pty(pty_slave_path);
+                if (pty_master_fd == -1) {
+                    std::cerr << Terminal::fg(Terminal::Color::red) << "Warning: "
+                              << Terminal::reset_all() << "failed to create PTY, falling back to stdio\n";
+                    serial_mode = SerialMode::stdio;
+                } else {
+                    std::cout << Terminal::fg(Terminal::Color::green)
+                              << "Serial PTY: " << Terminal::reset_all()
+                              << pty_slave_path << "\n"
+                              << Terminal::fg(Terminal::Color::bright_black)
+                              << "Connect: picocom " << pty_slave_path
+                              << Terminal::reset_all() << "\n";
+                }
+            }
+#else
+            if (serial_mode == SerialMode::pty) {
+                std::cerr << Terminal::fg(Terminal::Color::red) << "Warning: "
+                          << Terminal::reset_all() << "PTY not supported on Windows, falling back to stdio\n";
+                serial_mode = SerialMode::stdio;
+            }
+#endif
+            if (serial_mode == SerialMode::stdio)
+                std::cout << Terminal::fg(Terminal::Color::bright_black)
+                          << "Serial monitor: stdin → UART RX, UART TX → stdout"
+                          << Terminal::reset_all() << "\n";
+        }
     }
 
     while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
@@ -476,8 +546,9 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         }
     }
 
-    // Cleanup build dir
+    // Cleanup
     fs::remove_all(build_dir);
+    if (pty_master_fd != -1) close(pty_master_fd);
 
     return 0;
 }
