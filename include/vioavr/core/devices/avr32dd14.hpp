@@ -47,6 +47,7 @@ inline constexpr DeviceDescriptor avr32dd14 {
             .winlt_address = 0x612U,
             .winht_address = 0x614U,
             .res_ready_vector_index = 26U,
+            .user_event_address = 0x228U,
         }
     }},
 

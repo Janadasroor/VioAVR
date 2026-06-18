@@ -69,7 +69,7 @@ private:
     void perform_tick(bool clock_event = true);
     bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     u8 get_mode() const noexcept { return ctrlb_ & 0x07; }
-    u8 get_clksel() const noexcept { return (ctrla_ >> 1) & 0x03; }
+    u8 get_clksel() const noexcept { return (ctrla_ >> 1) & 0x07; }
 
     u8 prescaler_counter_ {0};
     u64 async_cycle_accum_ {0}; // For ASYNC mode RTC clock conversion

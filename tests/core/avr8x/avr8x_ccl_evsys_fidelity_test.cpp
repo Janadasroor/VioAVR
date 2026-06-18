@@ -134,8 +134,8 @@ TEST_CASE("AVR8X Timer Cascade: TCA0 OVF -> TCB0 Clock") {
     bus.write_data(0xA27, 0x00);
     
     // 2. Configure TCB0
-    // ENABLE=1, CLKSEL=CASCADE (Value 3 in bits 2:1 => 0x06)
-    bus.write_data(0xA80, 0x07);
+    // ENABLE=1, CLKSEL=CLK_TCA (Cascaded from TCA, Value 7 in bits 3:1 => 0x0E)
+    bus.write_data(0xA80, 0x0F);
     // MODE=Periodic Interrupt (0)
     bus.write_data(0xA81, 0x00);
     // CCMP = 0xFFFF (Don't reset early)
