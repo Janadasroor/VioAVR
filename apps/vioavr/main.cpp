@@ -859,6 +859,7 @@ int cmd_bridge(const Args& args) {
 // ---------------------------------------------------------------------------
 // Subcommand: gdb
 // ---------------------------------------------------------------------------
+#ifndef _WIN32
 int cmd_gdb(const Args& args) {
     using namespace vioavr::core;
 
@@ -913,6 +914,13 @@ int cmd_gdb(const Args& args) {
 
     return 0;
 }
+#else
+int cmd_gdb(const Args&) {
+    std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+              << Terminal::reset_all() << "GDB stub not available on Windows.\n";
+    return 1;
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Subcommand: docs
