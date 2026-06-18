@@ -192,14 +192,11 @@ endif()
 
 set(PERIPH_GROUP_1_SRCS
     peripherals/atmega2560_timers_test.cpp
-    peripherals/atmega328p_voltmeter_test.cpp
-    peripherals/atmega328p_sysmon_test.cpp
     peripherals/dac_fidelity_test.cpp
     peripherals/dac8x_fidelity_test.cpp
     peripherals/dma_fidelity_test.cpp
     peripherals/eeprom_fidelity_test.cpp
     peripherals/evsys_fidelity_test.cpp
-    peripherals/ext_interrupt_fidelity_test.cpp
     peripherals/fetch_metadata_test.cpp
     peripherals/fuse_fidelity_test.cpp
     peripherals/cfd_fidelity_test.cpp
@@ -210,6 +207,8 @@ set(PERIPH_GROUP_1_SRCS
 )
 if(AVR_FW_AVAILABLE)
     list(APPEND PERIPH_GROUP_1_SRCS
+        peripherals/atmega328p_sysmon_test.cpp
+        peripherals/atmega328p_voltmeter_test.cpp
         peripherals/blinky_external_test.cpp
         peripherals/uart_hello_external_test.cpp
         peripherals/test0_firmware_test.cpp
@@ -217,17 +216,16 @@ if(AVR_FW_AVAILABLE)
         peripherals/spi_loopback_test.cpp
         peripherals/wdt_firmware_test.cpp
         peripherals/eeprom_firmware_test.cpp
+        peripherals/ext_interrupt_fidelity_test.cpp
     )
 endif()
 
 set(PERIPH_GROUP_2_SRCS
     peripherals/gpio_readback_test.cpp
-    peripherals/integration_stress_runner.cpp
     peripherals/lcd_3290_test.cpp
     peripherals/lcd_exhaustive_test.cpp
     peripherals/lcd_fidelity_test.cpp
     peripherals/lockbit_fidelity_test.cpp
-    peripherals/math_fidelity_test.cpp
     peripherals/nvm_stall_fidelity_test.cpp
     peripherals/opamp_fidelity_test.cpp
     peripherals/ptc_fidelity_test.cpp
@@ -239,6 +237,8 @@ set(PERIPH_GROUP_2_SRCS
 if(AVR_FW_AVAILABLE)
     list(APPEND PERIPH_GROUP_2_SRCS
         peripherals/input_pin_fidelity_test.cpp
+        peripherals/integration_stress_runner.cpp
+        peripherals/math_fidelity_test.cpp
         peripherals/performance_benchmark_test.cpp
         peripherals/jit_benchmark_test.cpp
         peripherals/jit_debug.cpp
@@ -261,7 +261,6 @@ set(PERIPH_GROUP_3_SRCS
     peripherals/twi_fidelity_test.cpp
     peripherals/usi_fidelity_test.cpp
     peripherals/uart_fidelity_test.cpp
-    peripherals/uart_stress_test_runner.cpp
     peripherals/xmem_fidelity_test.cpp
 )
 if(AVR_FW_AVAILABLE)
@@ -269,6 +268,7 @@ if(AVR_FW_AVAILABLE)
         peripherals/power_sleep_firmware_test.cpp
         peripherals/psc_firmware_test.cpp
         peripherals/spi_firmware_test.cpp
+        peripherals/uart_stress_test_runner.cpp
     )
 endif()
 
