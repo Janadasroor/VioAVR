@@ -194,16 +194,9 @@ set(PERIPH_GROUP_1_SRCS
     peripherals/atmega2560_timers_test.cpp
     peripherals/atmega328p_voltmeter_test.cpp
     peripherals/atmega328p_sysmon_test.cpp
-    peripherals/blinky_external_test.cpp
-    peripherals/uart_hello_external_test.cpp
-    peripherals/test0_firmware_test.cpp
-    peripherals/test_interrupt_firmware_test.cpp
-    peripherals/spi_loopback_test.cpp
-    peripherals/wdt_firmware_test.cpp
     peripherals/dac_fidelity_test.cpp
     peripherals/dac8x_fidelity_test.cpp
     peripherals/dma_fidelity_test.cpp
-    peripherals/eeprom_firmware_test.cpp
     peripherals/eeprom_fidelity_test.cpp
     peripherals/evsys_fidelity_test.cpp
     peripherals/ext_interrupt_fidelity_test.cpp
@@ -215,10 +208,20 @@ set(PERIPH_GROUP_1_SRCS
     peripherals/lin_uart_fidelity_test.cpp
     peripherals/gpio_fidelity_test.cpp
 )
+if(AVR_FW_AVAILABLE)
+    list(APPEND PERIPH_GROUP_1_SRCS
+        peripherals/blinky_external_test.cpp
+        peripherals/uart_hello_external_test.cpp
+        peripherals/test0_firmware_test.cpp
+        peripherals/test_interrupt_firmware_test.cpp
+        peripherals/spi_loopback_test.cpp
+        peripherals/wdt_firmware_test.cpp
+        peripherals/eeprom_firmware_test.cpp
+    )
+endif()
 
 set(PERIPH_GROUP_2_SRCS
     peripherals/gpio_readback_test.cpp
-    peripherals/input_pin_fidelity_test.cpp
     peripherals/integration_stress_runner.cpp
     peripherals/lcd_3290_test.cpp
     peripherals/lcd_exhaustive_test.cpp
@@ -229,25 +232,28 @@ set(PERIPH_GROUP_2_SRCS
     peripherals/opamp_fidelity_test.cpp
     peripherals/ptc_fidelity_test.cpp
     peripherals/tcd_fidelity_test.cpp
-    peripherals/performance_benchmark_test.cpp
-    peripherals/jit_benchmark_test.cpp
-    peripherals/jit_debug.cpp
-    peripherals/jit_divergence_test.cpp
     peripherals/pin_mux_priority_test.cpp
     peripherals/pinmux_fidelity_test.cpp
     peripherals/pll_test.cpp
+)
+if(AVR_FW_AVAILABLE)
+    list(APPEND PERIPH_GROUP_2_SRCS
+        peripherals/input_pin_fidelity_test.cpp
+        peripherals/performance_benchmark_test.cpp
+        peripherals/jit_benchmark_test.cpp
+        peripherals/jit_debug.cpp
+        peripherals/jit_divergence_test.cpp
+    )
+endif()
 )
 
 set(PERIPH_GROUP_3_SRCS
     peripherals/power_clock_fidelity_test.cpp
     peripherals/power_management_test.cpp
-    peripherals/power_sleep_firmware_test.cpp
-    peripherals/psc_firmware_test.cpp
     peripherals/psc_fidelity_test.cpp
     peripherals/signal_tracer_test.cpp
     peripherals/sleep_fidelity_test.cpp
     peripherals/soc_interconnect_test.cpp
-    peripherals/spi_firmware_test.cpp
     peripherals/spi_fidelity_test.cpp
     peripherals/spm_fidelity_test.cpp
     peripherals/spm_test.cpp
@@ -259,6 +265,13 @@ set(PERIPH_GROUP_3_SRCS
     peripherals/uart_stress_test_runner.cpp
     peripherals/xmem_fidelity_test.cpp
 )
+if(AVR_FW_AVAILABLE)
+    list(APPEND PERIPH_GROUP_3_SRCS
+        peripherals/power_sleep_firmware_test.cpp
+        peripherals/psc_firmware_test.cpp
+        peripherals/spi_firmware_test.cpp
+    )
+endif()
 
 set(XMEGA_GROUP_SRCS
     xmega/xmega_tc_fidelity_test.cpp
