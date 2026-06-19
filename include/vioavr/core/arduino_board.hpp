@@ -26,6 +26,7 @@ struct ArduinoBoard {
     u8 analog_inputs;
     bool has_serial;
     std::span<const ArduinoPin> important_pins;
+    std::string_view default_board_options;
 };
 
 inline constexpr ArduinoPin kUnoPins[] = {
@@ -290,13 +291,24 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         kLeonardoPins
     },
     {
+        "NG (ATmega8)",
+        "arduino:avr:atmegang",
+        "ATmega8",
+        16'000'000,
+        1024, 8192,
+        13, 6, true,
+        kUnoPins,
+        "cpu=16MHzatmega8"
+    },
+    {
         "NG (ATmega168)",
         "arduino:avr:atmegang",
         "ATmega168",
         16'000'000,
         1024, 16384,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        "cpu=16MHzatmega168"
     },
     {
         "UNO Mini",

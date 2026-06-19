@@ -229,3 +229,57 @@ if(HAVE_SHM_OPEN)
 else()
     message(STATUS "vioavr-bridge-daemon: disabled (shm_open not available on this platform)")
 endif()
+
+# ── Install ────────────────────────────────────────────────────────
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+# Core static library
+install(TARGETS vioavr_core
+    EXPORT VioAVRTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# CLI apps
+install(TARGETS vioavr
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Public headers
+install(DIRECTORY include/vioavr/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/vioavr
+    FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h"
+        PATTERN "*.hxx"
+)
+
+# CMake targets export
+install(EXPORT VioAVRTargets
+    FILE VioAVRTargets.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VioAVR
+    NAMESPACE VioAVR::
+)
+
+# Config file
+set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR})
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VioAVRConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/VioAVRConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VioAVR
+    PATH_VARS INCLUDE_INSTALL_DIR
+)
+
+# Version file
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/VioAVRConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY AnyNewerVersion
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/VioAVRConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/VioAVRConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VioAVR
+)

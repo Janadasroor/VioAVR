@@ -102,7 +102,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     target_compile_options(vioavr_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-set_target_properties(vioavr_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(vioavr_core PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    EXPORT_NAME core
+)
 if(NOT VIOAVR_DISABLE_UNITY)
     set_target_properties(vioavr_core PROPERTIES UNITY_BUILD ON)
     set_target_properties(vioavr_core PROPERTIES UNITY_BUILD_BATCH_SIZE 12)

@@ -92,6 +92,8 @@ void AvrCpu::reset(ResetCause cause) noexcept
     }
 
     cycles_ = 0U;
+    instructions_executed_ = 0U;
+    sleep_cycles_ = 0U;
     reset_triggered_ = true;
     interrupt_pending_ = false;
     interrupt_depth_ = 0U;
@@ -782,6 +784,7 @@ void AvrCpu::run(const u64 cycle_budget)
             pending_cycles = 0;
             break;
         }
+        ++instructions_executed_;
         program_counter_ = pc;
 
         if (pending_cycles >= check_interval) {
@@ -1186,6 +1189,7 @@ void AvrCpu::step()
 
     if (state_ == CpuState::sleeping) {
         if (!interrupt_pending_) {
+            ++sleep_cycles_;
             advance_cycles(1U);
         }
 
@@ -1215,6 +1219,7 @@ void AvrCpu::step()
     }
 
     reset_triggered_ = false;
+    ++instructions_executed_;
     const u16 opcode = static_cast<u16>(bus_->read_program_word(program_counter_));
     u8* regs = gpr_.data();
     const auto sram = bus_->device().sram_range();
@@ -1663,25 +1668,15 @@ DecodedInstruction AvrCpu::fetch() const noexcept
     };
 }
 
-constexpr u8 AvrCpu::classify_word_size(const u16 opcode) noexcept
+std::string_view AvrCpu::lookup_mnemonic(u16 opcode) noexcept
 {
-    if ((opcode & 0xFE0EU) == 0x940CU) {
-        return 2U;  // JMP / CALL
+    const auto table = instruction_table();
+    for (const auto& desc : table) {
+        if ((opcode & desc.mask) == desc.pattern) {
+            return desc.mnemonic;
+        }
     }
-
-    if ((opcode & 0xFE0EU) == 0x940EU) {
-        return 2U;  // CALL
-    }
-
-    if ((opcode & 0xFE0FU) == 0x9000U) {
-        return 2U;  // LDS
-    }
-
-    if ((opcode & 0xFE0FU) == 0x9200U) {
-        return 2U;  // STS
-    }
-
-    return 1U;
+    return "???";
 }
 
 std::span<const AvrCpu::InstructionDescriptor> AvrCpu::instruction_table() noexcept

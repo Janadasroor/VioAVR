@@ -407,7 +407,7 @@ static int setup_chip(struct ChipState* chip, const char* mcu,
         for (int b = 0; b < 8; b++)
             vioavr_add_pin_mapping(chip->avr, PORT_NAMES[p], b, p * 8 + b);
 
-    if (!vioavr_load_hex(chip->avr, hex)) {
+    if (vioavr_load_hex(chip->avr, hex) != VIOAVR_OK) {
         vioavr_destroy(chip->avr);
         chip->avr = NULL;
         return 0;

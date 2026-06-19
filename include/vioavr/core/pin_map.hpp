@@ -10,7 +10,7 @@
 namespace vioavr::core {
 
 /**
- * @brief Maps an AVR pin (Port + Bit) to an external world identifier (e.g., ngspice node ID).
+ * @brief Maps an AVR pin (Port + Bit) to an external circuit node identifier.
  */
 struct PinMapping {
     std::string port_name;

@@ -11,8 +11,8 @@ namespace vioavr::core {
 /**
  * @brief A thread-safe collection of analog input signals.
  * 
- * This bank serves as the primary interface for external simulators (e.g., ngspice)
- * to inject analog voltages into the ISS. It uses atomic doubles for lock-free
+ * This bank serves as the primary interface for external simulators to inject
+ * analog voltages into the ISS. It uses atomic doubles for lock-free
  * updates from the simulator thread while the ISS thread samples them.
  * Voltages are stored as absolute values in Volts (not normalized).
  */

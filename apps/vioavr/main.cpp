@@ -29,9 +29,11 @@
 #include <type_traits>
 
 #include "ansi.hpp"
+#include "args.hpp"
 #include "docs.hpp"
 
 int cmd_arduino(int argc, char** argv);
+int cmd_debug(const Args& args);
 
 #ifdef HAVE_SHM_OPEN
 vioavr::core::BridgeShmServer* g_bridge_server = nullptr;
@@ -45,101 +47,6 @@ extern "C" void bridge_signal_handler(int) {
 #endif
 
 using namespace vioavr::core;
-
-namespace {
-
-// ---------------------------------------------------------------------------
-// Minimal subcommand-aware argument parser
-// ---------------------------------------------------------------------------
-class Args {
-public:
-    std::string subcommand;
-    std::vector<std::string> positional;
-    std::map<std::string, std::string> options;
-
-    bool has(const std::string& key) const {
-        return options.find(key) != options.end();
-    }
-
-    const std::string& get(const std::string& key, const std::string& fallback = "") const {
-        auto it = options.find(key);
-        return it != options.end() ? it->second : fallback;
-    }
-
-    template <typename T>
-    T get_as(const std::string& key, T fallback = {}) const {
-        auto it = options.find(key);
-        if (it == options.end()) return fallback;
-        T val{};
-        if constexpr (std::is_same_v<T, bool>) {
-            return it->second == "true" || it->second == "1";
-        } else if constexpr (std::is_integral_v<T>) {
-            return static_cast<T>(std::stoull(it->second));
-        }
-        return val;
-    }
-
-    u64 get_cycles(const std::string& key, u64 fallback = 0) const {
-        auto it = options.find(key);
-        if (it == options.end()) return fallback;
-        return parse_cycles(it->second);
-    }
-
-    static u64 parse_cycles(const std::string& s) {
-        u64 val = 0;
-        char suffix = 0;
-        unsigned long long tmp = 0;
-        if (std::sscanf(s.c_str(), "%llu%c", &tmp, &suffix) >= 1) {
-        val = static_cast<u64>(tmp);
-            if (suffix == 'k' || suffix == 'K') val *= 1000ULL;
-            else if (suffix == 'm' || suffix == 'M') val *= 1'000'000ULL;
-        }
-        return val;
-    }
-};
-
-static Args parse_args(int argc, char** argv) {
-    Args args;
-    // First positional = subcommand
-    int i = 1;
-    if (i < argc && argv[i][0] != '-') {
-        args.subcommand = argv[i++];
-    }
-    while (i < argc) {
-        std::string_view arg = argv[i];
-        if (arg == "--help" || arg == "-h") {
-            // Placeholder -- the subcommand handler will process this
-            args.options["--help"] = "true";
-            ++i;
-        } else if (arg.substr(0, 2) == "--") {
-            std::string key(arg.substr(2));
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                args.options[key] = argv[++i];
-            } else {
-                args.options[key] = "true";
-            }
-            ++i;
-        } else if (arg == "--color" && i + 1 < argc) {
-            Terminal::set_color_mode(Terminal::parse_color_mode(argv[++i]));
-            ++i;
-        } else if (arg.substr(0, 8) == "--color=") {
-            Terminal::set_color_mode(Terminal::parse_color_mode(arg.substr(8).data()));
-            ++i;
-        } else if (arg.substr(0, 1) == "-") {
-            // Short option: accept -<char> <value>
-            std::string key(1, arg[1]);
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                args.options[key] = argv[++i];
-            } else {
-                args.options[key] = "true";
-            }
-            ++i;
-        } else {
-            args.positional.push_back(argv[i++]);
-        }
-    }
-    return args;
-}
 
 // ---------------------------------------------------------------------------
 // Trace hook for run/trace subcommands
@@ -346,6 +253,7 @@ int cmd_help(const Args& args, const std::string& prog) {
     };
     cmd("run <hex>",       "Run firmware and show summary");
     cmd("trace <hex>",     "Trace execution cycle by cycle");
+    cmd("debug <hex>",     "Interactive debugger with breakpoints");
     cmd("benchmark",       "Run performance benchmark");
     cmd("info <device>",   "Show device information");
     cmd("list-devices",    "List all supported MCUs");
@@ -976,8 +884,6 @@ int cmd_docs(const Args& args) {
     return 0;
 }
 
-} // namespace
-
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -1016,6 +922,7 @@ int main(int argc, char** argv) {
     static const Cmd cmds[] = {
         {"run",           cmd_run},
         {"trace",         cmd_trace},
+        {"debug",         cmd_debug},
         {"benchmark",     cmd_benchmark},
         {"info",          cmd_info},
         {"list-devices",  cmd_list_devices},
