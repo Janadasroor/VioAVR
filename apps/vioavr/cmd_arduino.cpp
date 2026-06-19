@@ -233,6 +233,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         opt("--show-state",      "Show peripheral state after run");
         opt("--serial [mode]",   "Serial monitor (default=stdio, or 'pty')");
         opt("--board-options <kv>", "Comma-separated board options (e.g. cpu=16MHzatmega328)");
+        opt("--gdb <port>",      "Start GDB stub on port for debugging");
         opt("--color <mode>",    "Color mode: auto, always, never");
         opt("--help",            "Show this help");
         return positional.empty() ? 1 : 0;
@@ -262,6 +263,12 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                 first = false;
             }
         }
+    }
+
+    int gdb_port = -1;
+    auto gdb_it = options.find("gdb");
+    if (gdb_it != options.end()) {
+        gdb_port = std::stoi(gdb_it->second);
     }
 
     fs::path sketch_path(positional[0]);
@@ -474,10 +481,27 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         }
     }
 
-    while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
-        machine->step();
+    // GDB stub
+#ifndef _WIN32
+    if (gdb_port > 0) {
+        machine->enable_gdb(static_cast<uint16_t>(gdb_port));
+        std::cout << Terminal::fg(Terminal::Color::green)
+                  << "GDB stub on port " << Terminal::reset_all()
+                  << gdb_port << "\n"
+                  << Terminal::fg(Terminal::Color::bright_black)
+                  << "Connect: gdb-multiarch -ex 'target remote :" << gdb_port << "'"
+                  << Terminal::reset_all() << "\n";
+    }
+#else
+    if (gdb_port > 0) {
+        std::cerr << Terminal::fg(Terminal::Color::red) << "Warning: "
+                  << Terminal::reset_all() << "GDB stub not available on Windows\n";
+    }
+#endif
 
-        if (serial_uart && (cpu.cycles() % kSerialPollInterval == 0)) {
+    while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
+        cpu.run(serial_uart ? kSerialPollInterval : max_cycles);
+        if (serial_uart) {
             drain_tx(serial_uart);
             inject_rx(serial_uart);
         }
