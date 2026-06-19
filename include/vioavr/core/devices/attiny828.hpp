@@ -5,7 +5,7 @@ namespace vioavr::core::devices {
 
 inline constexpr DeviceDescriptor attiny828 {
     .name = "ATtiny828",
-    .flash_words = 1024U,
+    .flash_words = 4096U,
     .sram_bytes = 512U,
     .sram_start = 0x0100U,
     .eeprom_bytes = 256U,

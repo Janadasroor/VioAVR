@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(Threads)
+
+set_and_check(VioAVR_INCLUDE_DIR "@PACKAGE_INCLUDE_INSTALL_DIR@")
+
+include("${CMAKE_CURRENT_LIST_DIR}/VioAVRTargets.cmake")
+
+check_required_components(VioAVR)

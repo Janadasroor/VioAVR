@@ -252,9 +252,15 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
 
     // Parse board options (e.g. "cpu=16MHzatmega328,speed=8MHz")
     std::string fqbn(board->fqbn);
+    std::string board_opts;
     auto bo_it = options.find("board-options");
     if (bo_it != options.end() && !bo_it->second.empty()) {
-        std::istringstream ss(bo_it->second);
+        board_opts = bo_it->second;
+    } else if (!board->default_board_options.empty()) {
+        board_opts = std::string(board->default_board_options);
+    }
+    if (!board_opts.empty()) {
+        std::istringstream ss(board_opts);
         std::string opt;
         bool first = true;
         while (std::getline(ss, opt, ',')) {

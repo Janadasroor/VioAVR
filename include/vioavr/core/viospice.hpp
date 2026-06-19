@@ -35,7 +35,7 @@ class Uart;
 class Uart8x;
 
 /**
- * @brief High-level bridge for ngspice/XSPICE integration.
+ * @brief High-level bridge for external simulator / co-simulation integration.
  */
 class VioSpice {
 public:
@@ -77,6 +77,23 @@ public:
     [[nodiscard]] double frequency() const noexcept { return frequency_; }
     [[nodiscard]] LcdController* lcd() const noexcept { return lcd_; }
 
+    // Error state
+    void set_error(std::string msg, int code = -1) noexcept {
+        last_error_ = std::move(msg);
+        last_error_code_ = code;
+    }
+    [[nodiscard]] const std::string& last_error() const noexcept { return last_error_; }
+    [[nodiscard]] int last_error_code() const noexcept { return last_error_code_; }
+    void clear_error() noexcept { last_error_.clear(); last_error_code_ = 0; }
+
+    // UART access
+    [[nodiscard]] Uart* uart() noexcept { return uart0_; }
+
+    // Introspection
+    [[nodiscard]] PinLevel get_pin_level(u32 external_id) const noexcept;
+    [[nodiscard]] u64 instructions_executed() const noexcept { return cpu_.instructions_executed(); }
+    [[nodiscard]] u64 sleep_cycles() const noexcept { return cpu_.sleep_cycles(); }
+
 private:
     PinMux pin_mux_;
     MemoryBus bus_;
@@ -91,7 +108,7 @@ private:
     LcdController* lcd_ {nullptr};
     PortMux* port_mux_ {nullptr};
     EventSystem* evsys_ {nullptr};
-    
+
     std::vector<PinStateChange> pending_pin_changes_;
     PinChangeInterruptSharedState pcint_shared_state_ {};
     std::unique_ptr<PinMap> pin_map_;
@@ -104,6 +121,8 @@ private:
     Hc05 hc05_;
     bool hc05_enabled_ {false};
     int  hc05_pty_fd_ {-1};
+    std::string last_error_;
+    int last_error_code_ {0};
 
     void bridge_hc05();
 };

@@ -1073,6 +1073,14 @@ void VioSpice::set_quantum(u64 cycles) {
     quantum_ = cycles;
 }
 
+PinLevel VioSpice::get_pin_level(u32 external_id) const noexcept {
+    if (!pin_map_) return PinLevel::low;
+    auto mapping = pin_map_->get_mapping_by_external(external_id);
+    if (!mapping) return PinLevel::low;
+    auto state = pin_mux_.get_state_by_address(mapping->pin_address, mapping->bit_index);
+    return state.drive_level ? PinLevel::high : PinLevel::low;
+}
+
 void VioSpice::set_ircom_output_pin(u32 external_id) {
     if (!pin_map_) return;
     auto mapping = pin_map_->get_mapping_by_external(external_id);

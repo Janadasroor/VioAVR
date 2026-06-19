@@ -52,6 +52,8 @@ struct CpuSnapshot {
     u16 stack_pointer {};
     u8 sreg {};
     u64 cycles {};
+    u64 instructions_executed {};
+    u64 sleep_cycles {};
     bool interrupt_pending {};
     bool in_interrupt_handler {};
     CpuState state {CpuState::halted};
@@ -83,6 +85,8 @@ public:
             .stack_pointer = stack_pointer_,
             .sreg = sreg(),
             .cycles = cycles_,
+            .instructions_executed = instructions_executed_,
+            .sleep_cycles = sleep_cycles_,
             .interrupt_pending = interrupt_pending_,
             .in_interrupt_handler = interrupt_depth_ != 0U,
             .state = state_
@@ -199,6 +203,16 @@ public:
         return cycles_;
     }
 
+    [[nodiscard]] constexpr u64 instructions_executed() const noexcept
+    {
+        return instructions_executed_;
+    }
+
+    [[nodiscard]] constexpr u64 sleep_cycles() const noexcept
+    {
+        return sleep_cycles_;
+    }
+
     [[nodiscard]] constexpr CpuState state() const noexcept
     {
         return state_;
@@ -213,6 +227,16 @@ public:
     [[nodiscard]] jit::JitDebugStats jit_debug_stats() const noexcept;
 #endif
 
+    [[nodiscard]] static constexpr u8 classify_word_size(u16 opcode) noexcept
+    {
+        if ((opcode & 0xFE0EU) == 0x940CU) return 2U;
+        if ((opcode & 0xFE0EU) == 0x940EU) return 2U;
+        if ((opcode & 0xFE0FU) == 0x9000U) return 2U;
+        if ((opcode & 0xFE0FU) == 0x9200U) return 2U;
+        return 1U;
+    }
+    [[nodiscard]] static std::string_view lookup_mnemonic(u16 opcode) noexcept;
+
 private:
     using InstructionHandler = void (AvrCpu::*)(const DecodedInstruction&);
 
@@ -224,7 +248,6 @@ private:
     };
 
     [[nodiscard]] DecodedInstruction fetch() const noexcept;
-    [[nodiscard]] static constexpr u8 classify_word_size(u16 opcode) noexcept;
     [[nodiscard]] static std::span<const InstructionDescriptor> instruction_table() noexcept;
     void dispatch_instruction(const DecodedInstruction& instruction);
     void decode_and_execute(const DecodedInstruction& instruction);
@@ -415,6 +438,8 @@ private:
     SlpCtrl* slp_ctrl_ {nullptr};
     RstCtrl* rst_ctrl_ {nullptr};
     u64 cycles_ {0};
+    u64 instructions_executed_ {0};
+    u64 sleep_cycles_ {0};
     double cycle_accumulator_ {0.0};
     bool interrupt_pending_ {};
     u8 interrupt_depth_ {};

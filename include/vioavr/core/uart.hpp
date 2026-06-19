@@ -32,6 +32,15 @@ public:
 
     bool inject_received_byte(u16 data) noexcept;
     bool consume_transmitted_byte(u16& data) noexcept;
+    [[nodiscard]] bool has_tx_byte() const noexcept { return !tx_output_queue_.empty(); }
+    [[nodiscard]] u16 read_tx_byte() noexcept {
+        u16 data{};
+        if (!tx_output_queue_.empty()) {
+            data = tx_output_queue_.front();
+            tx_output_queue_.pop_front();
+        }
+        return data;
+    }
 
 private:
     std::string name_;
