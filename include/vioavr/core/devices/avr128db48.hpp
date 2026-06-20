@@ -593,14 +593,26 @@ inline constexpr DeviceDescriptor avr128db48 {
         }
     }},
 
-    .opamp_count = 1U,
+    .opamp_count = 3U,
     .opamps = {{
         {
-            .ctrla_address = 0x700U,
-            .ctrlb_address = 0x701U,
-            .resctrl_address = 0x702U,
-            .muxctrl_address = 0x70FU,
-        }
+            .ctrla_address = 0x710U,
+            .ctrlb_address = 0x711U,
+            .resctrl_address = 0x712U,
+            .muxctrl_address = 0x713U,
+        },
+        {
+            .ctrla_address = 0x718U,
+            .ctrlb_address = 0x719U,
+            .resctrl_address = 0x71AU,
+            .muxctrl_address = 0x71BU,
+        },
+        {
+            .ctrla_address = 0x720U,
+            .ctrlb_address = 0x721U,
+            .resctrl_address = 0x722U,
+            .muxctrl_address = 0x723U,
+        },
     }},
 
     .signature = { 0x1E, 0x97, 0x0C },
