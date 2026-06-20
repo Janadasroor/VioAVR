@@ -2638,15 +2638,22 @@ def build_xmega_register_map(root):
                     instance_regs[rname] = base + roff
             
             # Also look for sub-register-groups (DMA_CH, ADC_CH, TWI_MASTER, etc.)
-            # These are at different offsets within the same module
-            seen_names = set(instance_regs.keys())
+            # These are at different offsets within the same module.
+            # IMPORTANT: Do NOT overwrite existing parent registers (e.g. INTFLAGS)
+            # that the sub-group might also define. The sub-group is a template;
+            # the actual per-channel offsets require the sub-group base offset
+            # within the parent module, which is NOT available in all ATDFs.
+            # For now, we only add sub-group registers that don't collide with
+            # parent registers. The per-channel offset must be handled by the
+            # peripheral implementation.
+            existing_regs = set(instance_regs.keys())
             for (mn, rgn), regs in module_layouts.items():
-                if mn == mname and rgn != mname and rgn not in seen_names:
-                    # Check if this sub-group name relates to the instance
+                if mn == mname and rgn != mname:
                     if rgn.endswith('_CH') or rgn in ('TWI_MASTER', 'TWI_SLAVE'):
                         for roff, rname, rsize in regs:
-                            instance_regs[rname] = base + roff
-                            seen_names.add(rname)
+                            if rname not in existing_regs:
+                                instance_regs[rname] = base + roff
+                                existing_regs.add(rname)
             
             if instance_regs:
                 result[(mname, iname)] = instance_regs
