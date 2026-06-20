@@ -187,7 +187,7 @@ endif()
 # Statically linking the runtime embeds them inside the exe, making it fully
 # self-contained for end-users.
 if(MINGW)
-    add_link_options(-static-libgcc -static-libstdc++ -static -lpthread)
+    add_link_options(-static-libgcc -static-libstdc++)
     message(STATUS "MinGW: static runtime linkage enabled (self-contained exe)")
 endif()
 
