@@ -181,6 +181,16 @@ if(VIOAVR_ENABLE_WERROR)
     endif()
 endif()
 
+# ── Windows/MinGW: static runtime (no libgcc/libstdc++/libwinpthread DLLs) ──
+# Without this, the exe requires several MinGW DLLs to be present on the
+# target machine (libgcc_s_seh-1.dll, libstdc++-6.dll, libwinpthread-1.dll).
+# Statically linking the runtime embeds them inside the exe, making it fully
+# self-contained for end-users.
+if(MINGW)
+    add_link_options(-static-libgcc -static-libstdc++ -static -lpthread)
+    message(STATUS "MinGW: static runtime linkage enabled (self-contained exe)")
+endif()
+
 # ── Detect POSIX shared memory (shm_open) for the SHM bridge ──────
 # Available on Linux/macOS; not available on Windows (even with MinGW).
 # Must be before add_subdirectory() calls so subdirectories see the variable.
