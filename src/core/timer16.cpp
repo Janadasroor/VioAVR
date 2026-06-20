@@ -288,7 +288,7 @@ void Timer16::perform_tick() noexcept {
     }
 }
 
-void Timer16::on_event(u64 cycle) noexcept {
+void Timer16::on_event([[maybe_unused]] u64 cycle) noexcept {
     if (!bus_) return;
     sync();
     recalculate_event();
@@ -506,7 +506,7 @@ void Timer16::update_pwm_pins(bool is_match, u8 channel_mask) noexcept {
     u8 wgm = (tccra_ & 0x03U) | ((tccrb_ & desc_.wgm12_mask) >> 1);
     bool is_phase_correct = (wgm >= 1 && wgm <= 3) || (wgm >= 8 && wgm <= 11);
     bool is_non_pwm = (wgm == 0 || wgm == 4 || wgm == 12);
-    bool is_fast_pwm = (wgm >= 5 && wgm <= 7) || (wgm >= 13 && wgm <= 15);
+    [[maybe_unused]] bool is_fast_pwm = (wgm >= 5 && wgm <= 7) || (wgm >= 13 && wgm <= 15);
 
     auto update_pin = [&](const std::optional<BoundPin>& pin, u8 com, u16 ocr) {
         if (!pin || com == 0) {
@@ -564,12 +564,12 @@ bool Timer16::pending_interrupt_request(InterruptRequest& request) const noexcep
 }
 
 bool Timer16::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (request.vector_index == desc_.capture_vector_index) tifr_ &= ~kIcf1;
-    else if (request.vector_index == desc_.compare_a_vector_index) tifr_ &= ~kOcf1a;
-    else if (request.vector_index == desc_.compare_b_vector_index) tifr_ &= ~kOcf1b;
-    else if (request.vector_index == desc_.compare_c_vector_index) tifr_ &= ~kOcf1c;
-    else if (request.vector_index == desc_.compare_d_vector_index && desc_.compare_d_vector_index != 0) tifr_ &= ~kOcf1d;
-    else if (request.vector_index == desc_.overflow_vector_index) tifr_ &= ~kTov1;
+    if (request.vector_index == desc_.capture_vector_index) tifr_ &= static_cast<u8>(~kIcf1);
+    else if (request.vector_index == desc_.compare_a_vector_index) tifr_ &= static_cast<u8>(~kOcf1a);
+    else if (request.vector_index == desc_.compare_b_vector_index) tifr_ &= static_cast<u8>(~kOcf1b);
+    else if (request.vector_index == desc_.compare_c_vector_index) tifr_ &= static_cast<u8>(~kOcf1c);
+    else if (request.vector_index == desc_.compare_d_vector_index && desc_.compare_d_vector_index != 0) tifr_ &= static_cast<u8>(~kOcf1d);
+    else if (request.vector_index == desc_.overflow_vector_index) tifr_ &= static_cast<u8>(~kTov1);
     update_interrupt_state();
     return true;
 }

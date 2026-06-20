@@ -250,20 +250,20 @@ void Tca::write(u16 address, u8 value) noexcept {
         intctrl_ = value;
         update_interrupt_state();
     } else if (address == desc_.intflags_address) {
-        intflags_ &= ~value; // Clear on write 1
+        intflags_ &= static_cast<u8>(~value); // Clear on write 1
         update_interrupt_state();
     } else if (address == desc_.temp_address) {
         temp_ = value;
     } else if (address == desc_.ctrleclr_address) {
-        if (value & 0x08U) ctrle_ &= ~0x08U; // Clear DIR
-        if (value & 0x10U) ctrle_ &= ~0x10U; // Clear LUPD
+        if (value & 0x08U) ctrle_ &= 0xF7U; // Clear DIR
+        if (value & 0x10U) ctrle_ &= 0xEFU; // Clear LUPD
         handle_cmd(value & 0x07U);
     } else if (address == desc_.ctrleset_address) {
         if (value & 0x08U) ctrle_ |= 0x08U; // Set DIR
         if (value & 0x10U) ctrle_ |= 0x10U; // Set LUPD
         handle_cmd(value & 0x07U);
     } else if (address == desc_.ctrlfclr_address) {
-        ctrlf_ &= ~value;
+        ctrlf_ &= static_cast<u8>(~value);
     } else if (address == desc_.ctrlfset_address) {
         ctrlf_ |= value;
     }
@@ -430,18 +430,18 @@ bool Tca::pending_interrupt_request(InterruptRequest& request) const noexcept {
 bool Tca::consume_interrupt_request(InterruptRequest& request) noexcept {
     if (pending_interrupt_request(request)) {
         if (request.vector_index == desc_.luf_ovf_vector_index) {
-            intflags_ &= ~0x01U;
+            intflags_ &= 0xFEU;
         } else if (request.vector_index == desc_.hunf_vector_index) {
-            intflags_ &= ~0x02U;
+            intflags_ &= 0xFDU;
         } else if (request.vector_index == desc_.cmp0_vector_index ||
                    request.vector_index == desc_.lcmp0_vector_index) {
-            intflags_ &= ~0x10U;
+            intflags_ &= 0xEFU;
         } else if (request.vector_index == desc_.cmp1_vector_index ||
                    request.vector_index == desc_.lcmp1_vector_index) {
-            intflags_ &= ~0x20U;
+            intflags_ &= 0xDFU;
         } else if (request.vector_index == desc_.cmp2_vector_index ||
                    request.vector_index == desc_.lcmp2_vector_index) {
-            intflags_ &= ~0x40U;
+            intflags_ &= 0xBFU;
         }
         update_interrupt_state();
         return true;
@@ -453,10 +453,10 @@ void Tca::handle_cmd(u8 cmd) noexcept {
     switch (cmd) {
     case 1: // UPDATE
         if (!(ctrle_ & 0x10U)) { // LUPD not set
-            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= ~0x01U; }
-            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
-            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
-            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= ~0x08U; }
+            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= 0xFEU; }
+            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= 0xFDU; }
+            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= 0xFBU; }
+            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= 0xF7U; }
         }
         break;
     case 2: // RESET
@@ -467,10 +467,10 @@ void Tca::handle_cmd(u8 cmd) noexcept {
         counting_up_ = true;
         intflags_ = 0;
         if (!(ctrle_ & 0x10U)) {
-            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= ~0x01U; }
-            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
-            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
-            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= ~0x08U; }
+            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= 0xFEU; }
+            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= 0xFDU; }
+            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= 0xFBU; }
+            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= 0xF7U; }
         }
         update_interrupt_state();
         update_outputs();
@@ -482,7 +482,6 @@ void Tca::perform_tick() {
     u8 wgmode = ctrlb_ & 0x07;
     bool update_cond = false;
     bool ovf_at_bottom = false;
-    const u16 old_tcnt = norm_.tcnt;
 
     if (wgmode == 0x01) { // FRQ
         if (norm_.tcnt >= norm_.cmp0) {
@@ -529,10 +528,10 @@ void Tca::perform_tick() {
             if (evsys_ && desc_.ovf_generator_id != 0) evsys_->trigger_event(desc_.ovf_generator_id);
         }
 
-        if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= ~0x01U; }
-        if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
-        if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
-        if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= ~0x08U; }
+        if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= 0xFEU; }
+        if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= 0xFDU; }
+        if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= 0xFBU; }
+        if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= 0xF7U; }
     }
 
     update_outputs();
@@ -550,9 +549,9 @@ void Tca::perform_tick_split() {
     }
 
     if (update_l) {
-        if (buf_.per_valid) { per_l() = static_cast<u8>(buf_.per & 0xFFU); buf_.per_valid = false; ctrlf_ &= ~0x01U; }
-        if (buf_.cmp0_valid) { cmp0_l() = static_cast<u8>(buf_.cmp0 & 0xFFU); buf_.cmp0_valid = false; ctrlf_ &= ~0x02U; }
-        if (buf_.cmp1_valid) { cmp1_l() = static_cast<u8>(buf_.cmp1 & 0xFFU); buf_.cmp1_valid = false; ctrlf_ &= ~0x04U; }
+        if (buf_.per_valid) { per_l() = static_cast<u8>(buf_.per & 0xFFU); buf_.per_valid = false; ctrlf_ &= 0xFEU; }
+        if (buf_.cmp0_valid) { cmp0_l() = static_cast<u8>(buf_.cmp0 & 0xFFU); buf_.cmp0_valid = false; ctrlf_ &= 0xFDU; }
+        if (buf_.cmp1_valid) { cmp1_l() = static_cast<u8>(buf_.cmp1 & 0xFFU); buf_.cmp1_valid = false; ctrlf_ &= 0xFBU; }
         if (buf_.cmp2_valid) { cmp2_l() = static_cast<u8>(buf_.cmp2 & 0xFFU); buf_.cmp2_valid = false; }
     }
 

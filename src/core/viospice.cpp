@@ -905,10 +905,10 @@ void VioSpice::set_pin_map(std::unique_ptr<PinMap> pin_map) {
                 u8 pos_chan = 0;
                 u8 neg_chan = 0;
                 if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aip_pin_address, desc.aip_pin_bit)) {
-                    pos_chan = *ext_id;
+                    pos_chan = static_cast<u8>(*ext_id);
                 }
                 if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aim_pin_address, desc.aim_pin_bit)) {
-                    neg_chan = *ext_id;
+                    neg_chan = static_cast<u8>(*ext_id);
                 }
                 ac->bind_signal_bank(analog_signal_bank_, pos_chan, neg_chan);
             }
@@ -930,10 +930,10 @@ void VioSpice::add_pin_mapping(std::string_view port_name, u8 bit_index, u32 ext
                 u8 pos_chan = 0;
                 u8 neg_chan = 0;
                 if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aip_pin_address, desc.aip_pin_bit)) {
-                    pos_chan = *ext_id;
+                    pos_chan = static_cast<u8>(*ext_id);
                 }
                 if (auto ext_id = pin_map_->get_external_id_by_addr(desc.aim_pin_address, desc.aim_pin_bit)) {
-                    neg_chan = *ext_id;
+                    neg_chan = static_cast<u8>(*ext_id);
                 }
                 ac->bind_signal_bank(analog_signal_bank_, pos_chan, neg_chan);
             }
@@ -1051,7 +1051,7 @@ void VioSpice::bridge_hc05() {
         if (!uart0_) inject(uart8x0_, data);
         if (hc05_pty_fd_ >= 0) {
             u8 b = static_cast<u8>(data & 0xFF);
-            ::write(hc05_pty_fd_, &b, 1);
+            [[maybe_unused]] auto bytes_written = ::write(hc05_pty_fd_, &b, 1);
         }
     }
     while (hc05_.has_external_data()) {
@@ -1098,7 +1098,7 @@ void VioSpice::set_ircom_output_pin(u32 external_id) {
         auto* ircom = dynamic_cast<Ircom*>(owned.get());
         if (!ircom) continue;
         if (mapping->port_name.size() >= 5) {
-            u8 port_letter = mapping->port_name[4] - 'A';
+            u8 port_letter = static_cast<u8>(mapping->port_name[4] - 'A');
             ircom->set_output_pin(port_letter, mapping->bit_index);
         }
         return;
