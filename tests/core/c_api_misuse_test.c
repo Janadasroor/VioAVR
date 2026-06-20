@@ -136,8 +136,14 @@ int main(void) {
     const char* msg = vioavr_get_last_error(h4);
     CHECK(msg != NULL && strlen(msg) > 0, "error message non-empty");
 
-    // Clear error by doing something successful
-    vioavr_load_hex(h4, "/home/jnd/cpp_projects/VioAVR/build/tests/blinky.hex");
+    // Clear error by doing something successful (use inline valid hex to avoid CI path dependency)
+    {
+        const char* valid_hex =
+            ":02000000017E7F\n"
+            ":00000001FF\n";
+        err = vioavr_load_hex_data(h4, valid_hex, strlen(valid_hex));
+    }
+    CHECK(err == VIOAVR_OK, "load valid minimal hex");
     ec = vioavr_get_last_error_code(h4);
     CHECK(ec == VIOAVR_OK, "error cleared after successful operation");
 
