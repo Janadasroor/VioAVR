@@ -44,6 +44,7 @@
 #include "vioavr/core/vref.hpp"
 #include "vioavr/core/bodctrl.hpp"
 #include "vioavr/core/clkctrl.hpp"
+#include "vioavr/core/xmega_clkctrl.hpp"
 #include "vioavr/core/zcd.hpp"
 #include "vioavr/core/lin.hpp"
 #include "vioavr/core/opamp.hpp"
@@ -233,9 +234,16 @@ void Machine::initialize_peripherals()
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
-    // XMEGA devices have a different CLKCTRL register layout — skip the AVR8X ClkCtrl model.
+    // AVR8X ClkCtrl (MCLKCTRLA/MCLKCTRLB style)
     if (device_.clkctrl.ctrla_address != 0U && device_.tc_count == 0U) {
         auto p = std::make_unique<ClkCtrl>(device_.clkctrl, 20'000'000U);
+        bus_->attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    // XMEGA ClkCtrl (CLK.CTRL/PSCTRL/LOCK/RTCCTRL style at base 0x60)
+    if (device_.tc_count > 0U) {
+        auto p = std::make_unique<XmegaClkCtrl>(0x60U, 0x61U, 0x63U, 0x64U);
+        cpu_->set_xmega_clk_ctrl(p.get());
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }

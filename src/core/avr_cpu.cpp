@@ -45,6 +45,8 @@ AvrCpu::AvrCpu(MemoryBus& bus) noexcept
                 wdt8x_ = wdt8x;
             } else if (auto* clk = dynamic_cast<ClkCtrl*>(peripheral)) {
                 clk_ctrl_ = clk;
+            } else if (auto* xclk = dynamic_cast<XmegaClkCtrl*>(peripheral)) {
+                xmega_clk_ctrl_ = xclk;
             } else if (auto* slp = dynamic_cast<SlpCtrl*>(peripheral)) {
                 slp_ctrl_ = slp;
             } else if (auto* rst = dynamic_cast<RstCtrl*>(peripheral)) {
@@ -1120,6 +1122,7 @@ void AvrCpu::dispatch_instruction(const DecodedInstruction& instruction)
 u64 AvrCpu::cycles_per_second() const noexcept
 {
     if (clk_ctrl_ != nullptr) return clk_ctrl_->cpu_frequency_hz();
+    if (xmega_clk_ctrl_ != nullptr) return xmega_clk_ctrl_->cpu_frequency_hz();
     return control_regs_ != nullptr ? control_regs_->effective_frequency() : (bus_ != nullptr ? bus_->device().cpu_frequency_hz : 0U);
 }
 
