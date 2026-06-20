@@ -59,6 +59,7 @@
 #include "vioavr/core/bodctrl.hpp"
 #include "vioavr/core/mvio.hpp"
 #include "vioavr/core/clkctrl.hpp"
+#include "vioavr/core/xmega_clkctrl.hpp"
 #include "vioavr/core/eusart.hpp"
 #include "vioavr/core/psc.hpp"
 #include "vioavr/core/usi.hpp"
@@ -152,10 +153,15 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         bus_.attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
-    // XMEGA devices have a different CLKCTRL register layout (CLK.CTRL/PSCTRL/LOCK/RTCCTRL
-    // vs AVR8X MCLKCTRLA/MCLKCTRLB/MCLKLOCK/MCLKSTATUS) — skip the AVR8X ClkCtrl model.
+    // AVR8X ClkCtrl (MCLKCTRLA/MCLKCTRLB style)
     if (device.clkctrl.ctrla_address != 0U && device.tc_count == 0U) {
         auto p = std::make_unique<ClkCtrl>(device.clkctrl, 20'000'000U);
+        bus_.attach_peripheral(*p);
+        owned_peripherals_.push_back(std::move(p));
+    }
+    // XMEGA ClkCtrl (CLK.CTRL/PSCTRL/LOCK/RTCCTRL style at base 0x60)
+    if (device.tc_count > 0U) {
+        auto p = std::make_unique<XmegaClkCtrl>(0x60U, 0x61U, 0x63U, 0x64U);
         bus_.attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
@@ -863,6 +869,8 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
             cpu_.set_slp_ctrl(slp);
         } else if (auto* clk = dynamic_cast<ClkCtrl*>(p.get())) {
             cpu_.set_clk_ctrl(clk);
+        } else if (auto* xclk = dynamic_cast<XmegaClkCtrl*>(p.get())) {
+            cpu_.set_xmega_clk_ctrl(xclk);
         }
     }
 

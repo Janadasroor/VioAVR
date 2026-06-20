@@ -16,6 +16,7 @@
 
 // Include component headers for inline implementations
 #include "vioavr/core/clkctrl.hpp"
+#include "vioavr/core/xmega_clkctrl.hpp"
 #include "vioavr/core/slpctrl.hpp"
 #include "vioavr/core/rstctrl.hpp"
 #include "vioavr/core/sync_engine.hpp"
@@ -187,6 +188,7 @@ public:
     void push_pc(u32 address) noexcept;
     [[nodiscard]] u32 interrupt_vector_word_address(u8 vector_index) const noexcept;
     void set_clk_ctrl(ClkCtrl* clk) noexcept { clk_ctrl_ = clk; }
+    void set_xmega_clk_ctrl(XmegaClkCtrl* clk) noexcept { xmega_clk_ctrl_ = clk; }
     void set_slp_ctrl(SlpCtrl* slp) noexcept { slp_ctrl_ = slp; }
     void set_rst_ctrl(RstCtrl* rst) noexcept { rst_ctrl_ = rst; }
     [[nodiscard]] u8 active_clock_domains_slow() const noexcept;
@@ -435,6 +437,7 @@ private:
     u8 rampz_ {};
     u8 eind_ {};
     ClkCtrl* clk_ctrl_ {nullptr};
+    XmegaClkCtrl* xmega_clk_ctrl_ {nullptr};
     SlpCtrl* slp_ctrl_ {nullptr};
     RstCtrl* rst_ctrl_ {nullptr};
     u64 cycles_ {0};
