@@ -2394,23 +2394,50 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
         out.append(f"    }}}},")
     
     # ---- OPAMP (DB only) ----
-    if opamp_instances:
-        out.append("")
-        out.append(f"    .opamp_count = {len(opamp_instances)}U,")
-        out.append(f"    .opamps = {{{{")
-        for oi, oname in enumerate(opamp_instances):
-            opamp_regs = extract_module_registers(root, "OPAMP", oname, {
-                "CTRLA": "ctrla_address",
-                "DBGCTRL": "ctrlb_address",
-                "TIMEBASE": "resctrl_address",
-                "PWRCTRL": "muxctrl_address",
-            })
-            out.append(f"        {{")
-            for fn in ["ctrla_address", "ctrlb_address", "resctrl_address", "muxctrl_address"]:
-                if opamp_regs.get(fn):
-                    out.append(f"            .{fn} = 0x{opamp_regs[fn]:02X}U,")
-            out.append(f"        }}," if oi < len(opamp_instances) - 1 else f"        }}")
-        out.append(f"    }}}},")
+    # OPAMP has a single register-group with module-level and per-instance
+    # registers (OP0CTRLA, OP0STATUS, OP0RESMUX, OP0INMUX, etc.) in one flat list.
+    # Extract per-instance register addresses for each op-amp.
+    opamp_base = get_module_base(root, "OPAMP", "OPAMP")
+    opamp_descriptors = []
+    if opamp_base:
+        for mod in root.findall(".//module"):
+            if mod.get("name") != "OPAMP":
+                continue
+            for rg in mod.findall("register-group"):
+                rg_name = rg.get("name", "")
+                if rg_name != "OPAMP":
+                    continue
+                base = parse_hex(rg.get("offset", "0"))
+                if base == 0:
+                    base = opamp_base
+                # Count instances by looking for OP{n}CTRLA registers
+                inst_regs = {}
+                for reg in rg.findall("register"):
+                    rname = reg.get("name", "")
+                    roff = parse_hex(reg.get("offset", "0"))
+                    # Match OP{n}CTRLA, OP{n}STATUS, OP{n}RESMUX, OP{n}INMUX
+                    for prefix, field in [("CTRLA", "ctrla_address"),
+                                          ("STATUS", "ctrlb_address"),
+                                          ("RESMUX", "resctrl_address"),
+                                          ("INMUX", "muxctrl_address")]:
+                        if rname.endswith(prefix) and rname.startswith("OP") and rname[len("OP"):].lstrip("0123456789") == prefix:
+                            # Extract instance index from OP{n}PREFIX
+                            idx_str = rname[2:rname.find(prefix)]
+                            if idx_str.isdigit():
+                                idx = int(idx_str)
+                                inst_regs.setdefault(idx, {})[field] = base + roff
+                if inst_regs:
+                    out.append("")
+                    out.append(f"    .opamp_count = {len(inst_regs)}U,")
+                    out.append(f"    .opamps = {{{{")
+                    for idx in sorted(inst_regs):
+                        regs = inst_regs[idx]
+                        out.append(f"        {{")
+                        for fn in ["ctrla_address", "ctrlb_address", "resctrl_address", "muxctrl_address"]:
+                            if fn in regs:
+                                out.append(f"            .{fn} = 0x{regs[fn]:02X}U,")
+                        out.append(f"        }},")
+                    out.append(f"    }}}},")
     
     # ---- AVR8X PTC (DA only) ----
     if is_avr8x and ptc_instances:

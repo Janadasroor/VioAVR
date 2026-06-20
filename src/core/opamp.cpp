@@ -3,8 +3,8 @@
 
 namespace vioavr::core {
 
-static double opamp_gain(u8 muxctrl) noexcept {
-    u8 gain_bits = muxctrl & 0x07U;
+static double opamp_gain_from_resmux(u8 resmux) noexcept {
+    u8 gain_bits = resmux & 0x07U;
     switch (gain_bits) {
         case 0: return 1.0;
         case 1: return 2.0;
@@ -61,7 +61,7 @@ void Opamp::evaluate() {
         vneg = signal_bank_->voltage(bank_ch);
     }
 
-    double gain = opamp_gain(muxctrl_);
+    double gain = opamp_gain_from_resmux(resctrl_);
     vout_ = gain * (vpos - vneg);
     if (vout_ < 0.0) vout_ = 0.0;
     if (vout_ > vdd_) vout_ = vdd_;
