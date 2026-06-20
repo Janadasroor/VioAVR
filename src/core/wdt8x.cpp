@@ -97,13 +97,14 @@ void Wdt8x::reset_timer() noexcept {
     if (!enabled_) {
         // WDR when disabled starts the WDT running (per AVR8X datasheet)
         enabled_ = true;
+        u32 freq = cpu_.cpu_control().cpu_frequency_hz();
         u8 period = ctrla_ & 0x0FU;
         if (period != 0) {
-            timeout_cycles_ = (1ULL << (period - 1)) * 128000ULL;
+            timeout_cycles_ = static_cast<u64>(freq) * (1ULL << (period - 1)) / 125ULL;
         } else {
             // Period 0 means WDT is off — enabling with period=0 would cause
             // stale timeout_cycles_ to trigger instant reset. Use minimum period.
-            timeout_cycles_ = 128000ULL; // 8ms at 16MHz
+            timeout_cycles_ = static_cast<u64>(freq) / 125ULL; // ~8ms
         }
     }
     elapsed_cycles_ = 0;
@@ -145,13 +146,14 @@ void Wdt8x::update_timeout() noexcept {
     enabled_ = true;
     // Base frequency is approx 32kHz WDTOSC.
     // period bits: 0=OFF, 1=8ms, 2=16ms, 3=32ms, 4=64ms, ... 11=8s
-    // Cycles at 16MHz: 8ms = 128,000 cycles.
-    // 2^0 * 128000? No, mapping is usually 2^(period-1) * 8ms.
-    timeout_cycles_ = (1ULL << (period - 1)) * 128000ULL;
+    // Scale CPU cycles with actual frequency: 8ms = cpu_freq_hz / 125 cycles.
+    u32 freq = cpu_.cpu_control().cpu_frequency_hz();
+    timeout_cycles_ = static_cast<u64>(freq) * (1ULL << (period - 1)) / 125ULL;
     
     if (window != 0) {
         // Window cycles are same mapping but for the CLOSED period.
-        window_cycles_ = (1ULL << (window - 1)) * 128000ULL;
+        u32 freq = cpu_.cpu_control().cpu_frequency_hz();
+        window_cycles_ = static_cast<u64>(freq) * (1ULL << (window - 1)) / 125ULL;
     } else {
         window_cycles_ = 0;
     }
