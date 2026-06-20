@@ -150,7 +150,7 @@ u8 XmegaAdc::read(u16 address) noexcept {
     if (address == desc_.ctrla_address) return ctrla_;
     if (address == desc_.ctrlb_address || address == desc_.muxctrl_address) return ctrlb_;
     if (address == desc_.refctrl_address || address == desc_.ch_intctrl_address) return refctrl_;
-    if (address == desc_.evctrl_address || address == desc_.intflags_address) return intflags_;
+    if (address == desc_.intflags_address || address == desc_.evctrl_address) return intflags_;
     if (desc_.ctrla_address && address == desc_.ctrla_address + 6) return intflags_;
     if (address == desc_.prescaler_address) return prescaler_;
     if (address == desc_.temp_address) return temp_;
