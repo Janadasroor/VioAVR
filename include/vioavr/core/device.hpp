@@ -1010,6 +1010,8 @@ struct DmaChannelDescriptor {
     u16 intctrl_address {0U};
     u16 intflags_address {0U};
     u16 user_event_address {0U};
+    u16 descaddr_address {0U};
+    u16 addrctrl_address {0U};
 };
 
 struct DmaDescriptor {
