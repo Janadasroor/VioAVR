@@ -148,12 +148,13 @@ jobs:
       uses: msys2/setup-msys2@v2
       with:
         msystem: MINGW64
-        update: true
+        update: false
         install: >-
           mingw-w64-x86_64-toolchain
           mingw-w64-x86_64-cmake
           mingw-w64-x86_64-ninja
-          mingw-w64-x86_64-avr-toolchain
+          mingw-w64-x86_64-avr-gcc
+          mingw-w64-x86_64-avr-libc
           zip
 
     - name: Cache Microchip DFP packs
