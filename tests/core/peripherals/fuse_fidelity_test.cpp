@@ -28,45 +28,44 @@ TEST_CASE("ATmega808: Read fuses via mapped memory") {
     CHECK(out_of_range == 0x00); // SRAM default
 }
 
-TEST_CASE("ATmega808: Write fuses via mapped memory") {
+TEST_CASE("ATmega808: Mapped fuses are read-only in data space") {
     auto machine = Machine::create_for_device("ATmega808");
     REQUIRE(machine != nullptr);
 
     auto& bus = machine->bus();
 
     // Read default
-    CHECK(bus.read_data(0x1280) == 0x00); // WDTCFG
+    CHECK(bus.read_data(0x1280) == 0x00); // WDTCFG default
 
-    // Write to fuse address
+    // Attempt to write to fuse address (should be ignored)
     bus.write_data(0x1280, 0x5A);
 
-    // Verify readback
-    CHECK(bus.read_data(0x1280) == 0x5A);
+    // Verify readback remains default
+    CHECK(bus.read_data(0x1280) == 0x00);
 }
 
-TEST_CASE("ATmega808: Fuse values persist through mapped access") {
+TEST_CASE("ATmega808: Fuse values cannot be overwritten") {
     auto machine = Machine::create_for_device("ATmega808");
     REQUIRE(machine != nullptr);
 
     auto& bus = machine->bus();
 
-    bus.write_data(0x1282, 0x7F); // OSCCFG
-    CHECK(bus.read_data(0x1282) == 0x7F);
-    CHECK(bus.read_data(0x1280) == 0x00); // WDTCFG unchanged
+    bus.write_data(0x1282, 0x7F); // Attempt to overwrite OSCCFG (default 0x7E)
+    CHECK(bus.read_data(0x1282) == 0x7E); // Remains default
+    CHECK(bus.read_data(0x1280) == 0x00); // WDTCFG remains default
 }
 
-TEST_CASE("ATmega808: Reset restores default fuse values") {
+TEST_CASE("ATmega808: Reset maintains default fuse values") {
     auto machine = Machine::create_for_device("ATmega808");
     REQUIRE(machine != nullptr);
 
     auto& bus = machine->bus();
 
-    bus.write_data(0x1285, 0x00); // SYSCFG0
-    CHECK(bus.read_data(0x1285) == 0x00);
+    CHECK(bus.read_data(0x1285) == 0xF6); // SYSCFG0 default
 
     machine->reset();
 
-    CHECK(bus.read_data(0x1285) == 0xF6); // Restored to default
+    CHECK(bus.read_data(0x1285) == 0xF6); // Stays default
 }
 
 TEST_CASE("ATmega328P: Read fuses via LPM with BLBSET") {

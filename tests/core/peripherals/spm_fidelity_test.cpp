@@ -9,9 +9,9 @@ TEST_CASE("SPM: Fidelity Timing and RWW Busy") {
     MemoryBus bus {devices::atmega32u4};
     AvrCpu cpu {bus};
     
-    // address 0x1000 in bytes (0x800 in words)
-    const u32 target_byte_addr = 0x1000;
-    const u32 target_word_addr = 0x800;
+    // address 0x7C00 in bytes (0x3E00 in words)
+    const u32 target_byte_addr = 0x7C00;
+    const u32 target_word_addr = 0x3E00;
     
     // We will load a program that fills the buffer and erases a page.
     // FLASH_RWW_END_WORD MUST be set in the device for this to truly test RWW busy.
@@ -25,9 +25,9 @@ TEST_CASE("SPM: Fidelity Timing and RWW Busy") {
     // 1011 1 11 10000 0111 -> 0xBF07. Correct.
 
     std::vector<u16> prog = {
-        // Z = 0x1000 (byte address)
+        // Z = 0x7C00 (byte address)
         0xE0E0, // LDI R30, 0x00
-        0xE1F0, // LDI R31, 0x10
+        0xE7FC, // LDI R31, 0x7C
         
         // Page Erase: SPMEN | PGERS = 0x03
         0xE003, // LDI R16, 0x03
@@ -37,8 +37,15 @@ TEST_CASE("SPM: Fidelity Timing and RWW Busy") {
         0x0000, 0x0000, 0x0000
     };
     
-    bus.load_flash(prog);
+    std::vector<u16> full_flash(bus.flash_size_words(), 0xFFFF);
+    u32 code_start = 0x3F00;
+    for (size_t i = 0; i < prog.size(); ++i) {
+        full_flash[code_start + i] = prog[i];
+    }
+    
+    bus.load_flash(full_flash);
     cpu.reset();
+    cpu.set_program_counter(code_start);
     
     // Run until SPM
     for (int i = 0; i < 5; ++i) cpu.step();
