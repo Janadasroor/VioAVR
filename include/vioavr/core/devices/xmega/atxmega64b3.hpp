@@ -221,12 +221,12 @@ inline constexpr DeviceDescriptor atxmega64b3 {
             .mbaud_address = 1156U,
             .maddr_address = 1157U,
             .mdata_address = 1158U,
-            .sctrla_address = 1152U,
-            .sctrlb_address = 1153U,
-            .sstatus_address = 1155U,
-            .saddr_address = 1157U,
-            .sdata_address = 1158U,
-            .saddrmask_address = 1157U,
+            .sctrla_address = 1160U,
+            .sctrlb_address = 1161U,
+            .sstatus_address = 1162U,
+            .saddr_address = 1163U,
+            .sdata_address = 1164U,
+            .saddrmask_address = 1165U,
         }
     }},
 
