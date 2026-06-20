@@ -153,8 +153,7 @@ jobs:
           mingw-w64-x86_64-toolchain
           mingw-w64-x86_64-cmake
           mingw-w64-x86_64-ninja
-          mingw-w64-x86_64-avr-gcc
-          mingw-w64-x86_64-avr-libc
+          mingw-w64-x86_64-avr-toolchain
           zip
 
     - name: Cache Microchip DFP packs
@@ -226,10 +225,10 @@ jobs:
     - name: Run Tests & Generate Coverage
       run: |
         ctest --test-dir build --output-on-failure -j4
-        lcov --directory build --capture --output-file coverage.info
+        lcov --directory build --capture --output-file coverage.info || true
         # Filter out system headers, tests, and third-party files
-        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/usr/*' '*/avr-pack/*' '*/external_projects/*' --output-file coverage.info
-        lcov --list coverage.info
+        lcov --remove coverage.info '/usr/*' '*/tests/*' '*/usr/*' '*/avr-pack/*' '*/external_projects/*' --output-file coverage.info || true
+        lcov --list coverage.info || true
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
