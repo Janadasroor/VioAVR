@@ -1,12 +1,15 @@
 #pragma once
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/device.hpp"
+#include "vioavr/core/pin_mux.hpp"
 
 namespace vioavr::core {
 
 class Tcd final : public IoPeripheral {
 public:
     explicit Tcd(const TcdDescriptor& desc) noexcept;
+
+    void set_pin_mux(PinMux* pm) noexcept { pin_mux_ = pm; }
 
     [[nodiscard]] std::string_view name() const noexcept override { return "TCD"; }
     [[nodiscard]] std::span<const AddressRange> mapped_ranges() const noexcept override;
@@ -23,10 +26,12 @@ public:
 private:
     void update_interrupt_pending() noexcept;
     void run_counter(u64 cycles) noexcept;
-    void on_compare(u16 cmp_value, bool is_set) noexcept;
+    void update_outputs() noexcept;
+    [[nodiscard]] bool get_wo_level(u8 index) const noexcept;
     u8 reg_offset(u16 address) const noexcept;
 
     TcdDescriptor desc_;
+    PinMux* pin_mux_{};
     std::array<AddressRange, 1> ranges_{};
 
     u8 ctrla_{0};

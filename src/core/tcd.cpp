@@ -1,5 +1,6 @@
 #include "vioavr/core/tcd.hpp"
 #include "vioavr/core/logger.hpp"
+#include "vioavr/core/pin_mux.hpp"
 
 namespace vioavr::core {
 
@@ -280,6 +281,43 @@ void Tcd::run_counter(u64 cycles) noexcept {
             }
         }
     }
+    update_outputs();
+}
+
+bool Tcd::get_wo_level(u8 index) const noexcept {
+    if (!enabled_) return false;
+    u8 wgmode = ctrlb_ & 0x03;
+    if (wgmode == WGMODE_ONERAMP) {
+        switch (index) {
+        case 0: // WOA: high between CMPASET and CMPACLR
+            if (cmpaset_ == 0) return false;
+            if (cmpacl_ == 0) return counter_ >= cmpaset_;
+            return counter_ >= cmpaset_ && counter_ < cmpacl_;
+        case 1: // WOB: high between CMPBSET and CMPBCLR
+            if (cmpbset_ == 0) return false;
+            if (cmpbcl_ == 0) return counter_ >= cmpbset_;
+            return counter_ >= cmpbset_ && counter_ < cmpbcl_;
+        default:
+            return false;
+        }
+    }
+    // Other modes: simplified — single slope compare
+    if (index == 0 && cmpaset_ > 0) return counter_ < cmpaset_;
+    if (index == 1 && cmpbset_ > 0) return counter_ < cmpbset_;
+    return false;
+}
+
+void Tcd::update_outputs() noexcept {
+    if (!pin_mux_) return;
+    auto drive = [&](u16 addr, u8 bit, u8 index) {
+        if (addr == 0) return;
+        bool level = get_wo_level(index);
+        pin_mux_->update_pin_by_address(addr, bit, PinOwner::timer, true, level);
+    };
+    drive(desc_.woa_pin_address, desc_.woa_pin_bit, 0);
+    drive(desc_.wob_pin_address, desc_.wob_pin_bit, 1);
+    drive(desc_.woc_pin_address, desc_.woc_pin_bit, 2);
+    drive(desc_.wod_pin_address, desc_.wod_pin_bit, 3);
 }
 
 bool Tcd::pending_interrupt_request(InterruptRequest& request) const noexcept {
