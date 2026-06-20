@@ -336,6 +336,7 @@ set(CAN_GROUP_SRCS
 
 # ---- Non-doctest standalone tests ----
 set(NON_DOCTEST_TESTS
+    c_api_test.c
 )
 
 if(NOT WIN32)
