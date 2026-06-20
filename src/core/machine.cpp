@@ -633,6 +633,7 @@ void Machine::initialize_peripherals()
     // TCD (Timer/Counter Type D)
     for (u8 i = 0; i < device_.tcd_count; ++i) {
         auto tcd = std::make_unique<Tcd>(device_.timers_tcd[i]);
+        tcd->set_pin_mux(pin_mux_.get());
         bus_->attach_peripheral(*tcd);
         owned_peripherals_.push_back(std::move(tcd));
     }
