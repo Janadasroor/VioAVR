@@ -485,12 +485,28 @@ void MemoryBus::consume_stall_cycle() const noexcept {
 }
 
 void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data, u32 pc_word) noexcept {
-    // Section Check: SPM is usually only allowed from the Boot section on many classic Megas
     if (device_.boot_start_address != 0U) {
-        if (pc_word < device_.boot_start_address) {
-            Logger::warning("MemoryBus: SPM attempt from App section! PC=0x" + std::to_string(pc_word));
-            // For fidelity, we should return; but some tests might rely on this.
-            // In real hardware, the instruction is ignored.
+        const u32 pc_bytes = pc_word << 1U;
+        const u32 boot_start_bytes = device_.boot_start_address << 1U;
+        if (pc_bytes < boot_start_bytes) {
+            Logger::warning("MemoryBus: SPM attempt from non-bootloader section! PC=0x" + std::to_string(pc_bytes));
+            return;
+        }
+        const u8 lb = lockbit_ & 0x3FU;
+        if ((lb & 0x03U) != 0x03U) {
+            Logger::warning("MemoryBus: SPM inhibited by lockbits! Lock=0x" + std::to_string(lockbit_));
+            return;
+        }
+        if (spm_address_ < boot_start_bytes) {
+            if ((lb & 0x08U) == 0U) {
+                Logger::warning("MemoryBus: SPM to Application Section inhibited by BLB0!");
+                return;
+            }
+        } else {
+            if ((lb & 0x20U) == 0U) {
+                Logger::warning("MemoryBus: SPM to Bootloader Section inhibited by BLB1!");
+                return;
+            }
         }
     }
 
@@ -663,7 +679,17 @@ void MemoryBus::perform_deferred_nvm_operation() noexcept {
                 break;
         }
     } else {
-        // Classic Mega
+        // Classic Mega — check lockbits before committing flash changes
+        if ((spm_command_ & 0x06U) != 0U) {
+            const u8 lb = lockbit_ & 0x3FU;
+            if ((lb & 0x03U) != 0x03U) {
+                Logger::warning("MemoryBus: Deferred NVM blocked by lockbits! Lock=0x" + std::to_string(lockbit_));
+                if (device_.spmcsr_address < data_.size()) {
+                    data_[device_.spmcsr_address] &= ~0x1FU;
+                }
+                return;
+            }
+        }
         if ((spm_command_ & 0x02U) != 0U) { // PGERS
             if (page_start < flash_.size()) {
                 for (u32 i = 0; i < device_.flash_page_size && (page_start + i) < flash_.size(); ++i) {

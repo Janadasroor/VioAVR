@@ -407,14 +407,11 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         }
     }
 
+    // Mapped fuses are read-only from data space — they can only be modified
+    // through the NVM controller (SPM/NVMCTRL) in real hardware.
     if (device_.mapped_fuses.size > 0 &&
         address >= device_.mapped_fuses.data_start &&
         address < device_.mapped_fuses.data_start + device_.mapped_fuses.size) {
-        const u32 offset = address - device_.mapped_fuses.data_start;
-        if (offset < fuses_.size()) {
-            fuses_[offset] = value;
-            if (nvm_ctrl_) nvm_ctrl_->set_address(address);
-        }
         return;
     }
     const bool is_prr_write = ((device_.prr_address != 0U && address == device_.prr_address) ||
