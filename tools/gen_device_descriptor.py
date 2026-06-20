@@ -2642,17 +2642,21 @@ def build_xmega_register_map(root):
             # IMPORTANT: Do NOT overwrite existing parent registers (e.g. INTFLAGS)
             # that the sub-group might also define. The sub-group is a template;
             # the actual per-channel offsets require the sub-group base offset
-            # within the parent module, which is NOT available in all ATDFs.
-            # For now, we only add sub-group registers that don't collide with
-            # parent registers. The per-channel offset must be handled by the
-            # peripheral implementation.
+            # within the parent module, which is NOT available in all ATDFs
+            # (the <modules> register-groups lack offset attributes).
+            # Known offsets are hardcoded below.
+            # Known sub-group base offsets relative to module base:
+            sub_group_offsets = {
+                'TWI_SLAVE': 0x08,
+            }
             existing_regs = set(instance_regs.keys())
             for (mn, rgn), regs in module_layouts.items():
                 if mn == mname and rgn != mname:
                     if rgn.endswith('_CH') or rgn in ('TWI_MASTER', 'TWI_SLAVE'):
+                        sub_off = sub_group_offsets.get(rgn, 0)
                         for roff, rname, rsize in regs:
                             if rname not in existing_regs:
-                                instance_regs[rname] = base + roff
+                                instance_regs[rname] = base + sub_off + roff
                                 existing_regs.add(rname)
             
             if instance_regs:
@@ -3162,6 +3166,20 @@ def generate_xmega(root, output_file=sys.stdout):
     for (mn, iname), iregs in regs.items():
         if mn == 'TWI' and re.match(r'^TWI[A-Z]\d*$', iname):
             twi_instances.append((iname, iregs))
+    # Look up TWI_SLAVE and TWI_MASTER register offsets from root <modules>
+    twi_slave_offsets = {}
+    twi_master_offsets = {}
+    for mod in root.find('modules'):
+        if mod.get('name') == 'TWI':
+            for rg in mod.findall('register-group'):
+                rgname = rg.get('name', '')
+                if rgname == 'TWI_SLAVE':
+                    for r in rg.findall('register'):
+                        twi_slave_offsets[r.get('name', '')] = parse_hex(r.get('offset', '0'))
+                elif rgname == 'TWI_MASTER':
+                    for r in rg.findall('register'):
+                        twi_master_offsets[r.get('name', '')] = parse_hex(r.get('offset', '0'))
+            break
     if twi_instances:
         out.append("")
         out.append(f"    .twi8x_count = {len(twi_instances)}U,")
@@ -3182,9 +3200,14 @@ def generate_xmega(root, output_file=sys.stdout):
             for rn, field in twi_map:
                 if rn in tregs:
                     out.append(f"            .{field} = {tregs[rn]}U,")
+            # Slave registers use sub-group offset 0x08 from parent base
+            slave_base = (tregs.get("CTRLA") or tregs.get("CTRL") or 0)
+            if slave_base:
+                slave_base -= twi_master_offsets.get("CTRLA", 0)
+                slave_base += 8
             for rn, field in twi_slave_map:
-                if rn in tregs:
-                    out.append(f"            .{field} = {tregs[rn]}U,")
+                if rn in twi_slave_offsets and slave_base:
+                    out.append(f"            .{field} = {slave_base + twi_slave_offsets[rn]}U,")
             out.append(f"        }}{sep}")
         out.append(f"    }}}},")
     
