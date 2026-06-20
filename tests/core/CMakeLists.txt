@@ -490,12 +490,15 @@ foreach(src ${NON_DOCTEST_TESTS})
 
     # c_api_test needs a real .hex file; inject the path via environment so
     # there are no hardcoded machine-local paths in the source code.
+    # When avr-gcc is absent, blinky.hex won't exist — the test skips cleanly
+    # by returning exit code 77 (CTest SKIP_RETURN_CODE convention).
     if(test_name STREQUAL "c_api_test")
         if(TARGET blinky_hex)
             add_dependencies(${target_name} blinky_hex)
         endif()
         set_tests_properties(${target_name} PROPERTIES
-            ENVIRONMENT "VIOAVR_BLINKY_HEX=${CMAKE_CURRENT_BINARY_DIR}/blinky.hex"
+            ENVIRONMENT "VIOAVR_BLINKY_HEX=${CMAKE_BINARY_DIR}/tests/blinky.hex;VIOAVR_AVR_FW=${AVR_FW_AVAILABLE}"
+            SKIP_RETURN_CODE 77
         )
     endif()
 endforeach()

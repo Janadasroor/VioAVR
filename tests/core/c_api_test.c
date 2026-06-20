@@ -260,6 +260,19 @@ static void test_analog(void) {
 }
 
 int main(void) {
+    /* Pre-flight: verify the hex file exists before running any tests.
+     * VIOAVR_BLINKY_HEX is injected by CMake's set_tests_properties(ENVIRONMENT).
+     * When avr-gcc is not installed the hex is never built; returning 77 tells
+     * CTest to mark this test as SKIP rather than FAIL. */
+    const char* hex = get_hex_path();
+    FILE* probe = fopen(hex, "rb");
+    if (!probe) {
+        fprintf(stderr, "[c_api_test] SKIP: blinky.hex not found at '%s' "
+                        "(avr-gcc not available on this runner)\n", hex);
+        return 77; /* CTest SKIP_RETURN_CODE */
+    }
+    fclose(probe);
+
     printf("C API end-to-end tests\n");
     printf("---------------------\n");
 
