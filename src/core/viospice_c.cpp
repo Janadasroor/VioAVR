@@ -37,6 +37,7 @@ static VioAvrError code_to_error(int code) {
 // =========================================================================
 
 VioSpiceHandle vioavr_create(const char* device_name) {
+    if (!device_name) return nullptr;
     const DeviceDescriptor* desc = DeviceCatalog::find(device_name);
     if (!desc) {
         desc = DeviceCatalog::find("atmega328p");
@@ -52,6 +53,10 @@ void vioavr_destroy(VioSpiceHandle handle) {
 VioAvrError vioavr_load_hex(VioSpiceHandle handle, const char* path) {
     auto* spice = to_spice(handle);
     if (!spice) return VIOAVR_ERR_NULL_HANDLE;
+    if (!path || !*path) {
+        spice->set_error("Invalid hex file path", VIOAVR_ERR_INVALID_PARAM);
+        return VIOAVR_ERR_INVALID_PARAM;
+    }
     spice->clear_error();
     bool ok = spice->load_hex(path);
     if (!ok) {
@@ -86,7 +91,8 @@ VioAvrError vioavr_load_hex_data(VioSpiceHandle handle, const char* hex_data, si
 }
 
 void vioavr_reset(VioSpiceHandle handle) {
-    to_spice(handle)->reset();
+    auto* spice = to_spice(handle);
+    if (spice) spice->reset();
 }
 
 // =========================================================================
@@ -110,7 +116,8 @@ const char* vioavr_get_last_error(VioSpiceHandle handle) {
 // =========================================================================
 
 void vioavr_set_quantum(VioSpiceHandle handle, uint64_t cycles) {
-    to_spice(handle)->set_quantum(cycles);
+    auto* spice = to_spice(handle);
+    if (spice) spice->set_quantum(cycles);
 }
 
 VioAvrError vioavr_step_duration(VioSpiceHandle handle, double seconds) {
@@ -121,12 +128,14 @@ VioAvrError vioavr_step_duration(VioSpiceHandle handle, double seconds) {
 }
 
 void vioavr_tick_timer2_async(VioSpiceHandle handle, uint64_t ticks) {
-    to_spice(handle)->tick_timer2_async(ticks);
+    auto* spice = to_spice(handle);
+    if (spice) spice->tick_timer2_async(ticks);
 }
 
 #ifdef VIOAVR_HAVE_JIT
 void vioavr_enable_jit(VioSpiceHandle handle, bool enabled) {
-    to_spice(handle)->cpu().enable_jit(enabled);
+    auto* spice = to_spice(handle);
+    if (spice) spice->cpu().enable_jit(enabled);
 }
 #endif
 
@@ -135,11 +144,13 @@ void vioavr_enable_jit(VioSpiceHandle handle, bool enabled) {
 // =========================================================================
 
 void vioavr_add_pin_mapping(VioSpiceHandle handle, const char* port_name, uint8_t bit_index, uint32_t external_id) {
-    to_spice(handle)->add_pin_mapping(port_name, bit_index, external_id);
+    auto* spice = to_spice(handle);
+    if (spice && port_name) spice->add_pin_mapping(port_name, bit_index, external_id);
 }
 
 void vioavr_set_external_pin(VioSpiceHandle handle, uint32_t external_id, VioAvrPinLevel level) {
-    to_spice(handle)->set_external_pin(external_id,
+    auto* spice = to_spice(handle);
+    if (spice) spice->set_external_pin(external_id,
         (level == VIOAVR_LEVEL_HIGH) ? PinLevel::high : PinLevel::low);
 }
 
@@ -188,7 +199,8 @@ VioAvrError vioavr_set_external_voltage_by_pin(VioSpiceHandle handle, uint32_t e
 }
 
 void vioavr_set_operating_voltage(VioSpiceHandle handle, double vcc_volts) {
-    to_spice(handle)->set_operating_voltage(vcc_volts);
+    auto* spice = to_spice(handle);
+    if (spice) spice->set_operating_voltage(vcc_volts);
 }
 
 int vioavr_get_analog_outputs(VioSpiceHandle handle, double* outputs, int max_outputs) {
@@ -309,27 +321,33 @@ VioAvrError vioavr_uart_inject_rx(VioSpiceHandle handle, uint8_t byte) {
 // =========================================================================
 
 void vioavr_enable_hc05(VioSpiceHandle handle) {
-    to_spice(handle)->enable_hc05();
+    auto* spice = to_spice(handle);
+    if (spice) spice->enable_hc05();
 }
 
 bool vioavr_hc05_has_tx_byte(VioSpiceHandle handle) {
-    return to_spice(handle)->hc05().has_tx_byte();
+    auto* spice = to_spice(handle);
+    return spice ? spice->hc05().has_tx_byte() : false;
 }
 
 uint8_t vioavr_hc05_read_tx_byte(VioSpiceHandle handle) {
-    return to_spice(handle)->hc05().read_tx_byte();
+    auto* spice = to_spice(handle);
+    return spice ? spice->hc05().read_tx_byte() : 0;
 }
 
 void vioavr_hc05_inject_data(VioSpiceHandle handle, const uint8_t* data, uint16_t len) {
-    to_spice(handle)->hc05().inject_external_data(data, len);
+    auto* spice = to_spice(handle);
+    if (spice) spice->hc05().inject_external_data(data, len);
 }
 
 void vioavr_set_hc05_pty_fd(VioSpiceHandle handle, int fd) {
-    to_spice(handle)->set_hc05_pty_fd(fd);
+    auto* spice = to_spice(handle);
+    if (spice) spice->set_hc05_pty_fd(fd);
 }
 
 void vioavr_set_ircom_output_pin(VioSpiceHandle handle, uint32_t external_id) {
-    to_spice(handle)->set_ircom_output_pin(external_id);
+    auto* spice = to_spice(handle);
+    if (spice) spice->set_ircom_output_pin(external_id);
 }
 
 } // extern "C"
