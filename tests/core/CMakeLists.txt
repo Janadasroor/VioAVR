@@ -487,6 +487,17 @@ foreach(src ${NON_DOCTEST_TESTS})
     target_link_libraries(${target_name} PRIVATE VioAVR::core)
     add_test(NAME ${target_name} COMMAND ${target_name})
     set_tests_properties(${target_name} PROPERTIES TIMEOUT 45)
+
+    # c_api_test needs a real .hex file; inject the path via environment so
+    # there are no hardcoded machine-local paths in the source code.
+    if(test_name STREQUAL "c_api_test")
+        if(TARGET blinky_hex)
+            add_dependencies(${target_name} blinky_hex)
+        endif()
+        set_tests_properties(${target_name} PROPERTIES
+            ENVIRONMENT "VIOAVR_BLINKY_HEX=${CMAKE_CURRENT_BINARY_DIR}/blinky.hex"
+        )
+    endif()
 endforeach()
 
 # ---- Utility targets (not CTest tests) ----

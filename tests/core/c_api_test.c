@@ -1,9 +1,17 @@
 #include "vioavr/c_api.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <assert.h>
 
-#define HEX_PATH "/home/jnd/cpp_projects/VioAVR/build/tests/blinky.hex"
+/* Path injected at test runtime via VIOAVR_BLINKY_HEX env variable.
+ * CMake sets this in set_tests_properties(... ENVIRONMENT ...).
+ * Falls back to a sensible local relative path for manual runs. */
+static const char* get_hex_path(void) {
+    const char* env = getenv("VIOAVR_BLINKY_HEX");
+    return env ? env : "tests/blinky.hex";
+}
+#define HEX_PATH get_hex_path()
 #define DEVICE "atmega328p"
 
 static void test_lifecycle(void) {
