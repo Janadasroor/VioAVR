@@ -144,10 +144,10 @@ bool Timer10::pending_interrupt_request(InterruptRequest& request) const noexcep
 }
 
 bool Timer10::consume_interrupt_request(InterruptRequest& request) noexcept {
-    if (request.vector_index == desc_.compare_a_vector_index) { tifr_ &= ~0x40U; return true; }
-    if (request.vector_index == desc_.compare_b_vector_index) { tifr_ &= ~0x20U; return true; }
-    if (request.vector_index == desc_.compare_d_vector_index) { tifr_ &= ~0x80U; return true; }
-    if (request.vector_index == desc_.overflow_vector_index) { tifr_ &= ~0x04U; return true; }
+    if (request.vector_index == desc_.compare_a_vector_index) { tifr_ &= 0xBFU; return true; }
+    if (request.vector_index == desc_.compare_b_vector_index) { tifr_ &= 0xDFU; return true; }
+    if (request.vector_index == desc_.compare_d_vector_index) { tifr_ &= 0x7FU; return true; }
+    if (request.vector_index == desc_.overflow_vector_index) { tifr_ &= 0xFBU; return true; }
     return false;
 }
 
@@ -218,8 +218,8 @@ void Timer10::apply_pin_level(std::optional<BoundPin> pin, bool high) noexcept {
     if (!pin) return;
     u16 addr = pin->port->port_address();
     u8 current = pin->port->read(addr);
-    if (high) pin->port->write(addr, current | (1 << pin->bit));
-    else pin->port->write(addr, current & ~(1 << pin->bit));
+    if (high) pin->port->write(addr, static_cast<u8>(current | (1 << pin->bit)));
+    else pin->port->write(addr, static_cast<u8>(current & ~(1 << pin->bit)));
 }
 
 void Timer10::handle_compare_match_a() noexcept {
