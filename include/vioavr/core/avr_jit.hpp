@@ -30,7 +30,9 @@ struct alignas(64) JitState {
     uint8_t* bus_data{nullptr};  // points to bus->data_space() for fast I/O access
     uint8_t interrupt_depth{0};  // for JIT-compiled RETI
     uint8_t interrupt_delay{0};  // one-instruction delay after SEI/RETI
-    uint8_t _pad[54]{};          // pad to 128 bytes (2×64 cache lines)
+    uint8_t _pad2[6]{};
+    uint64_t instructions_executed{0};
+    uint8_t _pad[48]{};          // pad to 128 bytes (2×64 cache lines)
 };
 
 inline uint8_t sreg_to_byte(bool c, bool z, bool n, bool v, bool s, bool h, bool t, bool i) {
