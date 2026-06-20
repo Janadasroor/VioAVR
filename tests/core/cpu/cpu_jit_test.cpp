@@ -146,6 +146,7 @@ static void run_with_and_without_jit(const HexImage& image, u32 steps) {
     CHECK(ref.program_counter == jit.program_counter);
     CHECK(ref.stack_pointer == jit.stack_pointer);
     CHECK(ref.cycles == jit.cycles);
+    CHECK(ref.instructions_executed == jit.instructions_executed);
 }
 
 TEST_CASE("JIT Basic Instructions") {

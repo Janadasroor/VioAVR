@@ -1052,6 +1052,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             // n-1: block_cycles includes the skipped instruction's base cycle,
             // so we subtract 1 to avoid double-counting (n=1→0, n=2→1).
             buf.add_membase_imm32(Reg64::r14, 40, next_2word ? 1u : 0u);
+            buf.sub_membase_imm32(Reg64::r14, 72, 1);
             if (skip_patch_out) *skip_patch_out = buf.jmp_forward(); // skip next instr(s)
             buf.patch_jump(done);
             return 1;
@@ -1081,6 +1082,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             // TAKEN path
             emit_set_pc(buf, pc + 1 + (next_2word ? 2u : 1u));
             buf.add_membase_imm32(Reg64::r14, 40, next_2word ? 1u : 0u);
+            buf.sub_membase_imm32(Reg64::r14, 72, 1);
             if (skip_patch_out) *skip_patch_out = buf.jmp_forward();
             buf.patch_jump(done);
             return 1;
@@ -1212,14 +1214,23 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFE08) == 0xFC00) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t bit = static_cast<uint8_t>(opcode & 0x07);
+            bool next_2word = false;
+            if (pc + 1 < flash_size_) {
+                u16 n = flash_[pc + 1];
+                if ((n & 0xFE0F) == 0x9000 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0F) == 0x9200 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940C) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940E) next_2word = true;
+            }
             buf.movzx_membase(Reg64::rax, Reg64::r14, rd);
             buf.test8_imm(Reg8::al, static_cast<uint8_t>(1 << bit));
             auto taken = buf.jz_forward();  // JZ if bit CLEAR → skip taken
             auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
             buf.patch_jz(taken);
-            // TAKEN path: 0 extra (block_cycles includes skipped instr's base)
-            emit_set_pc(buf, pc + 2);
-            buf.add_membase_imm32(Reg64::r14, 40, 0);
+            // TAKEN path
+            emit_set_pc(buf, pc + 1 + (next_2word ? 2u : 1u));
+            buf.add_membase_imm32(Reg64::r14, 40, next_2word ? 1u : 0u);
+            buf.sub_membase_imm32(Reg64::r14, 72, 1);
             if (skip_patch_out) *skip_patch_out = buf.jmp_forward();
             buf.patch_jump(done);
             return 1;
@@ -1228,14 +1239,23 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFE08) == 0xFE00) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t bit = static_cast<uint8_t>(opcode & 0x07);
+            bool next_2word = false;
+            if (pc + 1 < flash_size_) {
+                u16 n = flash_[pc + 1];
+                if ((n & 0xFE0F) == 0x9000 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0F) == 0x9200 && (n & 0x0F) != 0x0F) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940C) next_2word = true;
+                else if ((n & 0xFE0E) == 0x940E) next_2word = true;
+            }
             buf.movzx_membase(Reg64::rax, Reg64::r14, rd);
             buf.test8_imm(Reg8::al, static_cast<uint8_t>(1 << bit));
             auto taken = buf.jnz_forward(); // JNZ if bit SET → skip taken
             auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
             buf.patch_jnz(taken);
-            // TAKEN path: 0 extra (block_cycles includes skipped instr's base)
-            emit_set_pc(buf, pc + 2);
-            buf.add_membase_imm32(Reg64::r14, 40, 0);
+            // TAKEN path
+            emit_set_pc(buf, pc + 1 + (next_2word ? 2u : 1u));
+            buf.add_membase_imm32(Reg64::r14, 40, next_2word ? 1u : 0u);
+            buf.sub_membase_imm32(Reg64::r14, 72, 1);
             if (skip_patch_out) *skip_patch_out = buf.jmp_forward();
             buf.patch_jump(done);
             return 1;
@@ -1297,8 +1317,10 @@ bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size,
 
     if (insn_count == 0) return false;
 
-    // Epilogue: update state->cycles only (PC is set by each instruction)
+    // Epilogue: update state->cycles and instructions_executed
+    // offset 40 = JitState::cycles, offset 72 = JitState::instructions_executed
     buf.add_membase_imm32(Reg64::r14, 40, static_cast<uint32_t>(block_cycles));
+    buf.add_membase_imm32(Reg64::r14, 72, static_cast<uint32_t>(insn_count));
 
     // If a skip patch is still pending, the skip target was never reached
     // (block ended early). Patch to epilogue so the taken path returns and

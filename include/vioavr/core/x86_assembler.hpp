@@ -460,6 +460,14 @@ public:
         emit32(imm);
     }
 
+    // sub dword/qword [base+offset], imm32
+    void sub_membase_imm32(Reg64 base, int32_t offset, uint32_t imm) {
+        rex(true, false, false, static_cast<uint8_t>(base) >= 8);
+        emit8(0x81);
+        encode_membase(5, base, offset);
+        emit32(imm);
+    }
+
     // mov [base+offset], r64 (64-bit store)
     void mov_membase64(Reg64 src, Reg64 base, int32_t offset) {
         rex(true, static_cast<uint8_t>(src) >= 8, false, static_cast<uint8_t>(base) >= 8);

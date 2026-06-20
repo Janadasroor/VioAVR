@@ -242,6 +242,7 @@ void AvrCpu::run(const u64 cycle_budget)
                 jit_state.sp = stack_pointer_;
                 jit_state.sreg = sreg_;
                 jit_state.cycles = cycles_;
+                jit_state.instructions_executed = instructions_executed_;
                 jit_state.bus = bus_;
                 jit_state.bus_data = bus_->data_space().data();
                 jit_state.interrupt_depth = interrupt_depth_;
@@ -260,6 +261,7 @@ void AvrCpu::run(const u64 cycle_budget)
 
                 const u64 delta = jit_state.cycles - cycles_before;
                 cycles_ = jit_state.cycles;
+                instructions_executed_ = jit_state.instructions_executed;
 
                 if (bus_ != nullptr) {
                     bus_->tick_peripherals(delta, active_clock_domains());
