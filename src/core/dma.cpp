@@ -23,12 +23,15 @@ Dma::Dma(const DmaDescriptor& desc) : desc_(desc) {
         const auto& c = desc_.channels[i];
         add_if_valid(c.ctrla_address);
         add_if_valid(c.ctrlb_address);
+        add_if_valid(c.addrctrl_address);
         add_if_valid(c.srcaddr_address);
         add_if_valid(c.srcaddr_address + 1);
         add_if_valid(c.dstaddr_address);
         add_if_valid(c.dstaddr_address + 1);
         add_if_valid(c.cnt_address);
         add_if_valid(c.cnt_address + 1);
+        add_if_valid(c.descaddr_address);
+        add_if_valid(c.descaddr_address + 1);
         add_if_valid(c.trigsrc_address);
         add_if_valid(c.intctrl_address);
         add_if_valid(c.intflags_address);
@@ -45,10 +48,9 @@ Dma::Dma(const DmaDescriptor& desc) : desc_(desc) {
             if (addrs[i] == end + 1) {
                 end = addrs[i];
             } else {
-                ranges_[count++] = {start, end};
+                if (count < ranges_.size()) ranges_[count++] = {start, end};
                 start = addrs[i];
                 end = addrs[i];
-                if (count >= ranges_.size()) break;
             }
         }
         if (count < ranges_.size()) {
@@ -103,6 +105,48 @@ void Dma::start_transfer(u8 channel_idx) noexcept {
     }
 }
 
+void Dma::try_reload_descriptor(u8 channel_idx) noexcept {
+    auto& c = channels_[channel_idx];
+    const auto& cd = desc_.channels[channel_idx];
+
+    if (!reload_enabled(c.ctrlb) || cd.descaddr_address == 0) return;
+    if (c.descaddr == 0) return;
+
+    // Descriptor layout in SRAM:
+    //   +0: SRCADDR low, +1: SRCADDR high
+    //   +2: DSTADDR low, +3: DSTADDR high
+    //   +4: CNT low,     +5: CNT high
+    //   +6: CTRLDATA     +7: (reserved)
+    //   +8: NEXTDESC low,+9: NEXTDESC high
+    u16 base = c.descaddr;
+
+    u16 new_src = static_cast<u16>(bus_->read_data(base) | (static_cast<u16>(bus_->read_data(base + 1)) << 8));
+    u16 new_dst = static_cast<u16>(bus_->read_data(base + 2) | (static_cast<u16>(bus_->read_data(base + 3)) << 8));
+    u16 new_cnt = static_cast<u16>(bus_->read_data(base + 4) | (static_cast<u16>(bus_->read_data(base + 5)) << 8));
+    u8  new_ctrldata = bus_->read_data(base + 6);
+    u16 next_desc = static_cast<u16>(bus_->read_data(base + 8) | (static_cast<u16>(bus_->read_data(base + 9)) << 8));
+
+    c.srcaddr = new_src;
+    c.dstaddr = new_dst;
+    c.cnt = new_cnt;
+    c.remaining_count = new_cnt;
+    c.descaddr = next_desc;
+
+    // CTRLDATA: bits0-1 = SRCRELOAD, bits2-3 = DSTRELOAD, bit4 = CNTRELOAD
+    if ((new_ctrldata & 0x03) == 0) c.srcaddr = c.srcaddr; // keep
+    else if ((new_ctrldata & 0x03) == 1) c.srcaddr = new_src; // reload from descriptor
+    else if ((new_ctrldata & 0x03) == 2) c.srcaddr = new_src; // same as 1 for simplicity
+
+    if ((new_ctrldata & 0x0C) == 0) c.dstaddr = c.dstaddr;
+    else if ((new_ctrldata & 0x0C) == 0x04) c.dstaddr = new_dst;
+
+    if (!(new_ctrldata & 0x10)) {
+        // CNTRELOAD: if bit4=0, reload counter; if bit4=1, keep running count
+        c.cnt = new_cnt;
+        c.remaining_count = new_cnt;
+    }
+}
+
 void Dma::process_transfer_beats(u8 channel_idx) noexcept {
     auto& c = channels_[channel_idx];
 
@@ -116,12 +160,21 @@ void Dma::process_transfer_beats(u8 channel_idx) noexcept {
         u8 data = bus_->read_data(c.srcaddr);
         bus_->write_data(c.dstaddr, data);
 
-        u8 srcinc = (c.ctrla >> 6) & 0x03U;
-        u8 dstinc = (c.ctrla >> 4) & 0x03U;
+        // Address increment from ADDRCTRL (if separate register) or CTRLA
+        u8 srcinc, dstinc;
+        if (desc_.channels[channel_idx].addrctrl_address != 0) {
+            srcinc = (c.addrctrl >> 6) & 0x03U;
+            dstinc = (c.addrctrl >> 4) & 0x03U;
+        } else {
+            srcinc = (c.ctrla >> 6) & 0x03U;
+            dstinc = (c.ctrla >> 4) & 0x03U;
+        }
         if (srcinc == 0x01U) c.srcaddr++;
-        else if (srcinc >= 0x02U) c.srcaddr += 2;
+        else if (srcinc == 0x02U) c.srcaddr--;
+        else if (srcinc >= 0x03U) c.srcaddr += 2;
         if (dstinc == 0x01U) c.dstaddr++;
-        else if (dstinc >= 0x02U) c.dstaddr += 2;
+        else if (dstinc == 0x02U) c.dstaddr--;
+        else if (dstinc >= 0x03U) c.dstaddr += 2;
 
         c.remaining_count--;
         c.xfer.beats_remaining--;
@@ -134,6 +187,12 @@ void Dma::process_transfer_beats(u8 channel_idx) noexcept {
             c.busy = false;
             c.xfer.started = false;
             c.xfer.cycle_accumulator = 0;
+
+            // Try to chain to next descriptor
+            try_reload_descriptor(channel_idx);
+            if (c.remaining_count > 0) {
+                start_transfer(channel_idx);
+            }
             return;
         }
     }
@@ -144,6 +203,10 @@ void Dma::process_transfer_beats(u8 channel_idx) noexcept {
                 c.busy = false;
                 c.xfer.started = false;
                 c.xfer.cycle_accumulator = 0;
+                try_reload_descriptor(channel_idx);
+                if (c.remaining_count > 0) {
+                    start_transfer(channel_idx);
+                }
                 break;
             case 1:
                 c.xfer.beats_remaining = static_cast<u16>(c.remaining_count);
@@ -178,12 +241,15 @@ u8 Dma::read(u16 address) noexcept {
         auto& c = channels_[i];
         if (address == cd.ctrla_address) return c.ctrla;
         if (address == cd.ctrlb_address) return c.ctrlb;
+        if (address == cd.addrctrl_address) return c.addrctrl;
         if (address == cd.srcaddr_address) return c.srcaddr & 0xFF;
         if (address == cd.srcaddr_address + 1) return (c.srcaddr >> 8) & 0xFF;
         if (address == cd.dstaddr_address) return c.dstaddr & 0xFF;
         if (address == cd.dstaddr_address + 1) return (c.dstaddr >> 8) & 0xFF;
         if (address == cd.cnt_address) return c.remaining_count & 0xFF;
         if (address == cd.cnt_address + 1) return (c.remaining_count >> 8) & 0xFF;
+        if (address == cd.descaddr_address) return c.descaddr & 0xFF;
+        if (address == cd.descaddr_address + 1) return (c.descaddr >> 8) & 0xFF;
         if (address == cd.trigsrc_address) return c.trigsrc;
         if (address == cd.intctrl_address) return c.intctrl;
         if (address == cd.intflags_address) return c.intflags;
@@ -214,6 +280,8 @@ void Dma::write(u16 address, u8 value) noexcept {
                 }
             } else if (address == cd.ctrlb_address) {
                 c.ctrlb = value;
+            } else if (address == cd.addrctrl_address) {
+                c.addrctrl = value;
             } else if (address == cd.srcaddr_address) {
                 c.srcaddr = (c.srcaddr & 0xFF00) | value;
             } else if (address == cd.srcaddr_address + 1) {
@@ -228,6 +296,10 @@ void Dma::write(u16 address, u8 value) noexcept {
             } else if (address == cd.cnt_address + 1) {
                 c.cnt = (c.cnt & 0x00FF) | (static_cast<u16>(value) << 8);
                 if (!(c.ctrla & 0x01U)) c.remaining_count = c.cnt;
+            } else if (address == cd.descaddr_address) {
+                c.descaddr = (c.descaddr & 0xFF00) | value;
+            } else if (address == cd.descaddr_address + 1) {
+                c.descaddr = (c.descaddr & 0x00FF) | (static_cast<u16>(value) << 8);
             } else if (address == cd.trigsrc_address) {
                 c.trigsrc = value;
             } else if (address == cd.intctrl_address) {

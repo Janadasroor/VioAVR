@@ -46,10 +46,12 @@ private:
     struct Channel {
         u8 ctrla{0};
         u8 ctrlb{0};
+        u8 addrctrl{0};
         u16 srcaddr{0};
         u16 dstaddr{0};
         u16 cnt{0};
         u16 remaining_count{0};
+        u16 descaddr{0};
         u8 trigsrc{0};
         u8 intctrl{0};
         u8 intflags{0};
@@ -64,7 +66,7 @@ private:
     EventSystem* evsys_{nullptr};
 
     std::array<Channel, 4> channels_{};
-    std::array<AddressRange, 8> ranges_{};
+    std::array<AddressRange, 12> ranges_{};
 
     u8 ctrla_{0};
     u8 status_{0};
@@ -76,9 +78,11 @@ private:
 
     void start_transfer(u8 channel_idx) noexcept;
     void process_transfer_beats(u8 channel_idx) noexcept;
+    void try_reload_descriptor(u8 channel_idx) noexcept;
     void on_trigger(u8 trigger_id) noexcept;
 
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
+    [[nodiscard]] bool reload_enabled(u8 ctrlb) const noexcept { return (ctrlb & 0x80U) != 0; }
 };
 
 } // namespace vioavr::core
