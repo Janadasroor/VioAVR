@@ -110,6 +110,12 @@ uint8_t vioavr_read_data(VioSpiceHandle handle, uint16_t address);
 void vioavr_write_data(VioSpiceHandle handle, uint16_t address, uint8_t value);
 
 // =========================================================================
+// Debug CLI command execution
+// =========================================================================
+
+VioAvrError vioavr_debug_command(VioSpiceHandle handle, const char* command, char* out_buf, size_t out_buf_len);
+
+// =========================================================================
 // UART I/O (first hardware UART)
 // =========================================================================
 

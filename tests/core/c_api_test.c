@@ -259,6 +259,59 @@ static void test_analog(void) {
     printf("OK\n");
 }
 
+static void test_debug_command(void) {
+    printf("  debug_command ... ");
+    VioSpiceHandle h = vioavr_create(DEVICE);
+    assert(h != NULL);
+    vioavr_load_hex(h, HEX_PATH);
+    vioavr_reset(h);
+
+    char buf[1024];
+    VioAvrError err = vioavr_debug_command(h, "regs", buf, sizeof(buf));
+    assert(err == VIOAVR_OK);
+    assert(strstr(buf, "Registers") != NULL);
+    assert(strstr(buf, "PC=") != NULL);
+
+    err = vioavr_debug_command(h, "pins", buf, sizeof(buf));
+    assert(err == VIOAVR_OK);
+    assert(strstr(buf, "Pin States") != NULL);
+
+    err = vioavr_debug_command(h, "mem 0x100 16", buf, sizeof(buf));
+    assert(err == VIOAVR_OK);
+    assert(strstr(buf, "Memory") != NULL);
+
+    err = vioavr_debug_command(h, "disasm 0x0000 4", buf, sizeof(buf));
+    assert(err == VIOAVR_OK);
+    assert(strstr(buf, "Disassembly") != NULL);
+
+    err = vioavr_debug_command(h, "stats", buf, sizeof(buf));
+    assert(err == VIOAVR_OK);
+    assert(strstr(buf, "Statistics") != NULL);
+
+    err = vioavr_debug_command(h, "help", buf, sizeof(buf));
+    assert(err == VIOAVR_OK);
+    assert(strstr(buf, "Available commands") != NULL);
+
+    // Test truncation
+    err = vioavr_debug_command(h, "help", buf, 10);
+    assert(err == VIOAVR_OK);
+    assert(strlen(buf) == 9);
+
+    // Test error cases
+    err = vioavr_debug_command(NULL, "regs", buf, sizeof(buf));
+    assert(err == VIOAVR_ERR_NULL_HANDLE);
+
+    err = vioavr_debug_command(h, NULL, buf, sizeof(buf));
+    assert(err == VIOAVR_ERR_INVALID_PARAM);
+
+    err = vioavr_debug_command(h, "invalid_cmd_foo", buf, sizeof(buf));
+    assert(err == VIOAVR_OK);
+    assert(strstr(buf, "Unknown command") != NULL);
+
+    vioavr_destroy(h);
+    printf("OK\n");
+}
+
 int main(void) {
     /* Pre-flight: verify the hex file exists before running any tests.
      * VIOAVR_BLINKY_HEX is injected by CMake's set_tests_properties(ENVIRONMENT).
@@ -287,6 +340,7 @@ int main(void) {
     test_error_handling();
     test_reset();
     test_analog();
+    test_debug_command();
 
     printf("---------------------\n");
     printf("All tests passed!\n");

@@ -66,6 +66,9 @@
 #include "vioavr/core/pll.hpp"
 #include "vioavr/core/amplifier.hpp"
 #include <map>
+#include <sstream>
+#include <iomanip>
+#include <vector>
 
 namespace vioavr::core {
 
@@ -1103,6 +1106,210 @@ void VioSpice::set_ircom_output_pin(u32 external_id) {
         }
         return;
     }
+}
+
+static u32 parse_addr(const std::string& s) {
+    if (s.rfind("0x", 0) == 0 || s.rfind("0X", 0) == 0) {
+        try { return std::stoul(s, nullptr, 16); } catch (...) { return 0; }
+    }
+    try { return std::stoul(s, nullptr, 10); } catch (...) { return 0; }
+}
+
+std::string VioSpice::execute_debug_command(std::string_view command_str) {
+    std::string s(command_str);
+    // Trim
+    s.erase(0, s.find_first_not_of(" \t\r\n"));
+    s.erase(s.find_last_not_of(" \t\r\n") + 1);
+    if (s.empty()) return "";
+
+    std::vector<std::string> tokens;
+    std::istringstream iss(s);
+    std::string tok;
+    while (iss >> tok) tokens.push_back(tok);
+
+    if (tokens.empty()) return "";
+    const auto& cmd = tokens[0];
+
+    if (cmd == "regs" || cmd == "r") {
+        auto snap = cpu_.snapshot();
+        std::stringstream ss;
+        ss << "=== Registers ===\n";
+        for (int row = 0; row < 4; ++row) {
+            ss << "  ";
+            for (int col = 0; col < 8; ++col) {
+                int idx = row * 8 + col;
+                ss << "R" << std::dec << idx << "=";
+                ss << "0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(snap.gpr[idx]) << "  ";
+            }
+            ss << "\n";
+        }
+        ss << "  PC=0x" << std::hex << snap.program_counter
+           << "  SP=0x" << std::hex << snap.stack_pointer
+           << "  SREG=0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(snap.sreg) << " (";
+        constexpr const char* flag_names = "CZNVSH TI";
+        for (int i = 0; i < 8; ++i) {
+            if (snap.sreg & (1 << i)) {
+                ss << flag_names[i];
+            } else {
+                ss << '-';
+            }
+            if (i == 4) ss << ' ';
+        }
+        ss << ")\n";
+        ss << "  Cycles: " << std::dec << snap.cycles << "  State: ";
+        switch (snap.state) {
+            case CpuState::running:  ss << "Running"; break;
+            case CpuState::halted:   ss << "Halted"; break;
+            case CpuState::sleeping: ss << "Sleeping"; break;
+            case CpuState::paused:   ss << "Paused"; break;
+        }
+        ss << "\n";
+        return ss.str();
+    }
+    
+    if (cmd == "pins") {
+        std::stringstream ss;
+        ss << "=== Pin States ===\n";
+        for (auto* port : ports_) {
+            char port_letter = '\0';
+            auto n = port->name();
+            if (!n.empty()) port_letter = static_cast<char>(n.back());
+
+            u8 port_idx = port_letter >= 'A' ? static_cast<u8>(port_letter - 'A') : 0xFF;
+            u8 ddr = port->ddr_register();
+            u8 prt = port->port_register();
+
+            ss << "  PORT" << port_letter
+               << "  DDR=0x" << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(ddr)
+               << "  PORT=0x" << static_cast<int>(prt) << std::dec
+               << "  ";
+            for (int b = 7; b >= 0; --b) {
+                auto ps = pin_mux_.get_state(port_idx, static_cast<u8>(b));
+                if (ps.is_output) {
+                    ss << (ps.drive_level ? "1" : "0");
+                } else {
+                    ss << "z";
+                }
+            }
+            ss << "\n";
+        }
+        return ss.str();
+    }
+
+    if (cmd == "mem" || cmd == "x") {
+        u16 addr = 0;
+        int count = 16;
+        if (tokens.size() > 1) {
+            addr = static_cast<u16>(parse_addr(tokens[1]));
+        }
+        if (tokens.size() > 2) {
+            try { count = std::stoi(tokens[2]); } catch (...) {}
+            if (count < 1) count = 16;
+            if (count > 1024) count = 1024;
+        }
+
+        std::stringstream ss;
+        ss << "=== Memory (0x" << std::hex << addr << std::dec << ") ===\n";
+        for (int i = 0; i < count; i += 16) {
+            u16 line_addr = static_cast<u16>(addr + i);
+            ss << "  0x" << std::hex << std::setw(4) << std::setfill('0') << line_addr << ": ";
+
+            for (int j = 0; j < 16 && (i + j) < count; ++j) {
+                u8 val = bus_.read_data(static_cast<u16>(line_addr + j));
+                ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(val) << " ";
+            }
+            int remaining = count - i;
+            if (remaining < 16) {
+                for (int k = remaining; k < 16; ++k) ss << "   ";
+            }
+            ss << " ";
+            for (int j = 0; j < 16 && (i + j) < count; ++j) {
+                u8 val = bus_.read_data(static_cast<u16>(line_addr + j));
+                ss << (val >= 32 && val < 127 ? static_cast<char>(val) : '.');
+            }
+            ss << "\n";
+        }
+        return ss.str();
+    }
+
+    if (cmd == "disasm" || cmd == "d") {
+        u32 start_addr = cpu_.program_counter();
+        int count = 8;
+        if (tokens.size() > 1) {
+            start_addr = parse_addr(tokens[1]);
+        }
+        if (tokens.size() > 2) {
+            try { count = std::stoi(tokens[2]); } catch (...) {}
+            if (count < 1) count = 8;
+            if (count > 256) count = 256;
+        }
+
+        auto flash = bus_.flash_words();
+        u32 pc = cpu_.program_counter();
+        std::stringstream ss;
+        ss << "=== Disassembly (0x" << std::hex << start_addr << std::dec << ") ===\n";
+
+        u32 addr = start_addr;
+        for (int i = 0; i < count; ++i) {
+            if (addr >= flash.size()) {
+                ss << "  (end of flash)\n";
+                break;
+            }
+            u16 opcode = flash[addr];
+            std::string_view mnemonic = AvrCpu::lookup_mnemonic(opcode);
+            u8 wsize = AvrCpu::classify_word_size(opcode);
+
+            char hexbuf[64];
+            std::snprintf(hexbuf, sizeof(hexbuf), "  0x%04X:  %04X  ", static_cast<unsigned>(addr), static_cast<unsigned>(opcode));
+            ss << hexbuf << std::left << std::setw(12) << std::setfill(' ') << mnemonic;
+
+            if (wsize == 2 && addr + 1 < flash.size()) {
+                u16 opcode2 = flash[addr + 1];
+                std::snprintf(hexbuf, sizeof(hexbuf), " %04X", static_cast<unsigned>(opcode2));
+                ss << hexbuf;
+            } else if (wsize == 2) {
+                ss << " ????";
+            }
+
+            if (addr == pc) {
+                ss << "  <-- PC";
+            }
+            ss << "\n";
+
+            addr += wsize;
+        }
+        return ss.str();
+    }
+
+    if (cmd == "stats" || cmd == "status") {
+        auto snap = cpu_.snapshot();
+        double ipc = snap.instructions_executed > 0
+            ? static_cast<double>(snap.cycles) / static_cast<double>(snap.instructions_executed)
+            : 0.0;
+
+        std::stringstream ss;
+        ss << "=== Execution Statistics ===\n"
+           << "  Cycles:       " << snap.cycles << "\n"
+           << "  Instructions: " << snap.instructions_executed << "\n"
+           << "  IPC:          " << ipc << "\n"
+           << "  Sleep cycles: " << snap.sleep_cycles << "\n"
+           << "  Active cycles:" << (snap.cycles - snap.sleep_cycles) << "\n";
+        return ss.str();
+    }
+
+    if (cmd == "help" || cmd == "h") {
+        std::stringstream ss;
+        ss << "Available commands:\n"
+           << "  regs / r                  Show registers\n"
+           << "  pins                      Show pin states\n"
+           << "  mem <addr> [count] / x    Examine memory (hex dump)\n"
+           << "  disasm [addr] [count] / d Disassemble flash instructions\n"
+           << "  stats / status            Show execution stats\n"
+           << "  help / h                  Show this help text\n";
+        return ss.str();
+    }
+
+    return "Unknown command: " + cmd + "\n";
 }
 
 } // namespace vioavr::core
