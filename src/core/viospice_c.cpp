@@ -350,4 +350,30 @@ void vioavr_set_ircom_output_pin(VioSpiceHandle handle, uint32_t external_id) {
     if (spice) spice->set_ircom_output_pin(external_id);
 }
 
+VioAvrError vioavr_debug_command(VioSpiceHandle handle, const char* command, char* out_buf, size_t out_buf_len) {
+    auto* spice = to_spice(handle);
+    if (!spice) return VIOAVR_ERR_NULL_HANDLE;
+    if (!command || !out_buf || out_buf_len == 0) {
+        spice->set_error("Invalid argument to vioavr_debug_command", VIOAVR_ERR_INVALID_PARAM);
+        return VIOAVR_ERR_INVALID_PARAM;
+    }
+    try {
+        std::string result = spice->execute_debug_command(command);
+        if (result.size() >= out_buf_len) {
+            std::memcpy(out_buf, result.c_str(), out_buf_len - 1);
+            out_buf[out_buf_len - 1] = '\0';
+        } else {
+            std::memcpy(out_buf, result.c_str(), result.size());
+            out_buf[result.size()] = '\0';
+        }
+        return VIOAVR_OK;
+    } catch (const std::exception& e) {
+        spice->set_error(std::string("Exception in vioavr_debug_command: ") + e.what(), VIOAVR_ERR_INTERNAL);
+        return VIOAVR_ERR_INTERNAL;
+    } catch (...) {
+        spice->set_error("Unknown exception in vioavr_debug_command", VIOAVR_ERR_INTERNAL);
+        return VIOAVR_ERR_INTERNAL;
+    }
+}
+
 } // extern "C"

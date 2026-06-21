@@ -93,6 +93,7 @@ public:
     [[nodiscard]] PinLevel get_pin_level(u32 external_id) const noexcept;
     [[nodiscard]] u64 instructions_executed() const noexcept { return cpu_.instructions_executed(); }
     [[nodiscard]] u64 sleep_cycles() const noexcept { return cpu_.sleep_cycles(); }
+    [[nodiscard]] std::string execute_debug_command(std::string_view command);
 
 private:
     PinMux pin_mux_;
