@@ -44,6 +44,13 @@ typedef struct {
     bool wired_and;
 } VioAvrPinChange;
 
+// ---- Snapshot for save/restore (opaque, sized for ATmega328P + SRAM) ----
+#define VIOAVR_MAX_SNAPSHOT_SIZE 4096
+typedef struct {
+    uint8_t data[VIOAVR_MAX_SNAPSHOT_SIZE];
+    uint32_t size;
+} VioAvrSnapshot;
+
 // =========================================================================
 // Lifecycle
 // =========================================================================
@@ -87,6 +94,7 @@ int vioavr_consume_pin_changes(VioSpiceHandle handle, VioAvrPinChange* changes, 
 
 VioAvrError vioavr_set_external_voltage(VioSpiceHandle handle, uint8_t channel, double voltage_volts);
 VioAvrError vioavr_set_external_voltage_by_pin(VioSpiceHandle handle, uint32_t external_id, double voltage);
+VioAvrError vioavr_set_external_voltages(VioSpiceHandle handle, uint32_t count, const uint32_t* external_ids, const double* voltages);
 void vioavr_set_operating_voltage(VioSpiceHandle handle, double vcc_volts);
 int vioavr_get_analog_outputs(VioSpiceHandle handle, double* outputs, int max_outputs);
 
@@ -134,6 +142,13 @@ uint8_t vioavr_hc05_read_tx_byte(VioSpiceHandle handle);
 void vioavr_hc05_inject_data(VioSpiceHandle handle, const uint8_t* data, uint16_t len);
 void vioavr_set_hc05_pty_fd(VioSpiceHandle handle, int fd);
 void vioavr_set_ircom_output_pin(VioSpiceHandle handle, uint32_t external_id);
+
+// =========================================================================
+// Snapshot save/restore (for cosimulation rollback)
+// =========================================================================
+
+VioAvrError vioavr_save_state(VioSpiceHandle handle, VioAvrSnapshot* snapshot);
+VioAvrError vioavr_restore_state(VioSpiceHandle handle, const VioAvrSnapshot* snapshot);
 
 #ifdef __cplusplus
 }

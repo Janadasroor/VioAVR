@@ -58,6 +58,7 @@ public:
     void set_external_pin(u32 external_id, PinLevel level);
     void set_external_voltage(u8 channel, double voltage_volts);
     void set_external_voltage_to_digital(u32 external_id, double voltage);
+    void set_external_voltages(std::span<const u32> external_ids, std::span<const double> voltages);
     void set_operating_voltage(double vcc);
 
     // HC-05 Bluetooth bridge
@@ -69,6 +70,15 @@ public:
     std::vector<PinStateChange> consume_pin_changes();
     [[nodiscard]] std::optional<u32> get_external_id(std::string_view port_name, u8 bit_index) const;
     std::vector<double> get_analog_outputs();
+
+    // Snapshot save/restore for cosimulation rollback
+    struct Snapshot {
+        CpuSnapshot cpu;
+        std::vector<u8> data_space_copy;
+        std::vector<PinStateChange> pending_pin_changes;
+    };
+    [[nodiscard]] Snapshot save_snapshot() const;
+    void restore_snapshot(const Snapshot& snap);
     void set_ircom_output_pin(u32 external_id);
 
     [[nodiscard]] AvrCpu& cpu() noexcept { return cpu_; }

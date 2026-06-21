@@ -963,6 +963,13 @@ void VioSpice::set_external_voltage(u8 channel, double voltage_volts) {
     analog_signal_bank_.set_voltage(channel, voltage_volts);
 }
 
+void VioSpice::set_external_voltages(std::span<const u32> external_ids, std::span<const double> voltages) {
+    const auto count = std::min(external_ids.size(), voltages.size());
+    for (size_t i = 0; i < count; ++i) {
+        set_external_voltage_to_digital(external_ids[i], voltages[i]);
+    }
+}
+
 void VioSpice::set_external_voltage_to_digital(u32 external_id, double voltage) {
     if (!pin_map_) return;
     auto mapping = pin_map_->get_mapping_by_external(external_id);
@@ -1310,6 +1317,45 @@ std::string VioSpice::execute_debug_command(std::string_view command_str) {
     }
 
     return "Unknown command: " + cmd + "\n";
+    }
+
+VioSpice::Snapshot VioSpice::save_snapshot() const {
+    Snapshot snap;
+    snap.cpu = cpu_.snapshot();
+
+    // Save the full data space (GPRs + I/O + SRAM)
+    auto ds = bus_.data_space();
+    snap.data_space_copy.assign(ds.begin(), ds.end());
+
+    // Save pending pin changes
+    snap.pending_pin_changes = pending_pin_changes_;
+
+    return snap;
+}
+
+void VioSpice::restore_snapshot(const Snapshot& snap) {
+    // Restore CPU registers via individual setters
+    cpu_.set_program_counter(snap.cpu.program_counter);
+    cpu_.set_stack_pointer(snap.cpu.stack_pointer);
+    cpu_.set_sreg(snap.cpu.sreg);
+    for (u8 i = 0; i < kRegisterFileSize; ++i) {
+        cpu_.write_register(i, snap.cpu.gpr[i]);
+    }
+
+    // Restore all data space (GPRs + I/O + SRAM). This writes directly
+    // to the bus's internal buffer, which restores peripheral I/O registers
+    // (but not peripheral internal state machines — timers, ADC, etc. will
+    // re-sync from their registers on the next clock tick).
+    auto ds = bus_.data_space();
+    if (ds.size() <= snap.data_space_copy.size()) {
+        std::memcpy(ds.data(), snap.data_space_copy.data(), ds.size());
+    }
+
+    // Restore pending pin changes
+    pending_pin_changes_ = snap.pending_pin_changes;
+
+    // Restore the clock domains bitmask so peripherals tick correctly
+    cpu_.set_interrupt_check_interval(64);
 }
 
 } // namespace vioavr::core
