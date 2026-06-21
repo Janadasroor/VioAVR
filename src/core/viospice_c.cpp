@@ -198,6 +198,16 @@ VioAvrError vioavr_set_external_voltage_by_pin(VioSpiceHandle handle, uint32_t e
     return VIOAVR_OK;
 }
 
+VioAvrError vioavr_set_external_voltages(VioSpiceHandle handle, uint32_t count, const uint32_t* external_ids, const double* voltages) {
+    auto* spice = to_spice(handle);
+    if (!spice) return VIOAVR_ERR_NULL_HANDLE;
+    if (!external_ids || !voltages || count == 0) return VIOAVR_OK;
+    spice->set_external_voltages(
+        std::span<const u32>(external_ids, count),
+        std::span<const double>(voltages, count));
+    return VIOAVR_OK;
+}
+
 void vioavr_set_operating_voltage(VioSpiceHandle handle, double vcc_volts) {
     auto* spice = to_spice(handle);
     if (spice) spice->set_operating_voltage(vcc_volts);
@@ -348,6 +358,55 @@ void vioavr_set_hc05_pty_fd(VioSpiceHandle handle, int fd) {
 void vioavr_set_ircom_output_pin(VioSpiceHandle handle, uint32_t external_id) {
     auto* spice = to_spice(handle);
     if (spice) spice->set_ircom_output_pin(external_id);
+}
+
+VioAvrError vioavr_save_state(VioSpiceHandle handle, VioAvrSnapshot* snapshot) {
+    auto* spice = to_spice(handle);
+    if (!spice) return VIOAVR_ERR_NULL_HANDLE;
+    if (!snapshot) return VIOAVR_ERR_INVALID_PARAM;
+    auto snap = spice->save_snapshot();
+
+    // Layout: [CpuSnapshot bytes][data_space vector bytes][pending pin changes info]
+    // For simplicity, serialize the header + data space
+    constexpr size_t cpu_snap_size = sizeof(CpuSnapshot);
+    const size_t ds_size = snap.data_space_copy.size();
+    const size_t total = cpu_snap_size + ds_size + sizeof(size_t);
+
+    if (total > VIOAVR_MAX_SNAPSHOT_SIZE) {
+        spice->set_error("Snapshot too large for buffer", VIOAVR_ERR_INTERNAL);
+        return VIOAVR_ERR_INTERNAL;
+    }
+
+    uint8_t* ptr = snapshot->data;
+    std::memcpy(ptr, &snap.cpu, cpu_snap_size);
+    ptr += cpu_snap_size;
+    std::memcpy(ptr, &ds_size, sizeof(size_t));
+    ptr += sizeof(size_t);
+    std::memcpy(ptr, snap.data_space_copy.data(), ds_size);
+    snapshot->size = static_cast<uint32_t>(total);
+    return VIOAVR_OK;
+}
+
+VioAvrError vioavr_restore_state(VioSpiceHandle handle, const VioAvrSnapshot* snapshot) {
+    auto* spice = to_spice(handle);
+    if (!spice) return VIOAVR_ERR_NULL_HANDLE;
+    if (!snapshot || snapshot->size == 0) return VIOAVR_ERR_INVALID_PARAM;
+
+    VioSpice::Snapshot snap;
+    constexpr size_t cpu_snap_size = sizeof(CpuSnapshot);
+    const uint8_t* ptr = snapshot->data;
+
+    std::memcpy(&snap.cpu, ptr, cpu_snap_size);
+    ptr += cpu_snap_size;
+
+    size_t ds_size = 0;
+    std::memcpy(&ds_size, ptr, sizeof(size_t));
+    ptr += sizeof(size_t);
+
+    snap.data_space_copy.assign(ptr, ptr + ds_size);
+    // pending_pin_changes left empty — they are stale after restore
+    spice->restore_snapshot(snap);
+    return VIOAVR_OK;
 }
 
 VioAvrError vioavr_debug_command(VioSpiceHandle handle, const char* command, char* out_buf, size_t out_buf_len) {
