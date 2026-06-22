@@ -121,6 +121,67 @@ fs::path find_bootloader_hex(const std::string& mcu_name) {
     return {};
 }
 
+// Build FQBN with board options appended (e.g. "arduino:avr:nano:cpu=atmega328")
+// Returns {fqbn_with_opts, board_opts_string}.
+static std::pair<std::string, std::string>
+build_fqbn(const vioavr::core::ArduinoBoard* board,
+           const std::map<std::string, std::string>& options)
+{
+    using namespace vioavr::core;
+
+    auto bo_it = options.find("board-options");
+    std::string board_opts;
+    if (bo_it != options.end() && !bo_it->second.empty()) {
+        board_opts = bo_it->second;
+    } else if (board && !board->default_board_options.empty()) {
+        board_opts = std::string(board->default_board_options);
+    }
+
+    std::string fqbn = board ? std::string(board->fqbn) : "";
+    if (!board_opts.empty()) {
+        std::istringstream ss(board_opts);
+        std::string opt;
+        bool first = true;
+        while (std::getline(ss, opt, ',')) {
+            if (!opt.empty()) {
+                fqbn += (first ? ":" : ",") + opt;
+                first = false;
+            }
+        }
+    }
+    return {fqbn, board_opts};
+}
+
+// Validate board options by querying arduino-cli.
+// Returns true if valid (or arduino-cli not found); false + error message on failure.
+static bool validate_board_options(const std::string& base_fqbn,
+                                   const std::string& board_opts,
+                                   std::string& error)
+{
+    if (board_opts.empty()) return true;
+    std::string arduino_bin = find_arduino_cli();
+    if (arduino_bin.empty()) return true; // can't validate without arduino-cli
+
+    std::ostringstream cmd;
+#ifdef _WIN32
+    cmd << arduino_bin
+#else
+    cmd << arduino_bin << " 2>&1"
+#endif
+        << " board details -b " << base_fqbn
+        << " --board-options " << board_opts;
+
+    std::string out = run_cmd(cmd.str());
+    // If arduino-cli prints an error, it starts with "Error getting board details:"
+    if (out.find("Error") != std::string::npos || out.find("invalid value") != std::string::npos) {
+        // Trim the output to first meaningful line
+        auto nl = out.find('\n');
+        error = (nl == std::string::npos) ? out : out.substr(0, nl);
+        return false;
+    }
+    return true;
+}
+
 fs::path find_ino_file(const fs::path& sketch_path) {
     if (fs::is_regular_file(sketch_path)) return sketch_path;
     for (auto& entry : fs::directory_iterator(sketch_path))
@@ -438,16 +499,26 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     const ArduinoBoard* board = nullptr;
     std::string resolved_mcu;
     std::string fqbn;
+    std::string board_opts;
 
     if (!fqbn_override.empty()) {
         // --fqbn given: bypass board lookup, use FQBN directly for compilation
-        fqbn = fqbn_override;
         board = find_arduino_board(fqbn_override); // optional, for metadata
-        resolved_mcu = mcu_override.empty() ? resolve_mcu_from_fqbn(fqbn_override) : mcu_override;
+
+        // Also apply --board-options if provided with --fqbn
+        auto bo_it = options.find("board-options");
+        if (bo_it != options.end() && !bo_it->second.empty()) {
+            board_opts = bo_it->second;
+            fqbn = fqbn_override + ":" + board_opts;
+        } else {
+            fqbn = fqbn_override;
+        }
+
+        resolved_mcu = mcu_override.empty() ? resolve_mcu_from_fqbn(fqbn) : mcu_override;
         if (resolved_mcu.empty()) {
             std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
                       << Terminal::reset_all() << "cannot resolve MCU from FQBN '"
-                      << fqbn_override << "'. Use --mcu to specify one of:\n  ";
+                      << fqbn << "'. Use --mcu to specify one of:\n  ";
             auto devices = DeviceCatalog::list_devices();
             bool first = true;
             for (auto& d : devices) {
@@ -471,25 +542,20 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
             return 1;
         }
 
-        // Parse board options (e.g. "cpu=16MHzatmega328,speed=8MHz")
-        fqbn = std::string(board->fqbn);
-        std::string board_opts;
-        auto bo_it = options.find("board-options");
-        if (bo_it != options.end() && !bo_it->second.empty()) {
-            board_opts = bo_it->second;
-        } else if (!board->default_board_options.empty()) {
-            board_opts = std::string(board->default_board_options);
-        }
-        if (!board_opts.empty()) {
-            std::istringstream ss(board_opts);
-            std::string opt;
-            bool first = true;
-            while (std::getline(ss, opt, ',')) {
-                if (!opt.empty()) {
-                    fqbn += (first ? ":" : ",") + opt;
-                    first = false;
-                }
-            }
+        // Build FQBN with board options
+        auto fb = build_fqbn(board, options);
+        fqbn = fb.first;
+        board_opts = fb.second;
+    }
+
+    // Validate board options early (before running simulation)
+    if (!board_opts.empty()) {
+        std::string base_fqbn = board ? std::string(board->fqbn) : fqbn_override;
+        std::string ve;
+        if (!validate_board_options(base_fqbn, board_opts, ve)) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << ve << "\n";
+            return 1;
         }
     }
 
@@ -864,10 +930,19 @@ int cmd_arduino_compile(const std::vector<std::string>& positional,
 
     const ArduinoBoard* board = nullptr;
     std::string fqbn;
+    std::string board_opts;
 
     if (!fqbn_override.empty()) {
-        fqbn = fqbn_override;
         board = find_arduino_board(fqbn_override);
+
+        // Also apply --board-options if provided with --fqbn
+        auto bo_it = options.find("board-options");
+        if (bo_it != options.end() && !bo_it->second.empty()) {
+            board_opts = bo_it->second;
+            fqbn = fqbn_override + ":" + board_opts;
+        } else {
+            fqbn = fqbn_override;
+        }
     } else {
         std::string board_name = "Uno";
         auto it = options.find("board");
@@ -880,25 +955,10 @@ int cmd_arduino_compile(const std::vector<std::string>& positional,
             return 1;
         }
 
-        fqbn = std::string(board->fqbn);
-        std::string board_opts;
-        auto bo_it = options.find("board-options");
-        if (bo_it != options.end() && !bo_it->second.empty()) {
-            board_opts = bo_it->second;
-        } else if (!board->default_board_options.empty()) {
-            board_opts = std::string(board->default_board_options);
-        }
-        if (!board_opts.empty()) {
-            std::istringstream ss(board_opts);
-            std::string opt;
-            bool first = true;
-            while (std::getline(ss, opt, ',')) {
-                if (!opt.empty()) {
-                    fqbn += (first ? ":" : ",") + opt;
-                    first = false;
-                }
-            }
-        }
+        // Build FQBN with board options
+        auto fb = build_fqbn(board, options);
+        fqbn = fb.first;
+        board_opts = fb.second;
     }
 
     fs::path sketch_path(positional[0]);
