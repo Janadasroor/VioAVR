@@ -29,6 +29,7 @@
 #ifdef _WIN32
 #  include <conio.h>
 #else
+#  include <sys/ioctl.h>
 #  include <sys/select.h>
 #  include <unistd.h>
 #  include <fcntl.h>
@@ -103,21 +104,69 @@ std::string run_cmd(const std::string& cmd) {
 }
 
 fs::path find_bootloader_hex(const std::string& mcu_name) {
+    // Map MCU name to optiboot hex filename (lowercase)
+    static const std::vector<std::pair<std::string_view, std::string_view>> mcu_to_hex = {
+        {"atmega328p",  "optiboot_atmega328"},
+        {"atmega328",   "optiboot_atmega328"},
+        {"atmega168p",  "optiboot_atmega168"},
+        {"atmega168",   "optiboot_atmega168"},
+        {"atmega8",     "optiboot_atmega8"},
+        {"atmega88",    "optiboot_atmega8"},
+        {"atmega48",    "optiboot_atmega8"},
+    };
+
     std::string mcn;
     for (auto c : mcu_name) {
         mcn += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
+    std::string hex_name;
+    for (auto& [prefix, hex] : mcu_to_hex) {
+        if (mcn == prefix) { hex_name = hex; break; }
+    }
+    if (hex_name.empty()) return {};
 
-    const fs::path search_roots[] = {
-        ".",
-        "..",
-        "../..",
-    };
-
+    // 1) Search local bootloaders/ directory
+    const fs::path search_roots[] = {".", "..", "../.."};
     for (auto& root : search_roots) {
-        auto p = fs::absolute(fs::path(root) / "bootloaders" / (mcn + "_bootloader.hex"));
+        auto p = fs::absolute(fs::path(root) / "bootloaders" / (hex_name + ".hex"));
         if (fs::exists(p)) return p;
     }
+
+    // 2) Search in installed arduino:avr core
+    {
+        const char* data_dir = std::getenv("ARDUINO_DATA_DIR");
+        fs::path core_dir = data_dir
+            ? fs::path(data_dir)
+            : fs::path(getenv("HOME")) / ".arduino15";
+        core_dir = core_dir / "packages" / "arduino" / "hardware" / "avr";
+        if (fs::is_directory(core_dir)) {
+            for (auto& entry : fs::directory_iterator(core_dir)) {
+                if (!entry.is_directory()) continue;
+                auto bl = entry.path() / "bootloaders" / "optiboot" / (hex_name + ".hex");
+                if (fs::exists(bl)) return bl;
+            }
+        }
+    }
+
+    // 3) Search in arduino-cli --config-dir data dir
+    {
+        std::string cli_path = find_arduino_cli();
+        if (!cli_path.empty()) {
+            // arduino-cli stores data next to the binary or in ~/.arduino15
+            auto cli_dir = fs::path(cli_path).parent_path();
+            auto bl = cli_dir / ".." / "share" / "arduino15"
+                      / "packages" / "arduino" / "hardware" / "avr";
+            auto resolved = fs::weakly_canonical(bl);
+            if (fs::is_directory(resolved)) {
+                for (auto& entry : fs::directory_iterator(resolved)) {
+                    if (!entry.is_directory()) continue;
+                    auto hex = entry.path() / "bootloaders" / "optiboot" / (hex_name + ".hex");
+                    if (fs::exists(hex)) return hex;
+                }
+            }
+        }
+    }
+
     return {};
 }
 
@@ -659,7 +708,9 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                     }
                 }
 
-                machine->reset();
+                // Reset with external cause so bootloader sees EXTRF and enters programming mode.
+                // If --serial is not used, the bootloader will timeout and jump to the app.
+                machine->reset(ResetCause::external);
 
                 if (dev.boot_start_address != 0) {
                     cpu.set_program_counter(dev.boot_start_address);
@@ -759,6 +810,10 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     };
 
     Uart* serial_uart = nullptr;
+#ifndef _WIN32
+    int dtr_state = -1; // -1 = unknown, 0 = high, 1 = low
+    u64 dtr_reset_cooldown = 0;
+#endif
     if (serial_mode != SerialMode::none && (board ? board->has_serial : true)) {
         auto uarts = machine->peripherals_of_type<Uart>();
         if (!uarts.empty()) serial_uart = uarts[0];
@@ -777,6 +832,10 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                               << Terminal::fg(Terminal::Color::bright_black)
                               << "Connect: picocom " << pty_slave_path
                               << Terminal::reset_all() << "\n";
+                    // Capture initial DTR state
+                    int mctrl = 0;
+                    if (ioctl(pty_master_fd, TIOCMGET, &mctrl) == 0)
+                        dtr_state = (mctrl & TIOCM_DTR) ? 0 : 1;
                 }
             }
 #else
@@ -806,6 +865,26 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
 
     while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
         cpu.run(serial_uart ? kSerialPollInterval : max_cycles);
+
+#ifndef _WIN32
+        // DTR-based auto-reset for bootloader (PTY only)
+        if (serial_mode == SerialMode::pty && pty_master_fd != -1 && use_bootloader
+            && cpu.cycles() >= dtr_reset_cooldown) {
+            int mctrl = 0;
+            if (ioctl(pty_master_fd, TIOCMGET, &mctrl) == 0) {
+                bool dtr_low = (mctrl & TIOCM_DTR) == 0;
+                // Detect high→low transition
+                if (dtr_state == 0 && dtr_low) {
+                    machine->reset(ResetCause::external);
+                    if (bus.device().boot_start_address != 0)
+                        cpu.set_program_counter(bus.device().boot_start_address);
+                    dtr_reset_cooldown = cpu.cycles() + 100000; // debounce
+                }
+                dtr_state = dtr_low ? 1 : 0;
+            }
+        }
+#endif
+
         if (serial_uart) {
             drain_tx(serial_uart);
             inject_rx(serial_uart);
