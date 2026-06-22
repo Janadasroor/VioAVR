@@ -61,12 +61,33 @@ std::string find_arduino_cli() {
         std::string paths(path_env);
         std::istringstream ss(paths);
         std::string dir;
-        while (std::getline(ss, dir, ':')) {
+#ifdef _WIN32
+        const char sep = ';';
+#else
+        const char sep = ':';
+#endif
+        while (std::getline(ss, dir, sep)) {
+#ifdef _WIN32
+            fs::path candidate = fs::path(dir) / "arduino-cli.exe";
+            if (fs::exists(candidate)) return candidate.string();
+#endif
             fs::path candidate = fs::path(dir) / "arduino-cli";
             if (fs::exists(candidate)) return candidate.string();
         }
     }
-    return "arduino-cli";
+    return ""; // not found
+}
+
+static bool check_arduino_cli() {
+    auto cli = find_arduino_cli();
+    if (cli.empty()) {
+        std::cerr << Terminal::fg(Terminal::Color::red)
+                  << "error: arduino-cli not found.\n"
+                  << Terminal::reset_all()
+                  << "Install it from https://arduino.github.io/arduino-cli/ or place it in PATH.\n";
+        return false;
+    }
+    return true;
 }
 
 std::string run_cmd(const std::string& cmd) {
@@ -79,6 +100,25 @@ std::string run_cmd(const std::string& cmd) {
     while (fgets(buf.data(), buf.size(), pipe.get()) != nullptr)
         result += buf.data();
     return result;
+}
+
+fs::path find_bootloader_hex(const std::string& mcu_name) {
+    std::string mcn;
+    for (auto c : mcu_name) {
+        mcn += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    const fs::path search_roots[] = {
+        ".",
+        "..",
+        "../..",
+    };
+
+    for (auto& root : search_roots) {
+        auto p = fs::absolute(fs::path(root) / "bootloaders" / (mcn + "_bootloader.hex"));
+        if (fs::exists(p)) return p;
+    }
+    return {};
 }
 
 fs::path find_ino_file(const fs::path& sketch_path) {
@@ -140,6 +180,39 @@ void print_board_info(const vioavr::core::ArduinoBoard& board) {
 }
 
 // ---------------------------------------------------------------------------
+// FQBN -> MCU resolution
+// ---------------------------------------------------------------------------
+std::string resolve_mcu_from_fqbn(const std::string& fqbn) {
+    auto* board = vioavr::core::find_arduino_board(fqbn);
+    if (board) return std::string(board->mcu);
+
+    auto c1 = fqbn.find(':');
+    if (c1 == std::string::npos) return {};
+    auto c2 = fqbn.find(':', c1 + 1);
+    if (c2 == std::string::npos) return {};
+    auto c3 = fqbn.find(':', c2 + 1);
+    auto board_id = (c3 == std::string::npos)
+        ? std::string_view(fqbn).substr(c2 + 1)
+        : std::string_view(fqbn).substr(c2 + 1, c3 - c2 - 1);
+
+    for (auto& b : vioavr::core::kArduinoBoards) {
+        auto bfqbn = std::string_view(b.fqbn);
+        auto b1 = bfqbn.find(':');
+        if (b1 == std::string_view::npos) continue;
+        auto b2 = bfqbn.find(':', b1 + 1);
+        if (b2 == std::string_view::npos) continue;
+        auto b3 = bfqbn.find(':', b2 + 1);
+        auto bid = (b3 == std::string_view::npos)
+                   ? bfqbn.substr(b2 + 1)
+                   : bfqbn.substr(b2 + 1, b3 - b2 - 1);
+        if (bid == board_id)
+            return std::string(b.mcu);
+    }
+
+    return {};
+}
+
+// ---------------------------------------------------------------------------
 // PTY creation (Linux / macOS)
 // ---------------------------------------------------------------------------
 #ifndef _WIN32
@@ -191,10 +264,52 @@ int cmd_arduino_list() {
 // ---------------------------------------------------------------------------
 // Sub-subcommand: info
 // ---------------------------------------------------------------------------
-int cmd_arduino_info(const std::vector<std::string>& positional) {
+int cmd_arduino_info(const std::vector<std::string>& positional,
+                     const std::map<std::string, std::string>& options)
+{
+    auto fqbn_it = options.find("fqbn");
+    if (fqbn_it != options.end()) {
+        std::string mcu;
+        auto mcu_it = options.find("mcu");
+        if (mcu_it != options.end()) mcu = mcu_it->second;
+        if (mcu.empty()) mcu = resolve_mcu_from_fqbn(fqbn_it->second);
+        if (mcu.empty()) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << "cannot resolve MCU from FQBN '"
+                      << fqbn_it->second << "'. Use --mcu to specify.\n";
+            return 1;
+        }
+        auto* dev = vioavr::core::DeviceCatalog::find(mcu);
+        if (!dev) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << "MCU '" << mcu << "' not found in device catalog.\n"
+                      << "Supported MCUs: ";
+            auto devices = vioavr::core::DeviceCatalog::list_devices();
+            for (size_t i = 0; i < devices.size(); ++i) {
+                if (i > 0) std::cerr << ", ";
+                std::cerr << devices[i];
+            }
+            std::cerr << "\n";
+            return 1;
+        }
+        vioavr::core::ArduinoBoard virt{};
+        virt.name = fqbn_it->second;
+        virt.fqbn = fqbn_it->second;
+        virt.mcu = mcu;
+        virt.f_cpu = 0;
+        virt.sram_bytes = 0;
+        virt.flash_bytes = 0;
+        virt.led_builtin = 0xFF;
+        virt.analog_inputs = 0;
+        virt.has_serial = false;
+        virt.important_pins = {};
+        print_board_info(virt);
+        return 0;
+    }
+
     if (positional.empty()) {
         std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
-                  << Terminal::reset_all() << "missing board name. Usage: vioavr arduino info <board>\n";
+                  << Terminal::reset_all() << "missing board name. Usage: vioavr arduino info [--fqbn <fqbn>] [<board>]\n";
         return 1;
     }
 
@@ -207,6 +322,75 @@ int cmd_arduino_info(const std::vector<std::string>& positional) {
 
     print_board_info(*board);
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Compile helper (shared by run and compile)
+// ---------------------------------------------------------------------------
+struct CompileResult {
+    fs::path hex_file;
+    fs::path build_dir;
+};
+
+CompileResult compile_sketch(const fs::path& sketch_path, const std::string& fqbn,
+                              const char* display_name)
+{
+    CompileResult result;
+
+    fs::path ino_file = find_ino_file(sketch_path);
+    if (ino_file.empty()) {
+        std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                  << Terminal::reset_all() << "cannot find .ino file at '"
+                  << sketch_path.string() << "'\n";
+        return result;
+    }
+
+    fs::path build_dir = fs::temp_directory_path() / "vioavr-arduino-XXXXXX";
+    {
+        std::string tmpl = build_dir.string();
+        if (mkdtemp(tmpl.data()) == nullptr) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << "failed to create temp dir\n";
+            return result;
+        }
+        build_dir = tmpl;
+    }
+    result.build_dir = build_dir;
+
+    std::string arduino_bin = find_arduino_cli();
+    std::cout << Terminal::fg(Terminal::Color::bright_black)
+              << "Compiling " << ino_file.filename().string()
+              << " for " << display_name << " (" << fqbn << ")"
+              << Terminal::reset_all() << "\n";
+
+#ifdef _WIN32
+    std::string arduino_cmd = arduino_bin;
+#else
+    std::string arduino_cmd = arduino_bin + " 2>&1";
+#endif
+    std::ostringstream compile_cmd;
+    compile_cmd << arduino_cmd
+                << " compile --fqbn " << fqbn
+                << " --output-dir \"" << build_dir.string() << "\""
+                << " \"" << sketch_path.string() << "\"";
+
+    std::string compile_out = run_cmd(compile_cmd.str());
+    std::cout << compile_out;
+
+    for (auto& entry : fs::directory_iterator(build_dir)) {
+        if (entry.path().extension() == ".hex") {
+            result.hex_file = entry.path();
+            break;
+        }
+    }
+
+    if (result.hex_file.empty()) {
+        std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                  << Terminal::reset_all() << "compilation produced no .hex file\n";
+        std::cerr << "  Build dir: " << build_dir.string() << "\n";
+    }
+
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,9 +413,12 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         std::cout << Terminal::style(Terminal::Style::bold) << "Options:"
                   << Terminal::reset_all() << "\n";
         opt("--board <name>",    "Arduino board (default: Uno)");
+        opt("--fqbn <fqbn>",     "Full FQBN (bypasses --board, e.g. arduino:avr:uno)");
+        opt("--mcu <name>",      "MCU override (with --fqbn, e.g. ATmega328P)");
         opt("--max-cycles <n>",  "Cycle limit (e.g. 100k, 1M)");
         opt("--show-state",      "Show peripheral state after run");
         opt("--serial [mode]",   "Serial monitor (default=stdio, or 'pty')");
+        opt("--bootloader [path]", "Load board bootloader hex (auto-detect or path)");
         opt("--board-options <kv>", "Comma-separated board options (e.g. cpu=16MHzatmega328)");
         opt("--gdb <port>",      "Start GDB stub on port for debugging");
         opt("--color <mode>",    "Color mode: auto, always, never");
@@ -239,34 +426,69 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         return positional.empty() ? 1 : 0;
     }
 
-    std::string board_name = "Uno";
-    auto it = options.find("board");
-    if (it != options.end()) board_name = it->second;
+    // --fqbn mode bypasses board lookup entirely
+    std::string fqbn_override;
+    auto fqbn_it = options.find("fqbn");
+    if (fqbn_it != options.end()) fqbn_override = fqbn_it->second;
 
-    auto* board = find_arduino_board(board_name);
-    if (!board) {
-        std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
-                  << Terminal::reset_all() << "unknown board '" << board_name << "'\n";
-        return 1;
-    }
+    std::string mcu_override;
+    auto mcu_it = options.find("mcu");
+    if (mcu_it != options.end()) mcu_override = mcu_it->second;
 
-    // Parse board options (e.g. "cpu=16MHzatmega328,speed=8MHz")
-    std::string fqbn(board->fqbn);
-    std::string board_opts;
-    auto bo_it = options.find("board-options");
-    if (bo_it != options.end() && !bo_it->second.empty()) {
-        board_opts = bo_it->second;
-    } else if (!board->default_board_options.empty()) {
-        board_opts = std::string(board->default_board_options);
-    }
-    if (!board_opts.empty()) {
-        std::istringstream ss(board_opts);
-        std::string opt;
-        bool first = true;
-        while (std::getline(ss, opt, ',')) {
-            if (!opt.empty()) {
-                fqbn += (first ? ":" : ",") + opt;
+    const ArduinoBoard* board = nullptr;
+    std::string resolved_mcu;
+    std::string fqbn;
+
+    if (!fqbn_override.empty()) {
+        // --fqbn given: bypass board lookup, use FQBN directly for compilation
+        fqbn = fqbn_override;
+        board = find_arduino_board(fqbn_override); // optional, for metadata
+        resolved_mcu = mcu_override.empty() ? resolve_mcu_from_fqbn(fqbn_override) : mcu_override;
+        if (resolved_mcu.empty()) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << "cannot resolve MCU from FQBN '"
+                      << fqbn_override << "'. Use --mcu to specify one of:\n  ";
+            auto devices = DeviceCatalog::list_devices();
+            bool first = true;
+            for (auto& d : devices) {
+                if (!first) std::cerr << ", ";
+                std::cerr << d;
                 first = false;
+            }
+            std::cerr << "\n";
+            return 1;
+        }
+    } else {
+        // Legacy --board mode
+        std::string board_name = "Uno";
+        auto it = options.find("board");
+        if (it != options.end()) board_name = it->second;
+
+        board = find_arduino_board(board_name);
+        if (!board) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << "unknown board '" << board_name << "'\n";
+            return 1;
+        }
+
+        // Parse board options (e.g. "cpu=16MHzatmega328,speed=8MHz")
+        fqbn = std::string(board->fqbn);
+        std::string board_opts;
+        auto bo_it = options.find("board-options");
+        if (bo_it != options.end() && !bo_it->second.empty()) {
+            board_opts = bo_it->second;
+        } else if (!board->default_board_options.empty()) {
+            board_opts = std::string(board->default_board_options);
+        }
+        if (!board_opts.empty()) {
+            std::istringstream ss(board_opts);
+            std::string opt;
+            bool first = true;
+            while (std::getline(ss, opt, ',')) {
+                if (!opt.empty()) {
+                    fqbn += (first ? ":" : ",") + opt;
+                    first = false;
+                }
             }
         }
     }
@@ -278,63 +500,14 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     }
 
     fs::path sketch_path(positional[0]);
-    fs::path ino_file = find_ino_file(sketch_path);
-    if (ino_file.empty()) {
-        std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
-                  << Terminal::reset_all() << "cannot find .ino file at '" << positional[0] << "'\n";
+
+    const char* display_name = board ? board->name.data() : fqbn_override.c_str();
+    if (!check_arduino_cli()) return 1;
+    auto cr = compile_sketch(sketch_path, fqbn, display_name);
+    if (cr.hex_file.empty())
         return 1;
-    }
-
-    // Build directory for compiled output
-    fs::path build_dir = fs::temp_directory_path() / "vioavr-arduino-XXXXXX";
-    {
-        std::string tmpl = build_dir.string();
-        if (mkdtemp(tmpl.data()) == nullptr) {
-            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
-                      << Terminal::reset_all() << "failed to create temp dir\n";
-            return 1;
-        }
-        build_dir = tmpl;
-    }
-
-    // Compile with arduino-cli
-    std::string arduino_bin = find_arduino_cli();
-    std::cout << Terminal::fg(Terminal::Color::bright_black)
-              << "Compiling " << ino_file.filename().string()
-              << " for " << board->name << " (" << fqbn << ")"
-              << Terminal::reset_all() << "\n";
-
-#ifdef _WIN32
-    std::string arduino_cmd = arduino_bin;
-#else
-    std::string arduino_cmd = arduino_bin + " 2>&1";
-#endif
-    std::ostringstream compile_cmd;
-    compile_cmd << arduino_cmd
-                << " compile --fqbn " << fqbn
-                << " --output-dir \"" << build_dir.string() << "\""
-                << " \"" << sketch_path.string() << "\"";
-
-    std::string compile_out = run_cmd(compile_cmd.str());
-    std::cout << compile_out;
-
-    // Find the .hex file
-    fs::path hex_file;
-    for (auto& entry : fs::directory_iterator(build_dir)) {
-        if (entry.path().extension() == ".hex") {
-            hex_file = entry.path();
-            break;
-        }
-    }
-
-    if (hex_file.empty()) {
-        std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
-                  << Terminal::reset_all() << "compilation produced no .hex file\n";
-
-        // Keep build dir for debugging
-        std::cerr << "  Build dir: " << build_dir.string() << "\n";
-        return 1;
-    }
+    fs::path build_dir = cr.build_dir;
+    fs::path hex_file = cr.hex_file;
 
     // Run the .hex in VioAVR
     std::cout << Terminal::fg(Terminal::Color::green) << "Running "
@@ -354,20 +527,87 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
 
     bool show_state = options.find("show-state") != options.end();
 
-    auto machine = Machine::create_for_device(std::string(board->mcu));
+    {
+        const char* mcu_for_machine = board ? board->mcu.data() : resolved_mcu.c_str();
+        if (DeviceCatalog::find(mcu_for_machine) == nullptr) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << "MCU '" << mcu_for_machine << "' not found in device catalog.\n";
+            return 1;
+        }
+    }
+    auto machine = Machine::create_for_device(board ? std::string(board->mcu) : resolved_mcu);
     if (!machine) {
         std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
-                  << Terminal::reset_all() << "MCU '" << board->mcu << "' not supported\n";
+                  << Terminal::reset_all() << "MCU '" << (board ? board->mcu : resolved_mcu) << "' not supported\n";
         return 1;
     }
 
     auto& cpu = machine->cpu();
     auto& bus = machine->bus();
 
+    // Parse --bootloader flag
+    auto bootloader_it = options.find("bootloader");
+    bool use_bootloader = bootloader_it != options.end();
+
     try {
-        auto image = HexImageLoader::load_file(hex_file.string(), bus.device());
-        bus.load_image(image);
-        machine->reset();
+        if (use_bootloader) {
+            auto& dev = bus.device();
+
+            fs::path bootloader_path;
+            if (bootloader_it->second != "true" && !bootloader_it->second.empty()) {
+                bootloader_path = bootloader_it->second;
+                if (!fs::exists(bootloader_path)) {
+                    std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                              << Terminal::reset_all() << "bootloader hex not found: "
+                              << bootloader_path.string() << std::endl;
+                    return 2;
+                }
+            } else {
+                const char* mcu_name = board ? board->mcu.data() : resolved_mcu.c_str();
+                bootloader_path = find_bootloader_hex(mcu_name);
+                if (bootloader_path.empty()) {
+                    std::cerr << Terminal::fg(Terminal::Color::yellow) << "Warning: "
+                              << Terminal::reset_all() << "no bootloader hex found for "
+                              << mcu_name << ", running without bootloader\n";
+                    use_bootloader = false;
+                }
+            }
+
+            if (use_bootloader) {
+                std::cout << Terminal::fg(Terminal::Color::bright_black)
+                          << "Bootloader: " << bootloader_path.filename().string()
+                          << Terminal::reset_all() << "\n";
+
+                // Load user application hex (overwrites flash starting at 0)
+                auto user_image = HexImageLoader::load_file(hex_file.string(), dev);
+                bus.load_image(user_image);
+
+                // Overlay bootloader hex at its natural addresses.
+                // We use write_program_word for each non-zero word so that
+                // the bootloader section (e.g. 0x3800) is programmed without
+                // zero-padding from the hex overwriting the user app.
+                auto boot_image = HexImageLoader::load_file(bootloader_path.string(), dev);
+                for (u32 wi = 0; wi < boot_image.flash_words.size(); ++wi) {
+                    if (boot_image.flash_words[wi] != 0) {
+                        bus.write_program_word(wi, boot_image.flash_words[wi]);
+                    }
+                }
+
+                machine->reset();
+
+                if (dev.boot_start_address != 0) {
+                    cpu.set_program_counter(dev.boot_start_address);
+                }
+            } else {
+                auto image = HexImageLoader::load_file(hex_file.string(), dev);
+                bus.load_image(image);
+                machine->reset();
+            }
+        } else {
+            auto image = HexImageLoader::load_file(hex_file.string(), bus.device());
+            bus.load_image(image);
+            machine->reset();
+        }
     } catch (const std::exception& e) {
         std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
                   << Terminal::reset_all() << "loading HEX: " << e.what() << std::endl;
@@ -453,7 +693,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     };
 
     Uart* serial_uart = nullptr;
-    if (serial_mode != SerialMode::none && board->has_serial) {
+    if (serial_mode != SerialMode::none && (board ? board->has_serial : true)) {
         auto uarts = machine->peripherals_of_type<Uart>();
         if (!uarts.empty()) serial_uart = uarts[0];
         if (serial_uart) {
@@ -541,7 +781,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         std::cout << Terminal::fg(Terminal::Color::cyan) << Terminal::style(Terminal::Style::bold)
                   << "═══ Arduino Simulation Summary ═══" << Terminal::reset_all() << "\n";
         std::cout << Terminal::fg(Terminal::Color::bright_black) << "Board:  "
-                  << Terminal::reset_all() << board->name << "\n";
+                  << Terminal::reset_all() << (board ? board->name.data() : fqbn_override.c_str()) << "\n";
         std::cout << Terminal::fg(Terminal::Color::bright_black) << "Cycles: "
                   << Terminal::reset_all() << Terminal::fg(Terminal::Color::yellow)
                   << std::dec << cpu.cycles() << Terminal::reset_all() << "\n";
@@ -588,6 +828,91 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     // Cleanup
     fs::remove_all(build_dir);
     if (pty_master_fd != -1) close(pty_master_fd);
+
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-subcommand: compile
+// ---------------------------------------------------------------------------
+int cmd_arduino_compile(const std::vector<std::string>& positional,
+                        const std::map<std::string, std::string>& options)
+{
+    using namespace vioavr::core;
+
+    if (positional.empty()) {
+        std::cout << Terminal::style(Terminal::Style::bold) << "Usage: "
+                  << Terminal::reset_all() << Terminal::fg(Terminal::Color::yellow) << "vioavr arduino compile"
+                  << Terminal::reset_all() << " [options] <" << Terminal::fg(Terminal::Color::green)
+                  << "sketch" << Terminal::reset_all() << ">\n";
+        auto opt = [](const char* flag, const char* desc) {
+            std::cout << "  " << Terminal::fg(Terminal::Color::cyan) << flag
+                      << Terminal::reset_all() << "  " << desc << "\n";
+        };
+        std::cout << Terminal::style(Terminal::Style::bold) << "Options:"
+                  << Terminal::reset_all() << "\n";
+        opt("--board <name>",    "Arduino board (default: Uno)");
+        opt("--fqbn <fqbn>",     "Full FQBN (bypasses --board)");
+        opt("--board-options <kv>", "Comma-separated board options");
+        opt("--help",            "Show this help");
+        return 1;
+    }
+
+    std::string fqbn_override;
+    auto fqbn_it = options.find("fqbn");
+    if (fqbn_it != options.end()) fqbn_override = fqbn_it->second;
+
+    const ArduinoBoard* board = nullptr;
+    std::string fqbn;
+
+    if (!fqbn_override.empty()) {
+        fqbn = fqbn_override;
+        board = find_arduino_board(fqbn_override);
+    } else {
+        std::string board_name = "Uno";
+        auto it = options.find("board");
+        if (it != options.end()) board_name = it->second;
+
+        board = find_arduino_board(board_name);
+        if (!board) {
+            std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
+                      << Terminal::reset_all() << "unknown board '" << board_name << "'\n";
+            return 1;
+        }
+
+        fqbn = std::string(board->fqbn);
+        std::string board_opts;
+        auto bo_it = options.find("board-options");
+        if (bo_it != options.end() && !bo_it->second.empty()) {
+            board_opts = bo_it->second;
+        } else if (!board->default_board_options.empty()) {
+            board_opts = std::string(board->default_board_options);
+        }
+        if (!board_opts.empty()) {
+            std::istringstream ss(board_opts);
+            std::string opt;
+            bool first = true;
+            while (std::getline(ss, opt, ',')) {
+                if (!opt.empty()) {
+                    fqbn += (first ? ":" : ",") + opt;
+                    first = false;
+                }
+            }
+        }
+    }
+
+    fs::path sketch_path(positional[0]);
+    const char* display_name = board ? board->name.data() : fqbn_override.c_str();
+
+    if (!check_arduino_cli()) return 1;
+    auto cr = compile_sketch(sketch_path, fqbn, display_name);
+    if (cr.hex_file.empty())
+        return 1;
+
+    std::cout << Terminal::fg(Terminal::Color::green) << "Hex: "
+              << Terminal::reset_all() << cr.hex_file.string()
+              << Terminal::fg(Terminal::Color::bright_black) << "\n  Build dir: "
+              << Terminal::reset_all() << cr.build_dir.string() << "\n";
 
     return 0;
 }
@@ -641,17 +966,21 @@ int cmd_arduino(int argc, char** argv) {
                   << Terminal::reset_all() << "\n";
         std::cout << "  " << Terminal::fg(Terminal::Color::green) << "list"
                   << Terminal::reset_all() << "             List known Arduino boards\n";
-        std::cout << "  " << Terminal::fg(Terminal::Color::green) << "info <board>"
-                  << Terminal::reset_all() << "        Show board details\n";
-        std::cout << "  " << Terminal::fg(Terminal::Color::green) << "run <sketch>"
-                  << Terminal::reset_all() << "       Compile and run a sketch\n";
+        std::cout << "  " << Terminal::fg(Terminal::Color::green) << "info [--fqbn <fqbn>] [<board>]"
+                  << Terminal::reset_all() << "  Show board details\n";
+        std::cout << "  " << Terminal::fg(Terminal::Color::green) << "compile [--fqbn <fqbn>] <sketch>"
+                  << Terminal::reset_all() << "  Compile a sketch (print .hex path)\n";
+        std::cout << "  " << Terminal::fg(Terminal::Color::green) << "run [--fqbn <fqbn>] <sketch>"
+                  << Terminal::reset_all() << "  Compile and run a sketch\n";
         return action.empty() ? 1 : 0;
     }
 
     if (action == "list")
         return cmd_arduino_list();
     else if (action == "info")
-        return cmd_arduino_info(positional);
+        return cmd_arduino_info(positional, options);
+    else if (action == "compile")
+        return cmd_arduino_compile(positional, options);
     else if (action == "run")
         return cmd_arduino_run(positional, options);
     else {
