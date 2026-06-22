@@ -299,7 +299,7 @@ int cmd_run(const Args& args) {
         opt("--pin <spec>",      "Set pin level: PORTB.3=1,PORTC.0=0@50000");
         opt("--adc <spec>",      "Set ADC voltage: 0=2.5,1=1.8@100000");
         opt("--uart-rx <hex>",   "Inject hex bytes into UART RX");
-        opt("--jit",             "Enable JIT compiler (faster, experimental)");
+        opt("--no-jit",          "Disable JIT, use interpreter");
         opt("--help",            "Show this help");
         return args.positional.empty() ? 1 : 0;
     }
@@ -311,7 +311,7 @@ int cmd_run(const Args& args) {
     bool show_state = args.has("show-state") || args.get_as<bool>("show-state");
     bool verbose = args.has("verbose");
     bool quiet = args.has("quiet");
-    bool use_jit = args.has("jit");
+    bool no_jit = args.has("no-jit");
     std::string eeprom_path = args.get("eeprom-file");
 
     configure_logger(quiet, verbose);
@@ -327,7 +327,7 @@ int cmd_run(const Args& args) {
     auto& bus = machine->bus();
 
 #ifdef VIOAVR_HAVE_JIT
-    if (use_jit) {
+    if (!no_jit) {
         cpu.enable_jit(true);
     }
 #endif
@@ -354,7 +354,7 @@ int cmd_run(const Args& args) {
     size_t stim_idx = 0;
     stim_idx = apply_due_stimuli(*machine, stimulus_cfg, cpu.cycles(), stim_idx);
 
-    if (use_jit) {
+    if (!no_jit) {
         // JIT path: run in chunks for stimulus interleaving
         const u64 chunk = 10000;
         while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
@@ -552,14 +552,14 @@ int cmd_benchmark(const Args& args) {
         opt("--mcu <name>",      "MCU (default: ATmega328P)");
         opt("--cycles <n>",      "Cycle count (default: 100M)");
         opt("--color <mode>",    "Color mode: auto, always, never");
-        opt("--jit",             "Enable JIT compiler (faster, experimental)");
+        opt("--no-jit",          "Disable JIT, use interpreter");
         opt("--help",            "Show this help");
         return args.positional.empty() ? 1 : 0;
     }
 
     std::string mcu = args.get("mcu", "ATmega328P");
     u64 total_cycles = args.get_cycles("cycles", 100'000'000);
-    bool use_jit = args.has("jit");
+    bool no_jit = args.has("no-jit");
 
     auto machine = Machine::create_for_device(mcu);
     if (!machine) {
@@ -572,7 +572,7 @@ int cmd_benchmark(const Args& args) {
     auto& bus = machine->bus();
 
 #ifdef VIOAVR_HAVE_JIT
-    if (use_jit) {
+    if (!no_jit) {
         cpu.enable_jit(true);
     }
 #endif
