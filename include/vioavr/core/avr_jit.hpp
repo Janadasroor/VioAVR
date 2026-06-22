@@ -2,7 +2,6 @@
 
 #include "vioavr/core/types.hpp"
 #include "vioavr/core/x86_assembler.hpp"
-#include <sys/mman.h>
 #include <cstdint>
 #include <cstddef>
 #include <unordered_map>
@@ -92,7 +91,7 @@ struct JitBlock {
 
     void release_code() {
         if (code != nullptr && code_size > 0) {
-            munmap(code, code_size);
+            free_executable(code, code_size);
             code = nullptr;
             code_size = 0;
         }
