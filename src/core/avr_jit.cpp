@@ -128,6 +128,11 @@ void jit_write_data(JitState* state, uint16_t addr, uint8_t value) {
         state->bus->data_space()[addr] = value;
         return;
     }
+    if (dev.spmcsr_address != 0U && addr == dev.spmcsr_address) {
+        if ((value & 0x01U) != 0U) {
+            state->spm_lock_timeout = 4U;
+        }
+    }
     state->bus->write_data(addr, value);
     state->bus_data[addr] = value;
 }
