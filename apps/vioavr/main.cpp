@@ -31,6 +31,7 @@
 #include "ansi.hpp"
 #include "args.hpp"
 #include "docs.hpp"
+#include "stimulus.hpp"
 
 int cmd_arduino(int argc, char** argv);
 int cmd_debug(const Args& args);
@@ -295,6 +296,9 @@ int cmd_run(const Args& args) {
         opt("--verbose",         "Enable debug output");
         opt("--quiet",           "Suppress non-error output");
         opt("--color <mode>",    "Color mode: auto, always, never");
+        opt("--pin <spec>",      "Set pin level: PORTB.3=1,PORTC.0=0@50000");
+        opt("--adc <spec>",      "Set ADC voltage: 0=2.5,1=1.8@100000");
+        opt("--uart-rx <hex>",   "Inject hex bytes into UART RX");
         opt("--help",            "Show this help");
         return args.positional.empty() ? 1 : 0;
     }
@@ -337,7 +341,14 @@ int cmd_run(const Args& args) {
         }
     }
 
+    // Parse and apply external stimuli
+    StimulusConfig stimulus_cfg = parse_stimulus_config(args);
+    size_t stim_idx = 0;
+    stim_idx = apply_due_stimuli(*machine, stimulus_cfg, cpu.cycles(), stim_idx);
+
     while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
+        // Apply any timed stimuli that are due
+        stim_idx = apply_due_stimuli(*machine, stimulus_cfg, cpu.cycles(), stim_idx);
         machine->step();
     }
 
@@ -525,7 +536,7 @@ int cmd_benchmark(const Args& args) {
         opt("--cycles <n>",      "Cycle count (default: 100M)");
         opt("--color <mode>",    "Color mode: auto, always, never");
         opt("--help",            "Show this help");
-        return 0;
+        return args.positional.empty() ? 1 : 0;
     }
 
     std::string mcu = args.get("mcu", "ATmega328P");
@@ -616,7 +627,7 @@ int cmd_info(const Args& args) {
         };
         std::cout << Terminal::style(Terminal::Style::bold) << "Options:"
                   << Terminal::reset_all() << "\n";
-        opt("--help",  "Show this help");
+        opt("--help",            "Show this help");
         return args.positional.empty() ? 1 : 0;
     }
 
