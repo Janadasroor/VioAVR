@@ -480,6 +480,10 @@ void AvrJit::invalidate_all() {
 // System V (non-Windows): RDI=arg0, RSI=arg1, RDX=arg2, RCX=arg3
 // Windows x64:           RCX=arg0, RDX=arg1, R8=arg2,  R9=arg3
 // Shadow space: 32 bytes + 8-byte alignment = 40 bytes subtracted from RSP
+//
+// WARNING: buf.mov(Reg64::r8, imm) requires REX.B=1 in the emitted MOV,
+// otherwise it encodes as MOV RAX, imm. The x86_assembler fix for this
+// was commit 63ef405 — do NOT replace with rexw().
 // ---------------------------------------------------------------------------
 #ifdef _WIN32
 #define JIT_CALL_1ARG(func_) \

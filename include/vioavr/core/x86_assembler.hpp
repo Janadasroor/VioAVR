@@ -96,6 +96,10 @@ public:
         modrm(3, static_cast<uint8_t>(src) & 7, static_cast<uint8_t>(dst) & 7);
     }
 
+    // NOTE: must set REX.B when dst >= 8. rexw() alone hardcodes B=0 and
+    // causes mov(Reg64::r8, imm) to encode as MOV RAX, imm instead.
+    // Windows JIT_CALL_3ARG uses this to load R8 with the register-number
+    // argument — broken REX.B meant jit_adc/jit_sbc/etc. received garbage.
     void mov(Reg64 dst, int32_t imm) {
         rex(true, false, false, static_cast<uint8_t>(dst) >= 8);
         uint8_t rm = static_cast<uint8_t>(dst) & 7;
