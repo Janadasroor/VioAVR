@@ -32,7 +32,9 @@ struct alignas(64) JitState {
     uint8_t interrupt_delay{0};  // one-instruction delay after SEI/RETI
     uint8_t _pad2[6]{};
     uint64_t instructions_executed{0};
-    uint8_t _pad[48]{};          // pad to 128 bytes (2×64 cache lines)
+    uint64_t jit_block_cycles{0};    // cycles accumulated in this block (mid-block peripheral sync)
+    uint64_t jit_synced_cycles{0};   // cycles already ticked to peripherals in this block
+    uint8_t _pad[32]{};              // pad to 128 bytes (2×64 cache lines)
 };
 
 inline uint8_t sreg_to_byte(bool c, bool z, bool n, bool v, bool s, bool h, bool t, bool i) {

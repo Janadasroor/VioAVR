@@ -266,7 +266,6 @@ void AvrCpu::run(const u64 cycle_budget)
                 instructions_executed_ = jit_state.instructions_executed;
 
                 if (bus_ != nullptr) {
-                    bus_->tick_peripherals(delta, active_clock_domains());
                     if (__builtin_expect(reset_triggered_, 0)) {
                         pending_cycles = 0;
                         break;
