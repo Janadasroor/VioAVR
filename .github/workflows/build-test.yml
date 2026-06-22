@@ -264,7 +264,7 @@ jobs:
     - name: Run Tests & Generate Coverage
       run: |
         ctest --test-dir build --output-on-failure -j4 \
-          --exclude-regex "vioavr_viospice_group"
+          --exclude-regex "vioavr_viospice_group" --timeout 600
         lcov --directory build --capture --output-file coverage.info || true
         # Filter out system headers, tests, and third-party files
         lcov --remove coverage.info \
