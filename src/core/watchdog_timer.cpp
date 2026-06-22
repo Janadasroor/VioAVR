@@ -135,6 +135,9 @@ bool WatchdogTimer::consume_interrupt_request(InterruptRequest& request) noexcep
 {
     if (pending_interrupt_request(request)) {
         interrupt_pending_ = false;
+        if (wdtcsr_ & desc_.wde_mask) {
+            wdtcsr_ &= static_cast<u8>(~desc_.wdie_mask);
+        }
         update_interrupt_pending();
         return true;
     }
@@ -156,9 +159,7 @@ void WatchdogTimer::complete_timeout() noexcept
     if (wdtcsr_ & desc_.wdie_mask) {
         interrupt_pending_ = true;
         update_interrupt_pending();
-    }
-    
-    if (wdtcsr_ & desc_.wde_mask) {
+    } else if (wdtcsr_ & desc_.wde_mask) {
         cpu_.reset(ResetCause::watchdog);
     }
     

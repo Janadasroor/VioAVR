@@ -392,7 +392,7 @@ int cmd_run(const Args& args) {
         } else {
             std::cout << Terminal::fg(Terminal::Color::green) << "✓ "
                       << Terminal::reset_all() << "Simulation finished after "
-                      << Terminal::fg(Terminal::Color::yellow) << cpu.cycles()
+              << Terminal::fg(Terminal::Color::yellow) << std::dec << cpu.cycles()
                       << Terminal::reset_all() << " cycles.\n";
         }
 
