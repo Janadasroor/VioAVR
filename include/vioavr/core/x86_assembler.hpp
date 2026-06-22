@@ -97,7 +97,7 @@ public:
     }
 
     void mov(Reg64 dst, int32_t imm) {
-        rexw();
+        rex(true, false, false, static_cast<uint8_t>(dst) >= 8);
         uint8_t rm = static_cast<uint8_t>(dst) & 7;
         emit8(0xC7);
         modrm(3, 0, rm);
