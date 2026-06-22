@@ -115,7 +115,6 @@ void Machine::reset(ResetCause cause) noexcept
     }
 }
 
-#ifndef _WIN32
 void Machine::enable_gdb(uint16_t port)
 {
     if (!gdb_stub_) {
@@ -133,7 +132,6 @@ void Machine::disable_gdb()
         gdb_stub_.reset();
     }
 }
-#endif
 
 void Machine::enable_trace_buffer(size_t capacity)
 {

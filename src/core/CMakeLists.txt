@@ -23,7 +23,7 @@ target_sources(vioavr_core
         cpu_control.cpp
         device.cpp
         device_catalog.cpp
-        $<$<NOT:$<PLATFORM_ID:Windows>>:gdb_stub.cpp>
+        gdb_stub.cpp
         eeprom.cpp
         ext_interrupt.cpp
         gpio_port.cpp
@@ -132,3 +132,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(vioavr_core PRIVATE rt)
 endif()
 target_link_libraries(vioavr_core PRIVATE Threads::Threads)
+
+if(WIN32)
+    target_link_libraries(vioavr_core PRIVATE ws2_32)
+endif()

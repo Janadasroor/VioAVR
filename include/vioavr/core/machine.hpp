@@ -9,9 +9,7 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/cpu_control.hpp"
 #include "vioavr/core/port_mux.hpp"
-#ifndef _WIN32
 #include "vioavr/core/gdb_stub.hpp"
-#endif
 #include "vioavr/core/trace_buffer.hpp"
 #include "vioavr/core/tracing.hpp"
 
@@ -89,11 +87,9 @@ public:
     /**
      * @brief Enable GDB debugging on specified port.
      */
-#ifndef _WIN32
     void enable_gdb(uint16_t port);
     void disable_gdb();
     [[nodiscard]] bool is_gdb_enabled() const { return gdb_stub_ != nullptr; }
-#endif
 
     /**
      * @brief Enable/Disable high-speed trace buffer.
@@ -132,9 +128,7 @@ private:
     AnalogSignalBank analog_signal_bank_;
     PinChangeInterruptSharedState pcint_shared_state_ {};
     PortMux* port_mux_{nullptr};
-#ifndef _WIN32
     std::unique_ptr<GdbStub> gdb_stub_;
-#endif
     std::unique_ptr<TraceBuffer> trace_buffer_;
     TraceMultiplexer trace_mux_;
 

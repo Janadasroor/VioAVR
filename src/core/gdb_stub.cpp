@@ -5,9 +5,15 @@
 #include <sstream>
 #include <iomanip>
 #include <cstring>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <unistd.h>
 #include <sys/socket.h>
 #include <poll.h>
+#endif
 
 namespace vioavr::core {
 
@@ -27,13 +33,13 @@ void GdbStub::start(uint16_t port) {
 
 void GdbStub::stop() {
     running_ = false;
-    if (server_fd_ != -1) {
-        close(server_fd_);
-        server_fd_ = -1;
+    if (server_fd_ != kInvalidSocket) {
+        socket_close(server_fd_);
+        server_fd_ = kInvalidSocket;
     }
-    if (client_fd_ != -1) {
-        close(client_fd_);
-        client_fd_ = -1;
+    if (client_fd_ != kInvalidSocket) {
+        socket_close(client_fd_);
+        client_fd_ = kInvalidSocket;
     }
     if (listen_thread_.joinable()) {
         listen_thread_.join();
@@ -41,50 +47,60 @@ void GdbStub::stop() {
 }
 
 void GdbStub::listen_loop() {
-    server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd_ < 0) return;
+    server_fd_ = static_cast<socket_t>(socket(AF_INET, SOCK_STREAM, 0));
+    if (!is_valid_socket(server_fd_)) return;
 
     int opt = 1;
-    setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
     sockaddr_in addr {};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(port_);
 
-    if (bind(server_fd_, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        close(server_fd_);
-        server_fd_ = -1;
+    if (bind(server_fd_, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) < 0) {
+        socket_close(server_fd_);
+        server_fd_ = kInvalidSocket;
         return;
     }
 
     if (listen(server_fd_, 1) < 0) {
-        close(server_fd_);
-        server_fd_ = -1;
+        socket_close(server_fd_);
+        server_fd_ = kInvalidSocket;
         return;
     }
 
     std::cout << "GDB Stub listening on port " << port_ << std::endl;
 
     while (running_) {
+#ifdef _WIN32
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(server_fd_, &read_fds);
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+        int sel_ret = select(0, &read_fds, nullptr, nullptr, &tv);
+        if (sel_ret > 0 && FD_ISSET(server_fd_, &read_fds)) {
+#else
         struct pollfd pfd {};
         pfd.fd = server_fd_;
         pfd.events = POLLIN;
-
         if (poll(&pfd, 1, 1000) > 0) {
+#endif
             client_fd_ = accept(server_fd_, nullptr, nullptr);
-            if (client_fd_ >= 0) {
+            if (is_valid_socket(client_fd_)) {
                 std::cout << "GDB Client connected" << std::endl;
                 client_loop();
-                close(client_fd_);
-                client_fd_ = -1;
+                socket_close(client_fd_);
+                client_fd_ = kInvalidSocket;
             }
         }
     }
 }
 
 void GdbStub::client_loop() {
-    while (running_ && client_fd_ != -1) {
+    while (running_ && client_fd_ != kInvalidSocket) {
         std::string packet = receive_packet();
         if (packet.empty()) break; // Connection closed or error
 
@@ -97,7 +113,11 @@ std::string GdbStub::receive_packet() {
     std::string packet;
 
     // Wait for '$'
+#ifdef _WIN32
+    while (recv(client_fd_, &ch, 1, 0) == 1) {
+#else
     while (read(client_fd_, &ch, 1) == 1) {
+#endif
         if (ch == '$') break;
         if (ch == 0x03) { // Ctrl-C
             cpu_.halt();
@@ -106,24 +126,36 @@ std::string GdbStub::receive_packet() {
     }
 
     // Read until '#'
+#ifdef _WIN32
+    while (recv(client_fd_, &ch, 1, 0) == 1) {
+#else
     while (read(client_fd_, &ch, 1) == 1) {
+#endif
         if (ch == '#') break;
         packet += ch;
     }
 
     // Read checksum (2 bytes)
     char sum[2];
+#ifdef _WIN32
+    if (recv(client_fd_, sum, 2, 0) != 2) return "";
+#else
     if (read(client_fd_, sum, 2) != 2) return "";
+#endif
 
     // Send ACK
     const char ack = '+';
+#ifdef _WIN32
+    if (send(client_fd_, &ack, 1, 0) < 0) return "";
+#else
     if (write(client_fd_, &ack, 1) < 0) return "";
+#endif
 
     return packet;
 }
 
 void GdbStub::send_packet(const std::string& data) {
-    if (client_fd_ == -1) return;
+    if (client_fd_ == kInvalidSocket) return;
     
     std::string packet = "$" + data + "#";
     uint8_t sum = checksum(data);
@@ -132,7 +164,11 @@ void GdbStub::send_packet(const std::string& data) {
     ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(sum);
     packet += ss.str();
 
+#ifdef _WIN32
+    if (send(client_fd_, packet.c_str(), static_cast<int>(packet.length()), 0) < 0) {
+#else
     if (write(client_fd_, packet.c_str(), packet.length()) < 0) {
+#endif
         // Handle error if needed
     }
 }

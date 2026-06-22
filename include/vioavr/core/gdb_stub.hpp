@@ -8,11 +8,59 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
-#ifndef _WIN32
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+using socket_t = SOCKET;
+constexpr socket_t kInvalidSocket = INVALID_SOCKET;
+#else
 #include <netinet/in.h>
+#include <unistd.h>
+using socket_t = int;
+constexpr socket_t kInvalidSocket = -1;
 #endif
 
 namespace vioavr::core {
+
+inline void socket_close(socket_t s) {
+#ifdef _WIN32
+    closesocket(s);
+#else
+    close(s);
+#endif
+}
+
+inline int socket_error() {
+#ifdef _WIN32
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+}
+
+inline bool is_valid_socket(socket_t s) {
+    return s != kInvalidSocket;
+}
+
+/// RAII helper that calls WSAStartup/WSACleanup on Windows (no-op on POSIX).
+class SockWrapper {
+public:
+    SockWrapper() {
+#ifdef _WIN32
+        WSADATA wsaData;
+        WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+    }
+    ~SockWrapper() {
+#ifdef _WIN32
+        WSACleanup();
+#endif
+    }
+    SockWrapper(const SockWrapper&) = delete;
+    SockWrapper& operator=(const SockWrapper&) = delete;
+};
 
 class Machine;
 
@@ -37,7 +85,7 @@ public:
      */
     void stop();
 
-    [[nodiscard]] bool is_connected() const { return client_fd_ != -1; }
+    [[nodiscard]] bool is_connected() const { return client_fd_ != kInvalidSocket; }
     [[nodiscard]] uint16_t port() const { return port_; }
 
     // ITraceHook implementation
@@ -76,11 +124,12 @@ private:
     static std::vector<uint8_t> hex_decode(const std::string& hex);
     void send_trap();
 
+    SockWrapper sock_wrapper_;
     AvrCpu& cpu_;
     MemoryBus& bus_;
     uint16_t port_ {0};
-    int server_fd_ {-1};
-    int client_fd_ {-1};
+    socket_t server_fd_ {kInvalidSocket};
+    socket_t client_fd_ {kInvalidSocket};
     
     std::thread listen_thread_;
     std::atomic<bool> running_ {false};
