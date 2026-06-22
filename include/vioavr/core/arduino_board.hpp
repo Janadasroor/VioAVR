@@ -1,7 +1,9 @@
 #pragma once
 
 #include "vioavr/core/types.hpp"
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <string_view>
 #include <span>
 #include <vector>
@@ -357,10 +359,15 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
     },
 };
 
+[[nodiscard]] inline bool iequals(std::string_view a, std::string_view b) noexcept {
+    return std::equal(a.begin(), a.end(), b.begin(), b.end(),
+                      [](char ca, char cb) { return std::tolower(static_cast<unsigned char>(ca)) == std::tolower(static_cast<unsigned char>(cb)); });
+}
+
 [[nodiscard]] inline const ArduinoBoard*
 find_arduino_board(std::string_view name_or_fqbn) noexcept {
     for (const auto& board : kArduinoBoards) {
-        if (board.name == name_or_fqbn || board.fqbn == name_or_fqbn)
+        if (iequals(board.name, name_or_fqbn) || iequals(board.fqbn, name_or_fqbn))
             return &board;
     }
     return nullptr;
