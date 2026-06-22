@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build cmake g++-14 libngspice-dev
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_CXX_COMPILER=g++-14
+      - name: Build
+        run: cmake --build build -j$(nproc)
+      - name: Test (core)
+        run: ctest --test-dir build -j4 --output-on-failure -R "^vioavr_(?!viospice)"
+        timeout-minutes: 5
+
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        shell: pwsh
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j $env:NUMBER_OF_PROCESSORS --config Release
+      - name: Test (build smoke)
+        run: |
+          echo "Build completed. $(Get-ChildItem build/src/core/Release/*.exe | ForEach-Object { $_.Name })"
+          # Core tests that don't need ngspice
+          ctest --test-dir build -C Release -j4 --output-on-failure -R "^vioavr_cpu_|^vioavr_c_api" --timeout 30
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          brew update
+          brew install ninja cmake ngspice
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j$(sysctl -n hw.logicalcpu)
+      - name: Test (core)
+        run: ctest --test-dir build -j4 --output-on-failure -R "^vioavr_(?!viospice)"
+        timeout-minutes: 5
