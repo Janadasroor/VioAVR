@@ -2,8 +2,12 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/types.hpp"
 #include <cstring>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 namespace vioavr::core::jit {
 
@@ -441,18 +445,28 @@ AvrJit::AvrJit() {}
 AvrJit::~AvrJit() { invalidate_all(); }
 
 void* AvrJit::allocate_executable(size_t size) {
+#ifdef _WIN32
+    void* ptr = VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    return ptr;
+#else
     long page_size = sysconf(_SC_PAGESIZE);
     size_t alloc_size = ((size + page_size - 1) / page_size) * page_size;
     void* ptr = mmap(nullptr, alloc_size, PROT_READ | PROT_WRITE | PROT_EXEC,
                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return (ptr == MAP_FAILED) ? nullptr : ptr;
+#endif
 }
 
 void AvrJit::free_executable(void* ptr, size_t size) {
     if (!ptr) return;
+#ifdef _WIN32
+    (void)size;
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#else
     long page_size = sysconf(_SC_PAGESIZE);
     size_t alloc_size = ((size + page_size - 1) / page_size) * page_size;
     munmap(ptr, alloc_size);
+#endif
 }
 
 void AvrJit::invalidate_all() {
