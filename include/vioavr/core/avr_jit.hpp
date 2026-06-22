@@ -7,8 +7,24 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#endif
 
 namespace vioavr::core {
+
+// Platform-specific executable memory management
+inline void jit_free_executable(void* ptr, size_t size) noexcept {
+    if (!ptr) return;
+#ifdef _WIN32
+    (void)size;
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#else
+    munmap(ptr, size);
+#endif
+}
 
 class AvrCpu;
 class MemoryBus;
@@ -91,7 +107,7 @@ struct JitBlock {
 
     void release_code() {
         if (code != nullptr && code_size > 0) {
-            free_executable(code, code_size);
+            jit_free_executable(code, code_size);
             code = nullptr;
             code_size = 0;
         }
