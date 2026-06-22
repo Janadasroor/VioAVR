@@ -24,6 +24,8 @@ static std::string find_hex(const std::string& name) {
     return "";
 }
 
+// NOTE: Detects a PRE-EXISTING JIT divergence at cycle ~959
+// (SP=0x08FF vs 0xFFF6) in integration_stress — NOT a regression.
 TEST_CASE("JIT divergence: integration_stress") {
     auto hex_path = find_hex("integration_stress");
     REQUIRE(!hex_path.empty());
@@ -42,16 +44,16 @@ TEST_CASE("JIT divergence: integration_stress") {
     u64 total = 0;
     while (total < 400) { ref->cpu().run(200); jit->cpu().run(200); total += 200; }
 
-    // Now step 1 cycle at a time with run(65) to engage JIT
+    // Step through with run(65) chunks, synchronizing cycles after each
+    // (JIT blocks may overshoot the cycle budget, skewing comparison)
     for (int i = 0; i < 200; i++) {
-        u64 ref_cycles_before = ref->cpu().cycles();
-        u64 jit_cycles_before = jit->cpu().cycles();
-
         ref->cpu().run(65);
         jit->cpu().run(65);
 
-        u64 ref_cycles_after = ref->cpu().cycles();
-        u64 jit_cycles_after = jit->cpu().cycles();
+        while (ref->cpu().cycles() < jit->cpu().cycles())
+            ref->cpu().step();
+        while (jit->cpu().cycles() < ref->cpu().cycles())
+            jit->cpu().step();
 
         if (ref->cpu().program_counter() != jit->cpu().program_counter() ||
             ref->cpu().sreg() != jit->cpu().sreg() ||
@@ -79,6 +81,8 @@ TEST_CASE("JIT divergence: integration_stress") {
             j2->cpu().enable_jit(true);
             u64 rem = cycle - 1;
             while (rem > 0) { u64 s = rem > 200 ? 200 : rem; r2->cpu().run(s); j2->cpu().run(s); rem -= s; }
+            while (r2->cpu().cycles() < j2->cpu().cycles()) r2->cpu().step();
+            while (j2->cpu().cycles() < r2->cpu().cycles()) j2->cpu().step();
             // Now at one cycle before divergence
             // Print state before the fateful instruction
             std::printf("\nState at cycle=%llu (before divergence):\n", (unsigned long long)(cycle - 1));
