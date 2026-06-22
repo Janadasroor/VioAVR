@@ -143,6 +143,14 @@ HexImage HexImageLoader::load_text(const std::string_view text, const DeviceDesc
                 ((static_cast<u16>(record_bytes[0]) << 8U) | record_bytes[1]) << 16U
             );
             break;
+        case 0x02: // Extended Segment Address
+            if (byte_count != 2U || address != 0U) {
+                throw std::runtime_error("invalid extended segment address record");
+            }
+            upper_linear_base = static_cast<u32>(
+                ((static_cast<u16>(record_bytes[0]) << 8U) | record_bytes[1]) << 4U
+            );
+            break;
         case 0x03: // Start Segment Address (optional)
         case 0x05: // Start Linear Address (optional)
             // These records indicate start address. Ignored since our
