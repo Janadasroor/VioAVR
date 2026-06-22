@@ -128,7 +128,7 @@ void show_regs(DebugSession& session) {
               << Terminal::reset_all() << "\n";
 
     std::cout << "  Cycles: " << Terminal::fg(Terminal::Color::yellow)
-              << snap.cycles << Terminal::reset_all()
+              << std::dec << snap.cycles << Terminal::reset_all()
               << "  State: " << state_str(snap.state) << "\n";
 }
 

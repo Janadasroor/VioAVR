@@ -393,7 +393,7 @@ int cmd_run(const Args& args) {
                       << Terminal::reset_all() << mcu << "\n";
             std::cout << Terminal::fg(Terminal::Color::bright_black) << "Cycles: "
                       << Terminal::reset_all() << Terminal::fg(Terminal::Color::yellow)
-                      << cpu.cycles() << Terminal::reset_all() << "\n";
+                      << std::dec << cpu.cycles() << Terminal::reset_all() << "\n";
             std::cout << Terminal::fg(Terminal::Color::bright_black) << "State:  "
                       << Terminal::reset_all() << state_str(cpu.state()) << Terminal::reset_all() << "\n";
             std::cout << Terminal::fg(Terminal::Color::bright_black) << "PC:     "
@@ -526,7 +526,7 @@ int cmd_trace(const Args& args) {
 
     std::cout << "\n" << Terminal::fg(Terminal::Color::green) << "─── "
               << Terminal::reset_all() << "Trace complete: "
-              << Terminal::fg(Terminal::Color::yellow) << cpu.cycles()
+              << Terminal::fg(Terminal::Color::yellow) << std::dec << cpu.cycles()
               << Terminal::reset_all() << " cycles "
               << Terminal::fg(Terminal::Color::green) << "───"
               << Terminal::reset_all() << "\n";
