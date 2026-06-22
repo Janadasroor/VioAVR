@@ -198,14 +198,14 @@ jobs:
     - name: Build
       run: cmake --build build
 
-    # Windows: Skip co-sim (ngspice not available) and bridge/SHM tests (POSIX only).
-    # Run all CPU, AVR8x, peripheral, ATtiny, USB, CAN and XMEGA groups.
+    # Windows: Skip co-sim (ngspice not available), bridge/SHM (POSIX only).
+    # GDB stub is now cross-platform (WinSock2).
     - name: Test (Core groups, no co-sim/SHM)
       working-directory: build
       run: |
         echo "Running core tests on Windows..."
         ctest --output-on-failure -j4 \
-          --exclude-regex "vioavr_viospice_group|vioavr_bridge_shm_test|vioavr_gdb_stub_test"
+          --exclude-regex "vioavr_viospice_group|vioavr_bridge_shm_test"
 
     # Verify the exe is self-contained (no external MinGW DLL required at runtime)
     - name: Verify exe is self-contained
