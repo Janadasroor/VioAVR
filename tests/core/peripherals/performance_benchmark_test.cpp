@@ -50,7 +50,11 @@ TEST_CASE("Performance: pure CPU benchmark (100M cycles)") {
 
     std::printf("[BENCH] CPU benchmark: 100M cycles in %.2f s = %.1f MHz\n", seconds, mhz);
 
+#ifndef NDEBUG
+    CHECK(mhz >= 1.0);
+#else
     CHECK(mhz >= 6.0);
+#endif
 }
 
 TEST_CASE("Performance: integration stress with peripherals (20M cycles)") {
@@ -136,5 +140,10 @@ TEST_CASE("Performance: integration stress with peripherals (20M cycles)") {
     CHECK(duty >= 0.45);
     CHECK(duty <= 0.55);
 
+#ifndef NDEBUG
+    // Debug/coverage builds are too slow for meaningful throughput checks
+    CHECK(mhz >= 0.5);
+#else
     CHECK(mhz >= 4.0);
+#endif
 }
