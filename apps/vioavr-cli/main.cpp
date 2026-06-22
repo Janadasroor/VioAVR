@@ -66,6 +66,7 @@ void print_usage(std::string_view program) {
               << "  --max-cycles <n>    Limit simulation to n cycles\n"
               << "  --eeprom-file <f>   Load/save EEPROM from file\n"
               << "  --list-devices      Show all supported MCUs\n"
+              << "  --no-jit            Disable JIT, use interpreter\n"
               << "  --help              Show this help\n";
 }
 
@@ -83,6 +84,7 @@ int main(int argc, char** argv)
     bool quiet = false;
     bool summary = false;
     bool show_state = false;
+    bool no_jit = false;
     u64 max_cycles_arg = 0;
     std::string hex_path;
     std::string eeprom_path;
@@ -97,6 +99,8 @@ int main(int argc, char** argv)
             verbose = true;
         } else if (arg == "--quiet") {
             quiet = true;
+        } else if (arg == "--no-jit") {
+            no_jit = true;
         } else if (arg == "--summary") {
             summary = true;
         } else if (arg == "--show-state") {
@@ -183,6 +187,12 @@ int main(int argc, char** argv)
         machine->reset();
     }
 
+#ifdef VIOAVR_HAVE_JIT
+    if (!no_jit) {
+        cpu.enable_jit(true);
+    }
+#endif
+
     if (benchmark) {
         const u64 kBenchmarkCycles = 100'000'000;
         std::cout << "Starting benchmark on " << mcu_name << " (" << kBenchmarkCycles << " cycles)..." << std::endl;
@@ -211,8 +221,17 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    while (cpu.state() == CpuState::running && cpu.cycles() < kMaxCycles) {
-        machine->step();
+    if (!no_jit) {
+        // JIT path: run in chunks
+        const u64 chunk = 10000;
+        while (cpu.state() == CpuState::running && cpu.cycles() < kMaxCycles) {
+            u64 budget = std::min(chunk, kMaxCycles - cpu.cycles());
+            machine->run(budget);
+        }
+    } else {
+        while (cpu.state() == CpuState::running && cpu.cycles() < kMaxCycles) {
+            machine->step();
+        }
     }
 
     if (!quiet) {

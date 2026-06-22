@@ -476,17 +476,73 @@ void AvrJit::invalidate_all() {
 }
 
 // ---------------------------------------------------------------------------
+// Windows x64 calling-convention helpers
+// System V (non-Windows): RDI=arg0, RSI=arg1, RDX=arg2, RCX=arg3
+// Windows x64:           RCX=arg0, RDX=arg1, R8=arg2,  R9=arg3
+// Shadow space: 32 bytes + 8-byte alignment = 40 bytes subtracted from RSP
+// ---------------------------------------------------------------------------
+#ifdef _WIN32
+#define JIT_CALL_1ARG(func_) \
+    buf.mov(Reg64::rcx, Reg64::r14); \
+    buf.sub_imm8(Reg64::rsp, 40); \
+    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(func_)); \
+    buf.call(Reg64::r11); \
+    buf.add_imm8(Reg64::rsp, 40)
+#define JIT_CALL_2ARG(func_, a1_) \
+    buf.mov(Reg64::rcx, Reg64::r14); \
+    buf.mov(Reg64::rdx, (a1_)); \
+    buf.sub_imm8(Reg64::rsp, 40); \
+    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(func_)); \
+    buf.call(Reg64::r11); \
+    buf.add_imm8(Reg64::rsp, 40)
+#define JIT_CALL_3ARG(func_, a1_, a2_) \
+    buf.mov(Reg64::rcx, Reg64::r14); \
+    buf.mov(Reg64::rdx, (a1_)); \
+    buf.mov(Reg64::r8, (a2_)); \
+    buf.sub_imm8(Reg64::rsp, 40); \
+    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(func_)); \
+    buf.call(Reg64::r11); \
+    buf.add_imm8(Reg64::rsp, 40)
+#else
+#define JIT_CALL_1ARG(func_) \
+    buf.mov(Reg64::rdi, Reg64::r14); \
+    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(func_)); \
+    buf.call(Reg64::r11)
+#define JIT_CALL_2ARG(func_, a1_) \
+    buf.mov(Reg64::rdi, Reg64::r14); \
+    buf.mov(Reg64::rsi, (a1_)); \
+    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(func_)); \
+    buf.call(Reg64::r11)
+#define JIT_CALL_3ARG(func_, a1_, a2_) \
+    buf.mov(Reg64::rdi, Reg64::r14); \
+    buf.mov(Reg64::rsi, (a1_)); \
+    buf.mov(Reg64::rdx, (a2_)); \
+    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(func_)); \
+    buf.call(Reg64::r11)
+#endif
+
 // Helper: emit call to a C++ flag helper.
 // Expects: RAX = result, RDX = original Rd value, RCX = Rr value
-// Clobbers: RDI, RSI, RDX, RCX, R8, RAX, R11
+// Clobbers: RDI/RCX, RSI/RDX, RDX/R8, RCX/R9, RAX, R11
 // ---------------------------------------------------------------------------
 static void emit_flag_call(CodeBuffer& buf, const void* helper_addr) {
+#ifdef _WIN32
+    buf.mov(Reg64::rcx, Reg64::r14);
+    buf.mov(Reg64::rdx, Reg64::rdx);
+    buf.mov(Reg64::r8, Reg64::rcx);
+    buf.mov(Reg64::r9, Reg64::rax);
+    buf.sub_imm8(Reg64::rsp, 40);
+    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(helper_addr));
+    buf.call(Reg64::r11);
+    buf.add_imm8(Reg64::rsp, 40);
+#else
     buf.mov(Reg64::rdi, Reg64::r14);
     buf.mov(Reg64::rsi, Reg64::rdx);
     buf.mov(Reg64::rdx, Reg64::rcx);
     buf.mov(Reg64::rcx, Reg64::rax);
     buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(helper_addr));
     buf.call(Reg64::r11);
+#endif
 }
 
 // Helper: emit MOV [R14+32], imm32 (set state->pc)
@@ -544,11 +600,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFC00) == 0x1C00) {
             uint8_t rd = rd5(opcode);
             uint8_t rr = rr5(opcode);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(rr));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_adc));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_adc, static_cast<int32_t>(rd), static_cast<int32_t>(rr));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -585,11 +637,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFC00) == 0x0800) {
             uint8_t rd = rd5(opcode);
             uint8_t rr = rr5(opcode);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(rr));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_sbc));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_sbc, static_cast<int32_t>(rd), static_cast<int32_t>(rr));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -598,11 +646,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFC00) == 0x0400) {
             uint8_t rd = rd5(opcode);
             uint8_t rr = rr5(opcode);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(rr));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_cpc));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_cpc, static_cast<int32_t>(rd), static_cast<int32_t>(rr));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -671,11 +715,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
     case 0x4000: { // SBCI Rd, K
         uint8_t rd = reg4_high(opcode);
         uint8_t imm = imm8_ldi(opcode);
-        buf.mov(Reg64::rdi, Reg64::r14);
-        buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-        buf.mov(Reg64::rdx, static_cast<int32_t>(imm));
-        buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_sbci));
-        buf.call(Reg64::r11);
+        JIT_CALL_3ARG(&jit_sbci, static_cast<int32_t>(rd), static_cast<int32_t>(imm));
         emit_set_pc(buf, pc + 1);
         return 1;
     }
@@ -706,17 +746,13 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // RET (0x9508) and RETI (0x9518) — both JIT-compiled. RETI handles I-flag
         // re-enable, interrupt_depth decrement, and bus->on_reti() via jit_reti().
         if (opcode == 0x9508) {
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_ret));
-            buf.call(Reg64::r11);
+            JIT_CALL_1ARG(&jit_ret);
             buf.add_membase_imm32(Reg64::r14, 80, 3);
             block_ended = true;
             return 1;
         }
         if (opcode == 0x9518) {
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_reti));
-            buf.call(Reg64::r11);
+            JIT_CALL_1ARG(&jit_reti);
             buf.add_membase_imm32(Reg64::r14, 80, 4); // 4 cycles for 2-byte PC
             block_ended = true;
             return 1;
@@ -733,10 +769,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             buf.or32(Reg32::eax, Reg32::ecx); // EAX = Y
             buf.add32_imm(Reg32::eax, q);     // EAX = Y + q
             // Call jit_read_data(state, addr)
-            buf.mov(Reg64::rdi, Reg64::r14);  // arg0: state
-            buf.mov(Reg64::rsi, Reg64::rax);  // arg1: addr
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_read_data, Reg64::rax);
             // Store result in gpr[dest]
             buf.mov_membase8(Reg8::al, Reg64::r14, dest);
             buf.add_membase_imm32(Reg64::r14, 80, 1);
@@ -753,10 +786,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             buf.shl32_imm(Reg32::ecx, 8);
             buf.or32(Reg32::eax, Reg32::ecx);
             buf.add32_imm(Reg32::eax, q);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, Reg64::rax);
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_read_data, Reg64::rax);
             buf.mov_membase8(Reg8::al, Reg64::r14, dest);
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
@@ -773,13 +803,21 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             buf.or32(Reg32::eax, Reg32::ecx);
             buf.add32_imm(Reg32::eax, q);
             // Load value to write
-            buf.movzx_membase(Reg64::rdx, Reg64::r14, src);
-            // Call jit_write_data(state, addr, value)
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, Reg64::rax);  // addr
-            // RDX already has value (3rd arg)
+#ifdef _WIN32
+            buf.movzx_membase(Reg64::r8, Reg64::r14, src);
+            buf.mov(Reg64::rcx, Reg64::r14);
+            buf.mov(Reg64::rdx, Reg64::rax);
+            buf.sub_imm8(Reg64::rsp, 40);
             buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
             buf.call(Reg64::r11);
+            buf.add_imm8(Reg64::rsp, 40);
+#else
+            buf.movzx_membase(Reg64::rdx, Reg64::r14, src);
+            buf.mov(Reg64::rdi, Reg64::r14);
+            buf.mov(Reg64::rsi, Reg64::rax);
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
+            buf.call(Reg64::r11);
+#endif
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -794,11 +832,21 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             buf.shl32_imm(Reg32::ecx, 8);
             buf.or32(Reg32::eax, Reg32::ecx);
             buf.add32_imm(Reg32::eax, q);
+#ifdef _WIN32
+            buf.movzx_membase(Reg64::r8, Reg64::r14, src);
+            buf.mov(Reg64::rcx, Reg64::r14);
+            buf.mov(Reg64::rdx, Reg64::rax);
+            buf.sub_imm8(Reg64::rsp, 40);
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
+            buf.call(Reg64::r11);
+            buf.add_imm8(Reg64::rsp, 40);
+#else
             buf.movzx_membase(Reg64::rdx, Reg64::r14, src);
             buf.mov(Reg64::rdi, Reg64::r14);
             buf.mov(Reg64::rsi, Reg64::rax);
             buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
             buf.call(Reg64::r11);
+#endif
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -812,10 +860,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             if (data_addr == sreg_address_) {
                 buf.movzx_membase(Reg64::rax, Reg64::r14, 38); // al = JitState.sreg
             } else {
-                buf.mov(Reg64::rdi, Reg64::r14);  // arg0: state
-                buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));  // arg1: addr
-                buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
-                buf.call(Reg64::r11);
+                JIT_CALL_2ARG(&jit_read_data, static_cast<int32_t>(data_addr));
             }
             buf.mov_membase8(Reg8::al, Reg64::r14, reg);        // gpr[reg] = al
             emit_set_pc(buf, pc + 1);
@@ -827,11 +872,21 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             uint8_t reg = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t io_offset = static_cast<uint8_t>(((opcode >> 5) & 0x30) | (opcode & 0x0F));
             uint16_t data_addr = 0x20 + io_offset;
+#ifdef _WIN32
+            buf.movzx_membase(Reg64::r8, Reg64::r14, reg);
+            buf.mov(Reg64::rcx, Reg64::r14);
+            buf.mov(Reg64::rdx, static_cast<int32_t>(data_addr));
+            buf.sub_imm8(Reg64::rsp, 40);
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
+            buf.call(Reg64::r11);
+            buf.add_imm8(Reg64::rsp, 40);
+#else
             buf.movzx_membase(Reg64::rdx, Reg64::r14, reg);
             buf.mov(Reg64::rdi, Reg64::r14);
             buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));
             buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
             buf.call(Reg64::r11);
+#endif
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -839,10 +894,19 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // PUSH: (opcode & 0xFE0F) == 0x920F
         if ((opcode & 0xFE0F) == 0x920F) {
             uint8_t reg = static_cast<uint8_t>((opcode >> 4) & 0x1F);
+#ifdef _WIN32
+            buf.movzx_membase(Reg64::rdx, Reg64::r14, reg);
+            buf.mov(Reg64::rcx, Reg64::r14);
+            buf.sub_imm8(Reg64::rsp, 40);
+            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_push));
+            buf.call(Reg64::r11);
+            buf.add_imm8(Reg64::rsp, 40);
+#else
             buf.movzx_membase(Reg64::rsi, Reg64::r14, reg);
             buf.mov(Reg64::rdi, Reg64::r14);
             buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_push));
             buf.call(Reg64::r11);
+#endif
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -851,9 +915,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // POP: (opcode & 0xFE0F) == 0x900F
         if ((opcode & 0xFE0F) == 0x900F) {
             uint8_t reg = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_pop));
-            buf.call(Reg64::r11);
+            JIT_CALL_1ARG(&jit_pop);
             buf.mov_membase8(Reg8::al, Reg64::r14, reg);
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
@@ -863,10 +925,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // LSR Rd: (opcode & 0xFE0F) == 0x9406
         if ((opcode & 0xFE0F) == 0x9406) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_lsr));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_lsr, static_cast<int32_t>(rd));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -874,10 +933,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // ASR Rd: (opcode & 0xFE0F) == 0x9405
         if ((opcode & 0xFE0F) == 0x9405) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_asr));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_asr, static_cast<int32_t>(rd));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -885,10 +941,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // ROR Rd: (opcode & 0xFE0F) == 0x9407
         if ((opcode & 0xFE0F) == 0x9407) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_ror));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_ror, static_cast<int32_t>(rd));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -898,10 +951,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             if (pc + 1 < flash_size_) {
                 uint16_t addr = flash_[pc + 1];
-                buf.mov(Reg64::rdi, Reg64::r14);
-                buf.mov(Reg64::rsi, static_cast<int32_t>(addr));
-                buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
-                buf.call(Reg64::r11);
+                JIT_CALL_2ARG(&jit_read_data, static_cast<int32_t>(addr));
                 buf.mov_membase8(Reg8::al, Reg64::r14, rd);
                 buf.add_membase_imm32(Reg64::r14, 80, 1);
                 emit_set_pc(buf, pc + 2);
@@ -915,11 +965,21 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             uint8_t rr = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             if (pc + 1 < flash_size_) {
                 uint16_t addr = flash_[pc + 1];
+#ifdef _WIN32
+                buf.movzx_membase(Reg64::r8, Reg64::r14, rr);
+                buf.mov(Reg64::rcx, Reg64::r14);
+                buf.mov(Reg64::rdx, static_cast<int32_t>(addr));
+                buf.sub_imm8(Reg64::rsp, 40);
+                buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
+                buf.call(Reg64::r11);
+                buf.add_imm8(Reg64::rsp, 40);
+#else
                 buf.movzx_membase(Reg64::rdx, Reg64::r14, rr);
                 buf.mov(Reg64::rdi, Reg64::r14);
                 buf.mov(Reg64::rsi, static_cast<int32_t>(addr));
                 buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_write_data));
                 buf.call(Reg64::r11);
+#endif
                 buf.add_membase_imm32(Reg64::r14, 80, 1);
                 emit_set_pc(buf, pc + 2);
                 return 2;
@@ -969,10 +1029,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             if (target >= flash_size_) return 0;
             // Push return address
             uint32_t return_pc = pc + 2;
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int64_t>(return_pc));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_rcall));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_rcall, static_cast<int64_t>(return_pc));
             buf.add_membase_imm32(Reg64::r14, 80, 3);
             // Set PC to target
             emit_set_pc(buf, target);
@@ -983,10 +1040,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // COM Rd: (opcode & 0xFE0F) == 0x9400
         if ((opcode & 0xFE0F) == 0x9400) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_com));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_com, static_cast<int32_t>(rd));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -994,10 +1048,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // NEG Rd: (opcode & 0xFE0F) == 0x9401
         if ((opcode & 0xFE0F) == 0x9401) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_neg));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_neg, static_cast<int32_t>(rd));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -1020,10 +1071,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // INC Rd: (opcode & 0xFE0F) == 0x9403
         if ((opcode & 0xFE0F) == 0x9403) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_inc));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_inc, static_cast<int32_t>(rd));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -1031,10 +1079,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         // DEC Rd: (opcode & 0xFE0F) == 0x940A
         if ((opcode & 0xFE0F) == 0x940A) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_dec));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_dec, static_cast<int32_t>(rd));
             emit_set_pc(buf, pc + 1);
             return 1;
         }
@@ -1043,11 +1088,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFF00) == 0x9A00) {
             uint8_t io_offset = static_cast<uint8_t>((opcode >> 3) & 0x1F);
             uint8_t bit_index = static_cast<uint8_t>(opcode & 0x07);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(io_offset));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(bit_index));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_sbi));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_sbi, static_cast<int32_t>(io_offset), static_cast<int32_t>(bit_index));
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -1057,11 +1098,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFF00) == 0x9800) {
             uint8_t io_offset = static_cast<uint8_t>((opcode >> 3) & 0x1F);
             uint8_t bit_index = static_cast<uint8_t>(opcode & 0x07);
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(io_offset));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(bit_index));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_cbi));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_cbi, static_cast<int32_t>(io_offset), static_cast<int32_t>(bit_index));
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -1080,10 +1117,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
                 else if ((n & 0xFE0E) == 0x940C) next_2word = true;
                 else if ((n & 0xFE0E) == 0x940E) next_2word = true;
             }
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_read_data, static_cast<int32_t>(data_addr));
             buf.test8_imm(Reg8::al, static_cast<uint8_t>(1u << bit_index));
             auto taken = buf.jnz_forward(); // JNZ if bit SET → skip taken
             auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
@@ -1112,10 +1146,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
                 else if ((n & 0xFE0E) == 0x940C) next_2word = true;
                 else if ((n & 0xFE0E) == 0x940E) next_2word = true;
             }
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
-            buf.call(Reg64::r11);
+            JIT_CALL_2ARG(&jit_read_data, static_cast<int32_t>(data_addr));
             buf.test8_imm(Reg8::al, static_cast<uint8_t>(1u << bit_index));
             auto taken = buf.jz_forward();  // JZ if bit CLEAR → skip taken
             auto done = buf.jmp_forward();  // NOT TAKEN: jump over taken path
@@ -1133,11 +1164,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFC00) == 0x9C00) {
             uint8_t rd = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t rr = static_cast<uint8_t>((opcode & 0x0F) | ((opcode >> 5) & 0x10));
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(rd));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(rr));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_mul));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_mul, static_cast<int32_t>(rd), static_cast<int32_t>(rr));
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -1147,11 +1174,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFF00) == 0x9600) {
             uint8_t pair = static_cast<uint8_t>((opcode >> 4) & 0x03);
             uint8_t imm = static_cast<uint8_t>(((opcode >> 2) & 0x30) | (opcode & 0x0F));
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(pair));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(imm));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_adiw));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_adiw, static_cast<int32_t>(pair), static_cast<int32_t>(imm));
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -1161,11 +1184,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFF00) == 0x9700) {
             uint8_t pair = static_cast<uint8_t>((opcode >> 4) & 0x03);
             uint8_t imm = static_cast<uint8_t>(((opcode >> 2) & 0x30) | (opcode & 0x0F));
-            buf.mov(Reg64::rdi, Reg64::r14);
-            buf.mov(Reg64::rsi, static_cast<int32_t>(pair));
-            buf.mov(Reg64::rdx, static_cast<int32_t>(imm));
-            buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_sbiw));
-            buf.call(Reg64::r11);
+            JIT_CALL_3ARG(&jit_sbiw, static_cast<int32_t>(pair), static_cast<int32_t>(imm));
             buf.add_membase_imm32(Reg64::r14, 80, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
@@ -1190,10 +1209,7 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if (disp & 0x0800) disp |= 0xF000;
         uint32_t return_pc = pc + 1;
         // Push return address on stack
-        buf.mov(Reg64::rdi, Reg64::r14);
-        buf.mov(Reg64::rsi, static_cast<int64_t>(return_pc));
-        buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_rcall));
-        buf.call(Reg64::r11);
+        JIT_CALL_2ARG(&jit_rcall, static_cast<int64_t>(return_pc));
         buf.add_membase_imm32(Reg64::r14, 80, 2);
         // Set PC to target
         uint32_t target = return_pc + static_cast<uint32_t>(static_cast<int32_t>(disp));
@@ -1322,7 +1338,11 @@ bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size,
 
     // Prologue
     buf.push(Reg64::r14);            // save r14 (callee-saved) + realign stack to 16 bytes
-    buf.mov(Reg64::r14, Reg64::rdi); // R14 = JitState* (first argument)
+#ifdef _WIN32
+    buf.mov(Reg64::r14, Reg64::rcx); // R14 = JitState* (first argument, Windows)
+#else
+    buf.mov(Reg64::r14, Reg64::rdi); // R14 = JitState* (first argument, SysV)
+#endif
 
     uint32_t pc = start_pc;
     uint64_t block_cycles = 0;
@@ -1411,10 +1431,7 @@ bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size,
     // Epilogue: add base cycles, sync pending cycles to peripherals, update instructions_executed
     if (block_cycles > 0)
         buf.add_membase_imm32(Reg64::r14, 80, static_cast<uint32_t>(block_cycles));
-    buf.mov(Reg64::rdi, Reg64::r14);
-    buf.mov(Reg64::rsi, static_cast<int32_t>(insn_count));
-    buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_block_end_tick));
-    buf.call(Reg64::r11);
+    JIT_CALL_2ARG(&jit_block_end_tick, static_cast<int32_t>(insn_count));
 
     // If a skip patch is still pending, the skip target was never reached
     // (block ended early). Patch to epilogue so the taken path returns and
