@@ -790,18 +790,18 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
             return 1;
         }
 
-        // IN: (opcode & 0xF800) == 0xB000 — inline x86 for fast I/O read
+        // IN: (opcode & 0xF800) == 0xB000 — calls jit_read_data for peripheral sync
         if ((opcode & 0xF800) == 0xB000) {
             uint8_t reg = static_cast<uint8_t>((opcode >> 4) & 0x1F);
             uint8_t io_offset = static_cast<uint8_t>(((opcode >> 5) & 0x30) | (opcode & 0x0F));
             uint16_t data_addr = 0x20 + io_offset;
-            // Inline: read from bus_data (or JitState.sreg for SREG)
-            // Avoids C function call + bus dispatch overhead.
             if (data_addr == sreg_address_) {
                 buf.movzx_membase(Reg64::rax, Reg64::r14, 38); // al = JitState.sreg
             } else {
-                buf.mov_load_reg(Reg64::rax, Reg64::r14, 56);  // rax = JitState.bus_data
-                buf.mov_load8(Reg8::al, Reg64::rax, data_addr); // al = bus_data[addr]
+                buf.mov(Reg64::rdi, Reg64::r14);  // arg0: state
+                buf.mov(Reg64::rsi, static_cast<int32_t>(data_addr));  // arg1: addr
+                buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(&jit_read_data));
+                buf.call(Reg64::r11);
             }
             buf.mov_membase8(Reg8::al, Reg64::r14, reg);        // gpr[reg] = al
             emit_set_pc(buf, pc + 1);

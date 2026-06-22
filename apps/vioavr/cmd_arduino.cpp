@@ -487,8 +487,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         }
     }
 
-    // GDB stub
-#ifndef _WIN32
+    // GDB stub (cross-platform since WinSock2 port)
     if (gdb_port > 0) {
         machine->enable_gdb(static_cast<uint16_t>(gdb_port));
         std::cout << Terminal::fg(Terminal::Color::green)
@@ -498,12 +497,6 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                   << "Connect: gdb-multiarch -ex 'target remote :" << gdb_port << "'"
                   << Terminal::reset_all() << "\n";
     }
-#else
-    if (gdb_port > 0) {
-        std::cerr << Terminal::fg(Terminal::Color::red) << "Warning: "
-                  << Terminal::reset_all() << "GDB stub not available on Windows\n";
-    }
-#endif
 
     while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
         cpu.run(serial_uart ? kSerialPollInterval : max_cycles);
@@ -551,7 +544,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                   << Terminal::reset_all() << board->name << "\n";
         std::cout << Terminal::fg(Terminal::Color::bright_black) << "Cycles: "
                   << Terminal::reset_all() << Terminal::fg(Terminal::Color::yellow)
-                  << cpu.cycles() << Terminal::reset_all() << "\n";
+                  << std::dec << cpu.cycles() << Terminal::reset_all() << "\n";
         std::cout << Terminal::fg(Terminal::Color::bright_black) << "State:  "
                   << Terminal::reset_all() << state_str(cpu.state()) << Terminal::reset_all() << "\n";
         std::cout << Terminal::fg(Terminal::Color::bright_black) << "PC:     "
