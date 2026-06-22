@@ -76,7 +76,11 @@ uint8_t jit_read_data(JitState* state, uint16_t addr) {
 void jit_write_data(JitState* state, uint16_t addr, uint8_t value) {
     auto& dev = state->bus->device();
     if (addr == dev.sreg_address) {
+        bool old_i = (state->sreg & 0x80) != 0;
+        bool new_i = (value & 0x80) != 0;
         state->sreg = value;
+        if (new_i && !old_i)
+            state->interrupt_delay = 1;
         return;
     }
     if (addr == dev.spl_address) {
@@ -892,6 +896,8 @@ uint32_t AvrJit::translate_instruction(CodeBuffer& buf, u16 opcode,
         if ((opcode & 0xFF8F) == 0x9408) {
             uint8_t bit = static_cast<uint8_t>((opcode >> 4) & 0x07);
             buf.or_membase_imm8(Reg64::r14, 38, static_cast<uint8_t>(1 << bit));
+            if (bit == 7) // SEI: set interrupt_delay = 1 (one-instruction delay)
+                buf.mov_membase_imm8(Reg64::r14, 65, 1);
             emit_set_pc(buf, pc + 1);
             return 1;
         }
