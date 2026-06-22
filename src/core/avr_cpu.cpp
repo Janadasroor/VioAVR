@@ -266,28 +266,20 @@ void AvrCpu::run(const u64 cycle_budget)
                 instructions_executed_ = jit_state.instructions_executed;
 
                 if (bus_ != nullptr) {
-                    // Defer tick_peripherals for small deltas; batch until threshold
-                    pending_jit_delta_ += delta;
-                    if (pending_jit_delta_ >= kJitTickThreshold || reset_triggered_ || interrupt_pending_) {
-                        bus_->tick_peripherals(pending_jit_delta_, active_clock_domains());
-                        pending_jit_delta_ = 0;
-                        if (__builtin_expect(reset_triggered_, 0)) {
-                            pending_cycles = 0;
-                            break;
-                        }
-                        if (bus_->has_pending_pin_changes())
-                            publish_pending_pin_changes();
+                    bus_->tick_peripherals(delta, active_clock_domains());
+                    if (__builtin_expect(reset_triggered_, 0)) {
+                        pending_cycles = 0;
+                        break;
                     }
+                    if (bus_->has_pending_pin_changes())
+                        publish_pending_pin_changes();
                 }
                 if (spm_lock_timeout_ > 0U) {
                     spm_lock_timeout_ = (delta >= spm_lock_timeout_) ? 0U : static_cast<u8>(spm_lock_timeout_ - delta);
                 }
                 if (sync_engine_ != nullptr)
                     sync_engine_->on_cycles_advanced(cycles_, delta);
-                // If we deferred tick, interrupts might not have fired yet.
-                // Check interrupt after eventual tick.
-                if (pending_jit_delta_ == 0)
-                    refresh_interrupt_pending();
+                refresh_interrupt_pending();
 
                 continue;
             }
