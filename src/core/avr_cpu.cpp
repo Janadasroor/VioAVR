@@ -249,6 +249,7 @@ void AvrCpu::run(const u64 cycle_budget)
                 jit_state.bus_data = bus_->data_space().data();
                 jit_state.interrupt_depth = interrupt_depth_;
                 jit_state.interrupt_delay = interrupt_delay_;
+                jit_state.spm_lock_timeout = spm_lock_timeout_;
 
                 const u64 cycles_before = cycles_;
 
@@ -273,9 +274,7 @@ void AvrCpu::run(const u64 cycle_budget)
                     if (bus_->has_pending_pin_changes())
                         publish_pending_pin_changes();
                 }
-                if (spm_lock_timeout_ > 0U) {
-                    spm_lock_timeout_ = (delta >= spm_lock_timeout_) ? 0U : static_cast<u8>(spm_lock_timeout_ - delta);
-                }
+                spm_lock_timeout_ = jit_state.spm_lock_timeout;
                 if (sync_engine_ != nullptr)
                     sync_engine_->on_cycles_advanced(cycles_, delta);
                 refresh_interrupt_pending();
