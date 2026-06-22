@@ -122,3 +122,5 @@ else()
     message(WARNING "SimAVR headers or library not found. SimAVR comparison tests will be skipped.")
 endif()
 
+add_subdirectory(core)
+

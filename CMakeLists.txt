@@ -228,7 +228,6 @@ endif()
 if(VIOAVR_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
-    add_subdirectory(tests/core)
 endif()
 
 # ── SHM bridge daemon (requires shm_open, detected above) ─────────

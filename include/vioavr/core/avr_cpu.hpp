@@ -455,6 +455,8 @@ private:
     u64 interrupt_check_interval_ {64};
 #ifdef VIOAVR_HAVE_JIT
     bool jit_enabled_ {false};
+    u64 pending_jit_delta_ {0};
+    static constexpr u64 kJitTickThreshold = 256;
     std::unique_ptr<jit::AvrJit> jit_ {};
 #endif
 };
