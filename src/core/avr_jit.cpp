@@ -527,9 +527,9 @@ void AvrJit::invalidate_all() {
 // ---------------------------------------------------------------------------
 static void emit_flag_call(CodeBuffer& buf, const void* helper_addr) {
 #ifdef _WIN32
+    buf.mov(Reg64::r8, Reg64::rcx);
     buf.mov(Reg64::rcx, Reg64::r14);
     buf.mov(Reg64::rdx, Reg64::rdx);
-    buf.mov(Reg64::r8, Reg64::rcx);
     buf.mov(Reg64::r9, Reg64::rax);
     buf.sub_imm8(Reg64::rsp, 40);
     buf.movabs(Reg64::r11, reinterpret_cast<uint64_t>(helper_addr));
