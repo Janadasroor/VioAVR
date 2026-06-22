@@ -45,7 +45,8 @@ struct alignas(64) JitState {
     uint8_t* bus_data{nullptr};  // points to bus->data_space() for fast I/O access
     uint8_t interrupt_depth{0};  // for JIT-compiled RETI
     uint8_t interrupt_delay{0};  // one-instruction delay after SEI/RETI
-    uint8_t _pad2[6]{};
+    uint8_t spm_lock_timeout{0}; // SPM lock timeout, set on SPMCSR write
+    uint8_t _pad2[5]{};
     uint64_t instructions_executed{0};
     uint64_t jit_block_cycles{0};    // cycles accumulated in this block (mid-block peripheral sync)
     uint64_t jit_synced_cycles{0};   // cycles already ticked to peripherals in this block
