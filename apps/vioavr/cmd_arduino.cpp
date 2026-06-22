@@ -103,69 +103,77 @@ std::string run_cmd(const std::string& cmd) {
     return result;
 }
 
-fs::path find_bootloader_hex(const std::string& mcu_name) {
-    // Map MCU name to optiboot hex filename (lowercase)
-    static const std::vector<std::pair<std::string_view, std::string_view>> mcu_to_hex = {
-        {"atmega328p",  "optiboot_atmega328"},
-        {"atmega328",   "optiboot_atmega328"},
-        {"atmega168p",  "optiboot_atmega168"},
-        {"atmega168",   "optiboot_atmega168"},
-        {"atmega8",     "optiboot_atmega8"},
-        {"atmega88",    "optiboot_atmega8"},
-        {"atmega48",    "optiboot_atmega8"},
-    };
+// Locate a bootloader hex file.
+// If board has bootloader_hex set, search for that relative path under the
+// installed arduino cores. Otherwise fall back to MCU-based mapping.
+fs::path find_bootloader_hex(const vioavr::core::ArduinoBoard* board,
+                             const std::string& mcu_name)
+{
+    using namespace vioavr::core;
 
-    std::string mcn;
-    for (auto c : mcu_name) {
-        mcn += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
     std::string hex_name;
-    for (auto& [prefix, hex] : mcu_to_hex) {
-        if (mcn == prefix) { hex_name = hex; break; }
+    if (board && !board->bootloader_hex.empty()) {
+        hex_name = std::string(board->bootloader_hex);
+    }
+    if (hex_name.empty()) {
+        // MCU-to-optiboot mapping (fallback for --fqbn mode without board match)
+        auto mcn = [](std::string_view s) {
+            std::string r;
+            for (auto c : s) r += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            return r;
+        };
+        static const std::vector<std::pair<std::string_view, std::string_view>> mcu_to_hex = {
+            {"atmega328p", "optiboot/optiboot_atmega328.hex"},
+            {"atmega328",  "optiboot/optiboot_atmega328.hex"},
+            {"atmega168p", "optiboot/optiboot_atmega168.hex"},
+            {"atmega168",  "optiboot/optiboot_atmega168.hex"},
+            {"atmega8",    "optiboot/optiboot_atmega8.hex"},
+            {"atmega88",   "optiboot/optiboot_atmega8.hex"},
+            {"atmega48",   "optiboot/optiboot_atmega8.hex"},
+            {"atmega32u4", "caterina/Caterina-Leonardo.hex"},
+            {"atmega2560", "stk500v2/stk500boot_v2_mega2560.hex"},
+            {"atmega4809", "atmega4809_uart_bl.hex"},
+        };
+        std::string mcn_lc = mcn(mcu_name);
+        for (auto& [prefix, hex] : mcu_to_hex) {
+            if (mcn_lc == prefix) { hex_name = hex; break; }
+        }
     }
     if (hex_name.empty()) return {};
 
     // 1) Search local bootloaders/ directory
     const fs::path search_roots[] = {".", "..", "../.."};
     for (auto& root : search_roots) {
-        auto p = fs::absolute(fs::path(root) / "bootloaders" / (hex_name + ".hex"));
+        auto p = fs::absolute(fs::path(root) / "bootloaders" / hex_name);
         if (fs::exists(p)) return p;
     }
 
-    // 2) Search in installed arduino:avr core
-    {
-        const char* data_dir = std::getenv("ARDUINO_DATA_DIR");
-        fs::path core_dir = data_dir
-            ? fs::path(data_dir)
-            : fs::path(getenv("HOME")) / ".arduino15";
-        core_dir = core_dir / "packages" / "arduino" / "hardware" / "avr";
-        if (fs::is_directory(core_dir)) {
-            for (auto& entry : fs::directory_iterator(core_dir)) {
-                if (!entry.is_directory()) continue;
-                auto bl = entry.path() / "bootloaders" / "optiboot" / (hex_name + ".hex");
-                if (fs::exists(bl)) return bl;
-            }
+    // 2) Helper: search for hex_name under a core root
+    auto search_core = [&](const fs::path& core_root) -> fs::path {
+        if (!fs::is_directory(core_root)) return {};
+        for (auto& entry : fs::directory_iterator(core_root)) {
+            if (!entry.is_directory()) continue;
+            auto bl = entry.path() / "bootloaders" / hex_name;
+            if (fs::exists(bl)) return bl;
         }
-    }
+        return {};
+    };
 
-    // 3) Search in arduino-cli --config-dir data dir
-    {
-        std::string cli_path = find_arduino_cli();
-        if (!cli_path.empty()) {
-            // arduino-cli stores data next to the binary or in ~/.arduino15
-            auto cli_dir = fs::path(cli_path).parent_path();
-            auto bl = cli_dir / ".." / "share" / "arduino15"
-                      / "packages" / "arduino" / "hardware" / "avr";
-            auto resolved = fs::weakly_canonical(bl);
-            if (fs::is_directory(resolved)) {
-                for (auto& entry : fs::directory_iterator(resolved)) {
-                    if (!entry.is_directory()) continue;
-                    auto hex = entry.path() / "bootloaders" / "optiboot" / (hex_name + ".hex");
-                    if (fs::exists(hex)) return hex;
-                }
-            }
-        }
-    }
+    auto data_dir = []() -> fs::path {
+        const char* env = std::getenv("ARDUINO_DATA_DIR");
+        if (env) return fs::path(env);
+        const char* home = std::getenv("HOME");
+        return home ? fs::path(home) / ".arduino15" : fs::path{};
+    }();
+    if (data_dir.empty()) return {};
+
+    // Try arduino:avr core first
+    auto bl = search_core(data_dir / "packages" / "arduino" / "hardware" / "avr");
+    if (!bl.empty()) return bl;
+
+    // Then arduino:megaavr core (ATmega4809 bootloaders)
+    bl = search_core(data_dir / "packages" / "arduino" / "hardware" / "megaavr");
+    if (!bl.empty()) return bl;
 
     return {};
 }
@@ -679,7 +687,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                 }
             } else {
                 const char* mcu_name = board ? board->mcu.data() : resolved_mcu.c_str();
-                bootloader_path = find_bootloader_hex(mcu_name);
+                bootloader_path = find_bootloader_hex(board, mcu_name);
                 if (bootloader_path.empty()) {
                     std::cerr << Terminal::fg(Terminal::Color::yellow) << "Warning: "
                               << Terminal::reset_all() << "no bootloader hex found for "

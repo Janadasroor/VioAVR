@@ -29,6 +29,7 @@ struct ArduinoBoard {
     bool has_serial;
     std::span<const ArduinoPin> important_pins;
     std::string_view default_board_options;
+    std::string_view bootloader_hex; // relative path in arduino core bootloaders/
 };
 
 inline constexpr ArduinoPin kUnoPins[] = {
@@ -83,7 +84,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "optiboot/optiboot_atmega328.hex"
     },
     {
         "Nano",
@@ -92,7 +95,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 8, true,
-        kNanoPins
+        kNanoPins,
+        {},
+        "optiboot/optiboot_atmega328.hex"
     },
     {
         "Mega2560",
@@ -101,7 +106,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         8192, 262144,
         13, 16, true,
-        kMegaPins
+        kMegaPins,
+        {},
+        "stk500v2/stk500boot_v2_mega2560.hex"
     },
     {
         "Leonardo",
@@ -110,7 +117,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 12, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-Leonardo.hex"
     },
     {
         "Micro",
@@ -119,7 +128,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 12, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-Micro.hex"
     },
     {
         "Nano Every",
@@ -128,7 +139,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         20'000'000,
         6144, 49152,
         13, 8, true,
-        kNanoEveryPins
+        kNanoEveryPins,
+        {},
+        "atmega4809_uart_bl.hex"
     },
     {
         "Uno WiFi Rev2",
@@ -137,7 +150,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         6144, 49152,
         25, 8, true,
-        {}
+        {},
+        {},
+        "atmega4809_uart_bl.hex"
     },
     {
         "Pro Mini 16V",
@@ -146,7 +161,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 8, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "atmega/ATmegaBOOT_168_atmega328.hex"
     },
     {
         "Pro Mini 8V",
@@ -155,7 +172,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         8'000'000,
         2048, 32256,
         13, 8, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "atmega/ATmegaBOOT_168_atmega328_pro_8MHz.hex"
     },
     {
         "Mini",
@@ -164,7 +183,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 8, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "optiboot/optiboot_atmega328-Mini.hex"
     },
     {
         "Ethernet",
@@ -173,7 +194,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "optiboot/optiboot_atmega328.hex"
     },
     {
         "Duemilanove",
@@ -182,7 +205,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "atmega/ATmegaBOOT_168_atmega328.hex"
     },
     {
         "Fio",
@@ -191,7 +216,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         8'000'000,
         2048, 32256,
         13, 8, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "atmega/ATmegaBOOT_168_atmega328_pro_8MHz.hex"
     },
     {
         "LilyPad",
@@ -200,7 +227,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         8'000'000,
         2048, 32256,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "atmega/ATmegaBOOT_168_atmega328_pro_8MHz.hex"
     },
     {
         "LilyPad USB",
@@ -209,7 +238,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         8'000'000,
         2560, 28672,
         13, 12, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina-LilyPadUSB/Caterina-LilyPadUSB.hex"
     },
     {
         "Gemma",
@@ -218,7 +249,8 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         8'000'000,
         2048, 32256,
         1, 3, false,
-        {}
+        {},
+        ""
     },
     {
         "Esplora",
@@ -227,7 +259,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 6, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-Esplora.hex"
     },
     {
         "Yun",
@@ -236,7 +270,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 12, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-Yun.hex"
     },
     {
         "Mega ADK",
@@ -245,7 +281,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         8192, 262144,
         13, 16, true,
-        kMegaPins
+        kMegaPins,
+        {},
+        "stk500v2/stk500boot_v2_mega2560.hex"
     },
     {
         "Robot Control",
@@ -254,7 +292,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 6, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina-Arduino_Robot/Caterina-Robot-Control.hex"
     },
     {
         "Robot Motor",
@@ -263,7 +303,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 6, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina-Arduino_Robot/Caterina-Robot-Motor.hex"
     },
     {
         "BT",
@@ -272,7 +314,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "bt/ATmegaBOOT_168_atmega328_bt.hex"
     },
     {
         "Industrial 101",
@@ -281,7 +325,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 6, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-Industrial101.hex"
     },
     {
         "Leonardo ETH",
@@ -290,7 +336,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 12, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-LeonardoEthernet.hex"
     },
     {
         "NG (ATmega8)",
@@ -300,7 +348,8 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         1024, 8192,
         13, 6, true,
         kUnoPins,
-        "cpu=16MHzatmega8"
+        "cpu=16MHzatmega8",
+        "atmega8/ATmegaBOOT-prod-firmware-2009-11-07.hex"
     },
     {
         "NG (ATmega168)",
@@ -310,7 +359,8 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         1024, 16384,
         13, 6, true,
         kUnoPins,
-        "cpu=16MHzatmega168"
+        "cpu=16MHzatmega168",
+        "atmega/ATmegaBOOT_168_ng.hex"
     },
     {
         "UNO Mini",
@@ -319,7 +369,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "optiboot/optiboot_atmega328.hex"
     },
     {
         "UNO WiFi",
@@ -328,7 +380,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2048, 32256,
         13, 6, true,
-        kUnoPins
+        kUnoPins,
+        {},
+        "optiboot/optiboot_atmega328.hex"
     },
     {
         "Yun Mini",
@@ -337,7 +391,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 12, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-YunMini.hex"
     },
     {
         "Linino One",
@@ -346,7 +402,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         16'000'000,
         2560, 28672,
         13, 12, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-LininoOne.hex"
     },
     {
         "Circuit Playground",
@@ -355,7 +413,9 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         8'000'000,
         2560, 28672,
         13, 7, true,
-        kLeonardoPins
+        kLeonardoPins,
+        {},
+        "caterina/Caterina-Circuitplay32u4.hex"
     },
 };
 
