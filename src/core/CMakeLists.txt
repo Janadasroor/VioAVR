@@ -5,11 +5,11 @@ find_package(Threads REQUIRED)
 add_library(vioavr_core STATIC)
 add_library(VioAVR::core ALIAS vioavr_core)
 
-# JIT generates x86-64 System V ABI code — only available on x86-64 non-Windows.
-# The JIT emits calls to C++ helpers using System V calling convention (rdi/rsi).
-# Windows x64 uses Microsoft calling convention (rcx/rdx), requiring a full ABI port.
-# The mmap/VirtualAlloc port below is ready for when that happens.
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64" AND NOT WIN32)
+# JIT generates x86-64 code — available on x86-64 platforms (Linux, macOS, Windows).
+# System V ABI (Linux/macOS): RDI=arg0, RSI=arg1, RDX=arg2, RCX=arg3.
+# Windows x64 (MS ABI):       RCX=arg0, RDX=arg1, R8=arg2,  R9=arg3.
+# Shadow space (32 + 8 bytes) is managed in avr_jit.cpp via JIT_CALL_* macros.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
     set(VIOAVR_HAVE_JIT TRUE)
     target_compile_definitions(vioavr_core PUBLIC VIOAVR_HAVE_JIT=1)
 endif()
