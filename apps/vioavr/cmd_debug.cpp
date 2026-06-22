@@ -483,7 +483,7 @@ void debug_repl(DebugSession& session) {
                 std::cout << "  Stopped at 0x" << std::hex << pc << ":  " << mnemonic
                           << Terminal::reset_all() << "\n";
             }
-            std::cout << "  Cycles: " << cpu.cycles() << "\n";
+            std::cout << "  Cycles: " << std::dec << cpu.cycles() << "\n";
             continue;
         }
 
