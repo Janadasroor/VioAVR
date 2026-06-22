@@ -145,6 +145,11 @@ private:
     uint32_t flash_size_{0};
     u16 sreg_address_{0x5F};
 
+    // Block translation context (set by translate() before calling translate_instruction)
+    uint32_t block_start_pc_{0};
+    size_t block_start_offset_{0};
+    size_t block_loop_offset_{0};  // offset for backward jump target (loop body start)
+
     // Debug counters
     uint64_t translate_count_{0};
     uint64_t execute_count_{0};

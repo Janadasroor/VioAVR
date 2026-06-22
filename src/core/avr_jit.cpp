@@ -1289,10 +1289,60 @@ bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size,
     uint32_t insn_count = 0;
     CodeBuffer::Label pending_skip_patch;
     bool has_pending_skip = false;
-    constexpr uint32_t MAX_INSTRUCTIONS = 64;
+    constexpr uint32_t MAX_INSTRUCTIONS = 256;
+
+    // Record block start for backward branch inlining
+    block_start_pc_ = start_pc;
+    block_start_offset_ = buf.size();
 
     while (pc < flash_size && !block_ended && insn_count < MAX_INSTRUCTIONS) {
         u16 opcode = flash[pc];
+
+        // Detect backward conditional branch to block start → inline as native loop
+        if (insn_count > 0 && ((opcode & 0xFC00) == 0xF000 || (opcode & 0xFC00) == 0xF400)) {
+            bool is_brbc = (opcode & 0xFC00) == 0xF400;
+            uint8_t bit = static_cast<uint8_t>(opcode & 0x07);
+            int8_t disp = static_cast<int8_t>((opcode >> 3) & 0x7F);
+            if (disp & 0x40) disp |= static_cast<int8_t>(0x80);
+            uint32_t target = pc + 1 + static_cast<uint32_t>(static_cast<int32_t>(disp));
+            if (target == block_start_pc_) {
+                // Emit inline loop: test SREG bit, loop back if condition true
+                // block_cycles/insn_count do not include this branch instruction yet
+                uint32_t loop_cycles = static_cast<uint32_t>(block_cycles + 2);  // base + taken extra
+                uint32_t loop_insns = static_cast<uint32_t>(insn_count + 1);
+                buf.movzx_membase(Reg64::rax, Reg64::r14, 38);
+                buf.test8_imm(Reg8::al, static_cast<uint8_t>(1 << bit));
+                if (is_brbc) {
+                    auto exit_label = buf.jz_forward();  // condition true → exit loop
+                    // Taken (bit CLEAR): loop back
+                    buf.add_membase_imm32(Reg64::r14, 40, loop_cycles);
+                    buf.add_membase_imm32(Reg64::r14, 72, loop_insns);
+                    int8_t back = static_cast<int8_t>(block_start_offset_ - buf.size() - 2);
+                    buf.jmp_rel8(back);
+                    buf.patch_jz(exit_label);
+                    // Not taken: 1 cycle for the branch, fall through
+                    buf.add_membase_imm32(Reg64::r14, 40, 1);
+                    emit_set_pc(buf, pc + 1);
+                } else {
+                    auto exit_label = buf.jnz_forward(); // condition true → exit loop
+                    // Taken (bit SET): loop back
+                    buf.add_membase_imm32(Reg64::r14, 40, loop_cycles);
+                    buf.add_membase_imm32(Reg64::r14, 72, loop_insns);
+                    int8_t back = static_cast<int8_t>(block_start_offset_ - buf.size() - 2);
+                    buf.jmp_rel8(back);
+                    buf.patch_jnz(exit_label);
+                    // Not taken: 1 cycle for the branch, fall through
+                    buf.add_membase_imm32(Reg64::r14, 40, 1);
+                    emit_set_pc(buf, pc + 1);
+                }
+                // Reset accumulators — post-loop instructions start fresh
+                block_cycles = 0;
+                insn_count = 0;
+                pc += 1;
+                continue;
+            }
+        }
+
         CodeBuffer::Label skip_patch_out;
         uint32_t words = translate_instruction(buf, opcode, pc, block_ended,
                                                &skip_patch_out);

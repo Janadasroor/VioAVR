@@ -122,3 +122,5 @@ else()
     message(WARNING " headers or library not found.  comparison tests will be skipped.")
 endif()
 
+add_subdirectory(core)
+

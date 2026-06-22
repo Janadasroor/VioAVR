@@ -29,6 +29,8 @@ struct TimedStimulus {
 
 struct StimulusConfig {
     std::vector<TimedStimulus> timed_stimuli;
+    std::vector<u8> pending_uart_bytes;  // UART RX bytes buffered until UART is ready
+    size_t uart_progress = 0;            // how many bytes from pending_uart_bytes have been injected
 };
 
 // ── Parsing ──
@@ -132,32 +134,15 @@ static bool parse_stimulus_flag(const std::string& key, const std::string& value
     else if (key == "uart-rx") {
         // Parse hex string: 48656C6C6F → bytes [0x48, 0x65, 0x6C, 0x6C, 0x6F]
         std::string hex = value;
-        // Remove any whitespace
         hex.erase(std::remove_if(hex.begin(), hex.end(), ::isspace), hex.end());
         if (hex.size() % 2 != 0) {
             std::cerr << "  Invalid --uart-rx hex string (must have even length)\n";
             return false;
         }
-        // Inject at cycle 0 (immediately at start)
-        config.timed_stimuli.push_back({0, [hex](Machine& m) {
-            auto uarts = m.peripherals_of_type<Uart>();
-            auto uarts8x = m.peripherals_of_type<Uart8x>();
-            for (size_t i = 0; i + 1 < hex.size(); i += 2) {
-                u8 byte = static_cast<u8>(std::strtoul(hex.substr(i, 2).c_str(), nullptr, 16));
-                bool ok = false;
-                for (auto* u : uarts) {
-                    if (u->inject_received_byte(byte)) ok = true;
-                }
-                for (auto* u : uarts8x) {
-                    u->inject_received_byte(byte);
-                    ok = true;
-                }
-                if (!ok) {
-                    std::cerr << "  Warning: No UART available to inject byte 0x"
-                              << std::hex << (int)byte << std::dec << "\n";
-                }
-            }
-        }});
+        for (size_t i = 0; i + 1 < hex.size(); i += 2) {
+            u8 byte = static_cast<u8>(std::strtoul(hex.substr(i, 2).c_str(), nullptr, 16));
+            config.pending_uart_bytes.push_back(byte);
+        }
         return true;
     }
     return false;
@@ -179,12 +164,36 @@ static StimulusConfig parse_stimulus_config(const Args& args) {
 
 // Apply all stimuli that are due at or before the given cycle
 // Returns index of next stimulus to apply
-static size_t apply_due_stimuli(Machine& machine, const StimulusConfig& config,
+static size_t apply_due_stimuli(Machine& machine, StimulusConfig& config,
                                  u64 current_cycle, size_t next_idx) {
     while (next_idx < config.timed_stimuli.size() &&
            config.timed_stimuli[next_idx].at_cycle <= current_cycle) {
         config.timed_stimuli[next_idx].apply(machine);
         next_idx++;
+    }
+    // Retry UART RX injection on every call — buffer stays until UART is ready
+    if (config.uart_progress < config.pending_uart_bytes.size()) {
+        auto uarts = machine.peripherals_of_type<Uart>();
+        auto uarts8x = machine.peripherals_of_type<Uart8x>();
+        while (config.uart_progress < config.pending_uart_bytes.size()) {
+            u8 byte = config.pending_uart_bytes[config.uart_progress];
+            bool ok = false;
+            for (auto* u : uarts) {
+                if (u->inject_received_byte(byte)) { ok = true; break; }
+            }
+            if (!ok) {
+                for (auto* u : uarts8x) {
+                    u->inject_received_byte(byte);
+                    ok = true;
+                    break;
+                }
+            }
+            if (ok) {
+                config.uart_progress++;
+            } else {
+                break; // UART not ready yet, retry next call
+            }
+        }
     }
     return next_idx;
 }
