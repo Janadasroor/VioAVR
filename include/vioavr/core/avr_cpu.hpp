@@ -583,6 +583,11 @@ inline void AvrCpu::refresh_interrupt_pending()
         last_domains_ = domains;
         InterruptRequest request;
         interrupt_pending_ = bus_->pending_interrupt_request(request, domains);
+        if (interrupt_pending_) {
+            static int dbg_cnt = 0;
+            if (dbg_cnt++ < 20)
+                std::fprintf(stderr, "[INT-PEND] vector=%d dirty=%d\n", request.vector_index, (int)bus_->interrupts_dirty());
+        }
         bus_->clear_interrupts_dirty();
     }
 }

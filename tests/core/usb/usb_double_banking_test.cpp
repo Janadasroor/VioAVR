@@ -25,7 +25,7 @@ TEST_CASE("USB Double Banking Fidelity")
     // 1. Configure EP1 as IN with 2 Banks, 64 bytes
     bus.write_data(atmega32u4.usbs[0].uenum_address, 1);
     bus.write_data(atmega32u4.usbs[0].ueconx_address, 0x01); // EPEN=1
-    bus.write_data(atmega32u4.usbs[0].uecfg0x_address, 0x80); // TYPE=IN
+    bus.write_data(atmega32u4.usbs[0].uecfg0x_address, 0x81); // BULK IN (EPTYPE=2, EPDIR=1)
     bus.write_data(atmega32u4.usbs[0].uecfg1x_address, 0x36); // EPSIZE=64, EPBK=2 banks, ALLOC=1
 
     // 2. Initial state: CURRBK=0, NBUSYBK=0

@@ -5,6 +5,7 @@
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/uart.hpp"
 #include "vioavr/core/usb.hpp"
+#include "vioavr/core/usb_host_sim.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/device.hpp"
 #include "ansi.hpp"
@@ -673,6 +674,8 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     auto bootloader_it = options.find("bootloader");
     bool use_bootloader = bootloader_it != options.end();
 
+    std::vector<uint8_t> sketch_bytes;
+
     try {
         if (use_bootloader) {
             auto& dev = bus.device();
@@ -705,6 +708,12 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                 // Load user application hex (overwrites flash starting at 0)
                 auto user_image = HexImageLoader::load_file(hex_file.string(), dev);
                 bus.load_image(user_image);
+
+                // Save sketch bytes for USB host simulation (AVR109 block write)
+                for (auto w : user_image.flash_words) {
+                    sketch_bytes.push_back(static_cast<uint8_t>(w & 0xFFU));
+                    sketch_bytes.push_back(static_cast<uint8_t>((w >> 8U) & 0xFFU));
+                }
 
                 // Overlay bootloader hex at its natural addresses.
                 // We use write_program_word for each non-zero word so that
@@ -872,22 +881,35 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                   << Terminal::reset_all() << "\n";
     }
 
-    // USB connect simulation for USB-native bootloaders (Caterina, etc.)
+    // USB host simulation for USB-native bootloaders (Caterina, etc.)
     bool usb_connect_injected = false;
     Usb* usb_peripheral = nullptr;
+    UsbHostCaterina* usb_host = nullptr;
     if (use_bootloader && bus.device().usb_count > 0) {
         auto usbs = machine->peripherals_of_type<Usb>();
-        if (!usbs.empty()) usb_peripheral = usbs[0];
+        if (!usbs.empty()) {
+            usb_peripheral = usbs[0];
+            // Inject VBUS early so firmware sees it during PLL init (before cycle ~2000)
+            usb_peripheral->simulate_vbus_event(true);
+            usb_host = new UsbHostCaterina(usb_peripheral, &bus);
+            usb_host->set_sketch_data(sketch_bytes);
+        }
     }
 
     while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
-        cpu.run(serial_uart ? kSerialPollInterval : max_cycles);
+        u64 chunk = kSerialPollInterval;
+        if (!serial_uart && !usb_host) chunk = max_cycles;
+        cpu.run(chunk);
 
         // Simulate USB connect after bootloader initializes USB
         if (usb_peripheral && !usb_connect_injected && cpu.cycles() >= 20000) {
-            usb_peripheral->simulate_vbus_event(true);
             usb_peripheral->simulate_usb_reset();
             usb_connect_injected = true;
+        }
+
+        // Run USB host simulation (enumeration + AVR109 protocol)
+        if (usb_host && usb_connect_injected) {
+            usb_host->tick(cpu.cycles());
         }
 
 #ifndef _WIN32
@@ -959,6 +981,38 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         std::cout << Terminal::fg(Terminal::Color::bright_black) << "PC:     "
                   << Terminal::reset_all() << "0x" << std::hex << cpu.program_counter() << std::dec << "\n";
 
+        if (use_bootloader && usb_host && bus.device().usb_count > 0) {
+            auto usb_state = [](UsbHostCaterina::State s) {
+                switch (s) {
+                    case UsbHostCaterina::State::Init: return "Init";
+                    case UsbHostCaterina::State::EnumGetDescriptorDev: return "GetDescDev";
+                    case UsbHostCaterina::State::EnumGetDescriptorDevStatus: return "GetDescDevSt";
+                    case UsbHostCaterina::State::EnumSetAddress: return "SetAddr";
+                    case UsbHostCaterina::State::EnumGetDescriptorDev2: return "GetDescDev2";
+                    case UsbHostCaterina::State::EnumGetDescriptorDev2Status: return "GetDescDev2St";
+                    case UsbHostCaterina::State::EnumGetDescriptorCfg: return "GetDescCfg";
+                    case UsbHostCaterina::State::EnumGetDescriptorCfgStatus: return "GetDescCfgSt";
+                    case UsbHostCaterina::State::EnumSetConfig: return "SetCfg";
+                    case UsbHostCaterina::State::CdcSetLineCoding: return "SetLineCoding";
+                    case UsbHostCaterina::State::CdcSetControlLineState: return "SetCtrlLine";
+                    case UsbHostCaterina::State::Avr109ProgEnter: return "ProgEnter";
+                    case UsbHostCaterina::State::Avr109Identify: return "Identify";
+                    case UsbHostCaterina::State::Avr109ChipType: return "ChipType";
+                    case UsbHostCaterina::State::Avr109Signature: return "Signature";
+                    case UsbHostCaterina::State::Avr109Version: return "Version";
+                    case UsbHostCaterina::State::Avr109ChipErase: return "ChipErase";
+                    case UsbHostCaterina::State::Avr109SetAddr: return "SetAddr";
+                    case UsbHostCaterina::State::Avr109BlockWrite: return "BlockWrite";
+                    case UsbHostCaterina::State::Avr109BlockWriteData: return "BlockWriteData";
+                    case UsbHostCaterina::State::Avr109Exit: return "Exit";
+                    case UsbHostCaterina::State::Done: return "Done";
+                }
+                return "?";
+            };
+            std::cout << Terminal::fg(Terminal::Color::bright_black) << "USB:    "
+                      << Terminal::reset_all() << usb_state(usb_host->state()) << "\n";
+        }
+
         if (show_state) {
             std::cout << Terminal::fg(Terminal::Color::bright_black)
                       << Terminal::style(Terminal::Style::bold)
@@ -995,6 +1049,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     }
 
     // Cleanup
+    delete usb_host;
     fs::remove_all(build_dir);
     if (pty_master_fd != -1) close(pty_master_fd);
 
