@@ -1997,7 +1997,9 @@ bool AvrCpu::service_interrupt_if_needed()
     refresh_interrupt_pending();
     if (!interrupt_pending_ || !flag(SregFlag::interrupt) || bus_ == nullptr) {
         if (interrupt_pending_) {
-             Logger::debug("AvrCpu::service_interrupt_if_needed: interrupt pending but I flag is " + std::to_string(flag(SregFlag::interrupt)));
+            static int dbg_block = 0;
+            if (dbg_block++ < 20)
+                std::fprintf(stderr, "[INT-BLOCK] I-flag=%d\n", (int)flag(SregFlag::interrupt));
         }
         return false;
     }
@@ -2006,6 +2008,9 @@ bool AvrCpu::service_interrupt_if_needed()
     if (!bus_->consume_interrupt_request(request, active_clock_domains())) {
         interrupt_pending_ = false;
         return false;
+    }
+    { static int dbg_svc = 0; if (dbg_svc++ < 20)
+        std::fprintf(stderr, "[INT-SVC] vector=%d PC=0x%04X\n", request.vector_index, program_counter_);
     }
     if (trace_hook_ != nullptr) {
         trace_hook_->on_interrupt(request.vector_index);
@@ -3369,6 +3374,9 @@ void AvrCpu::execute_wdr(const DecodedInstruction& instruction)
 void AvrCpu::execute_cli(const DecodedInstruction& instruction)
 {
     (void)instruction;
+    static int dbg_cli = 0;
+    if (dbg_cli++ < 20)
+        std::fprintf(stderr, "[CLI-EXEC] PC=0x%04X cycles=%lu\n", program_counter_, cycles_);
     set_flag(SregFlag::interrupt, false);
     ++program_counter_;
     advance_cycles(1U);
@@ -3377,6 +3385,9 @@ void AvrCpu::execute_cli(const DecodedInstruction& instruction)
 void AvrCpu::execute_sei(const DecodedInstruction& instruction)
 {
     (void)instruction;
+    static int dbg_sei = 0;
+    if (dbg_sei++ < 20)
+        std::fprintf(stderr, "[SEI-EXEC] PC=0x%04X cycles=%lu\n", program_counter_, cycles_);
     set_flag(SregFlag::interrupt, true);
     ++program_counter_;
     interrupt_delay_ = 1U;
