@@ -965,8 +965,11 @@ struct UsbDescriptor {
     // Bitmasks
     u8 usbcon_usbe_mask {0x80U};
     u8 usbcon_frzclk_mask {0x20U};
-    u8 udint_sofi_mask {0x04U};
-    u8 udint_eorsti_mask {0x08U};
+    u8 udint_sofi_mask {0x08U};
+    u8 udint_eorsti_mask {0x10U};
+    // UDIEN enable bit positions (may differ from UDINT positions on some devices)
+    u8 udien_sofe_mask {0x08U};    // enables SOFI
+    u8 udien_eorste_mask {0x10U};  // enables EORSTI
     u8 ueintx_txini_mask {0x01U};
     u8 ueintx_rxstpi_mask {0x08U};
     u8 ueintx_rxouti_mask {0x04U};

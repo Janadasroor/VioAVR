@@ -68,6 +68,9 @@ private:
 
     u64 cycle_accumulator_ {0};
     bool pll_enabled_ {false};
+    u8 pllcsr_ {0};
+    bool pll_locked_ {false};
+    u64 pll_lock_counter_ {0};
     u32 pck_frequency_ {64000000}; 
     u32 clock_ratio_ {1}; 
     bool up_direction_ {true}; // For Phase Correct mode

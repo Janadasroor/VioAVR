@@ -74,7 +74,7 @@ TEST_CASE("USB Clock Dependency: PLL Lock")
     usb.tick(16000000); 
     
     // Verify SOFI is NOT set (no clock)
-    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & 0x04) == 0);
+    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & atmega32u4.usbs[0].udint_sofi_mask) == 0);
     
     // 2. Attach a RegisterFile to simulate the PLLCSR at 0x49
     // (Or just use a custom peripheral for 0x49)
@@ -101,5 +101,5 @@ TEST_CASE("USB Clock Dependency: PLL Lock")
     usb.tick(16000); 
     
     // Verify SOFI is now set
-    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & 0x04) != 0);
+    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & atmega32u4.usbs[0].udint_sofi_mask) != 0);
 }

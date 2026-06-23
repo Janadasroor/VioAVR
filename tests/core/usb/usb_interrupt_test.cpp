@@ -69,10 +69,10 @@ TEST_CASE("USB General Interrupt (VBUS/Reset)")
     usb.reset();
     bus.write_data(atmega32u4.usbs[0].usbcon_address, 0x80); // USBE = 1
 
-    // Enable End of Reset Interrupt (EORSTE - bit 3)
+    // Enable End of Reset Interrupt (EORSTE - bit 3 per ATmega32U4 datasheet)
     bus.write_data(atmega32u4.usbs[0].udien_address, 0x08);
 
-    // Force UDINT flag EORSTI (bit 3)
+    // Force UDINT flag EORSTI (bit 3 per ATmega32U4 datasheet)
     usb.force_general_interrupt(0x08);
 
     InterruptRequest request;

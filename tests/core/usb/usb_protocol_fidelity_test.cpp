@@ -27,7 +27,7 @@ TEST_CASE("USB Protocol Fidelity - IN Transaction Flow")
     // 1. Configure EP1 as IN
     bus.write_data(atmega32u4.usbs[0].uenum_address, 1);
     bus.write_data(atmega32u4.usbs[0].ueconx_address, 0x01); // EPEN=1
-    bus.write_data(atmega32u4.usbs[0].uecfg0x_address, 0x80); // TYPE=IN
+    bus.write_data(atmega32u4.usbs[0].uecfg0x_address, 0x81); // BULK IN (EPTYPE=2, EPDIR=1)
     bus.write_data(atmega32u4.usbs[0].uecfg1x_address, 0x32); // EPSIZE=64, ALLOC=1
 
     // 2. Verify TXINI is set initially (Ready to load)
@@ -66,13 +66,13 @@ TEST_CASE("USB Protocol Fidelity - SOF Timing")
     // FRZCLK is 1, SOF should NOT trigger
     
     bus.tick_peripherals(20000); // 1.25ms
-    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & 0x04) == 0); // SOFI=0
+    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & atmega32u4.usbs[0].udint_sofi_mask) == 0); // SOFI=0
 
     // Unfreeze clock
     bus.write_data(atmega32u4.usbs[0].usbcon_address, 0x80); // USBE=1, FRZCLK=0
     
     bus.tick_peripherals(16000); // 1.0ms
-    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & 0x04) != 0); // SOFI=1
+    CHECK((bus.read_data(atmega32u4.usbs[0].udint_address) & atmega32u4.usbs[0].udint_sofi_mask) != 0); // SOFI=1
     
     // Verify Frame Number
     u16 fnum = bus.read_data(atmega32u4.usbs[0].udfnum_address);
