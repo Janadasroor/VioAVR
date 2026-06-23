@@ -44,7 +44,7 @@ void Timer10::reset() noexcept {
     tccre_ = desc_.tccre_reset;
     ocra_ = ocrb_ = ocrc_ = ocrd_ = 0;
     ocra_buf_ = ocrb_buf_ = ocrc_buf_ = ocrd_buf_ = 0;
-    dt4_ = 0;
+        dt4_ = 0;
     timsk_ = 0;
     tifr_ = 0;
     dt_a_ = 0; dt_a_neg_ = 0;
@@ -56,10 +56,30 @@ void Timer10::reset() noexcept {
     clock_ratio_ = 1;
     cycle_accumulator_ = 0;
     pll_enabled_ = false;
+    pllcsr_ = 0;
+    pll_locked_ = false;
+    pll_lock_counter_ = 0;
 }
 
 void Timer10::tick(u64 elapsed_cycles) noexcept {
     if (power_reduction_enabled()) return;
+
+    // PLL lock delay: when PLLE is set (bit 1), simulate lock after ~100 cycles
+    if (pllcsr_ & 0x02U) {
+        if (!pll_locked_) {
+            if (pll_lock_counter_ == 0) {
+                pll_lock_counter_ = 100;
+            } else if (elapsed_cycles >= pll_lock_counter_) {
+                pll_lock_counter_ = 0;
+                pll_locked_ = true;
+            } else {
+                pll_lock_counter_ -= elapsed_cycles;
+            }
+        }
+    } else {
+        pll_locked_ = false;
+        pll_lock_counter_ = 0;
+    }
 
     u64 timer_ticks = elapsed_cycles * clock_ratio_;
 
@@ -92,7 +112,21 @@ u8 Timer10::read(u16 address) noexcept {
     if (address == desc_.dt4_address) return dt4_;
     if (address == desc_.timsk_address) return timsk_;
     if (address == desc_.tifr_address) return tifr_;
-    if (address == desc_.pllcsr_address) return pll_enabled_ ? 0x05U : 0x00U; // PCKE=1, PLOCK=1
+    if (address == desc_.pllcsr_address) {
+        // Advance PLL lock counter on each read (works in both JIT and interpreter paths)
+        if (pll_lock_counter_ > 0 && !pll_locked_) {
+            pll_lock_counter_ -= 5; // ~5 cycles per IN op
+            if (pll_lock_counter_ <= 0) {
+                pll_lock_counter_ = 0;
+                pll_locked_ = true;
+            }
+        }
+        u8 val = static_cast<u8>((pllcsr_ & 0xF6U) | (pll_locked_ ? 0x01U : 0x00U));
+        static int once = 0;
+        if (once++ < 10) std::fprintf(stderr, "[PLL-RD] addr=0x%04X pllcsr=0x%02X locked=%d -> 0x%02X\n",
+            address, pllcsr_, pll_locked_, val);
+        return val;
+    }
     return 0;
 }
 
@@ -130,8 +164,21 @@ void Timer10::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.tifr_address) {
         tifr_ &= ~value;
     } else if (address == desc_.pllcsr_address) {
-        pll_enabled_ = (value & 0x04U) != 0;
+        static int once = 0;
+        if (once++ < 5) std::fprintf(stderr, "[PLL-WR] addr=0x%04X val=0x%02X locked=%d cnt=%d\n",
+            address, value, pll_locked_, pll_lock_counter_);
+        pllcsr_ = value;
+        pll_enabled_ = (value & 0x04U) != 0; // PCKE: PLL clock to timer
         clock_ratio_ = pll_enabled_ ? 8 : 1;
+        if (value & 0x02U) { // PLLE set
+            if (!pll_locked_) {
+                // Start lock delay counter; will complete on read() or subsequent tick()
+                if (pll_lock_counter_ == 0) pll_lock_counter_ = 100;
+            }
+        } else { // PLLE cleared → reset lock state
+            pll_locked_ = false;
+            pll_lock_counter_ = 0;
+        }
     }
 }
 

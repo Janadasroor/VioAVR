@@ -20,7 +20,7 @@ TEST_CASE("USB Peripheral Basic Register and FIFO Fidelity")
 
     auto setup_in_endpoint = [&](u8 ep_num) {
         bus.write_data(desc.uenum_address, ep_num);
-        bus.write_data(desc.uecfg0x_address, 0x80); // IN direction
+        bus.write_data(desc.uecfg0x_address, 0x81); // BULK IN (EPTYPE=2, EPDIR=1)
         bus.write_data(desc.ueconx_address, 0x01);  // EPEN -> sets TXINI
     };
 

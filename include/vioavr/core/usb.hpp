@@ -50,6 +50,7 @@ public:
     void simulate_in_token(u8 ep_idx) noexcept;
 
     [[nodiscard]] std::vector<u8> get_endpoint_data(u8 ep_idx) const noexcept;
+    [[nodiscard]] bool is_endpoint_busy(u8 ep_idx) const noexcept;
 
 private:
     void update_ueint() noexcept;
@@ -80,7 +81,7 @@ private:
         bool data_toggle {false};
     };
 
-    static bool is_in_endpoint(const Endpoint& ep) noexcept;
+    [[nodiscard]] bool is_in_endpoint(const Endpoint& ep) const noexcept;
 
     std::string name_;
     UsbDescriptor desc_;
@@ -106,6 +107,7 @@ private:
     u8 ueint_ {};
     
     std::array<Endpoint, 7> endpoints_;
+    mutable std::vector<u8> last_in_data_; // Data captured during simulate_in_token
 };
 
 } // namespace vioavr::core
