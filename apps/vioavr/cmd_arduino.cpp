@@ -4,6 +4,7 @@
 #include "vioavr/core/hex_image.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/uart.hpp"
+#include "vioavr/core/usb.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/device.hpp"
 #include "ansi.hpp"
@@ -871,8 +872,23 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                   << Terminal::reset_all() << "\n";
     }
 
+    // USB connect simulation for USB-native bootloaders (Caterina, etc.)
+    bool usb_connect_injected = false;
+    Usb* usb_peripheral = nullptr;
+    if (use_bootloader && bus.device().usb_count > 0) {
+        auto usbs = machine->peripherals_of_type<Usb>();
+        if (!usbs.empty()) usb_peripheral = usbs[0];
+    }
+
     while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
         cpu.run(serial_uart ? kSerialPollInterval : max_cycles);
+
+        // Simulate USB connect after bootloader initializes USB
+        if (usb_peripheral && !usb_connect_injected && cpu.cycles() >= 20000) {
+            usb_peripheral->simulate_vbus_event(true);
+            usb_peripheral->simulate_usb_reset();
+            usb_connect_injected = true;
+        }
 
 #ifndef _WIN32
         // DTR-based auto-reset for bootloader (PTY only)
