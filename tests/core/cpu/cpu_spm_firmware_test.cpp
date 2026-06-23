@@ -144,3 +144,88 @@ TEST_CASE("CPU SPM (Store Program Memory) Firmware Lifecycle Test")
     // SPMCSR should be 0
     CHECK(bus.read_data(spmcsr_addr) == 0U);
 }
+
+TEST_CASE("CPU SPM (Store Program Memory) with JIT Enabled")
+{
+    using namespace vioavr::core;
+    using namespace vioavr::core::devices;
+
+    MemoryBus bus {atmega328p};
+    AvrCpu cpu {bus};
+    cpu.enable_jit(true);
+    const u16 spmcsr_addr = atmega328p.spmcsr_address;
+
+    const u32 code_start_word = 16384U - 128U;
+    std::vector<u16> flash(16384, 0x0000U);
+
+    flash[0] = 0x940CU;
+    flash[1] = static_cast<u16>(code_start_word);
+
+    const auto encode_mov = [](u8 dst, u8 src) {
+        return static_cast<u16>(0x2C00U | ((src & 0x10U) << 5U) | ((dst & 0x10U) << 4U) | ((dst & 0x0FU) << 4U) | (src & 0x0FU));
+    };
+
+    u32 pc = code_start_word;
+
+    flash[pc++] = encode_ldi(16, 0x00);
+    flash[pc++] = encode_mov(30, 16);
+    flash[pc++] = encode_mov(31, 16);
+
+    flash[pc++] = encode_ldi(16, 0x22); flash[pc++] = encode_mov(0, 16);
+    flash[pc++] = encode_ldi(16, 0x11); flash[pc++] = encode_mov(1, 16);
+    flash[pc++] = encode_ldi(16, 0x01);
+    flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
+    flash[pc++] = kSpm;
+
+    flash[pc++] = encode_ldi(16, 0x44); flash[pc++] = encode_mov(0, 16);
+    flash[pc++] = encode_ldi(16, 0x33); flash[pc++] = encode_mov(1, 16);
+    flash[pc++] = encode_ldi(16, 0x02); flash[pc++] = encode_mov(30, 16);
+    flash[pc++] = encode_ldi(16, 0x01);
+    flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
+    flash[pc++] = kSpm;
+
+    flash[pc++] = encode_ldi(16, 0x00); flash[pc++] = encode_mov(30, 16);
+    flash[pc++] = encode_ldi(16, 0x03);
+    flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
+    flash[pc++] = kSpm;
+    flash[pc++] = static_cast<u16>(0xB000U | (((spmcsr_addr - 0x20U) & 0x30U) << 5U) | (16U << 4U) | ((spmcsr_addr - 0x20U) & 0x0FU));
+    flash[pc++] = 0xFD00; flash[pc++] = 0xCFFD;
+
+    flash[pc++] = encode_ldi(16, 0x11);
+    flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
+    flash[pc++] = kSpm;
+
+    flash[pc++] = encode_ldi(16, 0x05);
+    flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
+    flash[pc++] = kSpm;
+
+    flash[pc++] = static_cast<u16>(0xB000U | (((spmcsr_addr - 0x20U) & 0x30U) << 5U) | (16U << 4U) | ((spmcsr_addr - 0x20U) & 0x0FU));
+    flash[pc++] = 0xFD00; flash[pc++] = 0xCFFD;
+
+    flash[pc++] = encode_ldi(16, 0x11);
+    flash[pc++] = encode_sts(16); flash[pc++] = spmcsr_addr;
+    flash[pc++] = kSpm;
+
+    flash[pc++] = encode_ldi(16, 0x00); flash[pc++] = encode_mov(30, 16);
+    flash[pc++] = 0x9024;
+    flash[pc++] = encode_ldi(16, 0x02); flash[pc++] = encode_mov(30, 16);
+    flash[pc++] = 0x9034;
+
+    flash[pc++] = 0x9598U;
+
+    bus.load_image(HexImage {
+        .flash_words = flash,
+        .entry_word = 0U
+    });
+    cpu.reset();
+
+    cpu.run(500000);
+
+    CHECK(cpu.registers()[2] == 0x22U);
+    CHECK(cpu.registers()[3] == 0x44U);
+
+    CHECK(bus.read_program_word(0) == 0x1122U);
+    CHECK(bus.read_program_word(1) == 0x3344U);
+
+    CHECK(bus.read_data(spmcsr_addr) == 0U);
+}
