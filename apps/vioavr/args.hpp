@@ -60,6 +60,12 @@ public:
     }
 };
 
+inline bool is_boolean_flag(std::string_view key) {
+    return key == "help" || key == "h" || key == "summary" || key == "show-state" ||
+           key == "verbose" || key == "quiet" || key == "no-jit" ||
+           key == "no-registers" || key == "mem-writes" || key == "search";
+}
+
 inline Args parse_args(int argc, char** argv) {
     Args args;
     int i = 1;
@@ -73,7 +79,7 @@ inline Args parse_args(int argc, char** argv) {
             ++i;
         } else if (arg.substr(0, 2) == "--") {
             std::string key(arg.substr(2));
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
+            if (!is_boolean_flag(key) && i + 1 < argc && argv[i + 1][0] != '-') {
                 args.options[key] = argv[++i];
             } else {
                 args.options[key] = "true";
@@ -87,7 +93,7 @@ inline Args parse_args(int argc, char** argv) {
             ++i;
         } else if (arg.substr(0, 1) == "-") {
             std::string key(1, arg[1]);
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
+            if (!is_boolean_flag(key) && i + 1 < argc && argv[i + 1][0] != '-') {
                 args.options[key] = argv[++i];
             } else {
                 args.options[key] = "true";
