@@ -180,6 +180,9 @@ private:
     uint32_t translate_instruction(CodeBuffer& buf, u16 opcode,
                                    uint32_t pc, bool& block_ended,
                                    CodeBuffer::Label* skip_patch_out = nullptr);
+
+    bool executing_{false};
+    bool pending_invalidate_{false};
 };
 
 } // namespace jit

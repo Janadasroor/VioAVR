@@ -316,7 +316,7 @@ inline constexpr DeviceDescriptor at90usb1286 {
             .com_vector_index = 11U,
             .pllcsr_address = 0x49U,
             .usbcon_usbe_mask = 0x0U, .usbcon_frzclk_mask = 0x0U,
-            .udint_sofi_mask = 0x4U,
+            .udint_sofi_mask = 0x8U,
             .pr_address = 101, .pr_bit = 7
         } }},
 

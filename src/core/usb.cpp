@@ -140,7 +140,7 @@ u8 Usb::read(u16 address) noexcept {
         }
         if (rwal) flags |= desc_.ueintx_rwal_mask;
         else flags &= ~desc_.ueintx_rwal_mask;
-        
+
         return flags;
     }
     if (address == desc_.ueienx_address) return ep.interrupt_enable;
@@ -153,10 +153,6 @@ u8 Usb::read(u16 address) noexcept {
             u8 data = bank.fifo[bank.read_idx];
             bank.read_idx = (bank.read_idx + 1) % bank.fifo.size();
             bank.byte_count--;
-            static int dbg_cnt = 0;
-            if (dbg_cnt++ < 30)
-                std::fprintf(stderr, "[UEDATX-RD] bc_after=%d data=%02x flags=%02x\n",
-                    (int)bank.byte_count, data, ep.interrupt_flags);
             // ATmega32U4: RXSTPI auto-clears when last SETUP byte is read from UEDATX.
             // After RXSTPI clears on a CONTROL endpoint, the SIE sets TXINI to
             // signal the CPU that it can write IN data for the data phase.
@@ -178,23 +174,18 @@ u8 Usb::read(u16 address) noexcept {
 }
 
 void Usb::write(u16 address, u8 value) noexcept {
+    if (bus_) {
+        std::fprintf(stderr, "[USB-WRITE] cyc=%lu addr=0x%02x val=0x%02x\n", (unsigned long)bus_->cpu_cycles(), address, value);
+    }
     if (address == desc_.uhwcon_address) {
         uhwcon_ = value;
         if (bus_) bus_->set_interrupts_dirty();
     }
     else if (address == desc_.usbcon_address) {
-        static int dbg_cnt = 0;
-        if (dbg_cnt++ < 20)
-            std::fprintf(stderr, "[USBCON-WR] old=%02X new=%02X\n", usbcon_, value);
         usbcon_ = value;
         // ATmega32U4 hardware: DETACH bit (0x10) is auto-cleared when VBUS is present
-        if (usbsta_ & 0x01U) {
-            u8 old = usbcon_;
+        if (usbsta_ & 0x01U)
             usbcon_ &= ~0x10U;
-            if (old != usbcon_) {
-                std::fprintf(stderr, "[USBCON-AUTOCLR] DETACH cleared by VBUS\n");
-            }
-        }
         if (bus_) bus_->set_interrupts_dirty();
     }
     else if (address == desc_.usbsta_address) {
@@ -212,7 +203,10 @@ void Usb::write(u16 address, u8 value) noexcept {
         if (bus_) bus_->set_interrupts_dirty();
     }
     else if (address == desc_.udint_address) {
+        bool had_sofi = (udint_ & desc_.udint_sofi_mask) != 0;
         udint_ = 0; // ATmega32U4 (and others): any write clears all flags
+        // Reset SOF counter so CPU gets the full interval before next SOF
+        if (had_sofi && pll_cycles_per_sof_ > 0) cycle_accumulator_ = 0;
     }
     else if (address == desc_.udien_address) {
         udien_ = value;
@@ -242,7 +236,6 @@ void Usb::write(u16 address, u8 value) noexcept {
     auto& ep = endpoints_[ep_idx];
 
     if (address == desc_.ueconx_address) {
-        std::fprintf(stderr, "[UECONX-WR] ep=%d val=%02x\n", (int)uenum_, value);
         ep.control = value;
         if (value & 0x01U) { // EPEN
             ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI - Ready to be loaded
@@ -251,13 +244,9 @@ void Usb::write(u16 address, u8 value) noexcept {
         }
     }
     else if (address == desc_.uecfg0x_address) {
-        std::fprintf(stderr, "[CFG0-WR] ep=%d val=%02x (eptype=%d dir=%d)\n",
-            (int)uenum_, value, (value >> 6) & 0x03, value & 0x01);
         ep.config0 = value;
     }
     else if (address == desc_.uecfg1x_address) {
-        std::fprintf(stderr, "[CFG1-WR] ep=%d val=%02x epsize_idx=%d banks=%d\n",
-            (int)uenum_, value, (value >> 4U) & 0x07U, ((value >> 2U) & 0x03U));
         ep.config1 = value;
         // EPSIZE bits [6:4]
         u8 size_idx = (value >> 4U) & 0x07U;
@@ -280,78 +269,82 @@ void Usb::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.ueintx_address) {
         u8 old_flags = ep.interrupt_flags;
-        static int dbg_ueintx = 0;
-        if (dbg_ueintx++ < 10)
-            std::fprintf(stderr, "[UEINTX-WR] ep=%d val=%02x old_fl=%02x bc=%d busy=%d\n",
-                (int)uenum_, value, old_flags,
-                (int)ep.banks[ep.cpu_bank].byte_count, (int)ep.banks[ep.cpu_bank].busy);
-        // Write-1-to-clear for bits 0-4,6. Bits 5 (RWAL) and 7 (FIFOCON) handled separately.
-        ep.interrupt_flags &= ~(value & ~0xA0U);
-        u8 cleared_bits = old_flags & value;
-        
-        // Handle FIFOCON (Bit 7) clearing — write-1-to-clear
-        // When RXSTPI is set (unprocessed SETUP packet), FIFOCON is read-only-0 (datasheet 21.6.6)
-        if ((value & 0x80U) && !(ep.interrupt_flags & desc_.ueintx_rxstpi_mask)) {
+        if (ep_idx == 0 && bus_) {
+            std::fprintf(stderr, "[USB-WR-UEINTX0] cyc=%lu val=0x%02x old=0x%02x\n", (unsigned long)bus_->cpu_cycles(), value, old_flags);
+        }
+        // ATmega32U4 UEINTX is W0C: writing 0 clears a bit, writing 1 leaves it unchanged.
+        // RWAL (bit 5) is read-only. FIFOCON (bit 7) has special bank-commit semantics.
+        // Apply W0C to bits 0-4, 6 (TXINI, STALLEDI, RXOUTI, RXSTPI, NAKOUTI, NAKINI).
+        constexpr u8 kW0cBits = 0x5FU; // bits 0,1,2,3,4,6 — all clearable except RWAL(5)
+        ep.interrupt_flags &= (value | ~kW0cBits); // keep bit if value=1 or bit is non-W0C
+        // Which flags were actually cleared (were set, now written as 0)?
+        u8 cleared_bits = old_flags & ~value;
+
+        // Handle FIFOCON (Bit 7) — W0C: writing 0 may trigger bank commit/release.
+        // When RXSTPI is set (unprocessed SETUP packet), FIFOCON is read-only (ignored).
+        bool fifocon_cleared = !(value & 0x80U) && !(ep.interrupt_flags & desc_.ueintx_rxstpi_mask);
+        // On real ATmega32U4, clearing TXINI (bit 0) alone sends the IN packet for control
+        // endpoints — FIFOCON is optional. Trigger bank commit on TXINI-clear too.
+        bool txini_cleared = (cleared_bits & desc_.ueintx_txini_mask) != 0;
+        bool in_commit = (fifocon_cleared || txini_cleared) &&
+                         !(ep.interrupt_flags & desc_.ueintx_rxstpi_mask);
+        if (in_commit) {
             auto& current_bank = ep.banks[ep.cpu_bank];
-            // Determine direction from state, not from write value:
-            // - byte_count > 0: CPU wrote data → IN commit
-            // - byte_count == 0 && RXOUTI pending: CPU finished reading → OUT release
-            bool out_phase = (current_bank.byte_count == 0 && 
+            // Direction: OUT if no data and RXOUTI was pending, else IN commit.
+            bool out_phase = fifocon_cleared && (current_bank.byte_count == 0 &&
                              (old_flags & desc_.ueintx_rxouti_mask));
             if (!out_phase) {
-                // IN direction: firmware committed data for host to read
+                // IN direction: firmware committed data (including ZLP) for host to read
                 current_bank.busy = true;
-                // Only clear TXINI if data was actually written (firmware finalizing IN data)
-                if (current_bank.byte_count > 0) {
-                    ep.interrupt_flags &= ~desc_.ueintx_txini_mask;
+                if (ep_idx == 0 && bus_) {
+                    std::fprintf(stderr, "[USB-IN-COMMIT] cyc=%lu busy=%d cpu_bank=%d\n",
+                        (unsigned long)bus_->cpu_cycles(), current_bank.busy, ep.cpu_bank);
                 }
-                
-                // Switch CPU to next bank if available and not busy
+                // Switch CPU to next bank if available
                 if (ep.bank_count > 1) {
                     u8 next_bank = (ep.cpu_bank + 1) % ep.bank_count;
                     if (!ep.banks[next_bank].busy) {
                         ep.cpu_bank = next_bank;
-                        ep.interrupt_flags |= desc_.ueintx_txini_mask; // Next bank is ready to be loaded
+                        ep.interrupt_flags |= desc_.ueintx_txini_mask;
                     }
                 }
             } else {
-                // OUT direction or EP is OUT: firmware released the bank after reading data
+                // OUT direction: firmware released the bank after reading data
                 current_bank.busy = false;
                 current_bank.byte_count = 0;
                 current_bank.read_idx = 0;
                 current_bank.write_idx = 0;
-                ep.interrupt_flags &= ~desc_.ueintx_rxouti_mask; // Clear RXOUTI for current bank
-                
-                // Switch CPU to next bank if it has data
+                ep.interrupt_flags &= ~desc_.ueintx_rxouti_mask;
                 if (ep.bank_count > 1) {
                     u8 next_bank = (ep.cpu_bank + 1) % ep.bank_count;
                     if (ep.banks[next_bank].busy && ep.banks[next_bank].byte_count > 0) {
                         ep.cpu_bank = next_bank;
-                        ep.interrupt_flags |= desc_.ueintx_rxouti_mask; // Next bank has data
+                        ep.interrupt_flags |= desc_.ueintx_rxouti_mask;
                     }
                 }
             }
         }
 
-        if (cleared_bits & desc_.ueintx_txini_mask) {
-            ep.banks[ep.cpu_bank].busy = true;
-            static int dbg_cnt = 0;
-            if (dbg_cnt++ < 5 && ep_idx == 0)
-                std::fprintf(stderr, "[USB-BUSY] ep0 TXINI cleared: busy=true\n");
-        }
         if (cleared_bits & desc_.ueintx_rxstpi_mask) {
-            ep.banks[ep.cpu_bank].busy = false;
-            // After clearing RXSTPI, the bank is released. For IN endpoints with empty
-            // bank, auto-assert TXINI so the CPU can load data for the data phase.
-            if (is_in_endpoint(ep) && ep.banks[ep.cpu_bank].byte_count == 0) {
-                ep.interrupt_flags |= desc_.ueintx_txini_mask;
+            // Firmware explicitly cleared RXSTPI: release SETUP bank, set TXINI for response.
+            // Only release/set if we didn't also commit (clear TXINI) in the same write.
+            if (!txini_cleared) {
+                ep.banks[ep.cpu_bank].busy = false;
+                if (is_in_endpoint(ep) && ep.banks[ep.cpu_bank].byte_count == 0)
+                    ep.interrupt_flags |= desc_.ueintx_txini_mask;
             }
         }
         if (cleared_bits & desc_.ueintx_rxouti_mask) {
             ep.banks[ep.cpu_bank].busy = false;
+            if (ep_idx == 0 || ((ep.config0 >> 6) & 0x03U) == 0) {
+                ep.interrupt_flags |= desc_.ueintx_txini_mask;
+            }
         }
-        
+
         update_ueint();
+        if (ep_idx == 0 && bus_) {
+            std::fprintf(stderr, "[USB-WR-UEINTX0-AFTER] cyc=%lu flags=0x%02x\n", (unsigned long)bus_->cpu_cycles(), ep.interrupt_flags);
+        }
         if (bus_) bus_->set_interrupts_dirty();
     }
     else if (address == desc_.ueienx_address) {
@@ -387,22 +380,13 @@ void Usb::write(u16 address, u8 value) noexcept {
     }
     else if (address == desc_.uedatx_address) {
         // Only allow writes for IN endpoints with TXINI set
-        static int dbg_cnt_w = 0;
         if (is_in_endpoint(ep) && (ep.interrupt_flags & desc_.ueintx_txini_mask)) {
             auto& bank = ep.banks[ep.cpu_bank];
             if (bank.byte_count < bank.fifo.size()) {
                 bank.fifo[bank.write_idx] = value;
                 bank.write_idx = (bank.write_idx + 1) % bank.fifo.size();
                 bank.byte_count++;
-                if (dbg_cnt_w++ < 30)
-                    std::fprintf(stderr, "[UEDATX-WR] bc=%d data=%02x\n", (int)bank.byte_count, value);
-            } else if (dbg_cnt_w++ < 5)
-                std::fprintf(stderr, "[UEDATX-FULL] bc=%d\n", (int)bank.byte_count);
-        } else if (dbg_cnt_w++ < 10) {
-            std::fprintf(stderr, "[UEDATX-REJ] in=%d c0=%02x c1=%02x txini=%d busy=%d bc=%d flags=%02x\n",
-                is_in_endpoint(ep), ep.config0, ep.config1,
-                ep.interrupt_flags & desc_.ueintx_txini_mask,
-                ep.banks[ep.cpu_bank].busy, ep.banks[ep.cpu_bank].byte_count, ep.interrupt_flags);
+            }
         }
     }
 }
@@ -431,19 +415,10 @@ bool Usb::is_in_endpoint(const Endpoint& ep) const noexcept {
 }
 
 bool Usb::pending_interrupt_request(InterruptRequest& request) const noexcept {
-    if (!(usbcon_ & desc_.usbcon_usbe_mask)) {
-        static int dbg_cnt = 0;
-        if (dbg_cnt++ < 5)
-            std::fprintf(stderr, "[USB-NOUSBE] usbcon=%02x udint=%02x udien=%02x usbint=%02x\n",
-                usbcon_, udint_, udien_, usbint_);
+    if (!(usbcon_ & desc_.usbcon_usbe_mask))
         return false;
-    }
-    if (usbcon_ & desc_.usbcon_frzclk_mask) {
-        static int dbg_cnt = 0;
-        if (dbg_cnt++ < 5)
-            std::fprintf(stderr, "[USB-FRZCLK] usbcon=%02x\n", usbcon_);
+    if (usbcon_ & desc_.usbcon_frzclk_mask)
         return false;
-    }
 
     // General Interrupt (USB_GEN): UDINT sources + VBUSTI (USBINT)
     // UDIEN bits may not map 1:1 to UDINT bits (e.g. ATmega32U4 EORSTE=bit2, EORSTI=bit4)
@@ -454,26 +429,12 @@ bool Usb::pending_interrupt_request(InterruptRequest& request) const noexcept {
         gen_check |= desc_.udint_eorsti_mask;
     u8 vbusti_check = usbint_ & 0x03U;
     if (gen_check || vbusti_check == 0x03U) {
-        static int dbg_cnt = 0;
-        if (dbg_cnt++ < 20)
-            std::fprintf(stderr, "[USB-PEND] udint=%02x udien=%02x gen=%02x usbint=%02x vector=%d\n",
-                udint_, udien_, gen_check, usbint_, desc_.gen_vector_index);
         request.vector_index = desc_.gen_vector_index;
         return true;
     }
 
     // Communication Interrupt (USB_COM)
     if (ueint_) {
-        static int dbg_cnt = 0;
-        if (dbg_cnt++ < 20) {
-            u8 ec0 = endpoints_[0].control;
-            u8 fl0 = endpoints_[0].interrupt_flags;
-            u8 en0 = endpoints_[0].interrupt_enable;
-            u8 bc0 = endpoints_[0].banks[0].byte_count;
-            bool bsy0 = endpoints_[0].banks[0].busy;
-            std::fprintf(stderr, "[USB-COM] ueint=%02x ec0=%02x fl0=%02x en0=%02x bc0=%d bsy0=%d\n",
-                ueint_, ec0, fl0, en0, bc0, bsy0);
-        }
         request.vector_index = desc_.com_vector_index;
         return true;
     }
@@ -545,12 +506,10 @@ void Usb::simulate_setup_packet(const SetupPacket& setup) noexcept {
     bank.byte_count = 8;
     bank.busy = false; // Don't set busy here — SIE→CPU direction. busy=true means CPU has data for SIE.
     ep.interrupt_flags |= desc_.ueintx_rxstpi_mask; // RXSTPI
-    ep.data_toggle = false; 
+    ep.interrupt_flags &= ~desc_.ueintx_txini_mask;  // cleared by hardware on SETUP
+    ep.interrupt_flags &= ~desc_.ueintx_rxouti_mask; // cleared by hardware on SETUP
+    ep.data_toggle = false;
     update_ueint();
-    u8 uei = endpoints_[0].interrupt_enable;
-    std::fprintf(stderr, "[USB-SETUP] ep=0 sie_bank=%d bc=%d uei=%02x fifo=%02x%02x%02x%02x...\n",
-        ep.sie_bank, ep.banks[ep.sie_bank].byte_count, uei,
-        bank.fifo[0], bank.fifo[1], bank.fifo[2], bank.fifo[3]);
     if (bus_) bus_->set_interrupts_dirty();
 }
 
@@ -566,7 +525,7 @@ void Usb::simulate_out_packet(u8 ep_idx, bool data1_pid, std::span<const u8> dat
 
     // Find next free bank for SIE
     u8 target_bank = ep.sie_bank;
-    if (ep.banks[target_bank].busy) {
+    if (ep.banks[target_bank].busy && ep_idx != 0) {
         // Current bank busy, check next if double banked
         if (ep.bank_count > 1) {
             u8 next = (target_bank + 1) % ep.bank_count;
@@ -606,13 +565,12 @@ void Usb::simulate_in_token(u8 ep_idx) noexcept {
 
     auto& bank = ep.banks[ep.sie_bank];
     if (bank.byte_count > 0 || bank.busy) {
-        // Save transmitted data before clearing
+        // Data or explicit commit: save data, clear bank, advance, set TXINI
         last_in_data_.resize(bank.byte_count);
         for (u16 i = 0; i < bank.byte_count; ++i) {
             last_in_data_[i] = bank.fifo[(bank.read_idx + i) % bank.fifo.size()];
         }
         
-        // Data sent! Clear busy and trigger TXINI
         bank.read_idx = 0;
         bank.write_idx = 0;
         bank.byte_count = 0;
@@ -622,6 +580,20 @@ void Usb::simulate_in_token(u8 ep_idx) noexcept {
         ep.data_toggle = !ep.data_toggle;
         
         ep.interrupt_flags |= desc_.ueintx_txini_mask; // TXINI (Handshake ACK)
+        update_ueint();
+        if (bus_) bus_->set_interrupts_dirty();
+    } else if (ep.interrupt_flags & desc_.ueintx_txini_mask) {
+        // ZLP case: TXINI=1 but no data committed. Host sends IN, SIE delivers ZLP.
+        // Clear TXINI to signal the ZLP was consumed, then immediately re-set it
+        // (SIE re-asserts TXINI after ZLP ACK, just like real hardware).
+        // This prevents stale TXINI=1 from falsely triggering is_ep_response_ready
+        // for subsequent control transfers.
+        last_in_data_.clear(); // ZLP — no data
+        ep.interrupt_flags &= ~desc_.ueintx_txini_mask; // consumed
+        ep.interrupt_flags |= desc_.ueintx_txini_mask;  // SIE re-asserts (instant)
+        // Note: the re-assertion is intentional. The firmware needs TXINI=1 to load
+        // the next response. But the host state machine transitions away after this call,
+        // so the "stale TXINI" problem is solved by the state machine not re-checking.
         update_ueint();
         if (bus_) bus_->set_interrupts_dirty();
     }
@@ -648,11 +620,32 @@ bool Usb::is_endpoint_busy(u8 ep_idx) const noexcept {
     if (ep_idx >= endpoints_.size()) return false;
     auto& ep = endpoints_[ep_idx];
     auto& bank = ep.banks[ep.sie_bank];
-    static int dbg = 0;
-    if (dbg++ < 5)
-        std::fprintf(stderr, "[IS-BUSY] ep=%d bc=%d busy=%d result=%d\n",
-            ep_idx, (int)bank.byte_count, (int)bank.busy, bank.byte_count > 0 || bank.busy);
-    return bank.byte_count > 0 || bank.busy;
+    // Only report busy when the bank has been explicitly committed via FIFOCON (busy=true).
+    // Do NOT use byte_count > 0 — that fires while firmware is still loading UEDATX bytes,
+    // before the Endpoint_ClearIN() FIFOCON commit that signals the bank is ready for the host.
+    return bank.busy;
+}
+
+void Usb::consume_out_status_zlp(u8 ep_idx) noexcept {
+    // Simulate the SIE autonomously ACKing the status-stage OUT ZLP for IN control transfers.
+    // For GET_DESCRIPTOR (and similar), LUFA/Caterina firmware does NOT explicitly handle
+    // the status OUT ZLP — the USB SIE handles it transparently. This function clears
+    // the simulated RXOUTI bank state so the next SETUP packet can be injected cleanly.
+    if (ep_idx >= endpoints_.size()) return;
+    auto& ep = endpoints_[ep_idx];
+    // simulate_out_packet puts data in banks[target_bank] where target_bank=sie_bank before advance.
+    // For single-bank EP0: simulate_out_packet uses bank 0 (sie_bank before advance was 0).
+    // Clear all banks to be safe.
+    for (auto& bank : ep.banks) {
+        bank.busy = false;
+        bank.byte_count = 0;
+        bank.read_idx = 0;
+        bank.write_idx = 0;
+    }
+    // Clear RXOUTI flag — SIE consumed the ZLP without firmware involvement
+    ep.interrupt_flags &= ~desc_.ueintx_rxouti_mask;
+    update_ueint();
+    if (bus_) bus_->set_interrupts_dirty();
 }
 
 } // namespace vioavr::core
