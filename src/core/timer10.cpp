@@ -122,9 +122,6 @@ u8 Timer10::read(u16 address) noexcept {
             }
         }
         u8 val = static_cast<u8>((pllcsr_ & 0xF6U) | (pll_locked_ ? 0x01U : 0x00U));
-        static int once = 0;
-        if (once++ < 10) std::fprintf(stderr, "[PLL-RD] addr=0x%04X pllcsr=0x%02X locked=%d -> 0x%02X\n",
-            address, pllcsr_, pll_locked_, val);
         return val;
     }
     return 0;
@@ -164,9 +161,6 @@ void Timer10::write(u16 address, u8 value) noexcept {
     } else if (address == desc_.tifr_address) {
         tifr_ &= ~value;
     } else if (address == desc_.pllcsr_address) {
-        static int once = 0;
-        if (once++ < 5) std::fprintf(stderr, "[PLL-WR] addr=0x%04X val=0x%02X locked=%d cnt=%d\n",
-            address, value, pll_locked_, pll_lock_counter_);
         pllcsr_ = value;
         pll_enabled_ = (value & 0x04U) != 0; // PCKE: PLL clock to timer
         clock_ratio_ = pll_enabled_ ? 8 : 1;

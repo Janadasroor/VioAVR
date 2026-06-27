@@ -475,6 +475,10 @@ void AvrJit::free_executable(void* ptr, size_t size) {
 }
 
 void AvrJit::invalidate_all() {
+    if (executing_) {
+        pending_invalidate_ = true;
+        return;
+    }
     for (auto& [pc, block] : cache_.blocks)
         block.release_code();
     cache_.blocks.clear();
@@ -1477,8 +1481,17 @@ void AvrJit::execute(uint32_t start_pc, JitState* state) {
     if (it == cache_.blocks.end()) return;
     execute_count_++;
     uint64_t cycles_before = state->cycles;
+
+    executing_ = true;
     it->second.func()(state);
+    executing_ = false;
+
     execute_cycles_ += state->cycles - cycles_before;
+
+    if (pending_invalidate_) {
+        pending_invalidate_ = false;
+        invalidate_all();
+    }
 }
 
 } // namespace vioavr::core::jit

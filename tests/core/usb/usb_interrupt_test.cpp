@@ -37,8 +37,8 @@ TEST_CASE("USB Interrupt and Handshake Fidelity")
     // Mask out RWAL (bit 5 / 0x20) as it is dynamically calculated by read()
     CHECK((usb.read(atmega32u4.usbs[0].ueintx_address) & ~0x20) == 0xDF);
 
-    // Clear RXOUTI (bit 2) by writing 1 to it (write-1-to-clear)
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x04);
+    // Clear RXOUTI (bit 2) by writing 0 to it (W0C: write ~(1<<RXOUTI))
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0xFB); // 0xFB = ~(1<<2)
     CHECK((usb.read(atmega32u4.usbs[0].ueintx_address) & 0x04) == 0);
     CHECK((usb.read(atmega32u4.usbs[0].ueintx_address) & 0x01) == 0x01); // TXINI still set
 
@@ -54,8 +54,8 @@ TEST_CASE("USB Interrupt and Handshake Fidelity")
     CHECK(usb.pending_interrupt_request(request) == true);
     CHECK(request.vector_index == atmega32u4.usbs[0].com_vector_index);
 
-    // 5. Clear flag and verify interrupt clears (write-1-to-clear)
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x01);
+    // 5. Clear TXINI and verify interrupt clears (W0C: write 0 to bit 0)
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0xFE); // 0xFE = ~(1<<TXINI)
     CHECK(usb.pending_interrupt_request(request) == false);
 }
 

@@ -37,8 +37,8 @@ TEST_CASE("USB Protocol Fidelity - IN Transaction Flow")
     bus.write_data(atmega32u4.usbs[0].uedatx_address, 'H');
     bus.write_data(atmega32u4.usbs[0].uedatx_address, 'i');
 
-    // 4. Firmware clears TXINI to signal "Ready to send" (write-1-to-clear)
-    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0x01U);
+    // 4. Firmware clears TXINI to signal "Ready to send" (W0C: write 0 to bit 0)
+    bus.write_data(atmega32u4.usbs[0].ueintx_address, 0xFEU); // 0xFE = ~(1<<TXINI)
     CHECK((bus.read_data(atmega32u4.usbs[0].ueintx_address) & 0x01) == 0);
 
     // 5. Host sends IN token and receives data

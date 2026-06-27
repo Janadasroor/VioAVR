@@ -48,6 +48,7 @@ public:
     void simulate_setup_packet(const SetupPacket& setup) noexcept;
     void simulate_out_packet(u8 ep_idx, bool data1_pid, std::span<const u8> data) noexcept;
     void simulate_in_token(u8 ep_idx) noexcept;
+    void consume_out_status_zlp(u8 ep_idx) noexcept; // SIE auto-ACKs status OUT ZLP
 
     [[nodiscard]] std::vector<u8> get_endpoint_data(u8 ep_idx) const noexcept;
     [[nodiscard]] bool is_endpoint_busy(u8 ep_idx) const noexcept;
