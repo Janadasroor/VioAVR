@@ -573,6 +573,12 @@ public:
         emit8(static_cast<uint8_t>(offset));
     }
 
+    // 32-bit relative jump to prevent JIT branch loop offset overflow when block size exceeds 128 bytes
+    void jmp_rel32(int32_t offset) {
+        emit8(0xE9);
+        emit32(static_cast<uint32_t>(offset));
+    }
+
     // lea r64, [base+offset] - can also do [base+index*scale+offset] but we keep it simple
     void lea_membase(Reg64 dst, Reg64 base, int32_t offset) {
         rex_for_op(base, dst);

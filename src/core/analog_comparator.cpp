@@ -30,7 +30,6 @@ void AnalogComparator::reset() noexcept {
 }
 
 void AnalogComparator::on_event(u64 cycle) noexcept {
-    Logger::debug("AC on_event [" + std::string(name_) + "]: cycle=" + std::to_string(cycle) + " raw=" + (raw_output_ ? "1" : "0"));
     if (is_disabled()) return;
     
     if (pending_) {
@@ -133,8 +132,6 @@ void AnalogComparator::evaluate_output() noexcept {
         else if (h_bits == 2) h = 0.05; // ~50mV
         else h = 0.0;
     }
-
-    Logger::debug("AC evaluate [" + std::string(name_) + "]: pos=" + std::to_string(positive_input_) + " neg=" + std::to_string(negative_input_) + " diff=" + std::to_string(diff) + " h=" + std::to_string(h) + " raw=" + (raw_output_ ? "1" : "0"));
 
     bool next_raw = raw_output_;
     if (raw_output_) {
