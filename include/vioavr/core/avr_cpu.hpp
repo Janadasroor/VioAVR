@@ -224,7 +224,18 @@ public:
     void set_interrupt_check_interval(u64 cycles) noexcept { interrupt_check_interval_ = cycles; }
 
 #ifdef VIOAVR_HAVE_JIT
-    void enable_jit(bool enabled) noexcept { jit_enabled_ = enabled; }
+    // Dynamically disable JIT for non-classic AVR (AVR8X/megaAVR-0/XMEGA) devices
+    // where io_range.begin is 0x0000. These architectures have different system maps, unified
+    // memory layouts, and register maps which cause JIT dispatch malfunctions and CPU locks.
+    void enable_jit(bool enabled) noexcept {
+        if (enabled && bus_ != nullptr) {
+            if (bus_->device().io_range.begin == 0x0000) {
+                jit_enabled_ = false;
+                return;
+            }
+        }
+        jit_enabled_ = enabled;
+    }
     [[nodiscard]] bool jit_enabled() const noexcept { return jit_enabled_; }
     [[nodiscard]] jit::JitDebugStats jit_debug_stats() const noexcept;
 #endif

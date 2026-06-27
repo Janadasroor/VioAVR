@@ -68,8 +68,6 @@ void At90Amplifier::evaluate() noexcept {
     // Differential amplification
     voltage_out_ = (v_pos - v_neg) * gain;
     
-    Logger::debug("AMP evaluate: v_pos=" + std::to_string(v_pos) + " v_neg=" + std::to_string(v_neg) + " gain=" + std::to_string(gain) + " out=" + std::to_string(voltage_out_));
-
     // Clamp to [0, 1] assuming normalized range relative to Vcc
     if (voltage_out_ < 0.0) voltage_out_ = 0.0;
     if (voltage_out_ > 1.0) voltage_out_ = 1.0;

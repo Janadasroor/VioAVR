@@ -1386,25 +1386,45 @@ bool AvrJit::translate(uint32_t start_pc, const u16* flash, uint32_t flash_size,
                 uint32_t loop_insns = static_cast<uint32_t>(insn_count + 1);
                 buf.movzx_membase(Reg64::rax, Reg64::r14, 38);
                 buf.test8_imm(Reg8::al, static_cast<uint8_t>(1 << bit));
+                // Loop exit conditions:
+                // - BRBC loops back if bit is CLEAR (ZF=1). So it must exit loop if bit is SET (ZF=0), using jnz.
+                // - BRBS loops back if bit is SET (ZF=0). So it must exit loop if bit is CLEAR (ZF=1), using jz.
+                // Failure to invert the exit check leads to severe loop inversion and CPU hangs.
                 if (is_brbc) {
-                    auto exit_label = buf.jz_forward();  // condition true → exit loop
+                    auto exit_label = buf.jnz_forward();  // exit loop if condition false (bit SET -> ZF=0)
                     // Taken (bit CLEAR): loop back
                     buf.add_membase_imm32(Reg64::r14, 80, loop_cycles);
                     buf.add_membase_imm32(Reg64::r14, 72, loop_insns);
-                    int8_t back = static_cast<int8_t>(block_start_offset_ - buf.size() - 2);
-                    buf.jmp_rel8(back);
-                    buf.patch_jz(exit_label);
+                    
+                    // Backward branch selector:
+                    // If target fits in a signed 8-bit offset (rel8: [-128, 127]), use fast jmp_rel8 (size 2).
+                    // Otherwise, fall back to jmp_rel32 (size 5) to avoid out-of-range displacement overflow crashes.
+                    int32_t offset = static_cast<int32_t>(block_start_offset_ - buf.size());
+                    int32_t rel8 = offset - 2;
+                    if (rel8 >= -128 && rel8 <= 127) {
+                        buf.jmp_rel8(static_cast<int8_t>(rel8));
+                    } else {
+                        buf.jmp_rel32(offset - 5);
+                    }
+                    buf.patch_jnz(exit_label);
                     // Not taken: 1 cycle for the branch, fall through
                     buf.add_membase_imm32(Reg64::r14, 80, 1);
                     emit_set_pc(buf, pc + 1);
                 } else {
-                    auto exit_label = buf.jnz_forward(); // condition true → exit loop
+                    auto exit_label = buf.jz_forward(); // exit loop if condition false (bit CLEAR -> ZF=1)
                     // Taken (bit SET): loop back
                     buf.add_membase_imm32(Reg64::r14, 80, loop_cycles);
                     buf.add_membase_imm32(Reg64::r14, 72, loop_insns);
-                    int8_t back = static_cast<int8_t>(block_start_offset_ - buf.size() - 2);
-                    buf.jmp_rel8(back);
-                    buf.patch_jnz(exit_label);
+                    
+                    // Backward branch selector (same hybrid rel8/rel32 logic)
+                    int32_t offset = static_cast<int32_t>(block_start_offset_ - buf.size());
+                    int32_t rel8 = offset - 2;
+                    if (rel8 >= -128 && rel8 <= 127) {
+                        buf.jmp_rel8(static_cast<int8_t>(rel8));
+                    } else {
+                        buf.jmp_rel32(offset - 5);
+                    }
+                    buf.patch_jz(exit_label);
                     // Not taken: 1 cycle for the branch, fall through
                     buf.add_membase_imm32(Reg64::r14, 80, 1);
                     emit_set_pc(buf, pc + 1);

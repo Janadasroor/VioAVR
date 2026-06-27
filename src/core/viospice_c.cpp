@@ -20,6 +20,27 @@ VioAvrVersion vioavr_get_api_version(void) {
 }
 
 // =========================================================================
+// Device catalog
+// =========================================================================
+
+static std::vector<std::string> cached_device_names;
+
+int vioavr_device_count(void) {
+    if (cached_device_names.empty()) {
+        auto names = DeviceCatalog::list_devices();
+        cached_device_names.reserve(names.size());
+        for (auto& n : names) cached_device_names.emplace_back(n);
+    }
+    return static_cast<int>(cached_device_names.size());
+}
+
+const char* vioavr_device_name(int index) {
+    if (cached_device_names.empty()) vioavr_device_count();
+    if (index < 0 || index >= static_cast<int>(cached_device_names.size())) return nullptr;
+    return cached_device_names[index].c_str();
+}
+
+// =========================================================================
 // Internal helpers
 // =========================================================================
 
@@ -125,6 +146,11 @@ VioAvrError vioavr_step_duration(VioSpiceHandle handle, double seconds) {
     if (!spice) return VIOAVR_ERR_NULL_HANDLE;
     spice->step_duration(seconds);
     return VIOAVR_OK;
+}
+
+void vioavr_set_frequency(VioSpiceHandle handle, double hz) {
+    auto* spice = to_spice(handle);
+    if (spice) spice->set_frequency(hz);
 }
 
 void vioavr_tick_timer2_async(VioSpiceHandle handle, uint64_t ticks) {

@@ -62,6 +62,13 @@ VioAvrError vioavr_load_hex_data(VioSpiceHandle handle, const char* hex_data, si
 void vioavr_reset(VioSpiceHandle handle);
 
 // =========================================================================
+// Device catalog
+// =========================================================================
+
+int vioavr_device_count(void);
+const char* vioavr_device_name(int index);
+
+// =========================================================================
 // Error inspection
 // =========================================================================
 
@@ -74,6 +81,7 @@ const char* vioavr_get_last_error(VioSpiceHandle handle);
 
 void vioavr_set_quantum(VioSpiceHandle handle, uint64_t cycles);
 VioAvrError vioavr_step_duration(VioSpiceHandle handle, double seconds);
+void vioavr_set_frequency(VioSpiceHandle handle, double hz);
 void vioavr_tick_timer2_async(VioSpiceHandle handle, uint64_t ticks);
 #ifdef VIOAVR_HAVE_JIT
 void vioavr_enable_jit(VioSpiceHandle handle, bool enabled);
