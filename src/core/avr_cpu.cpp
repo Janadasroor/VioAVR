@@ -255,6 +255,13 @@ void AvrCpu::run(const u64 cycle_budget)
 
                 jit_->execute(program_counter_, &jit_state);
 
+                // If reset triggered (e.g. WDT reset) during JIT block execution,
+                // do not overwrite the clean reset state with pre-reset jit_state.
+                if (__builtin_expect(reset_triggered_, 0)) {
+                    pending_cycles = 0;
+                    break;
+                }
+
                 std::copy(jit_state.gpr, jit_state.gpr + 32, gpr_.begin());
                 program_counter_ = jit_state.pc;
                 stack_pointer_ = jit_state.sp;
@@ -267,10 +274,6 @@ void AvrCpu::run(const u64 cycle_budget)
                 instructions_executed_ = jit_state.instructions_executed;
 
                 if (bus_ != nullptr) {
-                    if (__builtin_expect(reset_triggered_, 0)) {
-                        pending_cycles = 0;
-                        break;
-                    }
                     if (bus_->has_pending_pin_changes())
                         publish_pending_pin_changes();
                 }
