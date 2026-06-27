@@ -304,7 +304,7 @@ inline constexpr DeviceDescriptor atmega16u4 {
             .com_vector_index = 11U,
             .pllcsr_address = 0x49U,
             .usbcon_usbe_mask = 0x80U, .usbcon_frzclk_mask = 0x20U,
-            .udint_sofi_mask = 0x4U,
+            .udint_sofi_mask = 0x8U,
             .pr_address = 101, .pr_bit = 7
         } }},
 

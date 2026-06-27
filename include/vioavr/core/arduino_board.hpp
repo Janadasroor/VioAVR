@@ -348,7 +348,7 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         1024, 8192,
         13, 6, true,
         kUnoPins,
-        "cpu=16MHzatmega8",
+        "cpu=atmega8",
         "atmega8/ATmegaBOOT-prod-firmware-2009-11-07.hex"
     },
     {
@@ -359,7 +359,7 @@ inline constexpr ArduinoBoard kArduinoBoards[] = {
         1024, 16384,
         13, 6, true,
         kUnoPins,
-        "cpu=16MHzatmega168",
+        "cpu=atmega168",
         "atmega/ATmegaBOOT_168_ng.hex"
     },
     {

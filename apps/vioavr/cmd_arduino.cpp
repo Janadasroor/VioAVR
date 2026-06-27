@@ -59,6 +59,20 @@ std::string find_arduino_cli() {
     for (auto* path : candidates) {
         if (fs::exists(path)) return path;
     }
+    // Also check via `which arduino-cli` for globally installed versions
+    {
+        std::array<char, 1024> buf;
+        std::unique_ptr<FILE, decltype(&pclose)> pipe(popen("which arduino-cli 2>/dev/null", "r"), pclose);
+        if (pipe && fgets(buf.data(), buf.size(), pipe.get()) != nullptr) {
+            std::string result(buf.data());
+            if (!result.empty()) {
+                // Trim trailing newline
+                while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
+                    result.pop_back();
+                if (fs::exists(result)) return result;
+            }
+        }
+    }
     const char* path_env = std::getenv("PATH");
     if (path_env) {
         std::string paths(path_env);
@@ -497,12 +511,21 @@ CompileResult compile_sketch(const fs::path& sketch_path, const std::string& fqb
     std::string compile_out = run_cmd(compile_cmd.str());
     std::cout << compile_out;
 
+    // Prefer standard sketch .hex over with_bootloader version because boards
+    // like megaAVR compile with_bootloader as only the bootloader without sketch,
+    // and we merge bootloader dynamically inside VioAVR anyway.
+    fs::path hex;
+    fs::path with_bl_hex;
     for (auto& entry : fs::directory_iterator(build_dir)) {
         if (entry.path().extension() == ".hex") {
-            result.hex_file = entry.path();
-            break;
+            if (entry.path().string().find("with_bootloader") != std::string::npos) {
+                with_bl_hex = entry.path();
+            } else {
+                hex = entry.path();
+            }
         }
     }
+    result.hex_file = !hex.empty() ? hex : with_bl_hex;
 
     if (result.hex_file.empty()) {
         std::cerr << Terminal::fg(Terminal::Color::red) << "Error: "
@@ -638,17 +661,7 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     std::cout << Terminal::fg(Terminal::Color::green) << "Running "
               << hex_file.filename().string() << Terminal::reset_all() << "\n";
 
-    u64 max_cycles = 1'000'000;
-    auto cycles_it = options.find("max-cycles");
-    if (cycles_it != options.end()) {
-        char suffix = 0;
-        unsigned long long tmp = 0;
-        if (std::sscanf(cycles_it->second.c_str(), "%llu%c", &tmp, &suffix) >= 1) {
-            max_cycles = static_cast<u64>(tmp);
-            if (suffix == 'k' || suffix == 'K') max_cycles *= 1000ULL;
-            else if (suffix == 'm' || suffix == 'M') max_cycles *= 1'000'000ULL;
-        }
-    }
+    // (max_cycles is computed after use_bootloader is parsed below)
 
     bool show_state = options.find("show-state") != options.end();
 
@@ -673,6 +686,19 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
     // Parse --bootloader flag
     auto bootloader_it = options.find("bootloader");
     bool use_bootloader = bootloader_it != options.end();
+
+    // Bootloader mode needs many more cycles for USB enumeration + AVR109 flash programming.
+    u64 max_cycles = use_bootloader ? 50'000'000ULL : 1'000'000ULL;
+    auto cycles_it = options.find("max-cycles");
+    if (cycles_it != options.end()) {
+        char suffix = 0;
+        unsigned long long tmp = 0;
+        if (std::sscanf(cycles_it->second.c_str(), "%llu%c", &tmp, &suffix) >= 1) {
+            max_cycles = static_cast<u64>(tmp);
+            if (suffix == 'k' || suffix == 'K') max_cycles *= 1000ULL;
+            else if (suffix == 'm' || suffix == 'M') max_cycles *= 1'000'000ULL;
+        }
+    }
 
     std::vector<uint8_t> sketch_bytes;
 
@@ -715,10 +741,11 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                     sketch_bytes.push_back(static_cast<uint8_t>((w >> 8U) & 0xFFU));
                 }
 
-                // Overlay bootloader hex at its natural addresses.
-                // We use write_program_word for each non-zero word so that
-                // the bootloader section (e.g. 0x3800) is programmed without
-                // zero-padding from the hex overwriting the user app.
+                // The Caterina-Leonardo.hex is a COMBINED image containing both
+                // the USB bootloader application (at 0x0000) and bootloader code (at 0x7000+).
+                // It is NOT a traditional boot section bootloader - it runs entirely from
+                // the application section. We load the ENTIRE hex as-is.
+                // The user sketch will be overlaid on top at address 0.
                 auto boot_image = HexImageLoader::load_file(bootloader_path.string(), dev);
                 for (u32 wi = 0; wi < boot_image.flash_words.size(); ++wi) {
                     if (boot_image.flash_words[wi] != 0) {
@@ -727,12 +754,9 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                 }
 
                 // Reset with external cause so bootloader sees EXTRF and enters programming mode.
-                // If --serial is not used, the bootloader will timeout and jump to the app.
+                // Caterina-Leonardo.hex runs from application section (PC=0), not boot section.
                 machine->reset(ResetCause::external);
-
-                if (dev.boot_start_address != 0) {
-                    cpu.set_program_counter(dev.boot_start_address);
-                }
+                // PC stays at 0 (application entry point)
             } else {
                 auto image = HexImageLoader::load_file(hex_file.string(), dev);
                 bus.load_image(image);
@@ -896,7 +920,16 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         }
     }
 
-    while (cpu.state() == CpuState::running && cpu.cycles() < max_cycles) {
+    while (cpu.cycles() < max_cycles) {
+        // In bootloader mode, keep running until USB host simulation completes or max_cycles.
+        // The CPU may temporarily enter sleep (WFE) waiting for USB interrupts during
+        // enumeration. Don't exit early — the USB host simulation injects events that wake it.
+        // If CPU is halted (due to exit, crash, or JIT halt), exit early to avoid
+        // looping forever at 100% CPU when cycles are no longer advancing.
+        if (cpu.state() == CpuState::halted)
+            break;
+        if (!use_bootloader && cpu.state() != CpuState::running)
+            break;
         u64 chunk = kSerialPollInterval;
         if (!serial_uart && !usb_host) chunk = max_cycles;
         cpu.run(chunk);
@@ -910,6 +943,17 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
         // Run USB host simulation (enumeration + AVR109 protocol)
         if (usb_host && usb_connect_injected) {
             usb_host->tick(cpu.cycles());
+            if (usb_host->is_done()) {
+                std::cout << Terminal::fg(Terminal::Color::green)
+                          << "Bootloader: USB AVR109 programming complete after "
+                          << std::dec << cpu.cycles() << " cycles."
+                          << Terminal::reset_all() << "\n";
+                // Give the bootloader a moment to execute the watchdog reset / jump to app
+                max_cycles = cpu.cycles() + 50000;
+                // Null out usb_host so this block doesn't fire again on the next iteration
+                delete usb_host;
+                usb_host = nullptr;
+            }
         }
 
 #ifndef _WIN32
@@ -980,6 +1024,22 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                   << Terminal::reset_all() << state_str(cpu.state()) << Terminal::reset_all() << "\n";
         std::cout << Terminal::fg(Terminal::Color::bright_black) << "PC:     "
                   << Terminal::reset_all() << "0x" << std::hex << cpu.program_counter() << std::dec << "\n";
+        std::cout << Terminal::fg(Terminal::Color::bright_black) << "SREG:   "
+                  << Terminal::reset_all() << "0x" << std::hex << (int)cpu.sreg() << std::dec
+                  << " (I=" << ((cpu.sreg() & 0x80) ? "1" : "0") << ")\n";
+        std::cout << Terminal::fg(Terminal::Color::bright_black) << "SP:     "
+                  << Terminal::reset_all() << "0x" << std::hex << cpu.stack_pointer() << std::dec << "\n";
+
+        if (use_bootloader && bus.device().usb_count > 0) {
+            u8 original_uenum = bus.read_data(0xE9);
+            bus.write_data(0xE9, 0); // select EP0
+            u8 ueintx_ep0 = bus.read_data(0xE8);
+            bus.write_data(0xE9, original_uenum); // restore
+            std::cout << Terminal::fg(Terminal::Color::bright_black) << "USB UENUM: "
+                      << Terminal::reset_all() << "0x" << std::hex << (int)original_uenum << std::dec << "\n";
+            std::cout << Terminal::fg(Terminal::Color::bright_black) << "USB EP0:  "
+                      << Terminal::reset_all() << "0x" << std::hex << (int)ueintx_ep0 << std::dec << "\n";
+        }
 
         if (use_bootloader && usb_host && bus.device().usb_count > 0) {
             auto usb_state = [](UsbHostCaterina::State s) {
