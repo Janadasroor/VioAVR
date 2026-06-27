@@ -726,6 +726,14 @@ int cmd_arduino_run(const std::vector<std::string>& positional,
                 }
             }
 
+            if (use_bootloader && dev.boot_start_address == 0) {
+                std::cerr << Terminal::fg(Terminal::Color::yellow) << "Warning: "
+                          << Terminal::reset_all() << "MCU '" << dev.name 
+                          << "' does not support a separate hardware bootloader section (boot_start_address is 0).\n"
+                          << "         Running application directly at address 0 without bootloader.\n";
+                use_bootloader = false;
+            }
+
             if (use_bootloader) {
                 std::cout << Terminal::fg(Terminal::Color::bright_black)
                           << "Bootloader: " << bootloader_path.filename().string()
