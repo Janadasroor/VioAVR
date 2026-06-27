@@ -259,6 +259,7 @@ struct SimConfig {
     bool        jit_enabled;
     bool        hc05_enabled;
     double      adc_voltage;
+    double      frequency;
     int         num_chips;
     const char* data_hex;  /* hex-encoded Bluetooth data to inject, or NULL */
     const char* pty_path;  /* PTY device path for live injection, or NULL */
@@ -277,6 +278,7 @@ static int parse_sim_args(struct co_info* info, struct SimConfig* cfg)
     cfg->jit_enabled = true;
     cfg->hc05_enabled = false;
     cfg->adc_voltage = -1.0;
+    cfg->frequency = 16000000.0;
     cfg->num_chips = 0;
     cfg->data_hex = NULL;
     cfg->pty_path = NULL;
@@ -308,6 +310,7 @@ static int parse_sim_args(struct co_info* info, struct SimConfig* cfg)
             if (strncmp(a, "data=", 5) == 0) { flags++; continue; }
             if (strncmp(a, "inject_at=", 10) == 0) { flags++; continue; }
             if (strncmp(a, "pty_", 4) == 0) { flags++; continue; }
+            if (strncmp(a, "freq=", 5) == 0) { flags++; continue; }
             break;
         }
         int possible = (argc - flags) / 2;
@@ -338,6 +341,9 @@ static int parse_sim_args(struct co_info* info, struct SimConfig* cfg)
                             cfg->inject_args[cfg->inject_count++] = a + 10;
                     } else if (strncmp(a, "pty_", 4) == 0) {
                         cfg->pty_path = a + 4;
+                    } else if (strncmp(a, "freq=", 5) == 0) {
+                        double f = atof(a + 5);
+                        if (f > 0.0) cfg->frequency = f;
                     } else {
                         double v = atof(a);
                         if (v >= 0.0 && v <= 5.0) cfg->adc_voltage = v;
@@ -464,6 +470,14 @@ void Cosim_setup(struct co_info* info)
 
     if (cfg.adc_voltage >= 0.0 && multi->chips[0].avr) {
         vioavr_set_external_voltage(multi->chips[0].avr, 0, cfg.adc_voltage);
+    }
+
+    if (cfg.frequency != 16000000.0) {
+        for (int c = 0; c < multi->num_chips; c++) {
+            if (multi->chips[c].avr)
+                vioavr_set_frequency(multi->chips[c].avr, cfg.frequency);
+        }
+        fprintf(stderr, "[COSIM] Clock frequency set to %.0f Hz\n", cfg.frequency);
     }
 
     multi->inject_count = 0;
