@@ -1,0 +1,2 @@
+codemodel ./viospice.cm
+codemodel ./avr_adc_bridge.cm
