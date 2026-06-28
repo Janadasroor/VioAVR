@@ -127,7 +127,7 @@ static void shim_step(struct co_info* info)
         if (delta > 0) {
             chip->last_vtime = info->vtime;
             chip->accumulated_time += delta;
-            const double min_step = 1.0e-7;
+            const double min_step = 1.0e-6;
             if (chip->accumulated_time >= min_step) {
                 vioavr_step_duration(chip->avr, chip->accumulated_time);
                 chip->accumulated_time = 0.0;
