@@ -69,6 +69,30 @@ int vioavr_device_count(void);
 const char* vioavr_device_name(int index);
 
 // =========================================================================
+// Arduino board catalog
+// =========================================================================
+
+typedef struct {
+    uint8_t arduino_pin;
+    char port;
+    uint8_t bit;
+    char label[32];
+    uint8_t supports_pwm;
+    uint8_t supports_interrupt;
+    int8_t analog_channel;
+} VioAvrBoardPin;
+
+int vioavr_board_count(void);
+const char* vioavr_board_name(int index);
+const char* vioavr_board_mcu(int index);
+uint32_t vioavr_board_clock(int index);
+int vioavr_board_pin_count(int index);
+VioAvrBoardPin vioavr_board_pin(int board_index, int pin_index);
+int vioavr_board_full_pin_count(int board_index);
+VioAvrBoardPin vioavr_board_full_pin(int board_index, int pin_index);
+const char* vioavr_board_fqbn(int index);
+
+// =========================================================================
 // Error inspection
 // =========================================================================
 

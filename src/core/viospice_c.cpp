@@ -41,6 +41,117 @@ const char* vioavr_device_name(int index) {
 }
 
 // =========================================================================
+// Arduino board catalog
+// =========================================================================
+
+#include "vioavr/core/arduino_board.hpp"
+
+int vioavr_board_count(void) {
+    return static_cast<int>(sizeof(kArduinoBoards) / sizeof(kArduinoBoards[0]));
+}
+
+const char* vioavr_board_name(int index) {
+    if (index < 0 || index >= static_cast<int>(sizeof(kArduinoBoards)/sizeof(kArduinoBoards[0]))) return nullptr;
+    return kArduinoBoards[index].name.data();
+}
+
+const char* vioavr_board_mcu(int index) {
+    if (index < 0 || index >= static_cast<int>(sizeof(kArduinoBoards)/sizeof(kArduinoBoards[0]))) return nullptr;
+    return kArduinoBoards[index].mcu.data();
+}
+
+uint32_t vioavr_board_clock(int index) {
+    if (index < 0 || index >= static_cast<int>(sizeof(kArduinoBoards)/sizeof(kArduinoBoards[0]))) return 0;
+    return kArduinoBoards[index].f_cpu;
+}
+
+int vioavr_board_pin_count(int index) {
+    if (index < 0 || index >= static_cast<int>(sizeof(kArduinoBoards)/sizeof(kArduinoBoards[0]))) return 0;
+    return static_cast<int>(kArduinoBoards[index].important_pins.size());
+}
+
+VioAvrBoardPin vioavr_board_pin(int board_index, int pin_index) {
+    VioAvrBoardPin result = {};
+    if (board_index < 0 || board_index >= static_cast<int>(sizeof(kArduinoBoards)/sizeof(kArduinoBoards[0]))) return result;
+    const auto& board = kArduinoBoards[board_index];
+    if (pin_index < 0 || pin_index >= static_cast<int>(sizeof(board.important_pins)/sizeof(board.important_pins[0]))) return result;
+    const auto& pin = board.important_pins[pin_index];
+    result.arduino_pin = pin.arduino_pin;
+    result.port = pin.port;
+    result.bit = pin.bit;
+    size_t len = std::min(pin.label.size(), sizeof(result.label) - 1);
+    std::memcpy(result.label, pin.label.data(), len);
+    result.label[len] = '\0';
+    result.supports_pwm = 0;
+    result.supports_interrupt = 0;
+    result.analog_channel = -1;
+    return result;
+}
+
+const char* vioavr_board_fqbn(int index) {
+    if (index < 0 || index >= static_cast<int>(sizeof(kArduinoBoards) / sizeof(kArduinoBoards[0]))) return nullptr;
+    return kArduinoBoards[index].fqbn.data();
+}
+
+// Full pin mapping for boards with k*FullPins arrays
+static const ArduinoPin* get_full_pins(int board_index, int& count) {
+    count = 0;
+    if (board_index < 0 || board_index >= static_cast<int>(sizeof(kArduinoBoards) / sizeof(kArduinoBoards[0]))) return nullptr;
+    const auto& board = kArduinoBoards[board_index];
+    // Match by board name to select the right full pin array
+    if (board.name == "Uno" || board.name == "Nano" || board.name == "Pro Mini 16MHz" ||
+        board.name == "Pro Mini 8MHz" || board.name == "Mini" || board.name == "Ethernet" ||
+        board.name == "Duemilanove" || board.name == "Fio" || board.name == "LilyPad" ||
+        board.name == "Gemma" || board.name == "BT" || board.name == "UNO Mini" ||
+        board.name == "UNO WiFi") {
+        count = sizeof(kUnoFullPins) / sizeof(kUnoFullPins[0]);
+        return kUnoFullPins;
+    }
+    if (board.name == "Mega 2560" || board.name == "Mega ADK") {
+        count = sizeof(kMegaFullPins) / sizeof(kMegaFullPins[0]);
+        return kMegaFullPins;
+    }
+    if (board.name == "Leonardo" || board.name == "Micro" || board.name == "LilyPad USB" ||
+        board.name == "Esplora" || board.name == "Yun" || board.name == "Robot Control" ||
+        board.name == "Robot Motor" || board.name == "Industrial 101" || board.name == "Leonardo ETH" ||
+        board.name == "Yun Mini" || board.name == "Linino One" || board.name == "Circuit Playground") {
+        count = sizeof(kLeonardoFullPins) / sizeof(kLeonardoFullPins[0]);
+        return kLeonardoFullPins;
+    }
+    if (board.name == "Nano Every" || board.name == "UNO WiFi Rev2") {
+        count = sizeof(kNanoEveryFullPins) / sizeof(kNanoEveryFullPins[0]);
+        return kNanoEveryFullPins;
+    }
+    return nullptr;
+}
+
+int vioavr_board_full_pin_count(int board_index) {
+    int count = 0;
+    get_full_pins(board_index, count);
+    return count;
+}
+
+VioAvrBoardPin vioavr_board_full_pin(int board_index, int pin_index) {
+    VioAvrBoardPin result = {};
+    int count = 0;
+    const ArduinoPin* pins = get_full_pins(board_index, count);
+    if (!pins || pin_index < 0 || pin_index >= count) return result;
+    const auto& pin = pins[pin_index];
+    result.arduino_pin = pin.arduino_pin;
+    result.port = pin.port;
+    result.bit = pin.bit;
+    size_t len = std::min(pin.label.size(), sizeof(result.label) - 1);
+    std::memcpy(result.label, pin.label.data(), len);
+    result.label[len] = '\0';
+    result.supports_pwm = 0;
+    result.supports_interrupt = 0;
+    result.analog_channel = -1;
+    return result;
+}
+
+// =========================================================================
+// Internal helpers
+// =========================================================================
 // Internal helpers
 // =========================================================================
 
