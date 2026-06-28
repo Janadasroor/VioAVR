@@ -99,15 +99,15 @@ static const ArduinoPin* get_full_pins(int board_index, int& count) {
     if (board_index < 0 || board_index >= static_cast<int>(sizeof(kArduinoBoards) / sizeof(kArduinoBoards[0]))) return nullptr;
     const auto& board = kArduinoBoards[board_index];
     // Match by board name to select the right full pin array
-    if (board.name == "Uno" || board.name == "Nano" || board.name == "Pro Mini 16MHz" ||
-        board.name == "Pro Mini 8MHz" || board.name == "Mini" || board.name == "Ethernet" ||
+    if (board.name == "Uno" || board.name == "Nano" || board.name == "Pro Mini 16V" ||
+        board.name == "Pro Mini 8V" || board.name == "Mini" || board.name == "Ethernet" ||
         board.name == "Duemilanove" || board.name == "Fio" || board.name == "LilyPad" ||
         board.name == "Gemma" || board.name == "BT" || board.name == "UNO Mini" ||
-        board.name == "UNO WiFi") {
+        board.name == "UNO WiFi" || board.name == "NG (ATmega8)" || board.name == "NG (ATmega168)") {
         count = sizeof(kUnoFullPins) / sizeof(kUnoFullPins[0]);
         return kUnoFullPins;
     }
-    if (board.name == "Mega 2560" || board.name == "Mega ADK") {
+    if (board.name == "Mega2560" || board.name == "Mega ADK") {
         count = sizeof(kMegaFullPins) / sizeof(kMegaFullPins[0]);
         return kMegaFullPins;
     }
@@ -118,7 +118,7 @@ static const ArduinoPin* get_full_pins(int board_index, int& count) {
         count = sizeof(kLeonardoFullPins) / sizeof(kLeonardoFullPins[0]);
         return kLeonardoFullPins;
     }
-    if (board.name == "Nano Every" || board.name == "UNO WiFi Rev2") {
+    if (board.name == "Nano Every" || board.name == "Uno WiFi Rev2") {
         count = sizeof(kNanoEveryFullPins) / sizeof(kNanoEveryFullPins[0]);
         return kNanoEveryFullPins;
     }
