@@ -171,14 +171,16 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
     } else {
         entry.last_claims_for_owner_ = entry.active_claims;
         u8 highest_prio = 0;
-        for (u8 i = 0; i < 32; ++i) {
-            if (entry.active_claims & (1U << i)) {
-                PinOwner owner = static_cast<PinOwner>(i);
-                u8 prio = get_pin_priority(owner);
-                if (prio >= highest_prio) {
-                    highest_prio = prio;
-                    highest_owner = owner;
-                }
+        highest_owner = PinOwner::gpio;
+        u32 claims = entry.active_claims;
+        while (claims) {
+            const int bit = __builtin_ctz(claims);
+            claims &= claims - 1;
+            const PinOwner owner = static_cast<PinOwner>(bit);
+            const u8 prio = get_pin_priority(owner);
+            if (prio >= highest_prio) {
+                highest_prio = prio;
+                highest_owner = owner;
             }
         }
         entry.cached_owner_ = static_cast<u8>(highest_owner);
@@ -201,9 +203,12 @@ void PinMux::reevaluate_ownership(u8 port_idx, u8 bit_idx) noexcept
             // Fall back to the highest-priority non-wired-and claimant's
             // drive level (usually GPIO reflecting actual pin voltage).
             bool found = false;
-            for (u8 i = 0; i < 32; ++i) {
-                if ((entry.active_claims & (1U << i)) && !(entry.wired_and_mask & (1U << i))) {
-                    entry.state.drive_level = (entry.drive_levels & (1U << i)) != 0;
+            u32 claims = entry.active_claims;
+            while (claims) {
+                const int bit = __builtin_ctz(claims);
+                claims &= claims - 1;
+                if (!(entry.wired_and_mask & (1U << bit))) {
+                    entry.state.drive_level = (entry.drive_levels & (1U << bit)) != 0;
                     found = true;
                     break;
                 }

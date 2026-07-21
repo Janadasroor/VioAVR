@@ -287,7 +287,6 @@ namespace vioavr::core {
 
 inline u8 MemoryBus::read_data(const u16 address) noexcept
 {
-    catch_up_all_peripherals(cpu_cycles());
     // 1. Unified Memory Map aliases (AVR8X)
     if (device_.mapped_flash.size > 0 && 
         address >= device_.mapped_flash.data_start && 
@@ -326,6 +325,15 @@ inline u8 MemoryBus::read_data(const u16 address) noexcept
 
     // 2. High-performance path for Registers/Peripherals
     if (IoPeripheral* peripheral = dispatch_table_[address]; peripheral != nullptr) {
+        const u64 now = scheduler_.current_cycle();
+        const u64 start = peripheral->last_update_cycle_;
+        if (start < now) {
+            peripheral->last_update_cycle_ = now;
+            const u8 domain_bit = static_cast<u8>(peripheral->clock_domain());
+            if (domain_bit == 0U || (current_active_domains_ & domain_bit) != 0U) {
+                peripheral->tick(now - start);
+            }
+        }
         return peripheral->read(address);
     }
 
@@ -362,7 +370,6 @@ inline u8 MemoryBus::read_data(const u16 address) noexcept
 
 inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
 {
-    catch_up_all_peripherals(cpu_cycles());
     // 1. Update Unified Memory Map aliases (Shadow Buffers for NVM commands)
     if (device_.mapped_flash.size > 0 && 
         address >= device_.mapped_flash.data_start && 
@@ -417,13 +424,23 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
     const bool is_prr_write = ((device_.prr_address != 0U && address == device_.prr_address) ||
                                (device_.prr0_address != 0U && address == device_.prr0_address) ||
                                (device_.prr1_address != 0U && address == device_.prr1_address));
+
     if (is_prr_write) {
+        // 1. Sync with OLD PRR value — consumes elapsed correctly (PR-enable skips advancement)
         for (IoPeripheral* p : peripherals_) {
-            if (p != nullptr) {
-                p->sync();
-                p->on_power_state_change();
-            }
+            if (p != nullptr) p->sync();
         }
+        // 2. Write the new PRR value
+        if (IoPeripheral* peripheral = dispatch_table_[address]; peripheral != nullptr) {
+            peripheral->write(address, value);
+        } else if (address < data_.size()) {
+            data_[address] = value;
+        }
+        // 3. Notify with NEW PRR value
+        for (IoPeripheral* p : peripherals_) {
+            if (p != nullptr) p->on_power_state_change();
+        }
+        return;
     }
 
     // 2. High-performance path for Registers/Peripherals

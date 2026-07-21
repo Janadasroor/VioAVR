@@ -265,6 +265,7 @@ private:
     void dispatch_instruction(const DecodedInstruction& instruction);
     void decode_and_execute(const DecodedInstruction& instruction);
     inline void advance_cycles(u64 delta_cycles);
+    inline void advance_cycles(u64 delta_cycles, u8 domains);
     void synchronize_if_needed();
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();
@@ -481,12 +482,12 @@ inline void AvrCpu::write_register(const u8 index, const u8 value) noexcept
     }
 }
 
-inline void AvrCpu::advance_cycles(const u64 delta_cycles)
+inline void AvrCpu::advance_cycles(const u64 delta_cycles, const u8 domains)
 {
     cycles_ += delta_cycles;
     if (bus_ != nullptr) {
-        bus_->tick_peripherals(delta_cycles, active_clock_domains());
-        if (bus_->has_pending_pin_changes()) {
+        bus_->tick_peripherals(delta_cycles, domains);
+        if (__builtin_expect(bus_->has_pending_pin_changes(), 0)) {
             publish_pending_pin_changes();
         }
     }
@@ -497,6 +498,11 @@ inline void AvrCpu::advance_cycles(const u64 delta_cycles)
         sync_engine_->on_cycles_advanced(cycles_, delta_cycles);
     }
     refresh_interrupt_pending();
+}
+
+inline void AvrCpu::advance_cycles(const u64 delta_cycles)
+{
+    advance_cycles(delta_cycles, active_clock_domains());
 }
 
 inline u8 AvrCpu::read_data_bus(const u16 address) noexcept
