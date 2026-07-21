@@ -1,76 +1,27 @@
-export function calculateOrthogonalPoints(p1, p2, orientation = 'h', type = 'hv') {
-  const points = [p1];
-  
-  if (type === 'hv') {
-    if (orientation === 'h') {
-      points.push({ x: p2.x, y: p1.y });
-    } else {
-      points.push({ x: p1.x, y: p2.y });
-    }
-  } else if (type === 'hvh') {
-    const midX = (p1.x + p2.x) / 2;
-    points.push({ x: midX, y: p1.y });
-    points.push({ x: midX, y: p2.y });
-  } else if (type === 'vhv') {
-    const midY = (p1.y + p2.y) / 2;
-    points.push({ x: p1.x, y: midY });
-    points.push({ x: p2.x, y: midY });
-  }
-
-  points.push(p2);
-  return points;
+export function calculateOrthogonalPoints(p1,p2,orientation='h'){
+  const pts=[p1];
+  if(orientation==='h') pts.push({x:p2.x,y:p1.y}); else pts.push({x:p1.x,y:p2.y});
+  pts.push(p2); return pts;
 }
-
-export function simplifyPath(points) {
-  if (points.length < 3) return points;
-  const result = [points[0]];
-  
-  for (let i = 1; i < points.length - 1; i++) {
-    const prev = result[result.length - 1];
-    const curr = points[i];
-    const next = points[i + 1];
-    
-    // Remove collinear points
-    const isCollinearX = (Math.abs(prev.x - curr.x) < 0.1 && Math.abs(curr.x - next.x) < 0.1);
-    const isCollinearY = (Math.abs(prev.y - curr.y) < 0.1 && Math.abs(curr.y - next.y) < 0.1);
-    
-    // Remove coincident points
-    const isCoincident = (Math.abs(prev.x - curr.x) < 0.1 && Math.abs(prev.y - curr.y) < 0.1);
-
-    if (!isCollinearX && !isCollinearY && !isCoincident) {
-      result.push(curr);
-    }
+export function simplifyPath(points){
+  if(points.length<3) return points;
+  const out=[points[0]];
+  for(let i=1;i<points.length-1;i++){
+    const a=out[out.length-1],b=points[i],c=points[i+1];
+    const colX=Math.abs(a.x-b.x)<.1&&Math.abs(b.x-c.x)<.1;
+    const colY=Math.abs(a.y-b.y)<.1&&Math.abs(b.y-c.y)<.1;
+    const same=Math.abs(a.x-b.x)<.1&&Math.abs(a.y-b.y)<.1;
+    if(!colX&&!colY&&!same) out.push(b);
   }
-  
-  result.push(points[points.length - 1]);
-  return result;
+  out.push(points[points.length-1]); return out;
 }
-
-export function getClosestSegmentIndex(mx, my, points) {
-  let closestIdx = -1;
-  let minDistance = Infinity;
-
-  for (let i = 0; i < points.length - 1; i++) {
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    
-    const xMin = Math.min(p1.x, p2.x) - 10;
-    const xMax = Math.max(p1.x, p2.x) + 10;
-    const yMin = Math.min(p1.y, p2.y) - 10;
-    const yMax = Math.max(p1.y, p2.y) + 10;
-    
-    if (mx >= xMin && mx <= xMax && my >= yMin && my <= yMax) {
-      let dist;
-      if (Math.abs(p1.x - p2.x) < 0.1) {
-        dist = Math.abs(mx - p1.x);
-      } else {
-        dist = Math.abs(my - p1.y);
-      }
-      if (dist < minDistance && dist < 15) {
-        minDistance = dist;
-        closestIdx = i;
-      }
-    }
+export function getClosestSegmentIndex(mx,my,points){
+  let idx=-1,best=Infinity;
+  for(let i=0;i<points.length-1;i++){
+    const p1=points[i],p2=points[i+1];
+    if(mx<Math.min(p1.x,p2.x)-10||mx>Math.max(p1.x,p2.x)+10||my<Math.min(p1.y,p2.y)-10||my>Math.max(p1.y,p2.y)+10) continue;
+    const d=Math.abs(p1.x-p2.x)<.1?Math.abs(mx-p1.x):Math.abs(my-p1.y);
+    if(d<best&&d<15){best=d;idx=i;}
   }
-  return closestIdx;
+  return idx;
 }

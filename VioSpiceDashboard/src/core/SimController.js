@@ -1,135 +1,73 @@
-import { NetworkClient } from './NetworkClient.js';
+import { $, Emitter } from "./Utils.js";
 
-/**
- * SimController.js
- * Manages simulation state (run/pause/reset) and interfaces
- * with the hardware-backed VioSpice Gateway.
- */
-export class SimController {
-  constructor() {
-    this.client = null;
-    this.isRunning = false;
-    
-    // Telemetry storage
-    this.telemetry = {
-      pc: 0,
-      sp: 0,
-      sreg: 0,
-      cycles: 0,
-      gprs: new Array(32).fill(0),
-      digital_outputs: new Array(128).fill(0)
-    };
-
-    // Logic Analyzer Buffer (last 100 samples for 8 channels)
-    this.logicHistory = Array.from({ length: 8 }, () => new Array(100).fill(0));
-    this.eusartHistory = [];
-    this.dacHistory = new Array(50).fill(0.5); // Default to mid-range
+export class SimController extends Emitter {
+  constructor(){ super();
+    this.isRunning=false; this.mode='connecting';
+    this._bridgeAlive=true;
+    this.telemetry={ pc:0,sp:0x08ff,sreg:0,cycles:0,gprs:new Array(32).fill(0),
+                     digital_outputs:new Array(128).fill(0),flags:0 };
+    this._lcd=null; this._dac={voltage:0.5}; this._eu=null;
   }
-
-  init(client) {
-    this.client = client;
-    this._setupListeners();
-  }
-
-  // ─── Public API ────────────────────────────────────────────────────────────
-
-  toggle() {
-    this.isRunning ? this.pause() : this.run();
-  }
-
-  run() {
-    this.isRunning = true;
-    this.client.send('run');
-    this.emit('stateChanged', { running: true });
-    this.emit('toast', { message: 'Simulation Running', type: 'success' });
-  }
-
-  pause() {
-    this.isRunning = false;
-    this.client.send('stop');
-    this.emit('stateChanged', { running: false });
-    this.emit('toast', { message: 'Simulation Paused', type: 'info' });
-  }
-
-  reset() {
-    this.client.send('reset');
-    this.emit('toast', { message: 'CPU Reset Triggered', type: 'warning' });
-  }
-
-  loadHex(path) {
-    this.client.send('load', { path });
-  }
-
-  exportTrace() {
-    this.client.send('vcd');
-    this.emit('toast', { message: 'VCD Tracing Toggled', type: 'info' });
-  }
-
-  async listHexFiles() {
-    if (!this.client) return [];
-    return new Promise((resolve) => {
-        const handler = (data) => {
-            if (data.type === 'hex_list') {
-                this.client.removeListener(handler);
-                resolve(data.files);
-            }
-        };
-        this.client.onMessage(handler);
-        this.client.send('list_hex');
-        setTimeout(() => {
-            this.client.removeListener(handler);
-            resolve([]);
-        }, 2000);
+  init(client,demo){
+    this.client=client; this.demo=demo;
+    client.on('status',({connected})=>{
+      if(connected){ demo.disconnect(); this.mode='gateway'; }
+      else{ demo.connect(); this.mode='demo'; }
+      this.emit('connectionChanged',{connected,mode:this.mode});
     });
+    client.on('message',d=>this._handle(d));
+    demo.on('telemetry',d=>this._handle(d));
   }
-
-  // ─── Event Handling ────────────────────────────────────────────────────────
-
-  _listeners = {};
-  on(event, fn) {
-    if (!this._listeners[event]) this._listeners[event] = [];
-    this._listeners[event].push(fn);
-  }
-  emit(event, data) {
-    (this._listeners[event] || []).forEach(fn => fn(data));
-  }
-
-  _setupListeners() {
-    if (!this.client) return;
-    this.client.on('status', ({ connected }) => {
-      this.emit('connectionChanged', { connected });
-    });
-
-    this.client.on('message', (data) => {
-      this._handleTelemetry(data);
-    });
-  }
-
-  _handleTelemetry(data) {
-    if (!data.cpu) return;
-
-    // Update internal state
-    this.telemetry.pc = data.cpu.pc;
-    this.telemetry.sp = data.cpu.sp;
-    this.telemetry.sreg = data.cpu.sreg;
-    this.telemetry.cycles = data.cpu.cycles;
-    this.telemetry.gprs = data.cpu.gprs;
-    this.telemetry.flags = data.cpu.flags || 0;
-    this.telemetry.digital_outputs = data.digital_outputs;
-
-    // Handle Analysis Freeze (Bit 1)
-    if (this.telemetry.flags & 0x02) {
-      this.pause();
-      this.emit('toast', { message: 'Hardware Event: Analysis Freeze Triggered', type: 'error' });
-      this.emit('analysisTriggered', { type: 'fault' });
+  _handle(data){
+    if(!data) return;
+    if(data.type==='error'){ this.emit('toast',{message:data.message||'Bridge error',type:'error'}); return; }
+    if(data.type==='bridge_status'){
+      this._bridgeAlive=data.alive;
+      if(!data.alive) this.emit('toast',{message:data.message||'Bridge unavailable — SHM daemon not running',type:'error'});
+      return;
     }
-
-    // Notify subscribers
-    this.emit('telemetry', {
-        ...this.telemetry,
-        lcd: data.lcd,
-        eusart: data.eusart,
-        dac: data.dac
-    });
+    if(!data.cpu) return;
+    const t=this.telemetry;
+    t.pc=data.cpu.pc; t.sp=data.cpu.sp; t.sreg=data.cpu.sreg; t.cycles=data.cpu.cycles;
+    t.gprs=data.cpu.gprs||t.gprs; t.flags=data.cpu.flags||0;
+    t.digital_outputs=data.digital_outputs||t.digital_outputs;
+    if(data.lcd) this._lcd=data.lcd;
+    if(data.dac) this._dac=data.dac;
+    if(data.eusart) this._eu=data.eusart;
+    if((t.flags&0x02)&&this.isRunning){
+      this.pause();
+      this.emit('analysisTriggered',{type:'fault'});
+      this.emit('toast',{message:'Hardware Event: Analysis Freeze Triggered',type:'error'});
+    }
+    this.emit('telemetry',{...t,lcd:this._lcd,dac:this._dac,eusart:this._eu,analog_outputs:data.analog_outputs});
+  }
+  toggle(){ this.isRunning?this.pause():this.run(); }
+  run(){
+    if(this.mode==='gateway'&&!this._bridgeAlive){
+      this.emit('toast',{message:'Cannot run — bridge daemon not running. Start ./build/vioavr-bridge-daemon',type:'error'});
+      return;
+    }
+    this.isRunning=true; this.demo.setRunning(true); this.client.send('run'); this.emit('stateChanged',{running:true});
+  }
+  pause(){ this.isRunning=false; this.demo.setRunning(false); this.client.send('stop'); this.emit('stateChanged',{running:false}); }
+  reset(){
+    if(this.mode==='gateway'&&!this._bridgeAlive){
+      this.emit('toast',{message:'Cannot reset — bridge daemon not running. Start ./build/vioavr-bridge-daemon',type:'error'});
+      return;
+    }
+    this.client.send('reset'); this.demo.cycles=0; this.emit('toast',{message:'CPU Reset Triggered',type:'warning'}); this.emit('reset');
+  }
+  loadHex(path){ this.client.send('load',{path}); this.emit('hexLoaded',{path}); this.emit('toast',{message:`Flashing ${path.split('/').pop()}…`,type:'info'}); }
+  exportTrace(){ this.client.send('vcd'); this.emit('toast',{message:'VCD Tracing Toggled',type:'info'}); }
+  injectFault(){ if(this.isRunning) this.pause(); this.emit('analysisTriggered',{type:'fault'}); this.emit('toast',{message:'Fault Injected: Analysis Freeze',type:'error'}); }
+  async listHexFiles(){
+    if(this.mode==='gateway'&&this.client.isConnected){
+      return new Promise(res=>{
+        const off=this.client.on('message',d=>{ if(d.type==='hex_list'){ off(); res(d.files||[]); } });
+        this.client.send('list_hex');
+        setTimeout(()=>{ off(); res([]); },1500);
+      });
+    }
+    return ['tests/blink.hex','tests/core/firmware/test.hex','tests/firmware/uart_test_compare.hex','tests/firmware/timer1_interrupt_compare.hex','tests/firmware/adc_pwm.hex'];
   }
 }

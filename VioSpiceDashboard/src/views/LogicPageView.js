@@ -1,117 +1,50 @@
-/**
- * LogicPageView.js
- * Manages the dedicated Logic Analyzer view.
- */
-export class LogicPageView {
-    constructor() {
-        this.container = document.getElementById('view-logic');
-        this.history = Array.from({ length: 8 }, () => new Array(200).fill(0));
-        this.canvas = null;
-        this.ctx = null;
-        this.isFrozen = false;
+import { $ } from "../core/Utils.js";
+import { fitCanvas } from "../core/CanvasUtils.js";
+
+export class LogicAnalyzerView {
+  init(){
+    const host=$('#view-logic');
+    host.innerHTML=`<div class="instrument-layout">
+      <div class="instrument-toolbar">
+        <div class="tb-group"><label>TIMEBASE</label><select><option>1 ms/div</option><option>5 ms/div</option><option>10 ms/div</option></select></div>
+        <div class="tb-group"><label>TRIGGER</label><select><option>CH0 Rising</option><option>CH0 Falling</option><option>None</option></select></div>
+        <button class="btn-action" id="la-single">Single</button>
+        <span class="tb-status" id="la-status">● RUNNING</span>
+      </div>
+      <div class="instrument-viewport" id="la-viewport"><canvas id="logic-page-canvas"></canvas></div>
+    </div>`;
+    this.canvas=$('#logic-page-canvas'); this.viewport=$('#la-viewport');
+    this.hist=Array.from({length:8},()=>new Array(240).fill(0));
+    this.frozen=false;
+    $('#la-single').onclick=()=>this.frozen?this.unfreeze():this.freeze(true);
+    window.addEventListener('resize',()=>this._draw(true));
+  }
+  onShow(){ this._draw(true); }
+  freeze(manual){ this.frozen=true; this.viewport.classList.add('frozen');
+    const s=$('#la-status'); s.textContent='■ FROZEN'; s.classList.add('frozen'); }
+  unfreeze(){ this.frozen=false; this.viewport.classList.remove('frozen');
+    const s=$('#la-status'); s.textContent='● RUNNING'; s.classList.remove('frozen'); }
+  update(pins){ if(!pins||this.frozen) return;
+    for(let i=0;i<8;i++){ this.hist[i].push(pins[i]===1?1:0); this.hist[i].shift(); }
+    this._draw(); }
+  _draw(force=false){
+    const r=this.viewport.getBoundingClientRect(); if(r.width<10)return;
+    if(force||!this.ctx){ const f=fitCanvas(this.canvas); this.ctx=f.ctx; this.w=f.w; this.h=f.h; }
+    const ctx=this.ctx,w=this.w,h=this.h; if(!ctx)return;
+    ctx.clearRect(0,0,w,h);
+    const ch=h/8, step=w/240;
+    ctx.strokeStyle='rgba(148,163,184,.06)';
+    for(let x=0;x<w;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(let i=0;i<8;i++){
+      const yB=(i+1)*ch-12;
+      ctx.strokeStyle='#22c55e'; ctx.lineWidth=1.6; ctx.shadowColor='rgba(34,197,94,.5)'; ctx.shadowBlur=4;
+      ctx.beginPath();
+      this.hist[i].forEach((v,xi)=>{ const x=xi*step,y=yB-v*(ch*.55);
+        if(xi&&this.hist[i][xi-1]!==v)ctx.lineTo(x,yB-this.hist[i][xi-1]*(ch*.55)),ctx.lineTo(x,y);
+        xi?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+      ctx.stroke(); ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(148,163,184,.6)'; ctx.font='9px JetBrains Mono';
+      ctx.fillText('CH'+i,8,yB-ch*.55-4);
     }
-
-    freeze() {
-        this.isFrozen = true;
-        this.container?.classList.add('logic-frozen');
-    }
-
-    unfreeze() {
-        this.isFrozen = false;
-        this.container?.classList.remove('logic-frozen');
-    }
-
-    init() {
-        if (!this.container) return;
-        this.container.innerHTML = `
-            <div class="logic-page-container">
-                <div class="logic-toolbar">
-                    <div class="toolbar-group">
-                        <span class="toolbar-label">Timebase</span>
-                        <select class="logic-select"><option>1ms/div</option><option>10ms/div</option></select>
-                    </div>
-                    <div class="toolbar-group">
-                        <span class="toolbar-label">Trigger</span>
-                        <select class="logic-select"><option>CH0 Rising</option><option>None</option></select>
-                    </div>
-                </div>
-                <div class="logic-viewport">
-                    <canvas id="logic-page-canvas"></canvas>
-                </div>
-            </div>`;
-        
-        this.canvas = document.getElementById('logic-page-canvas');
-        if (this.canvas) {
-            this.ctx = this.canvas.getContext('2d');
-            this._resize();
-            window.addEventListener('resize', () => this._resize());
-        }
-    }
-
-    _resize() {
-        if (!this.canvas) return;
-        const rect = this.canvas.parentElement.getBoundingClientRect();
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
-    }
-
-    update(pins) {
-        if (!pins || !this.ctx || this.isFrozen) return;
-
-        // Update history
-        for (let i = 0; i < 8; i++) {
-            this.history[i].push(pins[i] === 1 ? 1 : 0);
-            if (this.history[i].length > 200) this.history[i].shift();
-        }
-
-        this._render();
-    }
-
-    _render() {
-        const { width, height } = this.canvas;
-        const ctx = this.ctx;
-        ctx.clearRect(0, 0, width, height);
-
-        const chHeight = height / 8;
-        const step = width / 200;
-
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 2;
-
-        for (let i = 0; i < 8; i++) {
-            const yBase = (i + 1) * chHeight - 10;
-            const trace = this.history[i];
-
-            ctx.beginPath();
-            ctx.moveTo(0, trace[0] ? yBase - 30 : yBase);
-
-            trace.forEach((val, xIdx) => {
-                const x = xIdx * step;
-                const y = val ? yBase - 30 : yBase;
-                
-                if (xIdx > 0 && val !== trace[xIdx - 1]) {
-                    ctx.lineTo(x, trace[xIdx - 1] ? yBase - 30 : yBase);
-                    ctx.lineTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            });
-            ctx.stroke();
-
-            // Label
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.font = '10px JetBrains Mono';
-            ctx.fillText(`CH${i}`, 10, yBase - 35);
-        }
-
-        // Grid lines
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-        ctx.lineWidth = 1;
-        for (let x = 0; x < width; x += 50) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-        }
-    }
+  }
 }

@@ -1,88 +1,28 @@
-/**
- * ERCManager.js
- * Performs Electrical Rules Check (ERC) on the schematic.
- * Returns a list of warnings and errors.
- */
+import { getComponent } from "../schematic/ComponentLibrary.js";
 
-import { getComponent } from '../schematic/ComponentLibrary.js';
-
-export class ERCManager {
-  static check(chips, wires) {
-    const issues = [];
-
-    // 1. Connectivity Map
-    const pinConnections = new Map(); // pinElement -> [wires]
-    
-    wires.forEach(w => {
-      const s = w.startPin;
-      const e = w.endPin;
-      if (s) {
-        if (!pinConnections.has(s)) pinConnections.set(s, []);
-        pinConnections.get(s).push(w);
-      }
-      if (e) {
-        if (!pinConnections.has(e)) pinConnections.set(e, []);
-        pinConnections.get(e).push(w);
-      }
+export const ERCManager = {
+  check(chips,wires){
+    const issues=[];
+    const conn=new Map();
+    wires.forEach(w=>{ [w.startPin,w.endPin].forEach(p=>{ if(p){ if(!conn.has(p))conn.set(p,0); conn.set(p,conn.get(p)+1); } }); });
+    chips.forEach(chip=>{
+      const def=getComponent(chip.dataset.type); if(!def) return;
+      const name=chip.dataset.name||def.label;
+      const floating=def.pins.filter(p=>
+        (p.type==='io'||p.type==='ctrl'||p.type==='analog') &&
+        !p.id.startsWith('NC') && !['AREF','RESET'].includes(p.id) &&
+        !conn.has(chip.querySelector(`.pin-group[data-id="${p.id}"]`)));
+      if(floating.length)
+        issues.push({level:'warning',message:`${floating.length} floating pin${floating.length>1?'s':''} on ${name} (${floating.slice(0,4).map(p=>p.id).join(', ')}${floating.length>4?'…':''})`,chipId:chip.dataset.id});
+      const powerPins=def.pins.filter(p=>p.type==='power');
+      if(powerPins.length && !powerPins.some(p=>conn.has(chip.querySelector(`.pin-group[data-id="${p.id}"]`))))
+        issues.push({level:'warning',message:`${name}: no supply rail connected (virtual supply assumed)`,chipId:chip.dataset.id});
     });
-
-    chips.forEach(chip => {
-      const type = chip.dataset.type;
-      const name = chip.dataset.label || chip.dataset.name || type;
-      const def = getComponent(type);
-      if (!def) return;
-
-      let powerConnected = false;
-      let hasPowerPins = false;
-
-      def.pins.forEach(pDef => {
-        const pinEl = chip.querySelector(`.pin-group[data-id="${pDef.id}"]`);
-        const connections = pinConnections.get(pinEl) || [];
-        const isConnected = connections.length > 0;
-
-        // Rule: Floating Input/IO
-        if (!isConnected && (pDef.type === 'io' || pDef.type === 'ctrl' || pDef.type === 'analog')) {
-          // Exceptions: NC pins or optional peripherals
-          if (!pDef.id.startsWith('NC') && !['AREF', 'RESET'].includes(pDef.id)) {
-            issues.push({
-              level: 'warning',
-              message: `Floating pin: ${name}.${pDef.id}`,
-              chipId: chip.dataset.id
-            });
-          }
-        }
-
-        // Track power connectivity
-        if (pDef.type === 'power') {
-          hasPowerPins = true;
-          if (isConnected) powerConnected = true;
-        }
-      });
-
-      // Rule: No Power (Ignore if using Virtual Supply)
-      const isVirtualPower = def.pins.some(p => ['VCC', 'VDD', 'GND', 'VSS'].includes(p.id));
-      if (hasPowerPins && !powerConnected && !['vsrc', 'gnd'].includes(type) && !isVirtualPower) {
-        issues.push({
-          level: 'error',
-          message: `Power failure: ${name} has no VCC/GND connections.`,
-          chipId: chip.dataset.id
-        });
-      }
+    wires.forEach((w,i)=>{
+      const s=w.startPin?.dataset.id, e=w.endPin?.dataset.id;
+      if((['VCC','VDD'].includes(s)&&['GND','VSS'].includes(e))||(['GND','VSS'].includes(s)&&['VCC','VDD'].includes(e)))
+        issues.push({level:'error',message:`Direct VCC→GND short detected on wire #${i+1}.`,wireIndex:i});
     });
-
-    // Rule: VCC to GND Short (Direct)
-    wires.forEach((w, i) => {
-        const sPin = w.startPin?.dataset?.id;
-        const ePin = w.endPin?.dataset?.id;
-        if ((sPin === 'VCC' && ePin === 'GND') || (sPin === 'GND' && ePin === 'VCC')) {
-            issues.push({
-                level: 'error',
-                message: `Direct Short: VCC and GND are tied together in Wire #${i}.`,
-                wireIndex: i
-            });
-        }
-    });
-
     return issues;
   }
-}
+};
