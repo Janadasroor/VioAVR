@@ -1,5 +1,6 @@
 #include "vioavr/core/amplifier.hpp"
 #include "vioavr/core/logger.hpp"
+#include <bit>
 
 namespace vioavr::core {
 
@@ -55,7 +56,7 @@ void At90Amplifier::evaluate() noexcept {
     // Gain mapping: 00: 5, 01: 10, 10: 20, 11: 40
     u8 g_bits = 0;
     if (desc_.ampg_mask != 0) {
-        g_bits = (ampcsr_ & desc_.ampg_mask) >> (__builtin_ctz(desc_.ampg_mask));
+        g_bits = (ampcsr_ & desc_.ampg_mask) >> std::countr_zero(desc_.ampg_mask);
     }
     
     double gain = 5.0;

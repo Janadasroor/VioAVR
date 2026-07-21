@@ -106,6 +106,7 @@ struct Adc8xDescriptor {
     u16 res_address {};
     u16 winlt_address {};
     u16 winht_address {};
+    u16 status_address {};    // ADCBUSY status register (device-specific offset from CTRLA)
 
     u8 res_ready_vector_index {};
     u8 wcomp_vector_index {};

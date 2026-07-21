@@ -5,6 +5,7 @@
 #include "vioavr/core/adc.hpp"
 #include <cmath>
 #include <algorithm>
+#include <bit>
 
 namespace vioavr::core {
 
@@ -127,7 +128,7 @@ void AnalogComparator::evaluate_output() noexcept {
     // Dynamic Hysteresis based on ACHYST (in absolute Volts)
     double h = hysteresis_;
     if (desc_.achyst_mask) {
-        u8 h_bits = (accon_ & desc_.achyst_mask) >> (__builtin_ctz(desc_.achyst_mask));
+        u8 h_bits = (accon_ & desc_.achyst_mask) >> std::countr_zero(desc_.achyst_mask);
         if (h_bits == 1) h = 0.02;   // ~20mV
         else if (h_bits == 2) h = 0.05; // ~50mV
         else h = 0.0;
@@ -181,7 +182,6 @@ bool AnalogComparator::is_disabled() const noexcept {
 }
 
 void AnalogComparator::raise_interrupt_flag() noexcept {
-    if (acsr_ & desc_.acif_mask) return;
     acsr_ |= desc_.acif_mask;
 
     bool ie = (acsr_ & desc_.acie_mask) || (accon_ & desc_.acie_mask);
@@ -191,8 +191,12 @@ void AnalogComparator::raise_interrupt_flag() noexcept {
 }
 
 u8 AnalogComparator::interrupt_mode() const noexcept {
-    u8 mode_bits = (acsr_ & desc_.acis_mask) | (accon_ & desc_.acis_mask);
-    return mode_bits >> (__builtin_ctz(desc_.acis_mask));
+    // ACIS bits live in ACSR (classic ATmega) or ACCON (ATtiny), never both.
+    // Select the correct source register: ACCON exists only when its address is set.
+    if (desc_.accon_address != 0) {
+        return (accon_ & desc_.acis_mask) >> std::countr_zero(desc_.acis_mask);
+    }
+    return (acsr_ & desc_.acis_mask) >> std::countr_zero(desc_.acis_mask);
 }
 
 void AnalogComparator::ac_callback(u64 cycle, void* user_data) {

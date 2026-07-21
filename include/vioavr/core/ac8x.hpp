@@ -58,6 +58,8 @@ private:
     u8 intctrl_ {0};
     u8 status_ {0};
 
+    // Zero delay: AC8x settles immediately in simulation.
+    // The settle_counter_ mechanism exists but is disabled — see tick().
     static constexpr u64 PROPAGATION_DELAY = 0;
 
     bool is_enabled() const noexcept { return (ctrla_ & (0x01U | 0x80U)); }

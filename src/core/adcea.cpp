@@ -237,7 +237,7 @@ bool AdcEa::consume_interrupt_request(InterruptRequest& request) noexcept {
     }
     if (pending & (0x04 | 0x08 | 0x10)) {
         request.vector_index = desc_.resrdy_vector_index;
-        intflags_ &= ~pending & (0x04 | 0x08 | 0x10);
+        intflags_ &= ~static_cast<u8>(pending & (0x04 | 0x08 | 0x10));
         request.source_id = 0;
         return true;
     }

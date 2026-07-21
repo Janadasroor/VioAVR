@@ -149,7 +149,7 @@ void Ac8x::tick(u64 elapsed_cycles) noexcept {
         case 0: trigger = true; break;                              // toggle (both edges)
         case 1: trigger = pending_state_ && !old_state; break;      // rising edge
         case 2: trigger = !pending_state_ && old_state; break;      // falling edge
-        case 3: trigger = true; break;                              // digital filter (stable change)
+        case 3: trigger = true; break;                              // toggle (both edges, same as mode 0)
     }
     if (trigger) status_ |= 0x01U;
 

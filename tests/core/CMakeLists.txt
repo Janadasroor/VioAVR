@@ -106,6 +106,7 @@ set(AVR8X_GROUP_0_SRCS
     avr8x/avr8x_ac8x_extended_test.cpp
     avr8x/avr8x_adc8x_extended_test.cpp
     avr8x/avr8x_adc_fidelity_test.cpp
+    avr8x/avr8x_audit_fix_verification_test.cpp
     avr8x/avr8x_ccl_evsys_fidelity_test.cpp
     avr8x/avr8x_ccl_fidelity_test.cpp
     avr8x/avr8x_ccl_rslatch_test.cpp

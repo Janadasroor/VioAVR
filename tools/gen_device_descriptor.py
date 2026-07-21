@@ -957,6 +957,7 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
             "MUXPOS": "muxpos_address",
             "COMMAND": "command_address", "EVCTRL": "evctrl_address",
             "INTCTRL": "intctrl_address", "INTFLAGS": "intflags_address",
+            "STATUS": "status_address",
             "DBGCTRL": "dbgctrl_address", "TEMP": "temp_address",
             "CALIB": "calib_address",
             "RES": "res_address", "WINLT": "winlt_address", "WINHT": "winht_address",
@@ -972,7 +973,8 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
             for fn in ["ctrla_address", "ctrlb_address", "ctrlc_address",
                       "ctrld_address", "ctrle_address", "sampctrl_address",
                       "muxpos_address", "command_address", "evctrl_address",
-                      "intctrl_address", "intflags_address", "dbgctrl_address",
+                      "intctrl_address", "intflags_address", "status_address",
+                      "dbgctrl_address",
                       "calib_address", "temp_address",
                       "res_address", "winlt_address", "winht_address"]:
                 if regs.get(fn):
