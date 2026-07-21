@@ -2,443 +2,221 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%238b5cf6' d='M18 2 6 18h7l-3 12L26 12h-8z'/%3E%3C/svg%3E"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VioSpice Control Center</title>
-    <meta name="description" content="Mixed-Signal Simulation Dashboard for VioAVR.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <meta name="description" content="Mixed-Signal Simulation Dashboard for VioAVR — production build."/>
+    <link href="https://cdn.jsdelivr.net/fontsource/css/inter:wght@400;500;600;700@latest/index.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/fontsource/css/outfit:wght@400;600;800@latest/index.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/fontsource/css/jetbrains-mono:wght@400;600;700@latest/index.css" rel="stylesheet">
     <link rel="stylesheet" href="/src/style.css" />
-    <script type="module" src="/src/main.js"></script>
   </head>
   <body>
-    <div id="app">
-
-      <!-- ── Sidebar ──────────────────────────────────────────────────── -->
-      <nav class="sidebar">
-        <div class="logo">
-          <span class="logo-vio">Vio</span><span class="logo-spice">Spice</span>
-        </div>
-
-        <div class="nav-groups">
-          <div class="nav-group">
-            <label>SYSTEM</label>
-
-            <button class="nav-item active"
-                    data-view="view-dashboard"
-                    data-label="Real-time Dashboard">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-              </svg>
-              Dashboard
-            </button>
-
-            <button class="nav-item"
-                    data-view="view-schematic"
-                    data-label="Schematic Editor">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-              </svg>
-              Schematic
-            </button>
-
-            <button class="nav-item"
-                    data-view="view-logic"
-                    data-label="Logic Analyzer">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-              </svg>
-              Logic Analyzer
-            </button>
-
-            <button class="nav-item"
-                    data-view="view-analog"
-                    data-label="Analog Scope">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
-              </svg>
-              Analog Scope
-            </button>
-          </div>
-
-          <div class="nav-group">
-            <label>PERIPHERALS</label>
-
-            <button class="nav-item"
-                    data-view="view-lcd"
-                    data-label="LCD Glass">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-              </svg>
-              LCD Glass
-            </button>
-
-            <button class="nav-item"
-                    data-view="view-nvm"
-                    data-label="NVM Control">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
-                <path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/>
-                <path d="M21 12v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/>
-                <path d="M11 13h2"/><path d="M11 9h2"/>
-              </svg>
-              NVM Control
-            </button>
-          </div>
-        </div>
-
-        <div class="sidebar-footer">
-          <div class="status-badge online">Simulator: Running</div>
-        </div>
-      </nav>
-
-      <!-- ── Main Content ─────────────────────────────────────────────── -->
-      <main class="content">
-        <header class="top-bar">
-          <div class="top-left">
-            <div class="breadcrumb">
-              Overview / <span class="current">Real-time Dashboard</span>
-            </div>
-            <div class="session-info">
-              <span class="session-timer">Session: 00:00:00</span>
-              <span class="session-divider"></span>
-              <span class="session-target">Target: ATmega169P @ 16MHz</span>
-            </div>
-          </div>
-          <div class="top-actions">
-            <button class="btn-action" id="btn-load">Load Demo</button>
-            <button class="btn-action" id="btn-reset">Reset</button>
-            <button class="btn-primary" id="btn-play">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right:8px">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-              Run Simulation
-            </button>
-          </div>
-        </header>
-
-        <!-- ── Dashboard View ──────────────────────────────────────── -->
-        <section class="view active" id="view-dashboard">
-          <div class="dashboard-grid">
-
-            <div class="card plotter-card grid-span-2">
-              <div class="card-header">
-                <h3>Signal Monitor</h3>
-                <span class="tag">Live</span>
-              </div>
-              <div class="plotter-container">
-                <canvas id="scope-canvas"></canvas>
-              </div>
-            </div>
-
-            <div class="card lcd-card">
-              <div class="card-header">
-                <h3>Virtual LCD Glass</h3>
-                <span class="status-pill">Active</span>
-              </div>
-              <div class="lcd-container">
-                <div class="lcd-glass">
-                  <div class="lcd-grid" id="lcd-display"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="card state-card">
-              <div class="card-header">
-                <h3>Core Registers</h3>
-              </div>
-              <div class="register-grid">
-                <div class="reg-item"><label>PC</label><span id="reg-pc">0x0000</span></div>
-                <div class="reg-item"><label>SP</label><span id="reg-sp">0x08FF</span></div>
-                <div class="reg-item"><label>SREG</label><span id="reg-sreg">0x00</span></div>
-                <div class="reg-item highlight"><label>Cycles</label><span id="reg-cycles">0</span></div>
-              </div>
-              
-              <div class="card-divider"></div>
-              <div class="gpr-container">
-                <label class="section-label">General Purpose Registers (R0-R31)</label>
-                <div class="gpr-grid" id="gpr-grid">
-                  <!-- Populated by JS -->
-                </div>
-              </div>
-            </div>
-
-            <div class="card pins-card">
-              <div class="card-header">
-                <h3>I/O Pin States</h3>
-                <span class="status-pill">Digital</span>
-              </div>
-              <div class="pin-grid-container">
-                <div class="pin-grid" id="pin-grid">
-                  <!-- Populated by JS -->
-                </div>
-              </div>
-            </div>
-
-            <div class="card logs-card grid-span-2">
-              <div class="card-header">
-                <h3>Simulation Logs</h3>
-              </div>
-              <div class="log-viewport" id="log-list">
-                <div class="log-entry system">System initialized.</div>
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        <!-- ── Schematic View ──────────────────────────────────────── -->
-        <section class="view" id="view-schematic">
-          <div class="schematic-layout">
-            <aside class="chips-panel">
-              <div class="panel-tabs">
-                <button class="panel-tab active" data-tab="library" title="Component Library">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m21 16-4 4-4-4M17 20V4M3 8l4-4 4 4M7 4v16"/>
-                  </svg>
-                  <span>Library</span>
-                </button>
-                <button class="panel-tab" data-tab="project" title="Project Browser">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
-                  </svg>
-                  <span>Project</span>
-                </button>
-                <button class="panel-tab" data-tab="results" title="Simulation Results">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 3v18h18M18 17l-4-4-4 4-4-4"/>
-                  </svg>
-                  <span>Results</span>
-                </button>
-              </div>
-
-              <div class="panel-content">
-                <div class="panel-tab-content active" id="tab-library">
-                  <div class="panel-search">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
-                      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-                    </svg>
-                    <input type="text" id="library-search" placeholder="Search components..." autocomplete="off">
-                  </div>
-                  <div class="chip-list">
-                    <!-- Populated dynamically -->
-                  </div>
-                </div>
-                <div class="panel-tab-content" id="tab-project">
-                  <div class="project-browser">
-                    <div class="project-section">
-                      <label class="section-label">Hardware Fidelity Tests</label>
-                      <div class="project-list" id="test-list">
-                        <!-- Populated by JS -->
-                      </div>
-                    </div>
-                    <div class="project-section">
-                      <label class="section-label">Interactive Examples</label>
-                      <div class="project-list" id="example-list">
-                        <!-- Populated by JS -->
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="panel-tab-content" id="tab-results">
-                  <div class="results-viewer">
-                    <div class="results-stats">
-                      <div class="stat-item">
-                        <label>Simulation Time</label>
-                        <span id="res-sim-time">0.000s</span>
-                      </div>
-                      <div class="stat-item">
-                        <label>CPU Cycles</label>
-                        <span id="res-cpu-cycles">0</span>
-                      </div>
-                    </div>
-                    <div class="results-table-container">
-                      <table class="results-table">
-                        <thead>
-                          <tr>
-                            <th>Signal</th>
-                            <th>Value</th>
-                          </tr>
-                        </thead>
-                        <tbody id="res-signal-list">
-                          <!-- Populated by JS -->
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </aside>
-
-            <div class="schematic-canvas-area">
-              <div class="floating-toolbar">
-                <button class="tool-btn active" id="tool-select" title="Select (S)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="tool-wire" title="Wire (W)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2v20M2 12h20"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="tool-probe" title="Probe (P)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="3"/><path d="M12 12L20 4"/>
-                  </svg>
-                </button>
-                <div class="tool-divider"></div>
-                <button class="tool-btn" id="zoom-in" title="Zoom In (+)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/><path d="M11 8v6M8 11h6"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="zoom-out" title="Zoom Out (-)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/><path d="M8 11h6"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="zoom-fit" title="Zoom Fit (F)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="tool-zoom-box" title="Zoom Window (Z)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M11 8v6M8 11h6"/>
-                  </svg>
-                </button>
-                <div class="tool-divider"></div>
-                <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v.5"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Y)">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v.5"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="btn-clear" title="Clear Canvas">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
-                </button>
-                <div class="tool-divider"></div>
-                <button class="tool-btn" id="btn-export" title="Export JSON">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                  </svg>
-                </button>
-                <button class="tool-btn" id="btn-import" title="Import JSON">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                  </svg>
-                </button>
-              </div>
-
-              <div class="schematic-main-area">
-                <div class="schematic-canvas-wrapper">
-                  <svg id="schematic-canvas" class="schematic-canvas" width="5000" height="5000">
-                    <defs>
-                      <pattern id="grid-dots" width="20" height="20" patternUnits="userSpaceOnUse">
-                        <circle cx="1" cy="1" r="1" fill="rgba(255,255,255,0.08)"></circle>
-                      </pattern>
-                      <filter id="glow-filter" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="3" result="blur" />
-                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                      </filter>
-                      <radialGradient id="led-glow" cx="35%" cy="35%" r="50%">
-                        <stop offset="0%" style="stop-color:rgba(255,255,255,0.8)" />
-                        <stop offset="100%" style="stop-color:rgba(255,0,0,0.4)" />
-                      </radialGradient>
-                      
-                      <linearGradient id="lcd-glass-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style="stop-color:#b4c3b4" />
-                        <stop offset="50%" style="stop-color:#98a898" />
-                        <stop offset="100%" style="stop-color:#849484" />
-                      </linearGradient>
-
-                      <pattern id="pixel-mesh" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-                        <rect width="1" height="1" fill="rgba(0,0,0,0.03)"></rect>
-                      </pattern>
-                      <linearGradient id="lcd-blue-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style="stop-color:#3a58cc" />
-                        <stop offset="50%" style="stop-color:#2a48bc" />
-                        <stop offset="100%" style="stop-color:#1a38ac" />
-                      </linearGradient>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#grid-dots)"></rect>
-                    <g id="schematic-viewport">
-                      <g id="schematic-content"></g>
-                    </g>
-                  </svg>
-                  <div id="tool-status" class="canvas-overlay-status">Selection Mode</div>
-                </div>
-
-                <!-- Property Panel -->
-                <aside class="property-panel" id="property-panel">
-                  <div class="property-panel-header">
-                    <h3>Properties</h3>
-                    <span class="selected-node-type" id="node-type-label">No selection</span>
-                  </div>
-                  <div class="property-list" id="property-list">
-                    <div class="property-placeholder">Select a component to edit its properties.</div>
-                  </div>
-                </aside>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ── Placeholder Views ────────────────────────────────────── -->
-        <section class="view" id="view-logic">
-          <div class="placeholder-view">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" style="margin-bottom:16px">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-            </svg>
-            <h3>Logic Analyzer</h3>
-            <p>Connect digital pins to capture signal traces.</p>
-          </div>
-        </section>
-
-        <section class="view" id="view-analog">
-          <div class="placeholder-view">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" style="margin-bottom:16px">
-              <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
-            </svg>
-            <h3>Analog Scope</h3>
-            <p>Connect analog probes to visualize waveforms.</p>
-          </div>
-        </section>
-
-        <section class="view" id="view-lcd">
-          <div class="placeholder-view">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" style="margin-bottom:16px">
-              <rect x="2" y="3" width="20" height="14" rx="2"/>
-              <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
-            <h3>LCD Controller</h3>
-            <p>Active segment matrix view for LCD simulation.</p>
-          </div>
-        </section>
-
-        <section class="view" id="view-nvm">
-          <div class="placeholder-view">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.5" style="margin-bottom:16px">
-              <path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/>
-              <path d="M21 12v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/>
-            </svg>
-            <h3>NVM Control</h3>
-            <p>Flash and EEPROM memory block map.</p>
-          </div>
-        </section>
-
-      </main>
+<div id="app">
+  <!-- ══════════ Sidebar ══════════ -->
+  <nav class="sidebar">
+    <div class="logo">
+      <span class="logo-mark"><svg viewBox="0 0 32 32" fill="none"><path d="M18 2 6 18h7l-3 12L26 12h-8z" fill="#fff"/></svg></span>
+      <span><span class="logo-vio">Vio</span><span class="logo-spice">Spice</span></span>
     </div>
+    <div class="nav-groups">
+      <div class="nav-group">
+        <label>SYSTEM</label>
+        <button class="nav-item active" data-view="view-dashboard" data-label="Real-time Dashboard">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item" data-view="view-schematic" data-label="Schematic Editor">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          <span>Schematic</span>
+        </button>
+        <button class="nav-item" data-view="view-logic" data-label="Logic Analyzer">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>Logic Analyzer</span>
+        </button>
+        <button class="nav-item" data-view="view-analog" data-label="Analog Scope">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          <span>Analog Scope</span>
+        </button>
+      </div>
+      <div class="nav-group">
+        <label>PERIPHERALS</label>
+        <button class="nav-item" data-view="view-lcd" data-label="LCD Glass">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>LCD Glass</span>
+        </button>
+        <button class="nav-item" data-view="view-nvm" data-label="NVM Control">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/><path d="M21 12v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/><path d="M11 13h2"/><path d="M11 9h2"/></svg>
+          <span>NVM Control</span>
+        </button>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="status-badge demo" id="sidebar-status">Simulator: Initializing</div>
+    </div>
+  </nav>
+
+  <!-- ══════════ Main ══════════ -->
+  <main class="content">
+    <header class="top-bar">
+      <div class="top-left">
+        <div class="breadcrumb">Overview / <span class="current">Real-time Dashboard</span></div>
+        <div class="session-info">
+          <span class="session-timer" id="session-timer">Session: 00:00:00</span>
+          <span class="session-divider"></span>
+          <span class="session-target">Target: ATmega328P @ 16 MHz</span>
+          <span class="session-divider"></span>
+          <button class="mode-badge demo" id="mode-badge" title="Click to (re)connect gateway">CONNECTING…</button>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="btn-action" id="btn-load">Load Hex</button>
+        <button class="btn-action" id="btn-reset">Reset</button>
+        <button class="btn-primary" id="btn-play">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right:7px"><path d="M8 5v14l11-7z"/></svg>Run Simulation
+        </button>
+      </div>
+    </header>
+
+    <!-- ── Dashboard ── -->
+    <section class="view active" id="view-dashboard">
+      <div class="dashboard-grid">
+        <div class="card grid-span-2">
+          <div class="card-header"><h3>Signal Monitor</h3><span class="tag">LIVE · 20 SPS</span></div>
+          <div class="plotter-container">
+            <canvas id="scope-canvas"></canvas>
+            <div class="scope-legend">
+              <span><i class="legend-dot" style="background:var(--accent)"></i>CH1 DAC (V)</span>
+              <span><i class="legend-dot" style="background:var(--primary)"></i>CH2 <span id="scope-dig-label">PB0</span> (DIG)</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Virtual LCD Glass</h3><span class="status-pill" id="lcd-pill">STANDBY</span></div>
+          <div class="lcd-container">
+            <div class="lcd-glass-frame"><div class="lcd-digits" id="dash-lcd"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Core Registers</h3></div>
+          <div class="register-grid">
+            <div class="reg-item"><label>PC</label><span id="reg-pc">0x0000</span></div>
+            <div class="reg-item"><label>SP</label><span id="reg-sp">0x08FF</span></div>
+            <div class="reg-item"><label>SREG</label><span id="reg-sreg">0x00</span></div>
+            <div class="reg-item highlight"><label>Cycles</label><span id="reg-cycles">0</span></div>
+          </div>
+          <div class="card-divider"></div>
+          <label class="section-label">General Purpose Registers R0–R31</label>
+          <div class="gpr-grid" id="gpr-grid"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>I/O Pin States</h3><span class="status-pill">DIGITAL</span></div>
+          <div class="pin-grid" id="pin-grid"></div>
+        </div>
+        <div class="card grid-span-2">
+          <div class="card-header"><h3>Simulation Logs</h3><span class="tag" id="log-count">0</span></div>
+          <div class="log-viewport" id="log-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Schematic ── -->
+    <section class="view" id="view-schematic">
+      <div class="schematic-layout">
+        <aside class="chips-panel">
+          <div class="panel-tabs">
+            <button class="panel-tab active" data-tab="library"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 16-4 4-4-4M17 20V4M3 8l4-4 4 4M7 4v16"/></svg><span>Library</span></button>
+            <button class="panel-tab" data-tab="project"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg><span>Project</span></button>
+            <button class="panel-tab" data-tab="results"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M18 17l-4-4-4 4-4-4"/></svg><span>Results</span></button>
+          </div>
+          <div class="panel-content">
+            <div class="panel-tab-content active" id="tab-library">
+              <div class="panel-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="library-search" placeholder="Search components…" autocomplete="off"/>
+              </div>
+              <div class="chip-list" id="chip-list"></div>
+            </div>
+            <div class="panel-tab-content" id="tab-project">
+              <div class="project-browser">
+                <div><label class="section-label">Hardware Fidelity Tests</label><div class="project-list" id="test-list"></div></div>
+                <div><label class="section-label">Interactive Examples</label><div class="project-list" id="example-list"></div></div>
+              </div>
+            </div>
+            <div class="panel-tab-content" id="tab-results">
+              <div class="results-viewer">
+                <div class="results-stats">
+                  <div class="stat-item"><label>Sim Time</label><span id="res-sim-time">0.000000s</span></div>
+                  <div class="stat-item"><label>CPU Cycles</label><span id="res-cpu-cycles">0</span></div>
+                </div>
+                <table class="results-table">
+                  <thead><tr><th>Signal</th><th>Value</th></tr></thead>
+                  <tbody id="res-signal-list"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </aside>
+        <div class="schematic-canvas-area">
+          <div class="schematic-canvas-wrapper">
+            <div class="floating-toolbar">
+              <button class="tool-btn active" id="tool-select" title="Select (S)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg></button>
+              <button class="tool-btn" id="tool-wire" title="Wire (W)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></button>
+              <button class="tool-btn" id="tool-probe" title="Probe (P)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 12 20 4"/></svg></button>
+              <button class="tool-btn" id="tool-zoom-box" title="Zoom Window (Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M11 8v6M8 11h6"/></svg></button>
+              <div class="tool-divider"></div>
+              <button class="tool-btn" id="zoom-in" title="Zoom In (+)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M11 8v6M8 11h6"/></svg></button>
+              <button class="tool-btn" id="zoom-out" title="Zoom Out (−)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M8 11h6"/></svg></button>
+              <button class="tool-btn" id="zoom-fit" title="Zoom Fit (F)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+              <div class="tool-divider"></div>
+              <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v.5"/></svg></button>
+              <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Y)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v.5"/></svg></button>
+              <button class="tool-btn" id="btn-clear" title="Clear Canvas"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              <div class="tool-divider"></div>
+              <button class="tool-btn" id="btn-export" title="Export JSON"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+              <button class="tool-btn" id="btn-import" title="Import JSON"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></button>
+            </div>
+            <svg id="schematic-canvas" class="schematic-canvas tool-select">
+              <defs>
+                <radialGradient id="led-glow" cx="35%" cy="35%" r="60%">
+                  <stop offset="0%" stop-color="rgba(255,255,255,.95)"/><stop offset="45%" stop-color="rgba(255,90,90,.85)"/><stop offset="100%" stop-color="rgba(255,0,0,.35)"/>
+                </radialGradient>
+                <linearGradient id="lcd-glass-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#b4c3ab"/><stop offset="55%" stop-color="#98a88f"/><stop offset="100%" stop-color="#84947c"/>
+                </linearGradient>
+                <linearGradient id="lcd-blue-gradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#3a58cc"/><stop offset="100%" stop-color="#1a38ac"/>
+                </linearGradient>
+                <pattern id="pixel-mesh" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="rgba(0,0,0,.05)"/></pattern>
+              </defs>
+              <g id="schematic-viewport">
+                <rect x="-5000" y="-5000" width="12000" height="12000" fill="transparent"/>
+                <g id="schematic-content"></g>
+              </g>
+            </svg>
+            <div id="tool-status" class="canvas-overlay-status">SELECTION MODE</div>
+            <div class="canvas-hint">RMB drag: pan · Wheel: zoom · Space: flip wire · Del: delete</div>
+          </div>
+          <aside class="property-panel">
+            <div class="property-panel-header">
+              <h3>Properties</h3>
+              <span class="selected-node-type" id="node-type-label">No selection</span>
+            </div>
+            <div class="property-list" id="property-list">
+              <div class="property-placeholder">Select a component to edit its properties.<br/><br/>Drag parts from the Library,<br/>click pins to draw wires.</div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-logic"></section>
+    <section class="view" id="view-analog"></section>
+    <section class="view" id="view-lcd"></section>
+    <section class="view" id="view-nvm"></section>
+  </main>
+</div>
+
 
     <script type="module" src="/src/main.js"></script>
   </body>
