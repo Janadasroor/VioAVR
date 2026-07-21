@@ -65,6 +65,7 @@ inline constexpr DeviceDescriptor atmega4809 {
             .sampctrl_address = 0x605U, .muxpos_address = 0x606U, .muxneg_address = 0x0U, .command_address = 0x608U, .evctrl_address = 0x609U,
             .intctrl_address = 0x60AU, .intflags_address = 0x60BU, .dbgctrl_address = 0x60CU, .calib_address = 0x616U, .temp_address = 0x60DU,
             .res_address = 0x610U, .winlt_address = 0x612U, .winht_address = 0x614U,
+            .status_address = 0x60DU,
             .res_ready_vector_index = 22U, .wcomp_vector_index = 23U,
             .user_event_address = 0x1A8U,
             .resrd_generator_id = 36U

@@ -198,10 +198,9 @@ u8 Adc8x::read(u16 address) noexcept {
     else if (address == desc_.winht_address) val = static_cast<u8>(winht_);
     else if (address == desc_.winht_address + 1) val = static_cast<u8>(winht_ >> 8);
     
-    // Status at 0x01? (Usually STATUS is addr+1 of CTRLA but varies)
-    // ATmega4809: ADC.STATUS is at 0x60D
-    if (desc_.ctrla_address != 0 && address == desc_.ctrla_address + 13) { // STATUS is usually +13 from CTRLA in ATmega4809
-       if (converting_) val |= 0x01U; // ADCBUSY 
+    // ADCBUSY status register (device-specific, set in descriptor)
+    if (desc_.status_address != 0 && address == desc_.status_address) {
+       if (converting_) val |= 0x01U; // ADCBUSY
     }
 
     return val;
@@ -255,7 +254,7 @@ bool Adc8x::pending_interrupt_request(InterruptRequest& request) const noexcept 
         return true;
     }
     if ((intctrl_ & 0x02U) && (intflags_ & 0x02U)) { // WCOMP
-        request.vector_index = desc_.res_ready_vector_index; // Often share same vector or close by
+        request.vector_index = desc_.wcomp_vector_index;
         return true;
     }
     return false;
@@ -361,6 +360,10 @@ void Adc8x::process_sample_result(u32 raw_accumulated) noexcept {
     update_interrupt_state();
 }
 
+// Direct bus writes intentionally bypass peripheral routing.
+// INTFLAGS and RES are ADC-internal mirror state: no other peripheral
+// observes them, so routing would add overhead with no benefit.
+// If a future peripheral needs to snoop these writes, switch to bus_->write_data().
 void Adc8x::sync_bus_data() noexcept {
     if (bus_ == nullptr) return;
     auto sp = bus_->data_space();

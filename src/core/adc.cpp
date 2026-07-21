@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <bit>
 
 namespace vioavr::core {
     
@@ -268,12 +269,14 @@ void Adc::complete_conversion() noexcept {
         result_ = static_cast<u16>(std::clamp((result_v / vref_) * 1024.0, 0.0, 1023.0));
     }
     
-    adcsra_ &= ~desc_.adsc_mask;
+    // In free-running mode, ADSC stays set (hardware behavior).
+    // Only clear it for single-shot conversions.
+    if (!free_running_enabled()) {
+        adcsra_ &= ~desc_.adsc_mask;
+    }
     adcsra_ |= desc_.adif_mask;
     update_interrupt_pending();
     converting_ = false;
-
-    // Update ports_ state if needed...
 
     if (free_running_enabled()) {
         start_conversion();
@@ -361,7 +364,11 @@ bool Adc::free_running_enabled() const noexcept {
 }
 
 Adc::AutoTriggerSource Adc::resolve_auto_trigger_source(u8 selector) const noexcept {
-    return desc_.auto_trigger_map[selector & desc_.adts_mask];
+    // Normalize to zero-based index: shift right by the position of the lowest set bit.
+    // This handles ADTS at any bit offset (e.g., bits [5:3] → shift by 3).
+    u8 shift = std::countr_zero(static_cast<unsigned>(desc_.adts_mask));
+    u8 index = (selector >> shift) & (desc_.adts_mask >> shift);
+    return desc_.auto_trigger_map[index];
 }
 
 void Adc::update_auto_trigger_source_from_register() noexcept {
