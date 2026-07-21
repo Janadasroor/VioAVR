@@ -175,6 +175,8 @@ void AvrCpu::run(const u64 cycle_budget)
 
     u32 pending_cycles = 0;
     const u64 check_interval = interrupt_check_interval_;
+    u8 cached_domains = active_clock_domains();
+    const bool has_sync = (sync_engine_ != nullptr);
 
 #ifdef VIOAVR_HAVE_JIT
     jit::JitState jit_state;
@@ -188,8 +190,9 @@ void AvrCpu::run(const u64 cycle_budget)
         // Handle pending interrupt before fetching next instruction
         if (__builtin_expect(interrupt_pending_ != 0, 0)) {
             if (pending_cycles > 0) {
-                advance_cycles(pending_cycles);
+                advance_cycles(pending_cycles, cached_domains);
                 pending_cycles = 0;
+                cached_domains = active_clock_domains();
             }
             if (interrupt_delay_ > 0U) {
                 --interrupt_delay_;
@@ -207,18 +210,20 @@ void AvrCpu::run(const u64 cycle_budget)
         // Handle CPU Stall (e.g. during EEPROM write or SPM)
         if (__builtin_expect(bus_->should_stall_cpu(program_counter_), 0)) {
             if (pending_cycles > 0) {
-                advance_cycles(pending_cycles);
+                advance_cycles(pending_cycles, cached_domains);
                 pending_cycles = 0;
+                cached_domains = active_clock_domains();
             }
             bus_->consume_stall_cycle();
-            advance_cycles(1U);
+            advance_cycles(1U, cached_domains);
             continue;
         }
 
         if (__builtin_expect(program_counter_ >= loaded_words, 0)) {
             if (pending_cycles > 0) {
-                advance_cycles(pending_cycles);
+                advance_cycles(pending_cycles, cached_domains);
                 pending_cycles = 0;
+                cached_domains = active_clock_domains();
             }
             state_ = CpuState::halted;
             break;
@@ -228,8 +233,9 @@ void AvrCpu::run(const u64 cycle_budget)
         // JIT execution path
         if (__builtin_expect(jit_enabled_ && jit_ && (trace_hook_ == nullptr || !trace_hook_->is_active()), 0)) {
             if (pending_cycles > 0) {
-                advance_cycles(pending_cycles);
+                advance_cycles(pending_cycles, cached_domains);
                 pending_cycles = 0;
+                cached_domains = active_clock_domains();
             }
 
                 bool jit_ok = jit_->has_block(program_counter_);
@@ -793,15 +799,16 @@ void AvrCpu::run(const u64 cycle_budget)
         program_counter_ = pc;
 
         if (pending_cycles >= check_interval) {
-            advance_cycles(pending_cycles);
+            advance_cycles(pending_cycles, cached_domains);
             pending_cycles = 0;
+            cached_domains = active_clock_domains();
             if (__builtin_expect(reset_triggered_, 0)) break;
-            synchronize_if_needed();
+            if (__builtin_expect(has_sync, 0)) synchronize_if_needed();
         }
     }
 
     if (pending_cycles > 0) {
-        advance_cycles(pending_cycles);
+        advance_cycles(pending_cycles, cached_domains);
     }
 
     // Fallback to standard step for complex states or pending interrupts

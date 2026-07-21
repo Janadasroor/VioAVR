@@ -204,10 +204,10 @@ void MemoryBus::catch_up_all_peripherals(u64 target_cycle) const noexcept {
 void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept {
     if (elapsed_cycles == 0) return;
 
-    if (active_domains != 0xFF) {
+    if (__builtin_expect(active_domains != 0xFF, 0)) {
         u8 gated = static_cast<u8>(~active_domains);
         do {
-            int bit = std::countr_zero(static_cast<unsigned>(gated));
+            int bit = __builtin_ctz(static_cast<unsigned>(gated));
             u8 mask = static_cast<u8>(1U << bit);
             domain_gated_cycles_[mask] += elapsed_cycles;
             gated = static_cast<u8>(gated & static_cast<u8>(gated - 1U));
@@ -215,19 +215,15 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
     }
 
     if (io_stall_cycles_ > 0U) {
-        if (elapsed_cycles >= io_stall_cycles_) {
-            io_stall_cycles_ = 0U;
-        } else {
-            io_stall_cycles_ -= static_cast<u32>(elapsed_cycles);
-        }
+        if (elapsed_cycles >= io_stall_cycles_) io_stall_cycles_ = 0U;
+        else io_stall_cycles_ -= static_cast<u32>(elapsed_cycles);
     }
 
     if (lpm_special_mode_timeout_ > 0U) {
         if (elapsed_cycles >= lpm_special_mode_timeout_) {
             lpm_special_mode_timeout_ = 0U;
-            if (device_.spmcsr_address < data_.size()) {
+            if (device_.spmcsr_address < data_.size())
                 data_[device_.spmcsr_address] &= ~(device_.sigrd_mask | device_.blbset_mask);
-            }
         } else {
             lpm_special_mode_timeout_ -= static_cast<u8>(elapsed_cycles);
         }
@@ -235,25 +231,37 @@ void MemoryBus::tick_peripherals(u64 elapsed_cycles, u8 active_domains) noexcept
 
     current_active_domains_ = active_domains;
     cpu_cycles_ += elapsed_cycles;
-
     const u64 target = scheduler_.current_cycle() + elapsed_cycles;
-    catch_up_all_peripherals(target);
+
+    for (auto* peripheral : active_ticking_peripherals_) {
+        const u64 start = peripheral->last_update_cycle_;
+        if (start < target) {
+            peripheral->last_update_cycle_ = target;
+            const u8 domain_bit = static_cast<u8>(peripheral->clock_domain());
+            if (domain_bit == 0U || (active_domains & domain_bit) != 0U) {
+                peripheral->tick(target - start);
+            }
+        }
+    }
 
     scheduler_.advance_to(target, [this](u64 event_cycle) {
-        this->catch_up_all_peripherals(event_cycle);
+        for (auto* peripheral : active_ticking_peripherals_) {
+            const u64 start = peripheral->last_update_cycle_;
+            if (start < event_cycle) {
+                peripheral->last_update_cycle_ = event_cycle;
+                const u8 domain_bit = static_cast<u8>(peripheral->clock_domain());
+                if (domain_bit == 0U || (current_active_domains_ & domain_bit) != 0U) {
+                    peripheral->tick(event_cycle - start);
+                }
+            }
+        }
     });
 
     if (spm_busy_cycles_left_ > 0U) {
         if (elapsed_cycles >= spm_busy_cycles_left_) {
             spm_busy_cycles_left_ = 0U;
-            
             perform_deferred_nvm_operation();
-            
-            if (nvm_ctrl_) {
-                nvm_ctrl_->set_busy(false, false);
-                nvm_ctrl_->clear_command();
-                nvm_ctrl_->set_done();
-            }
+            if (nvm_ctrl_) { nvm_ctrl_->set_busy(false, false); nvm_ctrl_->clear_command(); nvm_ctrl_->set_done(); }
         } else {
             spm_busy_cycles_left_ -= static_cast<u32>(elapsed_cycles);
         }
@@ -295,7 +303,6 @@ void MemoryBus::propagate_analog_pin_change(u16 pin_address, u8 bit_index, doubl
 
 bool MemoryBus::pending_interrupt_request(InterruptRequest& request, const u8 active_domains) const noexcept
 {
-    catch_up_all_peripherals(cpu_cycles());
     // Super Fast Path: if all peripherals support the mask and no interrupts are pending, return false immediately!
     if (all_peripherals_support_mask_ && pending_interrupt_mask_ == 0ULL) {
         return false;
@@ -386,8 +393,6 @@ void MemoryBus::notify_interrupt_state_change(IoPeripheral* peripheral, bool pen
 
 bool MemoryBus::consume_interrupt_request(InterruptRequest& request, const u8 active_domains) noexcept
 {
-    catch_up_all_peripherals(cpu_cycles());
-
     if (all_peripherals_support_mask_ && pending_interrupt_mask_ == 0ULL) {
         return false;
     }

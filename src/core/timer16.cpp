@@ -291,6 +291,7 @@ void Timer16::perform_tick() noexcept {
 void Timer16::on_event([[maybe_unused]] u64 cycle) noexcept {
     if (!bus_) return;
     sync();
+    last_update_cycle_ = bus_->domain_cycles(clock_domain());
     recalculate_event();
 }
 

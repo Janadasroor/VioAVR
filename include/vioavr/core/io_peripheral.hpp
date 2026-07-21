@@ -105,9 +105,10 @@ protected:
     class MemoryBus* bus_ {nullptr};
     u8 bus_id_ {0xFFU};
 
+    u64 last_update_cycle_ {0U};
+
 private:
     bool interrupt_pending_ {false};
-    u64 last_update_cycle_ {0U};
     friend class MemoryBus;
 };
 

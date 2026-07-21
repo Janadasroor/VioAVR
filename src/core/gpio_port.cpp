@@ -108,7 +108,11 @@ void GpioPort::reset() noexcept
 void GpioPort::tick(const u64 elapsed_cycles) noexcept
 {
     (void)elapsed_cycles;
-    (void)sample_levels();
+    bool has_analog = false;
+    for (u8 i = 0; i < 8; ++i) {
+        if (has_analog_binding_[i] || has_voltage_input_[i]) { has_analog = true; break; }
+    }
+    if (has_analog) sample_levels();
 
     // Level-sensitive interrupt retriggering (ISC=0x05: low level)
     for (u8 i = 0; i < 8; ++i) {
