@@ -12,7 +12,7 @@ VioAVR is a high-performance, cycle-accurate AVR Instruction Set Simulator (ISS)
 - **ngspice Co-Simulation** — Two integration paths: in-process `d_cosim` shim (low latency, multi-chip) and out-of-process POSIX shared memory bridge (d_vioavr A-device). Analog bridge models for ADC input, DAC output, and dynamic VCC tracking.
 - **JIT Compilation** — Lightweight x86-64 JIT translates AVR basic blocks to native code with automatic fallback for self-modifying code.
 - **GDB Stub** — Remote debugging via GDB Remote Serial Protocol with breakpoints, single-stepping, register/memory access, and flash programming.
-- **Unified CLI** — `vioavr <subcommand>` with `run`, `trace`, `benchmark`, `info`, `list-devices`, `bridge`, `gdb`, `docs`, and `help`. Full ANSI terminal control with colors, progress bars, and `--color auto|always|never`.
+- **Unified CLI** — `vioavr <subcommand>` with `run`, `trace`, `debug`, `benchmark`, `info`, `list-devices`, `bridge`, `arduino`, `gdb`, `docs`, and `help`. Full ANSI terminal control with colors, progress bars, and `--color auto|always|never`.
 - **Built-in Documentation** — `vioavr docs <topic>` for instant reference on MCU families, peripherals, co-simulation, device descriptor pipeline, XSPICE architecture, and firmware programming guide.
 - **Extensive Test Suite** — 300+ ngspice co-simulation tests and 36 core tests covering CPU instructions, peripherals, and mixed-signal scenarios.
 
@@ -39,7 +39,7 @@ VioAVR is a high-performance, cycle-accurate AVR Instruction Set Simulator (ISS)
 
 ### Prerequisites
 
-- CMake 3.15+
+- CMake 3.25+
 - C++20 compatible compiler (GCC 11+, Clang 14+)
 - Python 3 (for device descriptor generation)
 
