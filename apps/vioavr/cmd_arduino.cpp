@@ -85,8 +85,10 @@ std::string find_arduino_cli() {
 #endif
         while (std::getline(ss, dir, sep)) {
 #ifdef _WIN32
-            fs::path candidate = fs::path(dir) / "arduino-cli.exe";
-            if (fs::exists(candidate)) return candidate.string();
+            {
+                fs::path candidate = fs::path(dir) / "arduino-cli.exe";
+                if (fs::exists(candidate)) return candidate.string();
+            }
 #endif
             fs::path candidate = fs::path(dir) / "arduino-cli";
             if (fs::exists(candidate)) return candidate.string();
