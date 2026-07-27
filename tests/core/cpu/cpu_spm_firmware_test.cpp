@@ -152,7 +152,9 @@ TEST_CASE("CPU SPM (Store Program Memory) with JIT Enabled")
 
     MemoryBus bus {atmega328p};
     AvrCpu cpu {bus};
+#ifdef VIOAVR_HAVE_JIT
     cpu.enable_jit(true);
+#endif
     const u16 spmcsr_addr = atmega328p.spmcsr_address;
 
     const u32 code_start_word = 16384U - 128U;
