@@ -275,7 +275,23 @@ static int parse_sim_args(struct co_info* info, struct SimConfig* cfg)
         cfg->mcu[i] = NULL;
         cfg->hex[i] = NULL;
     }
-    cfg->jit_enabled = true;
+    /* JIT must stay disabled for co-simulation.
+     *
+     * The shim steps the AVR in min_step (1µs) quanta — at 16MHz that is only
+     * ~16 cycles per step. VioAVR's JIT compiles firmware loops (e.g. the
+     * `sbiw/brne` delay loop) into a single native block and executes the WHOLE
+     * loop to completion, ignoring the cycle budget passed to AvrCpu::run().
+     * A 1604-cycle delay loop therefore runs in a single 1-2µs shim step, making
+     * the AVR execute ~100x faster than wall-clock SPICE time. That floods the
+     * cosim with spurious digital events every ~2µs (instead of the firmware's
+     * real ~100µs toggle), and each event forces ~28 sub-ns analog steps
+     * (116k rows / 47s for an 8ms run).
+     *
+     * With JIT off, run() honors the cycle budget, the AVR stays time-locked to
+     * SPICE, and the same circuit produces ~3.9k rows. (An explicit "1"/"0"
+     * sim_arg flag still overrides this default.)
+     */
+    cfg->jit_enabled = false;
     cfg->hc05_enabled = false;
     cfg->adc_voltage = -1.0;
     cfg->frequency = 16000000.0;
