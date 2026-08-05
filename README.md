@@ -21,6 +21,7 @@ VioAVR is a high-performance, cycle-accurate AVR Instruction Set Simulator (ISS)
 - **GDB Stub** — Remote debugging via GDB Remote Serial Protocol with breakpoints, single-stepping, register/memory access, and flash programming.
 - **Unified CLI** — `vioavr <subcommand>` with `run`, `trace`, `debug`, `benchmark`, `info`, `list-devices`, `bridge`, `arduino`, `gdb`, `docs`, and `help`. Full ANSI terminal control with colors, progress bars, and `--color auto|always|never`.
 - **Built-in Documentation** — `vioavr docs <topic>` for instant reference on MCU families, peripherals, co-simulation, device descriptor pipeline, XSPICE architecture, and firmware programming guide.
+- **AI Agent & Autonomous Vibe-Coding Ready** — High-speed, non-interactive CLI execution (`vioavr run`, `vioavr trace`, `vioavr docs`) enables AI coding agents (such as Claude Code, Codex, OpenCode, or Antigravity) to instantly verify compiled microcontroller `.hex` binaries, inspect peripheral state, and auto-debug hardware firmware loops without physical hardware.
 - **Extensive Test Suite** — 300+ ngspice co-simulation tests and 36 core tests covering CPU instructions, peripherals, and mixed-signal scenarios.
 
 ## Project Structure
