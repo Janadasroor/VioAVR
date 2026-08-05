@@ -23,7 +23,7 @@ It delivers **146+ MHz simulation speeds** through a custom lightweight x86-64 D
 ## Key Features
 
 * **⚡ Ultra-Fast Dynamic JIT Compiler**: Custom x86-64 basic-block JIT delivers **146+ MHz bare core** and **62+ MHz full machine** simulation speed (5x–15x faster than standard switch interpreters).
-* **📱 299+ Hardware Descriptors**: Auto-generated from official Microchip ATDF Device Family Packs covering **ATmega, ATtiny, AVR-Dx/Ex/Lx/Sx, megaAVR-0, tinyAVR-0/1/2, and XMEGA** families.
+* **📱 340+ Hardware Descriptors**: Auto-generated from official Microchip ATDF Device Family Packs covering **ATmega, ATtiny, AVR-Dx/Ex/Lx/Sx, megaAVR-0, tinyAVR-0/1/2, and XMEGA** families.
 * **🔌 NGSpice Mixed-Signal Co-Simulation**: Native POSIX Shared Memory Bridge (`BridgeShm`) and `d_cosim` XSpice plugin for real-time digital MCU / analog circuit interaction (ADC inputs, DAC outputs, dynamic VCC tracking).
 * **🤖 Autonomous AI Agent & Vibe-Coding Ready**: High-speed, non-interactive CLI execution (`vioavr run`, `vioavr trace`, `vioavr docs`) enables AI coding agents (Claude Code, Codex, OpenCode, Antigravity) to execute, trace, and auto-debug compiled `.hex` firmware loops headlessly.
 * **🎛️ Rich Peripheral Ecosystem**: Full hardware emulation for GPIO, UART/UART8X, SPI/SPI8X, TWI/TWI8X, USI, TCA/TCB/TCD/TCE Timers, RTC, AWEX, 10/12-bit ADC, AC, DAC, CCL, EVSYS, NVMCTRL, CPUINT, EEPROM, WDT, CRC, CAN, USB SIE, LCD, PSC, DMA, OPAMP, ZCD, and PTC.
@@ -50,7 +50,7 @@ It delivers **146+ MHz simulation speeds** through a custom lightweight x86-64 D
 │                                             │                                           │
 │                                             ▼                                           │
 │  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
-│  │                          Unified Peripheral Bus (299+ MCUs)                       │  │
+│  │                          Unified Peripheral Bus (340+ MCUs)                       │  │
 │  │    [GPIO]   [UART8X]   [SPI]   [TWI]   [Timers A/B/C/D]   [ADC/DAC]   [USB]   ...   │  │
 │  └───────────────────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────┬───────────────────────────────────────────┘
