@@ -488,9 +488,9 @@ struct PortMuxDescriptor {
     u16 evoutroutea_address {};
     u16 tcaroutea_address {};
     u16 tcbroutea_address {};
-    UsartRouteGroup usart[4];
-    SpiRouteGroup spi[2];
-    TwiRouteGroup twi[2];
+    UsartRouteGroup usart[4] {};
+    SpiRouteGroup spi[2] {};
+    TwiRouteGroup twi[2] {};
     // WO-to-pin-bit mapping for TCA outputs (default: direct 0-5)
     // ATtiny chips use reversed mapping: WO3→bit0, WO2→bit1, WO1→bit2, WO0→bit3
     u8 tca_wo_pin_bit[6] {0, 1, 2, 3, 4, 5};

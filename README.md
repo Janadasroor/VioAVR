@@ -2,6 +2,13 @@
 
 VioAVR is a high-performance, cycle-accurate AVR Instruction Set Simulator (ISS) written in C++20. It simulates a broad range of AVR microcontrollers — from classic ATmega and ATtiny to modern AVR-Dx/Ex/Lx/Sx, megaAVR-0, tinyAVR-0/1/2, and XMEGA families — and is designed for tight integration with **ngspice** for mixed-signal co-simulation.
 
+> [!NOTE]
+> ### 💼 Commercial & Enterprise Licensing
+> VioAVR is available under a **Commercial Dual-License** for companies embedding VioAVR into proprietary, closed-source products, online simulation platforms, or CI/CD hardware testing suites without open-source license restrictions.
+> 
+> **For commercial license inquiries, custom MCU driver support, or source code acquisition:**  
+> 📧 Contact: **janadasroor@gmail.com** *(or update with your preferred business contact)*
+
 ## Features
 
 - **Cycle-Accurate Core** — Full AVR instruction set with JIT compilation delivering 60–140 MHz effective throughput on x86-64.
@@ -85,7 +92,9 @@ gdb-multiarch -ex 'target remote :1234' firmware.elf
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+GNU General Public License v3.0 (GPLv3). See [LICENSE](LICENSE).
+
+For commercial, closed-source, or non-GPL embedding, please acquire a **VioAVR Commercial License**.
 
 ---
 
