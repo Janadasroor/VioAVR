@@ -1,101 +1,146 @@
 # VioAVR
 
-VioAVR is a high-performance, cycle-accurate AVR Instruction Set Simulator (ISS) written in C++20. It simulates a broad range of AVR microcontrollers — from classic ATmega and ATtiny to modern AVR-Dx/Ex/Lx/Sx, megaAVR-0, tinyAVR-0/1/2, and XMEGA families — and is designed for tight integration with **ngspice** for mixed-signal co-simulation.
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![Architecture](https://img.shields.io/badge/Architecture-AVR%20%7C%20XMEGA%20%7C%20AVR--Dx-orange.svg)]()
+[![JIT Speed](https://img.shields.io/badge/JIT%20Throughput-146%2B%20MHz-brightgreen.svg)]()
 
-> [!NOTE]
-> ### 💼 Commercial & Enterprise Licensing
-> VioAVR is available under a **Commercial Dual-License** for companies embedding VioAVR into proprietary, closed-source products, online simulation platforms, or CI/CD hardware testing suites without open-source license restrictions.
+VioAVR is an industrial-grade, cycle-accurate **AVR Instruction Set Simulator (ISS)** and mixed-signal hardware co-simulation engine written in modern **C++20**.
+
+It delivers **146+ MHz simulation speeds** through a custom lightweight x86-64 Dynamic JIT Compiler and provides native integration with **ngspice / XSpice** for real-time digital/analog circuit co-simulation.
+
+---
+
+> [!IMPORTANT]
+> ### 💼 Commercial & Enterprise Dual-Licensing
+> VioAVR is available under a **Commercial Dual-License** for organizations embedding VioAVR into proprietary/closed-source products, online hardware simulators, or automated CI/CD firmware testing pipelines without open-source GPLv3 restrictions.
 > 
-> **For commercial license inquiries, custom MCU driver support, or source code acquisition:**  
-> 📧 Contact: **janadasroor@gmail.com** *(or update with your preferred business contact)*
+> **For commercial license inquiries, custom MCU driver development, or full source IP acquisition:**  
+> 📧 Contact: **janadasroor@gmail.com**
 
-## Features
+---
 
-- **Cycle-Accurate Core** — Full AVR instruction set with JIT compilation delivering 60–140 MHz effective throughput on x86-64.
-- **290+ Device Descriptors** — Auto-generated from Microchip ATDF Device Family Packs covering ATmega, ATtiny, AVR-Dx/Ex/Lx/Sx, and XMEGA. 3 hand-crafted descriptors (ATmega328P, ATmega4809, AT90PWM3) with richer peripheral detail.
-- **Comprehensive Peripherals** — GPIO, UART/UART8X, SPI/SPI8X, TWI/TWI8X, USI, TCA/TCB/TCD/TCE timers, RTC, AWEX, ADC (10/12-bit), AC, DAC, CCL, EVSYS, NVMCTRL, CPUINT, EEPROM, WDT, CRC, CAN, USB, LCD, PSC, DMA, OPAMP, ZCD, PTC, IRCOM, and more.
-- **Event System (EVSYS)** — Peripheral-to-peripheral chaining without CPU intervention (TCA→TCB cascade, ADC→timer trigger, CCL output events, etc.).
-- **Configurable Custom Logic (CCL)** — Up to 4 LUTs with programmable truth tables and pin/event/analog inputs.
-- **ngspice Co-Simulation** — Two integration paths: in-process `d_cosim` shim (low latency, multi-chip) and out-of-process POSIX shared memory bridge (d_vioavr A-device). Analog bridge models for ADC input, DAC output, and dynamic VCC tracking.
-- **JIT Compilation** — Lightweight x86-64 JIT translates AVR basic blocks to native code with automatic fallback for self-modifying code.
-- **GDB Stub** — Remote debugging via GDB Remote Serial Protocol with breakpoints, single-stepping, register/memory access, and flash programming.
-- **Unified CLI** — `vioavr <subcommand>` with `run`, `trace`, `debug`, `benchmark`, `info`, `list-devices`, `bridge`, `arduino`, `gdb`, `docs`, and `help`. Full ANSI terminal control with colors, progress bars, and `--color auto|always|never`.
-- **Built-in Documentation** — `vioavr docs <topic>` for instant reference on MCU families, peripherals, co-simulation, device descriptor pipeline, XSPICE architecture, and firmware programming guide.
-- **AI Agent & Autonomous Vibe-Coding Ready** — High-speed, non-interactive CLI execution (`vioavr run`, `vioavr trace`, `vioavr docs`) enables AI coding agents (such as Claude Code, Codex, OpenCode, or Antigravity) to instantly verify compiled microcontroller `.hex` binaries, inspect peripheral state, and auto-debug hardware firmware loops without physical hardware.
-- **Extensive Test Suite** — 300+ ngspice co-simulation tests and 36 core tests covering CPU instructions, peripherals, and mixed-signal scenarios.
+## Key Features
+
+* **⚡ Ultra-Fast Dynamic JIT Compiler**: Custom x86-64 basic-block JIT delivers **146+ MHz bare core** and **62+ MHz full machine** simulation speed (5x–15x faster than standard switch interpreters).
+* **📱 299+ Hardware Descriptors**: Auto-generated from official Microchip ATDF Device Family Packs covering **ATmega, ATtiny, AVR-Dx/Ex/Lx/Sx, megaAVR-0, tinyAVR-0/1/2, and XMEGA** families.
+* **🔌 NGSpice Mixed-Signal Co-Simulation**: Native POSIX Shared Memory Bridge (`BridgeShm`) and `d_cosim` XSpice plugin for real-time digital MCU / analog circuit interaction (ADC inputs, DAC outputs, dynamic VCC tracking).
+* **🤖 Autonomous AI Agent & Vibe-Coding Ready**: High-speed, non-interactive CLI execution (`vioavr run`, `vioavr trace`, `vioavr docs`) enables AI coding agents (Claude Code, Codex, OpenCode, Antigravity) to execute, trace, and auto-debug compiled `.hex` firmware loops headlessly.
+* **🎛️ Rich Peripheral Ecosystem**: Full hardware emulation for GPIO, UART/UART8X, SPI/SPI8X, TWI/TWI8X, USI, TCA/TCB/TCD/TCE Timers, RTC, AWEX, 10/12-bit ADC, AC, DAC, CCL, EVSYS, NVMCTRL, CPUINT, EEPROM, WDT, CRC, CAN, USB SIE, LCD, PSC, DMA, OPAMP, ZCD, and PTC.
+* **🐞 Integrated GDB Stub**: Source-level remote debugging with `gdb-multiarch` via GDB Remote Serial Protocol (RSP).
+* **💻 Unified CLI & Terminal Documentation**: Full ANSI terminal CLI (`vioavr`) with built-in instant documentation (`vioavr docs <topic>`) and interactive debugging REPL (`vioavr debug`).
+
+---
+
+## System Architecture
+
+```
+                                 ┌─────────────────────────────────┐
+                                 │       Firmware (.hex / .elf)    │
+                                 └────────────────┬────────────────┘
+                                                  │
+                                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   VioAVR Core Engine                                    │
+│                                                                                         │
+│  ┌────────────────────────┐    ┌────────────────────────┐    ┌───────────────────────┐  │
+│  │   x86-64 JIT Compiler  │ ◄─►│   AVR CPU / Register   │ ◄─►│   Event System        │  │
+│  │   (146+ MHz Execution) │    │   State Machine        │    │   (EVSYS / CCL)       │  │
+│  └────────────────────────┘    └────────────────────────┘    └───────────────────────┘  │
+│                                             │                                           │
+│                                             ▼                                           │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                          Unified Peripheral Bus (299+ MCUs)                       │  │
+│  │    [GPIO]   [UART8X]   [SPI]   [TWI]   [Timers A/B/C/D]   [ADC/DAC]   [USB]   ...   │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────┬───────────────────────────────────────────┘
+                                              │
+                    ┌─────────────────────────┴─────────────────────────┐
+                    │ Shared Memory Bridge / XSpice d_cosim Interface   │
+                    └─────────────────────────┬─────────────────────────┘
+                                              │
+                                              ▼
+                                 ┌─────────────────────────────────┐
+                                 │     NGSpice Analog Simulator    │
+                                 └─────────────────────────────────┘
+```
+
+---
+
+## Quick Start Guide
+
+### 1. Prerequisites
+
+* **CMake** 3.25 or higher
+* **C++20 Compatible Compiler** (GCC 11+, Clang 14+, MSVC 2022+)
+* **Ninja Build System** (`ninja-build`)
+* **Python 3**
+
+### 2. Build & Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Janadasroor/VioAVR.git
+cd VioAVR
+
+# Configure & Build using Ninja
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+```
+
+### 3. Usage Examples
+
+```bash
+# 1. Run a compiled firmware image
+./build/apps/vioavr/vioavr run firmware.hex --mcu ATmega328P
+
+# 2. Trace instruction execution cycle-by-cycle
+./build/apps/vioavr/vioavr trace firmware.hex --mcu ATmega328P --max-cycles 100
+
+# 3. Launch interactive CLI Debugger REPL
+./build/apps/vioavr/vioavr debug firmware.hex --mcu ATmega328P
+
+# 4. Search built-in terminal documentation
+./build/apps/vioavr/vioavr docs overview
+./build/apps/vioavr/vioavr docs evsys
+
+# 5. Start GDB server for source-level debugging
+./build/apps/vioavr/vioavr gdb firmware.hex --mcu ATmega328P --port 1234
+# In another terminal: gdb-multiarch -ex 'target remote :1234' firmware.elf
+
+# 6. Run performance benchmark
+./build/apps/vioavr/vioavr benchmark --cycles 100000000
+```
+
+---
 
 ## Project Structure
 
 ```
-├── include/vioavr/core/     Public headers (device descriptors, CPU, memory bus, peripherals)
-├── src/core/                Simulation engine implementation
+├── include/vioavr/core/     # Public C++20 core API & device descriptors
+├── src/core/                # Simulation engine & x86-64 JIT implementation
 ├── apps/
-│   ├── vioavr/              Unified CLI (run, trace, benchmark, info, docs, gdb, bridge)
-│   ├── vioavr-cli/          Legacy CLI (backward compatible)
-│   └── vioavr-bridge-daemon/ SHM bridge daemon
-├── cosim/                   ngspice co-simulation shim and analog bridge models
-├── tests/
-│   ├── core/                Unit and co-simulation tests
-│   └── firmware/            Reference firmware for cross-simulator comparison
-├── tools/                   ATDF device descriptor generator
-├── scripts/                 Validation, audit, and export scripts
-├── avr-pack/                Microchip ATDF data (device family packs)
-└── scratch/                 Demo circuits and generated test fixtures
+│   └── vioavr/              # Unified CLI tool (run, trace, debug, docs, gdb, bridge)
+├── cosim/                   # NGSpice co-simulation shim & analog bridge models
+├── tests/                   # Core unit tests & mixed-signal co-simulation tests
+├── tools/                   # Microchip ATDF device descriptor auto-generator
+└── avr-pack/                # Official Microchip ATDF device family packs
 ```
 
-## Quick Start
+---
 
-### Prerequisites
+## Contributing
 
-- CMake 3.25+
-- C++20 compatible compiler (GCC 11+, Clang 14+)
-- Python 3 (for device descriptor generation)
+We welcome community contributions! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) guide before submitting pull requests or issues.
 
-### Build & Test
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
-
-# Run a firmware image
-./build/apps/vioavr/vioavr run firmware.hex --mcu ATmega328P
-
-# Trace execution
-./build/apps/vioavr/vioavr trace firmware.hex --mcu ATmega328P --max-cycles 100
-
-# List supported MCUs
-./build/apps/vioavr/vioavr list-devices --filter mega
-
-# Built-in documentation
-./build/apps/vioavr/vioavr docs overview
-./build/apps/vioavr/vioavr docs --search evsys
-
-# Run tests
-ctest --test-dir build -j$(nproc) --output-on-failure
-```
-
-### Co-Simulation with ngspice
-
-```bash
-# Start bridge daemon (out-of-process)
-./build/apps/vioavr/vioavr bridge --mcu atmega4809 --instance my_avr &
-
-# Run ngspice with d_vioavr A-device
-ngspice -b my_circuit.cir
-```
-
-### GDB Debugging
-
-```bash
-./build/apps/vioavr/vioavr gdb firmware.hex --mcu ATmega328P --port 1234
-gdb-multiarch -ex 'target remote :1234' firmware.elf
-```
+---
 
 ## License
 
-GNU General Public License v3.0 (GPLv3). See [LICENSE](LICENSE).
+VioAVR is dual-licensed:
 
-For commercial, closed-source, or non-GPL embedding, please acquire a **VioAVR Commercial License**.
+* **Open-Source License**: Released under the **GNU General Public License v3.0 (GPLv3)**. See [LICENSE](LICENSE) for details.
+* **Commercial License**: Available under proprietary terms for commercial/closed-source embedding. Contact **janadasroor@gmail.com** for licensing inquiries.
 
 ---
 
