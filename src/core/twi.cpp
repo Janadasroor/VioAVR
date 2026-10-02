@@ -67,6 +67,8 @@ void Twi::reset() noexcept
     interrupt_pending_ = false;
     sla_matched_ = false;
     general_call_matched_ = false;
+    sla_acked_ = true;
+    master_target_self_ = false;
     rx_idx_ = 0;
     rx_buffer_.clear();
     tx_buffer_.clear();
@@ -149,7 +151,9 @@ void Twi::complete_step() noexcept
     // Based on the current mode and bits in TWCR (STA, STO, EA).
     
     if (twcr_ & desc_.twsta_mask) {
-        // Master: Send START
+        // Master: Send START. A new transfer invalidates any old slave match.
+        sla_matched_ = false;
+        general_call_matched_ = false;
         const Mode prev_mode = mode_;
         mode_ = Mode::master_tx;
         twsr_ = (prev_mode == Mode::idle) ? kStatusStart : kStatusRepStart;
@@ -159,8 +163,12 @@ void Twi::complete_step() noexcept
     } else if (twcr_ & desc_.twsto_mask) {
         // Master: Send STOP
         mode_ = Mode::idle;
+        master_target_self_ = false;
+        sla_matched_ = false;
+        general_call_matched_ = false;
         twsr_ = kStatusNoInfo;
         twcr_ &= ~desc_.twsto_mask;
+        if (bus_) bus_->twi_stop_broadcast();
         // Fall through to set TWINT (interrupt_pending_)
     } else {
         // Normal data/addr transfer
@@ -193,6 +201,8 @@ void Twi::handle_master_step() noexcept
     if (twsr_ == kStatusStart || twsr_ == kStatusRepStart) {
         // SLA+W/R just sent
         const bool is_read = (twdr_ & 0x01U);
+        // Loopback: this instance's own address (single-device self test).
+        master_target_self_ = check_twi_address(twdr_);
         const bool acked = (bus_ && bus_->twi_broadcast(twdr_));
         
         if (is_read) {
@@ -203,8 +213,12 @@ void Twi::handle_master_step() noexcept
             twsr_ = acked ? kStatusMasterTxAddrAck : kStatusMasterTxAddrNack;
         }
     } else if (mode_ == Mode::master_tx) {
-        // Data byte just sent — check for slave ACK
-        const bool acked = (bus_ && bus_->twi_data_send(twdr_));
+        // Data byte just sent — check for slave ACK.
+        // Self-loopback (master addresses its own TWAR): ACK via TWEA.
+        bool acked = (bus_ && bus_->twi_data_send(twdr_));
+        if (!acked && master_target_self_) {
+            acked = (twcr_ & desc_.twea_mask) != 0U;
+        }
         twsr_ = acked ? kStatusMasterTxDataAck : kStatusMasterTxDataNack;
         if (acked) tx_buffer_.push_back(twdr_);
     } else if (mode_ == Mode::master_rx) {
@@ -220,16 +234,58 @@ void Twi::handle_master_step() noexcept
 
 void Twi::on_twi_match(u8 address) noexcept
 {
-    if (!(twcr_ & desc_.twea_mask)) return;
+    // Datasheet: address is recognized even with TWEA=0, but a NACK is
+    // returned. Latch the match so the slave sees TWINT — but not when this
+    // instance is itself the active master (single-instance loopback): the
+    // master flow owns mode_/twsr_ in that case, only the ACK matters.
+    sla_acked_ = (twcr_ & desc_.twea_mask) != 0U;
+    if (mode_ == Mode::master_tx || mode_ == Mode::master_rx) {
+        return;
+    }
     if (address & 0x01U) {
         mode_ = Mode::slave_tx;
-        twsr_ = kStatusSlaveTxAddrAck;
+        twsr_ = sla_acked_ ? kStatusSlaveTxAddrAck : kStatusSlaveTxDataNack;
     } else {
         mode_ = Mode::slave_rx;
-        twsr_ = (address == 0) ? kStatusSlaveRxGenAck : kStatusSlaveRxAddrAck;
+        if (address == 0) {
+            twsr_ = sla_acked_ ? kStatusSlaveRxGenAck : kStatusSlaveRxGenDataNack;
+        } else {
+            twsr_ = sla_acked_ ? kStatusSlaveRxAddrAck : kStatusSlaveRxDataNack;
+        }
     }
     sla_matched_ = true;
     general_call_matched_ = (address == 0);
+    interrupt_pending_ = true;
+    update_interrupt_state();
+}
+
+void Twi::on_twi_stop() noexcept
+{
+    // Datasheet Table 26-5: STOP received while addressed slave -> 0xA0.
+    // Master instances are already idle here (complete_step ran first).
+    if (mode_ == Mode::slave_rx || mode_ == Mode::slave_tx) {
+        mode_ = Mode::idle;
+        twsr_ = kStatusSlaveStop;
+        sla_matched_ = false;
+        general_call_matched_ = false;
+        master_target_self_ = false;
+        interrupt_pending_ = true;
+        update_interrupt_state();
+    }
+}
+
+void Twi::force_arbitration_lost() noexcept
+{
+    mode_ = Mode::idle;
+    twsr_ = kStatusArbitrationLost;
+    interrupt_pending_ = true;
+    update_interrupt_state();
+}
+
+void Twi::force_bus_error() noexcept
+{
+    mode_ = Mode::idle;
+    twsr_ = kStatusBusError;
     interrupt_pending_ = true;
     update_interrupt_state();
 }

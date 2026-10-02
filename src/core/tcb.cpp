@@ -46,6 +46,7 @@ void Tcb::reset() noexcept {
     cnt_ = 0;
     ccmp_ = 0;
     async_cycle_accum_ = 0;
+    prescaler_counter_ = 0;
     update_interrupt_state();
     update_active_state();
 }
@@ -120,12 +121,13 @@ void Tcb::tick(u64 elapsed_cycles) noexcept {
     bool ticked = false;
 
     if (async) {
-        // ASYNC mode: clocked from RTC (32.768 kHz) instead of CLK_PER
-        // CLKSEL acts as prescaler for the RTC clock
+        // ASYNC mode: clocked from RTC (32.768 kHz) instead of CLK_PER.
+        // Derive the CPU-to-RTC ratio from the device frequency.
         u32 clk_div = (clksel == 0) ? 1 : (clksel == 1) ? 2 : (clksel == 2) ? 4 : 1;
-        // Ratio of system clock (16 MHz typical) to RTC clock at chosen prescaler
-        static constexpr u64 kCyclesPerRtcTick = 488; // 16000000 / 32768
-        u64 cycles_per_tick = kCyclesPerRtcTick * clk_div;
+        u64 cpu_hz = 16000000U;
+        if (bus_) cpu_hz = bus_->device().cpu_frequency_hz;
+        u64 cycles_per_tick = (cpu_hz * clk_div) / 32768U;
+        if (cycles_per_tick == 0U) cycles_per_tick = 1U;
         async_cycle_accum_ += elapsed_cycles;
         u64 rtc_ticks = async_cycle_accum_ / cycles_per_tick;
         async_cycle_accum_ -= rtc_ticks * cycles_per_tick;

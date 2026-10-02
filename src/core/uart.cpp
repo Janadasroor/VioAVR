@@ -174,7 +174,7 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
 u8 Uart::read(const u16 address) noexcept
 {
     if (address == desc_.udr_address) {
-        ucsra_ &= ~(desc_.rxc_mask | kDorMask);
+        ucsra_ &= ~(desc_.rxc_mask | kDorMask | kFeMask | kUpeMask);
         update_interrupt_state();
         return udr_rx_;
     }
@@ -258,6 +258,11 @@ bool Uart::consume_interrupt_request(InterruptRequest& request) noexcept
 bool Uart::inject_received_byte(const u16 data) noexcept
 {
     if ((ucsrb_ & desc_.rxen_mask) == 0U) return false;
+
+    // MPCM: in 9-bit mode, data frames (9th bit = 0) are ignored.
+    const bool use_9bit = (ucsrb_ & 0x04U) != 0U;
+    const bool bit9 = ((data >> 8U) & 0x01U) != 0U;
+    if ((ucsra_ & desc_.mpcm_mask) != 0U && use_9bit && !bit9) return false;
 
     if ((ucsra_ & desc_.rxc_mask) != 0U || rx_active_) {
         ucsra_ |= kDorMask;

@@ -56,6 +56,10 @@ private:
     u32 write_cycles_left_ {};
     u8 master_write_enable_timeout_ {};
     u8 eepm_mode_ {}; // Latched programming mode (EEPM bits) at write start
+    // Pending memory-mapped write (AVR8X style): completes async, no long CPU stall.
+    bool mapped_write_pending_ {false};
+    u16 mapped_write_offset_ {};
+    u8 mapped_write_value_ {};
 };
 
 }  // namespace vioavr::core

@@ -37,13 +37,13 @@ TEST_CASE("TWI (I2C) Peripheral Master Mode Test")
     bus.load_image(HexImage {
         .flash_words = {
             // Send START
-            encode_ldi(16, 0xA4), // TWINT=1, TWSTA=1, TWEN=1
+            encode_ldi(16, 0xE4), // TWINT=1, TWEA=1, TWSTA=1, TWEN=1
             encode_sts(16), atmega328p.twis[0].twcr_address,
-            
+
             // Send SLA+W (address 0x50)
             encode_ldi(17, 0xA0), // 0x50 << 1
             encode_sts(17), atmega328p.twis[0].twdr_address,
-            encode_ldi(18, 0x84), // TWINT=1, TWEN=1
+            encode_ldi(18, 0xC4), // TWINT=1, TWEA=1, TWEN=1 (TWEA so own slave ACKs)
             encode_sts(18), atmega328p.twis[0].twcr_address,
 
             // Send DATA 0xDE
@@ -52,7 +52,7 @@ TEST_CASE("TWI (I2C) Peripheral Master Mode Test")
             encode_sts(18), atmega328p.twis[0].twcr_address,
 
             // Send STOP
-            encode_ldi(20, 0x94), // TWINT=1, TWSTO=1, TWEN=1
+            encode_ldi(20, 0xD4), // TWINT=1, TWEA=1, TWSTO=1, TWEN=1
             encode_sts(20), atmega328p.twis[0].twcr_address,
 
             0x0000U

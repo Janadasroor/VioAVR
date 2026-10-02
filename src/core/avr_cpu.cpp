@@ -560,7 +560,7 @@ void AvrCpu::run(const u64 cycle_budget)
             if ((opcode & 0xD208) == 0x8008) { // LDD Y+q
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
                 const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
+                const u16 addr = static_cast<u16>(((static_cast<u16>(regs[29]) << 8U) | regs[28]) + q);
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     regs[dest] = bus_data[addr];
                 else
@@ -572,7 +572,7 @@ void AvrCpu::run(const u64 cycle_budget)
             if ((opcode & 0xD208) == 0x8000) { // LDD Z+q
                 const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
                 const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
+                const u16 addr = static_cast<u16>(((static_cast<u16>(regs[31]) << 8U) | regs[30]) + q);
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     regs[dest] = bus_data[addr];
                 else
@@ -584,7 +584,7 @@ void AvrCpu::run(const u64 cycle_budget)
             if ((opcode & 0xD208) == 0x8208) { // STD Y+q
                 const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
                 const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
+                const u16 addr = static_cast<u16>(((static_cast<u16>(regs[29]) << 8U) | regs[28]) + q);
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     bus_data[addr] = regs[src];
                 else
@@ -596,7 +596,7 @@ void AvrCpu::run(const u64 cycle_budget)
             if ((opcode & 0xD208) == 0x8200) { // STD Z+q
                 const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
                 const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
+                const u16 addr = static_cast<u16>(((static_cast<u16>(regs[31]) << 8U) | regs[30]) + q);
                 if (addr >= sram_begin && addr <= sram_end) [[likely]]
                     bus_data[addr] = regs[src];
                 else
@@ -1003,7 +1003,7 @@ bool AvrCpu::handle_slow_path(const u16 opcode, u32& pending_cycles, u8* regs, c
                 {
                     const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
                     const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
+                    const u16 addr = static_cast<u16>(((static_cast<u16>(regs[29]) << 8U) | regs[28]) + q);
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         regs[dest] = bus_data[addr];
                     else
@@ -1016,7 +1016,7 @@ bool AvrCpu::handle_slow_path(const u16 opcode, u32& pending_cycles, u8* regs, c
                 {
                     const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
                     const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
+                    const u16 addr = static_cast<u16>(((static_cast<u16>(regs[31]) << 8U) | regs[30]) + q);
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         regs[dest] = bus_data[addr];
                     else
@@ -1029,7 +1029,7 @@ bool AvrCpu::handle_slow_path(const u16 opcode, u32& pending_cycles, u8* regs, c
                 {
                     const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
                     const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
+                    const u16 addr = static_cast<u16>(((static_cast<u16>(regs[29]) << 8U) | regs[28]) + q);
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         bus_data[addr] = regs[src];
                     else
@@ -1038,11 +1038,11 @@ bool AvrCpu::handle_slow_path(const u16 opcode, u32& pending_cycles, u8* regs, c
                     pending_cycles += 2;
                 }
                 break;
-            case 79: // STD Z+q
+             case 79: // STD Z+q
                 {
                     const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
                     const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-                    const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
+                    const u16 addr = static_cast<u16>(((static_cast<u16>(regs[31]) << 8U) | regs[30]) + q);
                     if (addr >= sram_begin && addr <= sram_end) [[likely]]
                         bus_data[addr] = regs[src];
                     else
@@ -1470,7 +1470,7 @@ void AvrCpu::step()
         if ((opcode & 0xD208) == 0x8008) { // LDD Y+q
             const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
             const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
+            const u16 addr = static_cast<u16>(((static_cast<u16>(regs[29]) << 8U) | regs[28]) + q);
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 regs[dest] = bus_data[addr];
             else
@@ -1480,7 +1480,7 @@ void AvrCpu::step()
         if ((opcode & 0xD208) == 0x8000) { // LDD Z+q
             const u8 dest = static_cast<u8>((opcode >> 4U) & 0x1FU);
             const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
+            const u16 addr = static_cast<u16>(((static_cast<u16>(regs[31]) << 8U) | regs[30]) + q);
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 regs[dest] = bus_data[addr];
             else
@@ -1490,7 +1490,7 @@ void AvrCpu::step()
         if ((opcode & 0xD208) == 0x8208) { // STD Y+q
             const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
             const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[29]) << 8U) | (regs[28] + q));
+            const u16 addr = static_cast<u16>(((static_cast<u16>(regs[29]) << 8U) | regs[28]) + q);
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 bus_data[addr] = regs[src];
             else
@@ -1500,7 +1500,7 @@ void AvrCpu::step()
         if ((opcode & 0xD208) == 0x8200) { // STD Z+q
             const u8 src = static_cast<u8>((opcode >> 4U) & 0x1FU);
             const u8 q = static_cast<u8>(((opcode >> 8U) & 0x20U) | ((opcode >> 7U) & 0x18U) | (opcode & 0x07U));
-            const u16 addr = static_cast<u16>((static_cast<u16>(regs[31]) << 8U) | (regs[30] + q));
+            const u16 addr = static_cast<u16>(((static_cast<u16>(regs[31]) << 8U) | regs[30]) + q);
             if (addr >= sram_begin && addr <= sram_end) [[likely]]
                 bus_data[addr] = regs[src];
             else

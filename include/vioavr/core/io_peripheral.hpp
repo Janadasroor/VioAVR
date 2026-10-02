@@ -93,10 +93,21 @@ public:
         (void)address;
     }
 
+    // Whether the last on_twi_match was ACKed (TWEA set). Defaults true.
+    [[nodiscard]] virtual bool twi_match_acked() const noexcept
+    {
+        return true;
+    }
+
     [[nodiscard]] virtual bool on_twi_data(u8 data) noexcept
     {
         (void)data;
         return true;
+    }
+
+    // Bus STOP condition observed (slave side).
+    virtual void on_twi_stop() noexcept
+    {
     }
 
     [[nodiscard]] virtual bool supports_interrupt_mask() const noexcept { return false; }

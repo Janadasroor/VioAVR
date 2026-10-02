@@ -243,7 +243,11 @@ void Adc::update_interrupt_pending() noexcept {
 }
 
 void Adc::complete_conversion() noexcept {
-    if (vref_ <= 0.0) {
+    // Decode REFS1:0 (ADMUX[7:6]): 00=AREF, 01=AVCC, 11=internal 1.1V.
+    // vref_ holds VCC/AVCC (set from operating voltage); AREF defaults to it.
+    const u8 refs = static_cast<u8>((admux_ >> 6U) & 0x03U);
+    const double eff_vref = (refs == 0x03U) ? 1.1 : vref_;
+    if (eff_vref <= 0.0) {
         result_ = 0;
         adcsra_ &= ~desc_.adsc_mask;
         adcsra_ |= desc_.adif_mask;
@@ -253,20 +257,32 @@ void Adc::complete_conversion() noexcept {
         return;
     }
 
-    const MuxMapping mapping = resolve_mux();
-    double pos_v = get_voltage(mapping.positive_channel);
+    MuxMapping mapping = resolve_mux();
+    // Raw MUX value for special internal channels (before table lookup).
+    u8 raw_mux = static_cast<u8>(admux_ & 0x1FU);
+    if (desc_.mux5_mask && (adcsrb_ & desc_.mux5_mask)) raw_mux |= 0x20U;
+    double pos_v;
+    if (raw_mux == 0x0EU || raw_mux == 0x1EU) {
+        pos_v = 1.1;  // Bandgap reference, always single-ended
+        mapping = {0, 0, 1.0f, false};
+    } else if (raw_mux == 0x0FU || raw_mux == 0x1FU) {
+        pos_v = 0.0;  // GND, always single-ended
+        mapping = {0, 0, 1.0f, false};
+    } else {
+        pos_v = get_voltage(mapping.positive_channel);
+    }
     double result_v = pos_v;
 
     if (mapping.differential) {
         double neg_v = get_voltage(mapping.negative_channel);
-        result_v = ((pos_v - neg_v) * mapping.gain) / vref_;
+        result_v = ((pos_v - neg_v) * mapping.gain) / eff_vref;
         
         // Differential results are 2's complement 10-bit (-512 to 511)
         i16 result = static_cast<i16>(std::clamp(result_v * 512.0, -512.0, 511.0));
         result_ = static_cast<u16>(result) & 0x3FFU;
     } else {
         // Single-ended results are unsigned 10-bit (0 to 1023)
-        result_ = static_cast<u16>(std::clamp((result_v / vref_) * 1024.0, 0.0, 1023.0));
+        result_ = static_cast<u16>(std::clamp((result_v / eff_vref) * 1024.0, 0.0, 1023.0));
     }
     
     // In free-running mode, ADSC stays set (hardware behavior).

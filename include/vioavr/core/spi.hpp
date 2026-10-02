@@ -33,6 +33,9 @@ public:
     [[nodiscard]] u8 last_transmitted_byte() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
     void on_event(u64 cycle) noexcept;
+    // SS driven low while master: clears MSTR, sets SPIF (datasheet §18.3.2).
+    void on_ss_asserted() noexcept;
+    [[nodiscard]] u8 spi_mode() const noexcept { return static_cast<u8>((spcr_ >> 2U) & 0x03U); }
 
 private:
     void complete_transfer() noexcept;

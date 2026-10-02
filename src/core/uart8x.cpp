@@ -93,7 +93,11 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
     double bit_duration = 16.0;
     if (xmega_mode_) {
         u16 bsel = baud_ & 0x0FFFU;
-        bit_duration = 16.0 * (static_cast<double>(bsel) + 1.0);
+        i8 bscale = static_cast<i8>((baud_ >> 12U) & 0x0FU);
+        if (bscale >= 8) bscale -= 16;
+        double scale = (bscale >= 0) ? static_cast<double>(1U << bscale)
+                                     : 1.0 / static_cast<double>(1U << (-bscale));
+        bit_duration = 16.0 * (static_cast<double>(bsel) + 1.0) * scale;
     } else {
         u8 samples_per_bit = 16;
         u8 rxmode = (ctrlb_ & CTRLB_RXMODE_MASK) >> 1;
@@ -199,7 +203,11 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
             double bit_duration;
             if (xmega_mode_) {
                 u16 bsel = baud_ & 0x0FFFU;
-                bit_duration = 16.0 * (static_cast<double>(bsel) + 1.0);
+                i8 bscale = static_cast<i8>((baud_ >> 12U) & 0x0FU);
+                if (bscale >= 8) bscale -= 16;
+                double scale = (bscale >= 0) ? static_cast<double>(1U << bscale)
+                                             : 1.0 / static_cast<double>(1U << (-bscale));
+                bit_duration = 16.0 * (static_cast<double>(bsel) + 1.0) * scale;
             } else {
                 u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
                 bit_duration = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;
@@ -362,7 +370,11 @@ void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
 
     if (xmega_mode_) {
         u16 bsel = baud_ & 0x0FFFU;
-        rx_bit_duration_ = 16.0 * (static_cast<double>(bsel) + 1.0);
+        i8 bscale = static_cast<i8>((baud_ >> 12U) & 0x0FU);
+        if (bscale >= 8) bscale -= 16;
+        double scale = (bscale >= 0) ? static_cast<double>(1U << bscale)
+                                     : 1.0 / static_cast<double>(1U << (-bscale));
+        rx_bit_duration_ = 16.0 * (static_cast<double>(bsel) + 1.0) * scale;
     } else {
         u8 samples_per_bit = (ctrlb_ & CTRLB_RXMODE_MASK) == 0x02 ? 8 : 16;
         rx_bit_duration_ = (baud_ > 64) ? (static_cast<double>(baud_) * samples_per_bit) / 64.0 : 16.0;

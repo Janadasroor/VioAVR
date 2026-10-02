@@ -31,7 +31,12 @@ public:
     [[nodiscard]] bool busy() const noexcept;
     [[nodiscard]] bool check_twi_address(u8 address) const noexcept override;
     void on_twi_match(u8 address) noexcept override;
+    [[nodiscard]] bool twi_match_acked() const noexcept override { return sla_acked_; }
     [[nodiscard]] bool on_twi_data(u8 data) noexcept override;
+    void on_twi_stop() noexcept override;
+    // Test injection: arbitration lost (0x38) / bus error (0x00).
+    void force_arbitration_lost() noexcept;
+    void force_bus_error() noexcept;
 
 private:
     void complete_step() noexcept;
@@ -63,6 +68,8 @@ private:
     bool interrupt_pending_ {};
     bool sla_matched_ {false};
     bool general_call_matched_ {false};
+    bool sla_acked_ {true};
+    bool master_target_self_ {false};
     
     std::vector<u8> rx_buffer_ {};
     std::size_t rx_idx_ {0};

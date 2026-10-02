@@ -110,9 +110,11 @@ void Timer8::tick(const u64 elapsed_cycles) noexcept
     if (cs == 0) return;
 
 
-    if (cs <= 5) {
-        static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
-        const u16 divisor = prescalers[cs];
+    const bool is_async_timer = has_async_status_register();
+    if ((!is_async_timer && cs <= 5) || (is_async_timer && cs <= 7)) {
+        static const u16 sync_prescalers[] = {0, 1, 8, 64, 256, 1024};
+        static const u16 async_prescalers[] = {0, 1, 8, 32, 64, 128, 256, 1024};
+        const u16 divisor = is_async_timer ? async_prescalers[cs] : sync_prescalers[cs];
         cycle_accumulator_ += elapsed_cycles;
         const u64 ticks = cycle_accumulator_ / divisor;
         cycle_accumulator_ %= divisor;
@@ -149,9 +151,11 @@ void Timer8::tick_async(const u64 elapsed_ticks) noexcept
         return;
     }
 
-    if (cs <= 5) {
-        static const u16 prescalers[] = {0, 1, 8, 64, 256, 1024};
-        const u16 divisor = prescalers[cs];
+    const bool is_async_timer = has_async_status_register();
+    if ((!is_async_timer && cs <= 5) || (is_async_timer && cs <= 7)) {
+        static const u16 sync_prescalers[] = {0, 1, 8, 64, 256, 1024};
+        static const u16 async_prescalers[] = {0, 1, 8, 32, 64, 128, 256, 1024};
+        const u16 divisor = is_async_timer ? async_prescalers[cs] : sync_prescalers[cs];
         cycle_accumulator_ += elapsed_ticks;
         const u64 ticks = cycle_accumulator_ / divisor;
         cycle_accumulator_ %= divisor;
@@ -349,7 +353,9 @@ void Timer8::perform_tick() noexcept
         }
     } else { // Normal or CTC
         if (tcnt_ == top) {
-            if (mode_ != Mode::ctc_ocra) handle_overflow();
+            // Datasheet: TOV set at MAX. In CTC with TOP<MAX the counter
+            // clears before MAX so no overflow; with TOP==MAX both flags set.
+            if (mode_ != Mode::ctc_ocra || top == 0xFFU) handle_overflow();
             tcnt_ = 0;
         } else {
             tcnt_++;

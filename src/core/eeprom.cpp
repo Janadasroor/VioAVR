@@ -57,11 +57,19 @@ std::span<const AddressRange> Eeprom::mapped_ranges() const noexcept
 
 void Eeprom::reset() noexcept
 {
+    if (bus_) {
+        bus_->scheduler().cancel(eeprom_master_timeout_callback, this);
+        bus_->scheduler().cancel(eeprom_write_complete_callback, this);
+    }
     eecr_ = 0U;
     eedr_ = 0U;
     eear_ = 0U;
     write_cycles_left_ = 0U;
     master_write_enable_timeout_ = 0U;
+    mapped_write_pending_ = false;
+    mapped_write_offset_ = 0U;
+    mapped_write_value_ = 0xFFU;
+    eepm_mode_ = 0U;
     set_interrupt_pending(false);
 }
 
@@ -102,9 +110,9 @@ u8 Eeprom::read(const u16 address) noexcept
         return static_cast<u8>((eear_ >> 8U) & 0xFFU);
     }
 
-    // Unified Data Map Read
+    // Unified Data Map Read (returns last committed value; no stall while busy)
     if (desc_.mapped_data.size > 0 && address >= desc_.mapped_data.data_start && address < desc_.mapped_data.data_start + desc_.mapped_data.size) {
-        if (bus_) bus_->request_cpu_stall(4U); // Hardware stall for EEPROM read
+        if (write_cycles_left_ == 0U && bus_) bus_->request_cpu_stall(4U); // Hardware stall for EEPROM read
         const u16 offset = address - desc_.mapped_data.data_start;
         return (offset < storage_.size()) ? storage_[offset] : 0xFFU;
     }
@@ -132,13 +140,23 @@ void Eeprom::write(const u16 address, const u8 value) noexcept
     } else if (address == desc_.eearh_address) {
         eear_ = static_cast<u16>((static_cast<u16>(value) << 8U) | (eear_ & 0x00FFU));
     } else if (desc_.mapped_data.size > 0 && address >= desc_.mapped_data.data_start && address < desc_.mapped_data.data_start + desc_.mapped_data.size) {
-        // Direct mapped write (AVR8X style) — only if no write in progress
+        // Memory-mapped write (AVR8X style): async like the EECR path.
+        // BUSY is visible via EECR.EEPE; writes while busy are ignored.
+        // No full-duration CPU stall (old code stalled ~54k cycles).
         if (write_cycles_left_ == 0U) {
-            if (bus_) bus_->request_cpu_stall(kEepromAtomicCycles);
             const u16 offset = address - desc_.mapped_data.data_start;
             if (offset < storage_.size()) {
-                Logger::debug("Eeprom '" + std::string(name_) + "': Direct write at offset " + std::to_string(offset) + " = 0x" + std::to_string(value));
-                storage_[offset] = value;
+                Logger::debug("Eeprom '" + std::string(name_) + "': Mapped write at offset " + std::to_string(offset) + " = 0x" + std::to_string(value));
+                mapped_write_pending_ = true;
+                mapped_write_offset_ = offset;
+                mapped_write_value_ = value;
+                eecr_ |= kEepe;
+                write_cycles_left_ = kEepromAtomicCycles;
+                if (bus_) {
+                    bus_->scheduler().cancel(eeprom_write_complete_callback, this);
+                    bus_->scheduler().schedule(write_cycles_left_, eeprom_write_complete_callback, this);
+                }
+                update_interrupt_pending();
             }
         }
     }
@@ -231,16 +249,23 @@ void Eeprom::start_write() noexcept
 
 void Eeprom::complete_write() noexcept
 {
-    const u16 addr = static_cast<u16>(eear_ % size_);
-    
-    if (eepm_mode_ == 0x01U) { // Erase only
-        storage_[addr] = 0xFFU;
-    } else if (eepm_mode_ == 0x02U) { // Write only
-        storage_[addr] &= eedr_;
-    } else { // Atomic
-        storage_[addr] = eedr_;
+    if (mapped_write_pending_) {
+        if (mapped_write_offset_ < storage_.size()) {
+            storage_[mapped_write_offset_] = mapped_write_value_;
+        }
+        mapped_write_pending_ = false;
+    } else {
+        const u16 addr = static_cast<u16>(eear_ % size_);
+
+        if (eepm_mode_ == 0x01U) { // Erase only
+            storage_[addr] = 0xFFU;
+        } else if (eepm_mode_ == 0x02U) { // Write only
+            storage_[addr] &= eedr_;
+        } else { // Atomic
+            storage_[addr] = eedr_;
+        }
     }
-    
+
     eecr_ &= static_cast<u8>(~kEepe);
     update_interrupt_pending();
 }

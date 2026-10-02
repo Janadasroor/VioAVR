@@ -167,6 +167,7 @@ public:
     void on_reti() noexcept;
     [[nodiscard]] bool twi_broadcast(u8 address) noexcept;
     [[nodiscard]] bool twi_data_send(u8 data) noexcept;
+    void twi_stop_broadcast() noexcept;
     void set_flash_rww_busy(bool busy) noexcept { flash_rww_busy_ = busy; }
     [[nodiscard]] bool flash_rww_busy() const noexcept { return flash_rww_busy_; }
     [[nodiscard]] inline bool should_stall_cpu(u32 pc_word) const noexcept
@@ -260,6 +261,7 @@ private:
     std::vector<std::unique_ptr<IoPeripheral>> managed_muxes_;
     std::array<u8, 16> fuses_ {};
     void perform_deferred_nvm_operation() noexcept;
+    void perform_deferred_nvm_dx_ex(u8 command) noexcept;
     u8 lockbit_ {0xFFU};
 
     // SPM timing state

@@ -187,6 +187,20 @@ void Spi::trigger_slave_transfer(const u32 sck_bit_cycles) noexcept
     }
 }
 
+void Spi::on_ss_asserted() noexcept
+{
+    // Datasheet §18.3.2: SS low in master mode => MSTR cleared, SPIF set.
+    if ((spcr_ & desc_.spe_mask) != 0U && (spcr_ & desc_.mstr_mask) != 0U) {
+        spcr_ &= static_cast<u8>(~desc_.mstr_mask);
+        // Abort any pending master transfer; the bus now belongs to the other master.
+        if (bus_) bus_->scheduler().cancel(spi_callback, this);
+        transfer_cycles_left_ = 0U;
+        spsr_ |= desc_.spif_mask;
+        interrupt_pending_ = true;
+        update_interrupt_pending();
+    }
+}
+
 u8 Spi::last_transmitted_byte() const noexcept
 {
     return shift_register_;
@@ -212,6 +226,7 @@ void Spi::complete_transfer() noexcept
     spdr_ = received;
     spsr_ = static_cast<u8>((spsr_ & ~desc_.wcol_mask) | desc_.spif_mask);
     interrupt_pending_ = true;
+    update_interrupt_pending();
 }
 
 bool Spi::power_reduction_enabled() const noexcept
