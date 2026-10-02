@@ -560,32 +560,81 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
     spm_address_ = address;
     spm_data_ = data;
     
-    // NVMCTRL commands (AVR8X)
-    // 1: PAGEWRITE, 2: PAGEERASE, 3: PAGEERASEWRITE, 5: CHIPERASE, etc.
+    // NVMCTRL commands are family-specific (see NvmFamily in device.hpp).
     u32 cycles = 64000U; // ~4ms at 16MHz default
-    
-    if (command == 0x05) { // CHER (Chip Erase)
-        cycles = 1600000U; // ~100ms at 16MHz
-    } else if (command == 0x04 || command == 0x09) { // PBC / EEPBC
-        cycles = 1; // Immediate
-        if (command == 0x09) {
-            Logger::debug("MemoryBus: Clearing EEPROM page buffer (EEPBC)");
-            std::ranges::fill(eeprom_page_buffer_, 0xFFU);
-        } else {
-            Logger::debug("MemoryBus: Clearing Flash page buffer (PBC)");
-            std::ranges::fill(flash_page_buffer_, 0xFFFFU);
+    bool flash_busy = true;
+    bool ee_busy = false;
+    const NvmFamily family = nvm_family_for_name(device_.name);
+
+    auto clear_flash_buf = [&] {
+        Logger::debug("MemoryBus: Clearing Flash page buffer (PBC)");
+        std::ranges::fill(flash_page_buffer_, 0xFFFFU);
+    };
+    auto clear_ee_buf = [&] {
+        Logger::debug("MemoryBus: Clearing EEPROM page buffer (EEPBC)");
+        std::ranges::fill(eeprom_page_buffer_, 0xFFU);
+    };
+
+    if (family == NvmFamily::Dx) {
+        if (command == 0x01) { // NOOP
+            cycles = 1U;
+            flash_busy = false;
+        } else if (command >= 0x09U && command <= 0x0DU) { // FLMPERn
+            cycles = 64000U * (1U << (command - 0x09U + 1U));
+        } else if (command == 0x12 || command == 0x13 || command == 0x18
+                || (command >= 0x19U && command <= 0x1DU)) {
+            flash_busy = false;
+            ee_busy = true;
+        } else if (command == 0x20) { // CHER
+            cycles = 1600000U;
+            ee_busy = true;
+        } else if (command == 0x30) { // EECHER
+            cycles = 1600000U;
+            flash_busy = false;
+            ee_busy = true;
         }
+    } else if (family == NvmFamily::Ex) {
+        if (command == 0x01 || command == 0x0FU || command == 0x1FU) { // NOOP/PBCLR
+            cycles = 1U;
+            if (command == 0x0FU) clear_flash_buf();
+            if (command == 0x1FU) clear_ee_buf();
+            flash_busy = false;
+        } else if (command >= 0x09U && command <= 0x0DU) { // FLMPERn
+            cycles = 64000U * (1U << (command - 0x09U + 1U));
+        } else if (command == 0x14 || command == 0x15 || command == 0x17) {
+            flash_busy = false;
+            ee_busy = true;
+        } else if (command == 0x20) { // CHER
+            cycles = 1600000U;
+            ee_busy = true;
+        } else if (command == 0x30) { // EECHER
+            cycles = 1600000U;
+            flash_busy = false;
+            ee_busy = true;
+        }
+    } else {
+        // Legacy megaAVR-0/tiny mapping (unchanged behavior).
+        if (command == 0x05) { // CHER (Chip Erase)
+            cycles = 1600000U; // ~100ms at 16MHz
+        } else if (command == 0x04 || command == 0x09) { // PBC / EEPBC
+            cycles = 1; // Immediate
+            if (command == 0x09) {
+                clear_ee_buf();
+            } else {
+                clear_flash_buf();
+            }
+        }
+        flash_busy = (command >= 1 && command <= 5) || command == 0x10;
+        ee_busy = (command >= 6 && command <= 8);
     }
-    
+
     char log_buf[256];
     snprintf(log_buf, sizeof(log_buf), "MemoryBus [%p]: NVM command 0x%02X (cycles: %u) started at 0x%04X", (void*)this, command, cycles, address);
     Logger::debug(log_buf);
-    
+
     spm_busy_cycles_left_ = cycles;
 
     if (nvm_ctrl_) {
-        bool flash_busy = (command >= 1 && command <= 5) || command == 0x10;
-        bool ee_busy = (command >= 6 && command <= 8);
         nvm_ctrl_->set_busy(flash_busy, ee_busy);
     }
 
@@ -600,13 +649,18 @@ void MemoryBus::on_reti() noexcept {
 }
 
 bool MemoryBus::twi_broadcast(u8 address) noexcept {
+    // Notify every matching slave (multi-slave bus); ACK if any slave ACKs
+    // (wired-AND: a single ACK pulls SDA low).
+    bool matched = false;
+    bool acked = false;
     for (auto* peripheral : peripherals_) {
         if (peripheral != nullptr && peripheral->check_twi_address(address)) {
             peripheral->on_twi_match(address);
-            return true;
+            matched = true;
+            acked = acked || peripheral->twi_match_acked();
         }
     }
-    return false;
+    return matched && acked;
 }
 
 bool MemoryBus::twi_data_send(u8 data) noexcept {
@@ -619,6 +673,12 @@ bool MemoryBus::twi_data_send(u8 data) noexcept {
     return acked;
 }
 
+void MemoryBus::twi_stop_broadcast() noexcept {
+    for (auto* peripheral : peripherals_) {
+        if (peripheral != nullptr) peripheral->on_twi_stop();
+    }
+}
+
 IoPeripheral* MemoryBus::get_peripheral_by_name(std::string_view name) noexcept {
     for (auto* p : peripherals_) {
         // Some peripherals might have instance names like USART0
@@ -627,13 +687,101 @@ IoPeripheral* MemoryBus::get_peripheral_by_name(std::string_view name) noexcept 
     return nullptr;
 }
 
+void MemoryBus::perform_deferred_nvm_dx_ex(u8 command) noexcept {
+    // AVR-Dx / AVR-Ex NVM commands. Page-erase granularity for multi-page
+    // erase; single-page EEPROM erase approximated by whole-EEPROM erase
+    // (refine with per-device EEPROM page size if needed).
+    if (device_.flash_page_size == 0U) return;
+    const u32 word_addr = spm_address_ >> 1;
+    const u32 page_mask = ~(static_cast<u32>(device_.flash_page_size) - 1U);
+    const u32 page_start = word_addr & page_mask;
+    auto erase_flash_pages = [&](u32 first_page, u32 count) {
+        for (u32 p = 0; p < count; ++p) {
+            const u32 start = first_page + p * device_.flash_page_size;
+            for (u32 i = 0; i < device_.flash_page_size && (start + i) < flash_.size(); ++i) {
+                flash_[start + i] = 0xFFFFU;
+            }
+        }
+    };
+    auto write_flash_page = [&] {
+        if (page_start < flash_.size()) {
+            for (u32 i = 0; i < device_.flash_page_size && (page_start + i) < flash_.size(); ++i) {
+                flash_[page_start + i] = flash_page_buffer_[i];
+            }
+        }
+    };
+    auto commit_eeprom = [&] {
+        if (eeprom_) {
+            u32 ee_offset = spm_address_;
+            if (ee_offset >= device_.mapped_eeprom.data_start) {
+                ee_offset -= device_.mapped_eeprom.data_start;
+            }
+            eeprom_->commit_page(ee_offset, eeprom_page_buffer_);
+        }
+    };
+    auto erase_eeprom_all = [&] {
+        if (eeprom_) eeprom_->erase_all();
+    };
+
+    switch (command) {
+        case 0x02: // Dx FLWR: flash page write
+        case 0x04: // Ex FLPW: flash page write
+            write_flash_page();
+            break;
+        case 0x05: // Ex FLPERW: erase + write flash page
+            erase_flash_pages(page_start, 1U);
+            write_flash_page();
+            break;
+        case 0x08: // FLPER: erase flash page
+            erase_flash_pages(page_start, 1U);
+            break;
+        case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D: { // FLMPER2..32
+            const u32 pages = 1U << (command - 0x09U + 1U);
+            erase_flash_pages(page_start, pages);
+            break;
+        }
+        case 0x0F: // Ex FLPBCLR
+            std::ranges::fill(flash_page_buffer_, 0xFFFFU);
+            break;
+        case 0x12: // Dx EEWR
+        case 0x13: // Dx EEERWR (erase implicit in commit for the model)
+        case 0x14: // Ex EEPW
+        case 0x15: // Ex EEPERW
+            commit_eeprom();
+            break;
+        case 0x17: // Ex EEPER (single page): approximated by full erase
+        case 0x18: // Dx EEBER
+        case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D: // Dx EEMBERn
+        case 0x30: // EECHER
+            erase_eeprom_all();
+            break;
+        case 0x1F: // Ex EEPBCLR
+            std::ranges::fill(eeprom_page_buffer_, 0xFFU);
+            break;
+        case 0x20: // CHER: erase flash + EEPROM (+ user row like mega path)
+            erase_flash_pages(0U, static_cast<u32>(flash_.size()) / device_.flash_page_size + 1U);
+            erase_eeprom_all();
+            break;
+        case 0x01: // NOOP
+        case 0x00: // NONE/NOCMD
+        default:
+            break;
+    }
+}
+
 void MemoryBus::perform_deferred_nvm_operation() noexcept {
     const u32 word_addr = spm_address_ >> 1;
     const u32 page_mask = ~(static_cast<u32>(device_.flash_page_size) - 1U);
     const u32 page_start = word_addr & page_mask;
 
     if (nvm_ctrl_ != nullptr) {
-        // AVR8X
+        // AVR8X. Command numbers are family-specific (see NvmFamily);
+        // megaAVR-0/tiny mapping is the legacy table below.
+        const NvmFamily nvm_family = nvm_family_for_name(device_.name);
+        if (nvm_family != NvmFamily::MegaTiny) {
+            perform_deferred_nvm_dx_ex(spm_command_);
+            return;
+        }
         switch (spm_command_) {
             case 0x01: // PAGEWRITE
             case 0x03: // PAGEERASEWRITE

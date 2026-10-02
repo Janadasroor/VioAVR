@@ -54,19 +54,70 @@ void NvmCtrl::write(u16 address, u8 value) noexcept {
     if (address == desc_.ctrla_address) {
         ctrla_ = value & 0x7FU; // Only CMD bits are writable in CTRLA for now
         if (ctrla_ != 0) {
-            // Set local busy delay so BUSY is visible immediately
-            switch (ctrla_) {
-                case 0x04: case 0x09: // PBC / EEPBC — immediate
-                    busy_cycles_ = 1;
-                    break;
-                case 0x05: // CHER — long (~100ms at 16MHz)
+            // Family-aware busy model (see NvmFamily in device.hpp).
+            // Cycle counts assume 16MHz: page op ~4ms (64000), CHER ~100ms.
+            bool flash_busy = false;
+            bool ee_busy = false;
+            busy_cycles_ = 64000U;
+            const u8 cmd = ctrla_;
+            if (desc_.family == NvmFamily::Dx) {
+                if (cmd == 0x01) { // NOOP
+                    busy_cycles_ = 1U;
+                } else if (cmd == 0x02 || cmd == 0x08) { // FLWR / FLPER
+                    flash_busy = true;
+                } else if (cmd >= 0x09U && cmd <= 0x0DU) { // FLMPER2..32
+                    flash_busy = true;
+                    busy_cycles_ = 64000U * (1U << (cmd - 0x09U + 1U));
+                } else if (cmd == 0x12 || cmd == 0x13 || cmd == 0x18
+                        || (cmd >= 0x19U && cmd <= 0x1DU)) { // EE cmds
+                    ee_busy = true;
+                } else if (cmd == 0x20) { // CHER
+                    flash_busy = true;
+                    ee_busy = true;
                     busy_cycles_ = 1600000U;
-                    break;
-                default:
-                    busy_cycles_ = 64000U; // ~4ms at 16MHz for erase/write
-                    break;
+                } else if (cmd == 0x30) { // EECHER
+                    ee_busy = true;
+                    busy_cycles_ = 1600000U;
+                } else {
+                    flash_busy = true;
+                }
+            } else if (desc_.family == NvmFamily::Ex) {
+                if (cmd == 0x01 || cmd == 0x0FU || cmd == 0x1FU) { // NOOP/PBCLR
+                    busy_cycles_ = 1U;
+                } else if (cmd == 0x04 || cmd == 0x05 || cmd == 0x08) { // FLPW/FLPERW/FLPER
+                    flash_busy = true;
+                } else if (cmd >= 0x09U && cmd <= 0x0DU) { // FLMPERn
+                    flash_busy = true;
+                    busy_cycles_ = 64000U * (1U << (cmd - 0x09U + 1U));
+                } else if (cmd == 0x14 || cmd == 0x15 || cmd == 0x17) { // EE cmds
+                    ee_busy = true;
+                } else if (cmd == 0x20) { // CHER
+                    flash_busy = true;
+                    ee_busy = true;
+                    busy_cycles_ = 1600000U;
+                } else if (cmd == 0x30) { // EECHER
+                    ee_busy = true;
+                    busy_cycles_ = 1600000U;
+                } else {
+                    flash_busy = true;
+                }
+            } else {
+                // Legacy megaAVR-0/tiny mapping (unchanged behavior).
+                switch (cmd) {
+                    case 0x04: case 0x09: // PBC / EEPBC — immediate
+                        busy_cycles_ = 1;
+                        break;
+                    case 0x05: // CHER — long (~100ms at 16MHz)
+                        busy_cycles_ = 1600000U;
+                        break;
+                    default:
+                        busy_cycles_ = 64000U; // ~4ms at 16MHz for erase/write
+                        break;
+                }
+                flash_busy = (cmd >= 1 && cmd <= 5);
+                ee_busy = (cmd >= 6 && cmd <= 8);
             }
-            set_busy(ctrla_ >= 1 && ctrla_ <= 5, ctrla_ >= 6 && ctrla_ <= 8);
+            set_busy(flash_busy, ee_busy);
             if (bus_) {
                 bus_->execute_nvm_command(ctrla_, addr_, data_);
             }

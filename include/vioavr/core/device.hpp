@@ -616,6 +616,12 @@ struct EepromDescriptor {
     u8 pr_bit {0xFFU};
 };
 
+enum class NvmFamily : u8 {
+    MegaTiny = 0, // megaAVR-0 / tiny-0/1/2: 00 NONE, 01 PAGEWRITE, ..., 05 CHIPERASE
+    Dx = 1,       // AVR-Dx: 01 NOOP, 02 FLWR, 08 FLPER, 09-0D FLMPERn, 12/13 EE, 20 CHER, 30 EECHER
+    Ex = 2        // AVR-EA/EB: 01 NOOP, 04 FLPW, 05 FLPERW, 08 FLPER, 0F/1F PBCLR, 14/15/17 EE, 20 CHER, 30 EECHER
+};
+
 struct NvmCtrlDescriptor {
     u16 ctrla_address {};
     u16 ctrlb_address {};
@@ -625,7 +631,32 @@ struct NvmCtrlDescriptor {
     u16 addr_address {};
     u16 data_address {};
     u8 vector_index {};
+    NvmFamily family {NvmFamily::MegaTiny};
 };
+
+// NVMCTRL command set follows the device family (ATDF NVMCTRL_CMD group).
+// AVR-Dx: AVR{DA,DB,DD,DU,SD}*; AVR-Ex: AVR{EA,EB}*. Everything else keeps
+// the legacy megaAVR-0/tiny behavior.
+inline NvmFamily nvm_family_for_name(std::string_view name) noexcept {
+    // AVR-Dx/Ex names put the flash size first: AVR128DB32, AVR16EB32, ....
+    if (name.size() > 3 && name[0] == 'A' && name[1] == 'V' && name[2] == 'R') {
+        std::string_view rest = name.substr(3);
+        while (!rest.empty() && rest[0] >= '0' && rest[0] <= '9') {
+            rest.remove_prefix(1);
+        }
+        auto starts_with = [&](const char* p) {
+            return rest.size() >= 2 && rest[0] == p[0] && rest[1] == p[1];
+        };
+        if (starts_with("DA") || starts_with("DB") || starts_with("DD")
+            || starts_with("DU") || starts_with("SD")) {
+            return NvmFamily::Dx;
+        }
+        if (starts_with("EA") || starts_with("EB")) {
+            return NvmFamily::Ex;
+        }
+    }
+    return NvmFamily::MegaTiny;
+}
 
 struct Crc8xDescriptor {
     u16 ctrla_address {};

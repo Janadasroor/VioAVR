@@ -484,7 +484,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
 
     // 7. NVM Controller
     for (u8 i = 0; i < device.nvm_ctrl_count; ++i) {
-        auto nvm = std::make_unique<NvmCtrl>(device.nvm_ctrls[i]);
+        auto desc = device.nvm_ctrls[i];
+        desc.family = nvm_family_for_name(device.name);
+        auto nvm = std::make_unique<NvmCtrl>(desc);
         nvm->set_bus(bus_);
         if (i == 0) bus_.set_nvm_ctrl(nvm.get());
         bus_.attach_peripheral(*nvm);

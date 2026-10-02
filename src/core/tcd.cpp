@@ -65,8 +65,8 @@ constexpr u8 WGMODE_DS       = 3;
 static constexpr u16 kSyncPrescalers[] = {1, 2, 4, 8};
 static constexpr u16 kCntPrescalers[]  = {1, 4, 32};
 
-// Approximate cycles per counter step (after prescaler)
-constexpr u64 kCounterClockCycles = 2;
+// Counter advances once per prescaled clock (datasheet: no x2 factor).
+constexpr u64 kCounterClockCycles = 1;
 
 static u16 tcd_range_min(const TcdDescriptor& desc) noexcept {
     u16 min_addr = desc.base_address;
@@ -132,6 +132,7 @@ void Tcd::reset() noexcept {
     cmpaset_ = 0; cmpacl_ = 0; cmpbset_ = 0; cmpbcl_ = 0;
     counter_ = 0; accumulated_cycles_ = 0;
     enabled_ = false; int_pending_ = false;
+    ramp_ = 0; counting_down_ = false;
 }
 
 u8 Tcd::reg_offset(u16 address) const noexcept {
@@ -186,18 +187,40 @@ void Tcd::write(u16 address, u8 value) noexcept {
     if (offset > 0x2E) return;
 
     switch (offset) {
-    case REG_CTRLA:
+    case REG_CTRLA: {
+        const bool was_enabled = enabled_;
         ctrla_ = value & 0x67;
         enabled_ = (ctrla_ & CTRLA_ENABLE) != 0;
         status_ |= STATUS_ENRDY;
-        if (!enabled_) counter_ = 0;
+        if (!enabled_) {
+            counter_ = 0;
+            ramp_ = 0;
+            counting_down_ = false;
+        } else if (!was_enabled) {
+            init_waveform_state();
+        }
         break;
-    case REG_CTRLB: ctrlb_ = value & 0x03; break;
+    }
+    case REG_CTRLB:
+        ctrlb_ = value & 0x03;
+        // WGMODE should only change while disabled; re-init defensively.
+        ramp_ = 0;
+        if ((ctrlb_ & 0x03) == WGMODE_DS) {
+            counter_ = cmpbcl_;
+            counting_down_ = true;
+        } else {
+            counting_down_ = false;
+        }
+        break;
     case REG_CTRLC: ctrlc_ = value & 0xCB; break;
     case REG_CTRLD: ctrld_ = value; break;
     case REG_CTRLE:
         ctrle_ = value;
-        if (value & CTRLE_RESTART) counter_ = 0;
+        if (value & CTRLE_RESTART) {
+            counter_ = 0;
+            ramp_ = 0;
+            counting_down_ = false;
+        }
         if (value & CTRLE_SCAPTUREA) capturea_ = counter_;
         if (value & CTRLE_SCAPTUREB) captureb_ = counter_;
         if (value & CTRLE_DISEOC) { enabled_ = false; ctrla_ &= ~CTRLA_ENABLE; }
@@ -244,9 +267,28 @@ void Tcd::tick(u64 elapsed_cycles) noexcept {
     run_counter(elapsed_cycles);
 }
 
+void Tcd::init_waveform_state() noexcept {
+    ramp_ = 0;
+    if ((ctrlb_ & 0x03) == WGMODE_DS) {
+        // Dual-slope starts at the top counting down (datasheet §25.3.3.6).
+        counter_ = cmpbcl_;
+        counting_down_ = true;
+    } else {
+        counting_down_ = false;
+    }
+}
+
+// A compare value of 0 means "unused" -> treat as full 12-bit range.
+static u16 ramp_limit(u16 value) noexcept {
+    return (value == 0U) ? 0x1000U : value;
+}
+
 void Tcd::run_counter(u64 cycles) noexcept {
     u8 syncpres = (ctrla_ & CTRLA_SYNCPRES) >> 1;
     u8 cntpres = (ctrla_ & CTRLA_CNTPRES) >> 3;
+    // ATDF TCD_CNTPRES defines only DIV1/DIV4/DIV32; 0x03 is reserved.
+    if (cntpres > 2U) cntpres = 2U;
+    if (syncpres > 3U) syncpres = 3U;
     u16 prescaler = kSyncPrescalers[syncpres] * kCntPrescalers[cntpres];
     u64 total_ticks = cycles * kCounterClockCycles / prescaler;
     if (total_ticks == 0) return;
@@ -255,10 +297,9 @@ void Tcd::run_counter(u64 cycles) noexcept {
     if (period == 0) period = 0x1000;
 
     for (u64 i = 0; i < total_ticks; ++i) {
-        counter_++;
-
         u8 wgmode = ctrlb_ & 0x03;
         if (wgmode == WGMODE_ONERAMP) {
+            counter_++;
             if (cmpaset_ > 0 && counter_ == cmpaset_) {
                 intflags_ |= INT_TRIGA;
                 update_interrupt_pending();
@@ -272,12 +313,88 @@ void Tcd::run_counter(u64 cycles) noexcept {
                 intflags_ |= INT_OVF;
                 update_interrupt_pending();
             }
+        } else if (wgmode == WGMODE_TWORAMP) {
+            // Two ramps: 0->CMPACLR (WOA), 0->CMPBCLR (WOB); OVF at cycle end.
+            counter_++;
+            if (ramp_ == 0U) {
+                if (cmpaset_ > 0 && counter_ == cmpaset_) {
+                    intflags_ |= INT_TRIGA;
+                    update_interrupt_pending();
+                }
+                if (counter_ >= ramp_limit(cmpacl_)) {
+                    counter_ = 0;
+                    ramp_ = 1U;
+                }
+            } else {
+                if (cmpbset_ > 0 && counter_ == cmpbset_) {
+                    intflags_ |= INT_TRIGB;
+                    update_interrupt_pending();
+                }
+                if (counter_ >= ramp_limit(cmpbcl_)) {
+                    counter_ = 0;
+                    ramp_ = 0U;
+                    intflags_ |= INT_OVF;
+                    update_interrupt_pending();
+                }
+            }
+        } else if (wgmode == WGMODE_FOURRAMP) {
+            // Four ramps: CMPASET (DTA) -> CMPACLR (OTA) -> CMPBSET (DTB)
+            // -> CMPBCLR (OTB); OVF at cycle end. TRIGA/B on SET matches.
+            counter_++;
+            if (ramp_ == 0U) {
+                if (counter_ >= ramp_limit(cmpaset_)) {
+                    counter_ = 0;
+                    ramp_ = 1U;
+                    intflags_ |= INT_TRIGA;
+                    update_interrupt_pending();
+                }
+            } else if (ramp_ == 1U) {
+                if (counter_ >= ramp_limit(cmpacl_)) {
+                    counter_ = 0;
+                    ramp_ = 2U;
+                }
+            } else if (ramp_ == 2U) {
+                if (counter_ >= ramp_limit(cmpbset_)) {
+                    counter_ = 0;
+                    ramp_ = 3U;
+                    intflags_ |= INT_TRIGB;
+                    update_interrupt_pending();
+                }
+            } else {
+                if (counter_ >= ramp_limit(cmpbcl_)) {
+                    counter_ = 0;
+                    ramp_ = 0U;
+                    intflags_ |= INT_OVF;
+                    update_interrupt_pending();
+                }
+            }
         } else {
-            // Simplified: count to period and reset
-            if (counter_ >= period) {
-                counter_ = 0;
-                intflags_ |= INT_OVF;
-                update_interrupt_pending();
+            // DualSlope: start at CMPBCLR counting down, then oscillate
+            // 0<->CMPBCLR. WOA set on down-match CMPASET, WOB on up-match
+            // CMPBSET; OVF at the top of the up-ramp (cycle end).
+            if (counting_down_) {
+                if (counter_ == 0U) {
+                    counting_down_ = false;
+                    counter_ = 1U;
+                } else {
+                    counter_--;
+                }
+                if (counter_ == cmpaset_ && cmpaset_ > 0) {
+                    intflags_ |= INT_TRIGA;
+                    update_interrupt_pending();
+                }
+            } else {
+                counter_++;
+                if (counter_ == cmpbset_ && cmpbset_ > 0) {
+                    intflags_ |= INT_TRIGB;
+                    update_interrupt_pending();
+                }
+                if (counter_ >= ramp_limit(cmpbcl_)) {
+                    counter_ = cmpbcl_;
+                    counting_down_ = true;
+                    intflags_ |= INT_OVF;
+                    update_interrupt_pending();
+                }
             }
         }
     }
@@ -301,9 +418,28 @@ bool Tcd::get_wo_level(u8 index) const noexcept {
             return false;
         }
     }
-    // Other modes: simplified — single slope compare
-    if (index == 0 && cmpaset_ > 0) return counter_ < cmpaset_;
-    if (index == 1 && cmpbset_ > 0) return counter_ < cmpbset_;
+    if (wgmode == WGMODE_TWORAMP) {
+        // WOA on ramp 0 from CMPASET to ramp end; WOB on ramp 1 likewise.
+        if (index == 0) return ramp_ == 0U && cmpaset_ > 0 && counter_ >= cmpaset_;
+        if (index == 1) return ramp_ == 1U && cmpbset_ > 0 && counter_ >= cmpbset_;
+        return false;
+    }
+    if (wgmode == WGMODE_FOURRAMP) {
+        // WOA during OTA (ramp 1), WOB during OTB (ramp 3).
+        if (index == 0) return ramp_ == 1U;
+        if (index == 1) return ramp_ == 3U;
+        return false;
+    }
+    // DualSlope: WOA set on down-match CMPASET / cleared on up-match;
+    // WOB set on up-match CMPBSET / cleared on down-match.
+    if (index == 0) {
+        return counting_down_ ? (cmpaset_ > 0 && counter_ <= cmpaset_)
+                              : (counter_ < cmpaset_);
+    }
+    if (index == 1) {
+        return counting_down_ ? (counter_ > cmpbset_)
+                              : (cmpbset_ > 0 && counter_ >= cmpbset_);
+    }
     return false;
 }
 

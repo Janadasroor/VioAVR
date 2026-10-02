@@ -224,17 +224,20 @@ void Rtc::handle_pit_tick() {
 }
 
 u16 Rtc::get_prescaler() const noexcept {
+    // PRESCALER[3:0]: DIV1..DIV32768 for p=0..15 (datasheet RTC.CTRLA).
+    // 1U<<15 = 32768 fits u16; no clamp needed.
     u8 p = (ctrla_ >> 3) & 0x0F;
     if (p == 0) return 1;
-    if (p > 10) p = 10; // Max 1024
-    return 1U << p;
+    return static_cast<u16>(1U << p);
 }
 
 u16 Rtc::get_pit_period() const noexcept {
+    // Validated mapping (PIT timing tests): period = 2^(p+1) RTC clocks,
+    // i.e. p=1 -> 4, p=2 -> 8, p=7 -> 256. Clamp only the u16 overflow edge:
+    // p=15 would give 1U<<16 = 0 after truncation; saturate at p=14 (32768).
     u8 p = (pitctrla_ >> 3) & 0x0F;
-    if (p == 0) return 4;
-    // Period = 2^(p+1)
-    return 1U << (p + 1);
+    if (p > 14U) p = 14U;
+    return static_cast<u16>(1U << (p + 1U));
 }
 
 bool Rtc::pending_interrupt_request(InterruptRequest& request) const noexcept {

@@ -26,6 +26,7 @@ public:
 private:
     void update_interrupt_pending() noexcept;
     void run_counter(u64 cycles) noexcept;
+    void init_waveform_state() noexcept;
     void update_outputs() noexcept;
     [[nodiscard]] bool get_wo_level(u8 index) const noexcept;
     u8 reg_offset(u16 address) const noexcept;
@@ -63,6 +64,9 @@ private:
     u64 accumulated_cycles_{0};
     bool enabled_{false};
     bool int_pending_{false};
+    // Multi-ramp state (TwoRamp/FourRamp/DualSlope; unused by OneRamp).
+    u8 ramp_{0};
+    bool counting_down_{false};
 };
 
 } // namespace vioavr::core
