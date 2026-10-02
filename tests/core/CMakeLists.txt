@@ -248,6 +248,7 @@ if(AVR_FW_AVAILABLE)
 endif()
 
 set(PERIPH_GROUP_3_SRCS
+    peripherals/sim_accuracy_regression_test.cpp
     peripherals/power_clock_fidelity_test.cpp
     peripherals/power_management_test.cpp
     peripherals/psc_fidelity_test.cpp
