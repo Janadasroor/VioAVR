@@ -63,7 +63,7 @@ endif()
 # ── Fetch device family packs ───────────────────────────────────────
 # After first fetch, packs are cached locally in avr-pack/.
 # Skip network if already populated (detect by presence of a known file).
-if(EXISTS "${CMAKE_SOURCE_DIR}/avr-pack/atmega/include/avr/io.h")
+if(EXISTS "${CMAKE_SOURCE_DIR}/avr-pack/atmega/Microchip.ATmega_DFP.pdsc")
     set(FETCHCONTENT_FULLY_DISCONNECTED ON)
 endif()
 include(FetchContent)
