@@ -93,17 +93,20 @@ TEST_CASE("Lockbit Fidelity: Section Protection (Classic Mega)")
         
         // Step once to execute SPM
         cpu.step();
-        
-        // Now CPU should be stalled at 0x3800
-        // And data should STILL be 0x1234 (deferred)
-        CHECK(bus.read_program_word(0x0800) == 0x1234);
-        
+
+        // The RWW section is blocked while the RWW-targeted op runs, so
+        // reads return 0xFFFF; the underlying page is untouched until the
+        // deferred commit fires (verified via raw flash_words()).
+        CHECK(bus.read_program_word(0x0800) == 0xFFFF);
+        CHECK(bus.flash_words()[0x0800] == 0x1234);
+
         // Advance 32000 cycles
         bus.tick_peripherals(32000);
-        CHECK(bus.read_program_word(0x0800) == 0x1234); // Still 0x1234
-        
+        CHECK(bus.read_program_word(0x0800) == 0xFFFF); // Still blocked
+        CHECK(bus.flash_words()[0x0800] == 0x1234); // Still deferred
+
         // Advance another 32001 cycles (total 64001)
         bus.tick_peripherals(32001);
-        CHECK(bus.read_program_word(0x0800) == 0xFFFF); // Now erased!
+        CHECK(bus.flash_words()[0x0800] == 0xFFFF); // Now erased!
     }
 }

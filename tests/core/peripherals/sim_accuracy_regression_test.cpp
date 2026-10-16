@@ -531,6 +531,11 @@ constexpr u16 encode_out(const u8 io_offset, const u8 reg) {
         | ((static_cast<u16>(io_offset & 0x30U)) << 5U) | (io_offset & 0x0FU));
 }
 
+// STS k,Rr opcode word (address word follows): 1001 001r rrrr 0000
+constexpr u16 encode_sts(const u8 reg) {
+    return static_cast<u16>(0x9200U | (static_cast<u16>(reg) << 4U));
+}
+
 } // namespace
 
 TEST_CASE("Regression: XCH/LAS/LAC/LAT exchange with DS(Z), Rd gets old value")
@@ -742,4 +747,88 @@ TEST_CASE("Regression: AVRxt wake latency is 6 + oscillator start-up")
     CHECK(cpu.get_sleep_wake_latency() == 4U);
     bus.write_data(mclkctrla, 0x02U); // XOSC32K, CSUT reset = 1K
     CHECK(cpu.get_sleep_wake_latency() == 1026U);
+}
+
+TEST_CASE("Regression: SPM RWW erase stalls RWW execution until done")
+{
+    // Firmware lives in RWW and erases an RWW page: the CPU must freeze
+    // (pc stuck, cycles advancing) for the 64k-cycle operation, then resume.
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    AvrCpu cpu {bus};
+    const u16 spmcsr = atmega328p.spmcsr_address; // 0x57
+
+    bus.load_image(HexImage {.flash_words = {
+        encode_ldi(30U, 0x00U),
+        encode_ldi(31U, 0x02U), // Z = 0x0200 (word 0x100, RWW)
+        encode_ldi(16U, 0x03U), // PGERS|SPMEN
+        encode_sts(16U), spmcsr,
+        0x95E8U, // SPM (erase)
+        0x0000U, // NOP, pc=6: stall point
+        encode_ldi(16U, 0x11U), // RWWSRE|SPMEN
+        encode_sts(16U), spmcsr,
+        0x95E8U, // SPM (RWWSRE)
+        0x0000U, 0x0000U,
+    }, .entry_word = 0U});
+    bus.write_program_word(0x100U, 0x1234U); // pre-fill target page
+    cpu.reset();
+
+    for (int i = 0; i < 5; ++i) cpu.step(); // through SPM
+    CHECK(cpu.program_counter() == 6U);
+    CHECK((bus.read_data(spmcsr) & 0x40U) != 0U); // RWWSB set at op start
+    const u64 c0 = cpu.cycles();
+    for (int i = 0; i < 20; ++i) cpu.step();
+    CHECK(cpu.program_counter() == 6U); // frozen...
+    CHECK(cpu.cycles() - c0 == 20U); // ...while cycles advance
+    cpu.run(70000U); // drains the busy window, runs the RWWSRE tail
+    CHECK(bus.flash_words()[0x100U] == 0xFFFFU); // page erased
+    CHECK((bus.read_data(spmcsr) & 0x40U) == 0U); // RWWSRE cleared RWWSB
+    CHECK(cpu.program_counter() != 6U);
+}
+
+TEST_CASE("Regression: SPM NRWW erase does not stall RWW execution")
+{
+    // Same firmware shape, but the target page is in NRWW: the RWW section
+    // stays readable, so the CPU must keep running while the op is in flight.
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    AvrCpu cpu {bus};
+    const u16 spmcsr = atmega328p.spmcsr_address;
+
+    bus.load_image(HexImage {.flash_words = {
+        encode_ldi(30U, 0x00U),
+        encode_ldi(31U, 0x70U), // Z = 0x7000 (word 0x3800, NRWW)
+        encode_ldi(16U, 0x03U), // PGERS|SPMEN
+        encode_sts(16U), spmcsr,
+        0x95E8U, // SPM (erase)
+        0x0000U, 0x0000U, 0x0000U, 0x0000U, 0x0000U, 0x0000U,
+    }, .entry_word = 0U});
+    bus.write_program_word(0x3800U, 0x1234U); // pre-fill target page
+    cpu.reset();
+
+    for (int i = 0; i < 5; ++i) cpu.step(); // through SPM
+    CHECK(cpu.program_counter() == 6U);
+    CHECK((bus.read_data(spmcsr) & 0x01U) != 0U); // SPMEN: op in flight
+    for (int i = 0; i < 5; ++i) cpu.step();
+    CHECK(cpu.program_counter() == 11U); // kept running, not stuck at 6
+    cpu.run(70000U);
+    CHECK(bus.flash_words()[0x3800U] == 0xFFFFU); // op really ran
+}
+
+TEST_CASE("Regression: NVMCTRL EEPROM write does not stall the CPU")
+{
+    // Dx EEWR raises EEBUSY for ~4ms but must not freeze execution.
+    auto device = DeviceCatalog::find("AVR128DB32");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    machine.reset();
+    machine.bus().load_image(HexImage {
+        .flash_words = std::vector<u16>(64U, 0x0000U),
+        .entry_word = 0U
+    });
+
+    machine.bus().write_data(0x1000U, 0x12U); // EEWR
+    for (int i = 0; i < 20; ++i) machine.step();
+    CHECK(machine.cpu().program_counter() == 20U); // advanced, not stalled
+    CHECK((machine.bus().read_data(0x1002U) & 0x02U) != 0U); // EEBUSY: still in flight
 }

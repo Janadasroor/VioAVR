@@ -46,8 +46,10 @@ TEST_CASE("AVR8X NVM - EEPROM Page Buffering Fidelity") {
     // Check Status: BUSY
     CHECK((bus.read_data(0x1002) & 0x03) != 0);
 
-    // 5. Wait for completion (~4ms = 64000 cycles at 16MHz)
-    machine.run(65000);
+    // 5. Wait for completion (~4ms = 64000 cycles at 16MHz). Tick the bus
+    // directly: machine.run() would return early once the CPU halts on the
+    // trailing NOPs, which no longer spin on EEPROM busy (no CPU stall).
+    bus.tick_peripherals(65000U);
     
     // Check Status: Not BUSY
     CHECK((bus.read_data(0x1002) & 0x03) == 0);
