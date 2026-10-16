@@ -425,7 +425,7 @@ void Machine::initialize_peripherals()
 
     // 5. SPI
     for (u8 i = 0; i < device_.spi_count; ++i) {
-        auto spi = std::make_unique<Spi>("SPI", device_.spis[i]);
+        auto spi = std::make_unique<Spi>("SPI", device_.spis[i], pin_mux_.get());
         bus_->attach_peripheral(*spi);
         owned_peripherals_.push_back(std::move(spi));
     }

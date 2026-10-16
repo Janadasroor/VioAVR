@@ -1,11 +1,16 @@
 #include "vioavr/core/spi.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
-    
+
 static void spi_callback(u64 cycle, void* param) {
     static_cast<Spi*>(param)->on_event(cycle);
+}
+
+static void spi_edge_callback(u64 cycle, void* param) {
+    static_cast<Spi*>(param)->on_edge(cycle);
 }
 
 namespace {
@@ -13,10 +18,13 @@ constexpr u8 kSpiInterruptFlag = 0x80U;
 constexpr u8 kSpiEnable = 0x40U;
 constexpr u8 kSpiMaster = 0x10U;
 constexpr u8 kSpiInterruptEnable = 0x80U;
+constexpr u8 kSpiCpha = 0x04U;
+constexpr u8 kSpiCpol = 0x08U;
+constexpr u8 kSpiDord = 0x20U;
 }
 
-Spi::Spi(std::string_view name, const SpiDescriptor& descriptor) noexcept
-    : name_(name), desc_(descriptor)
+Spi::Spi(std::string_view name, const SpiDescriptor& descriptor, PinMux* pin_mux) noexcept
+    : name_(name), desc_(descriptor), pin_mux_(pin_mux)
 {
     const std::array<u16, 3> addrs = {desc_.spcr_address, desc_.spsr_address, desc_.spdr_address};
     ranges_[0] = {
@@ -42,12 +50,17 @@ ClockDomain Spi::clock_domain() const noexcept
 
 void Spi::reset() noexcept
 {
+    release_transfer_pins();
     spcr_ = 0U;
     spsr_ = 0U;
     spdr_ = 0U;
     shift_register_ = 0U;
     miso_buffer_ = 0U;
     transfer_cycles_left_ = 0U;
+    transfer_in_progress_ = false;
+    edges_done_ = 0U;
+    rx_byte_ = 0U;
+    half_bit_cycles_ = 0U;
     interrupt_pending_ = false;
     spsr_read_since_spif_ = false;
 }
@@ -60,6 +73,9 @@ void Spi::tick(const u64 elapsed_cycles) noexcept
 
 void Spi::on_event(u64 cycle) noexcept {
     (void)cycle;
+    if (transfer_in_progress_) {
+        return;  // Stepped transfers run through on_edge().
+    }
     transfer_cycles_left_ = 0U;
     complete_transfer();
 }
@@ -90,7 +106,14 @@ u8 Spi::read(const u16 address) noexcept
 void Spi::write(const u16 address, const u8 value) noexcept
 {
     if (address == desc_.spcr_address) {
+        const bool was_enabled = (spcr_ & desc_.spe_mask) != 0U;
+        const bool was_master = (spcr_ & desc_.mstr_mask) != 0U;
         spcr_ = value;
+        if (was_enabled && (((value & desc_.spe_mask) == 0U) ||
+                            (was_master && ((value & desc_.mstr_mask) == 0U)))) {
+            // Disabling mid-transfer (or dropping out of master mode) aborts it.
+            abort_transfer();
+        }
         return;
     }
     if (address == desc_.spsr_address) {
@@ -113,7 +136,7 @@ void Spi::write(const u16 address, const u8 value) noexcept
             spsr_ &= ~desc_.spif_mask;
             interrupt_pending_ = false;
             u8 data = value;
-            if ((spcr_ & 0x20U) != 0U) { // DORD
+            if ((spcr_ & kSpiDord) != 0U) { // DORD
                 data = static_cast<u8>(
                     ((data & 0x01U) << 7U) | ((data & 0x02U) << 5U) |
                     ((data & 0x04U) << 3U) | ((data & 0x08U) << 1U) |
@@ -122,21 +145,15 @@ void Spi::write(const u16 address, const u8 value) noexcept
                 );
             }
             shift_register_ = data;
-            
-            u32 divisor = 0;
-            const u8 spr = static_cast<u8>(spcr_ & 0x03U);
-            const bool spi2x = (spsr_ & desc_.sp2x_mask) != 0U;
 
-            switch (spr) {
-            case 0: divisor = spi2x ? 2U : 4U; break;
-            case 1: divisor = spi2x ? 8U : 16U; break;
-            case 2: divisor = spi2x ? 32U : 64U; break;
-            case 3: divisor = spi2x ? 64U : 128U; break;
-            }
-
-            transfer_cycles_left_ = 8U * divisor;
-            if (bus_) {
-                bus_->scheduler().schedule(transfer_cycles_left_, spi_callback, this);
+            if (pins_mapped()) {
+                start_stepped_transfer(data);
+            } else {
+                const u32 divisor = sck_divisor();
+                transfer_cycles_left_ = 8U * divisor;
+                if (bus_) {
+                    bus_->scheduler().schedule(transfer_cycles_left_, spi_callback, this);
+                }
             }
         } else {
             shift_register_ = value;
@@ -193,12 +210,181 @@ void Spi::on_ss_asserted() noexcept
     if ((spcr_ & desc_.spe_mask) != 0U && (spcr_ & desc_.mstr_mask) != 0U) {
         spcr_ &= static_cast<u8>(~desc_.mstr_mask);
         // Abort any pending master transfer; the bus now belongs to the other master.
-        if (bus_) bus_->scheduler().cancel(spi_callback, this);
-        transfer_cycles_left_ = 0U;
+        abort_transfer();
         spsr_ |= desc_.spif_mask;
         interrupt_pending_ = true;
         update_interrupt_pending();
     }
+}
+
+bool Spi::pins_mapped() const noexcept
+{
+    return pin_mux_ != nullptr && desc_.sck_pin_address != 0U &&
+           desc_.mosi_pin_address != 0U;
+}
+
+u32 Spi::sck_divisor() const noexcept
+{
+    const u8 spr = static_cast<u8>(spcr_ & 0x03U);
+    const bool spi2x = (spsr_ & desc_.sp2x_mask) != 0U;
+    switch (spr) {
+    case 0: return spi2x ? 2U : 4U;
+    case 1: return spi2x ? 8U : 16U;
+    case 2: return spi2x ? 32U : 64U;
+    default: return spi2x ? 64U : 128U;
+    }
+}
+
+void Spi::claim_transfer_pins() noexcept
+{
+    if (!pin_mux_) return;
+    if (desc_.sck_pin_address != 0U)
+        pin_mux_->claim_pin_by_address(desc_.sck_pin_address, desc_.sck_pin_bit, PinOwner::spi);
+    if (desc_.mosi_pin_address != 0U)
+        pin_mux_->claim_pin_by_address(desc_.mosi_pin_address, desc_.mosi_pin_bit, PinOwner::spi);
+    if (desc_.ss_pin_address != 0U)
+        pin_mux_->claim_pin_by_address(desc_.ss_pin_address, desc_.ss_pin_bit, PinOwner::spi);
+}
+
+void Spi::release_transfer_pins() noexcept
+{
+    if (!pin_mux_) return;
+    if (desc_.sck_pin_address != 0U)
+        pin_mux_->release_pin_by_address(desc_.sck_pin_address, desc_.sck_pin_bit, PinOwner::spi);
+    if (desc_.mosi_pin_address != 0U)
+        pin_mux_->release_pin_by_address(desc_.mosi_pin_address, desc_.mosi_pin_bit, PinOwner::spi);
+    if (desc_.ss_pin_address != 0U)
+        pin_mux_->release_pin_by_address(desc_.ss_pin_address, desc_.ss_pin_bit, PinOwner::spi);
+}
+
+void Spi::drive_sck(bool level) noexcept
+{
+    if (!pin_mux_ || desc_.sck_pin_address == 0U) return;
+    pin_mux_->update_pin_by_address(desc_.sck_pin_address, desc_.sck_pin_bit,
+                                    PinOwner::spi, true, level);
+}
+
+void Spi::drive_mosi(bool level) noexcept
+{
+    if (!pin_mux_ || desc_.mosi_pin_address == 0U) return;
+    pin_mux_->update_pin_by_address(desc_.mosi_pin_address, desc_.mosi_pin_bit,
+                                    PinOwner::spi, true, level);
+}
+
+void Spi::drive_ss(bool level) noexcept
+{
+    if (!pin_mux_ || desc_.ss_pin_address == 0U) return;
+    pin_mux_->update_pin_by_address(desc_.ss_pin_address, desc_.ss_pin_bit,
+                                    PinOwner::spi, true, level);
+}
+
+bool Spi::sample_miso_wire(u8 wire_pos) noexcept
+{
+    // Prefer a real external driver (GPIO/testbench) when one drives MISO;
+    // otherwise fall back to the host-injected byte (default 0x00).
+    if (pin_mux_ && desc_.miso_pin_address != 0U) {
+        const PinState state =
+            pin_mux_->get_state_by_address(desc_.miso_pin_address, desc_.miso_pin_bit);
+        if (state.is_output && state.owner != PinOwner::spi) {
+            return state.drive_level;
+        }
+    }
+    return ((miso_buffer_ >> wire_pos) & 0x01U) != 0U;
+}
+
+void Spi::start_stepped_transfer(u8 data) noexcept
+{
+    (void)data;
+    const u32 divisor = sck_divisor();
+    half_bit_cycles_ = divisor / 2U;
+    if (half_bit_cycles_ == 0U) half_bit_cycles_ = 1U;
+    transfer_cycles_left_ = 8U * divisor;
+    transfer_in_progress_ = true;
+    edges_done_ = 0U;
+    rx_byte_ = 0U;
+
+    const bool cpol = (spcr_ & kSpiCpol) != 0U;
+    const bool cpha = (spcr_ & kSpiCpha) != 0U;
+    claim_transfer_pins();
+    drive_ss(false);       // Select slave.
+    drive_sck(cpol);       // Idle level.
+    if (!cpha) {
+        // CPHA=0: first MOSI bit is set up when SS falls.
+        drive_mosi((shift_register_ & 0x80U) != 0U);
+    }
+    if (bus_) {
+        bus_->scheduler().schedule(half_bit_cycles_, spi_edge_callback, this);
+    }
+}
+
+void Spi::on_edge(u64 cycle) noexcept
+{
+    (void)cycle;
+    if (!transfer_in_progress_) return;
+
+    const bool cpol = (spcr_ & kSpiCpol) != 0U;
+    const bool cpha = (spcr_ & kSpiCpha) != 0U;
+    const bool dord = (spcr_ & kSpiDord) != 0U;
+    edges_done_++;
+    const u8 k = edges_done_;  // 1..16
+    const u8 bit = static_cast<u8>((k - 1U) / 2U);  // 0..7
+    const bool leading = (k % 2U) == 1U;
+
+    drive_sck(leading ? !cpol : cpol);
+    const u8 wire_pos = dord ? bit : static_cast<u8>(7U - bit);
+    if (leading) {
+        if (!cpha) {
+            // CPHA=0: sample MISO on the leading edge.
+            if (sample_miso_wire(wire_pos)) {
+                rx_byte_ |= static_cast<u8>(1U << wire_pos);
+            }
+        } else {
+            // CPHA=1: set up MOSI on the leading edge.
+            drive_mosi(((shift_register_ >> wire_pos) & 0x01U) != 0U);
+        }
+    } else {
+        if (!cpha) {
+            // CPHA=0: set up the next MOSI bit on the trailing edge.
+            const u8 next = static_cast<u8>(bit + 1U);
+            if (next < 8U) {
+                const u8 next_pos = dord ? next : static_cast<u8>(7U - next);
+                drive_mosi(((shift_register_ >> next_pos) & 0x01U) != 0U);
+            }
+        } else {
+            // CPHA=1: sample MISO on the trailing edge.
+            if (sample_miso_wire(wire_pos)) {
+                rx_byte_ |= static_cast<u8>(1U << wire_pos);
+            }
+        }
+    }
+
+    if (k >= 16U) {
+        transfer_in_progress_ = false;
+        transfer_cycles_left_ = 0U;
+        drive_sck(cpol);
+        drive_ss(true);  // Release slave.
+        spdr_ = rx_byte_;
+        spsr_ = static_cast<u8>((spsr_ & ~desc_.wcol_mask) | desc_.spif_mask);
+        interrupt_pending_ = true;
+        update_interrupt_pending();
+        release_transfer_pins();
+        return;
+    }
+    if (bus_) {
+        bus_->scheduler().schedule(half_bit_cycles_, spi_edge_callback, this);
+    }
+}
+
+void Spi::abort_transfer() noexcept
+{
+    if (bus_) {
+        bus_->scheduler().cancel(spi_callback, this);
+        bus_->scheduler().cancel(spi_edge_callback, this);
+    }
+    transfer_cycles_left_ = 0U;
+    transfer_in_progress_ = false;
+    edges_done_ = 0U;
+    release_transfer_pins();
 }
 
 u8 Spi::last_transmitted_byte() const noexcept
@@ -208,7 +394,7 @@ u8 Spi::last_transmitted_byte() const noexcept
 
 bool Spi::busy() const noexcept
 {
-    return transfer_cycles_left_ > 0U;
+    return transfer_in_progress_ || transfer_cycles_left_ > 0U;
 }
 
 void Spi::complete_transfer() noexcept

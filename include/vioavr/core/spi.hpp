@@ -7,9 +7,14 @@
 
 namespace vioavr::core {
 
+class PinMux;
+
 class Spi final : public IoPeripheral {
 public:
-    explicit Spi(std::string_view name, const SpiDescriptor& descriptor) noexcept;
+    explicit Spi(std::string_view name, const SpiDescriptor& descriptor,
+                 PinMux* pin_mux = nullptr) noexcept;
+
+    void set_pin_mux(PinMux* pin_mux) noexcept { pin_mux_ = pin_mux; }
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
 
@@ -33,17 +38,30 @@ public:
     [[nodiscard]] u8 last_transmitted_byte() const noexcept;
     [[nodiscard]] bool busy() const noexcept;
     void on_event(u64 cycle) noexcept;
+    void on_edge(u64 cycle) noexcept;
     // SS driven low while master: clears MSTR, sets SPIF (datasheet §18.3.2).
     void on_ss_asserted() noexcept;
     [[nodiscard]] u8 spi_mode() const noexcept { return static_cast<u8>((spcr_ >> 2U) & 0x03U); }
 
-private:
+ private:
     void complete_transfer() noexcept;
     void update_interrupt_pending() noexcept;
+    // Bit-accurate master transfer helpers (pin shaping).
+    [[nodiscard]] bool pins_mapped() const noexcept;
+    [[nodiscard]] u32 sck_divisor() const noexcept;
+    void start_stepped_transfer(u8 data) noexcept;
+    void drive_sck(bool level) noexcept;
+    void drive_mosi(bool level) noexcept;
+    void drive_ss(bool level) noexcept;
+    [[nodiscard]] bool sample_miso_wire(u8 wire_pos) noexcept;
+    void claim_transfer_pins() noexcept;
+    void release_transfer_pins() noexcept;
+    void abort_transfer() noexcept;
 
     std::string name_;
     SpiDescriptor desc_;
     MemoryBus* bus_ {};
+    PinMux* pin_mux_ {};
     std::array<AddressRange, 1> ranges_;
 
     u8 spcr_ {};
@@ -53,6 +71,11 @@ private:
     u8 miso_buffer_ {};
     
     u32 transfer_cycles_left_ {};
+    // Stepped (pin-shaping) master transfer state.
+    bool transfer_in_progress_ {};
+    u8 edges_done_ {};
+    u8 rx_byte_ {};
+    u32 half_bit_cycles_ {};
     bool interrupt_pending_ {};
     bool spsr_read_since_spif_ {};
     [[nodiscard]] bool power_reduction_enabled() const noexcept;

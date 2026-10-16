@@ -394,7 +394,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     }
 
     for (u8 i = 0; i < device.spi_count; ++i) {
-        auto spi = std::make_unique<Spi>("SPI" + std::to_string(i), device.spis[i]);
+        auto spi = std::make_unique<Spi>("SPI" + std::to_string(i), device.spis[i], &pin_mux_);
         bus_.attach_peripheral(*spi);
         owned_peripherals_.push_back(std::move(spi));
     }
