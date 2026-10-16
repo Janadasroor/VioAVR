@@ -293,8 +293,12 @@ inline constexpr DeviceDescriptor atmega64 {
                 .twbr_address = 0x70U, .twsr_address = 0x71U, .twar_address = 0x72U, .twdr_address = 0x73U, .twcr_address = 0x74U, .twamr_address = 0x0U,
                 .vector_index = 33U,
                 .twint_mask = 0x80U, .twen_mask = 0x4U, .twie_mask = 0x1U, .twsto_mask = 0x10U, .twsta_mask = 0x20U, .twea_mask = 0x40U,
-                .pr_address = 0, .pr_bit = 255
-            } }},
+                .pr_address = 0, .pr_bit = 255,
+            .sda_pin_address = 0x32U,
+            .sda_pin_bit = 1U,
+            .scl_pin_address = 0x32U,
+            .scl_pin_bit = 0U,
+        } }},
 
     .twi8x_count = 0U,
     .twis8x = {{  }},

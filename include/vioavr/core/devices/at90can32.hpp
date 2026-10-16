@@ -294,8 +294,12 @@ inline constexpr DeviceDescriptor at90can32 {
                 .twbr_address = 0xB8U, .twsr_address = 0xB9U, .twar_address = 0xBAU, .twdr_address = 0xBBU, .twcr_address = 0xBCU, .twamr_address = 0x0U,
                 .vector_index = 35U,
                 .twint_mask = 0x80U, .twen_mask = 0x4U, .twie_mask = 0x1U, .twsto_mask = 0x10U, .twsta_mask = 0x20U, .twea_mask = 0x40U,
-                .pr_address = 0, .pr_bit = 255
-            } }},
+                .pr_address = 0, .pr_bit = 255,
+            .sda_pin_address = 0x2BU,
+            .sda_pin_bit = 1U,
+            .scl_pin_address = 0x2BU,
+            .scl_pin_bit = 0U,
+        } }},
 
     .twi8x_count = 0U,
     .twis8x = {{  }},
