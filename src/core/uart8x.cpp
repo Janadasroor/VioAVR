@@ -65,6 +65,9 @@ void Uart8x::reset() noexcept {
     tx_bit_duration_ = 0.0;
     tx_cycle_accumulator_ = 0.0;
     rx_in_progress_ = false;
+    rx_is_injected_ = false;
+    rx_injected_ferr_ = false;
+    rx_injected_perr_ = false;
     rx_total_bits_ = 0;
     rx_bit_duration_ = 0.0;
     rx_cycle_accumulator_ = 0.0;
@@ -255,9 +258,12 @@ void Uart8x::tick(u64 elapsed_cycles) noexcept {
                         }
                     } else if (rx_bits_left_ == 0) {
                         bool bit9 = ((rx_shift_reg_ >> 8) & 0x01) != 0;
-                        actually_push_to_fifo(static_cast<u8>(rx_shift_reg_ & 0xFF), bit9);
+                        actually_push_to_fifo(static_cast<u8>(rx_shift_reg_ & 0xFF), bit9,
+                                              rx_injected_ferr_, rx_injected_perr_);
                         rx_in_progress_ = false;
                         rx_is_injected_ = false;
+                        rx_injected_ferr_ = false;
+                        rx_injected_perr_ = false;
                         status_ &= ~STATUS_RXSIF;
                     }
                 }
@@ -358,12 +364,15 @@ bool Uart8x::consume_interrupt_request(InterruptRequest& request) noexcept {
     return true;
 }
 
-void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
+void Uart8x::inject_received_byte(u8 data, bool bit9, bool frame_error,
+                                bool parity_error) noexcept {
     if (!(ctrlb_ & CTRLB_RXEN)) return;
     if (rx_in_progress_) return;
 
     rx_in_progress_ = true;
     rx_is_injected_ = true;
+    rx_injected_ferr_ = frame_error;
+    rx_injected_perr_ = parity_error;
     rx_injected_data_ = data;
     rx_shift_reg_ = bit9 ? (static_cast<u16>(1U) << 8U) | data : data;
     status_ |= STATUS_RXSIF;
@@ -387,12 +396,18 @@ void Uart8x::inject_received_byte(u8 data, bool bit9) noexcept {
     rx_cycle_accumulator_ = 0.0;
 }
 
-void Uart8x::actually_push_to_fifo(u8 data, bool bit9) noexcept {
+void Uart8x::actually_push_to_fifo(u8 data, bool bit9, bool frame_error,
+                                   bool parity_error) noexcept {
     bool mpc_en = (ctrlb_ & CTRLB_MPCM);
     if (mpc_en && !bit9) return;
 
     if (rx_fifo_count_ < 2) {
         u8 high = bit9 ? RXDATAH_DATA8 : 0;
+        // Error flags travel with the byte. PERR applies only when the mode
+        // enables parity (CTRLC PMODE != 0); without a parity bit there is
+        // nothing to check.
+        if (frame_error) high |= RXDATAH_FERR;
+        if (parity_error && (ctrlc_ & CTRLC_PMODE_MASK) != 0U) high |= RXDATAH_PERR;
         rx_fifo_[rx_fifo_write_idx_] = {data, high};
         rx_fifo_write_idx_ = (rx_fifo_write_idx_ + 1) % 2;
         rx_fifo_count_++;

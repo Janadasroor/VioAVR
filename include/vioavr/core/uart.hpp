@@ -30,7 +30,11 @@ public:
 
     [[nodiscard]] ClockDomain clock_domain() const noexcept override;
 
-    bool inject_received_byte(u16 data) noexcept;
+    // Inject a received frame. frame_error = stop bit sampled low (FE);
+    // parity_error = received parity bit wrong (UPE, only when the USART
+    // mode enables parity, UPM1:0 != 00). Flags latch with RXC at reception.
+    bool inject_received_byte(u16 data, bool frame_error = false,
+                              bool parity_error = false) noexcept;
     bool consume_transmitted_byte(u16& data) noexcept;
     [[nodiscard]] bool has_tx_byte() const noexcept { return !tx_output_queue_.empty(); }
     [[nodiscard]] u16 read_tx_byte() noexcept {
@@ -68,6 +72,8 @@ private:
     u16 rx_shift_reg_ {};
     u8 rx_bits_left_ {};
     u64 rx_cycle_accumulator_ {};
+    bool rx_frame_error_ {};
+    bool rx_parity_error_ {};
     bool tx_buffer_full_ {};
 
     std::deque<u16> tx_output_queue_;

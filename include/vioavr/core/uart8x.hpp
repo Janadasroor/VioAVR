@@ -33,8 +33,11 @@ public:
     void set_event_system(class EventSystem* evsys) noexcept override;
     void set_port_mux(class PortMux* pm) noexcept { port_mux_ = pm; }
 
-    // Stream interface
-    void inject_received_byte(u8 data, bool bit9 = false) noexcept;
+    // Stream interface. frame_error = bad stop bit (FERR); parity_error =
+    // wrong parity bit (PERR, only when CTRLC PMODE enables parity).
+    // Flags travel in RXDATAH with the received byte.
+    void inject_received_byte(u8 data, bool bit9 = false, bool frame_error = false,
+                              bool parity_error = false) noexcept;
     bool consume_transmitted_byte(u16& data) noexcept;
 
 private:
@@ -78,6 +81,8 @@ private:
 
     bool rx_in_progress_ = false;
     bool rx_is_injected_ = false;
+    bool rx_injected_ferr_ = false;
+    bool rx_injected_perr_ = false;
     u8 rx_injected_data_ = 0;
     u16 rx_shift_reg_ {};
     u8 rx_bits_left_ {};
@@ -118,7 +123,8 @@ private:
     }
 
     void update_pin_ownership() noexcept;
-    void actually_push_to_fifo(u8 data, bool bit9) noexcept;
+    void actually_push_to_fifo(u8 data, bool bit9, bool frame_error = false,
+                               bool parity_error = false) noexcept;
     void update_interrupt_state() noexcept;
     void drive_tx_pin(PinLevel level, bool claim = true) noexcept;
     

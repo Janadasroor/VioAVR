@@ -71,6 +71,8 @@ void Uart::reset() noexcept
     tx_buffer_full_ = false;
     rx_shift_reg_ = 0;
     rx_bits_left_ = 0;
+    rx_frame_error_ = false;
+    rx_parity_error_ = false;
     if (desc_.txd_pin_address)
         pin_mux_->release_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
     update_interrupt_state();
@@ -163,6 +165,13 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
         if (rx_cycle_accumulator_ >= limit) {
             rx_active_ = false;
             ucsra_ |= desc_.rxc_mask;
+            // Error flags latch together with RXC. UPE applies only when the
+            // mode enables parity (UPM1:0 != 00); without a parity bit there
+            // is nothing to check.
+            if (rx_frame_error_) ucsra_ |= kFeMask;
+            if (rx_parity_error_ && (ucsrc_ & 0x30U) != 0U) ucsra_ |= kUpeMask;
+            rx_frame_error_ = false;
+            rx_parity_error_ = false;
         }
     }
 
@@ -255,7 +264,8 @@ bool Uart::consume_interrupt_request(InterruptRequest& request) noexcept
     return true;
 }
 
-bool Uart::inject_received_byte(const u16 data) noexcept
+bool Uart::inject_received_byte(const u16 data, const bool frame_error,
+                                const bool parity_error) noexcept
 {
     if ((ucsrb_ & desc_.rxen_mask) == 0U) return false;
 
@@ -272,6 +282,8 @@ bool Uart::inject_received_byte(const u16 data) noexcept
     rx_shift_reg_ = data;
     udr_rx_ = static_cast<u8>(data & 0xFFU);
     ucsrb_ = static_cast<u8>((ucsrb_ & ~0x02U) | ((data >> 7) & 0x02U));
+    rx_frame_error_ = frame_error;
+    rx_parity_error_ = parity_error;
     rx_cycle_accumulator_ = 0;
     rx_active_ = true;
     update_interrupt_state();
