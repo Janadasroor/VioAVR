@@ -214,6 +214,7 @@ void Machine::initialize_peripherals()
     }
     if (device_.slpctrl.ctrla_address != 0U) {
         auto p = std::make_unique<SlpCtrl>(device_.slpctrl);
+        cpu_->set_slp_ctrl(p.get());
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }
@@ -235,6 +236,7 @@ void Machine::initialize_peripherals()
     // AVR8X ClkCtrl (MCLKCTRLA/MCLKCTRLB style)
     if (device_.clkctrl.ctrla_address != 0U && device_.tc_count == 0U) {
         auto p = std::make_unique<ClkCtrl>(device_.clkctrl, 20'000'000U);
+        cpu_->set_clk_ctrl(p.get());
         bus_->attach_peripheral(*p);
         owned_peripherals_.push_back(std::move(p));
     }

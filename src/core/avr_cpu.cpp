@@ -1157,21 +1157,83 @@ void AvrCpu::resume() noexcept
     }
 }
 
+// Oscillator start-up after Power-down/Power-save on classic AVRs, in clock
+// cycles, from the CKSEL3:0/SUT1:0 fuses (LOW fuse byte). Only the "Start-up
+// Time from Power-down and Power-save" column applies to wake-up; the 14CK
+// time-out and ms delays are reset-only (datasheet §Clock Sources).
+u32 AvrCpu::classic_oscillator_startup_cycles() const noexcept
+{
+    if (bus_ == nullptr) return 6U;
+    const u8 low = bus_->device().fuses[0];
+    const u8 cksel = static_cast<u8>(low & 0x0FU);
+    if (cksel <= 0x03U) {
+        return 6U; // External clock / reserved / internal RC / 128kHz.
+    }
+    if (cksel <= 0x07U) {
+        // 32.768kHz crystal: 1K CK (CKSEL0=0) or 32K CK (CKSEL0=1).
+        return ((low & 0x01U) != 0U) ? 32768U : 1024U;
+    }
+    // Crystal/ceramic resonator; key = CKSEL0*4 + SUT1:0.
+    const u8 key = static_cast<u8>(((low & 0x01U) << 2U) | ((low >> 4U) & 0x03U));
+    if (key <= 1U) return 258U;
+    if (key <= 4U) return 1024U;
+    return 16384U;
+}
+
+// Oscillator start-up for AVR8X (XMEGA + modern AVRxt) Power-down/Standby.
+// Regulator start-up is assumed zero (VREG FULL performance); prescaler and
+// SUT-fuse effects are not modeled.
+u32 AvrCpu::avr8x_oscillator_startup_cycles() const noexcept
+{
+    if (xmega_clk_ctrl_ != nullptr) {
+        switch (xmega_clk_ctrl_->clock_source()) {
+        case XmegaClkCtrl::ClockSource::xosc: return 16384U; // Crystal start-up.
+        case XmegaClkCtrl::ClockSource::pll: return 1024U; // Representative lock.
+        default: return 6U; // Internal RC / external clock: fast start-up.
+        }
+    }
+    if (clk_ctrl_ != nullptr) {
+        switch (clk_ctrl_->clock_source()) {
+        case ClkCtrl::ClockSource::extclk: return 2U; // Fixed 2-cycle start-up.
+        case ClkCtrl::ClockSource::xosc32k: {
+            // CSUT[1:0] = 1K/16K/32K/64K crystal cycles (reset default 1K).
+            static constexpr u32 kCsut[4] = {1024U, 16384U, 32768U, 65536U};
+            return kCsut[clk_ctrl_->xosc32k_ctrl() & 0x03U];
+        }
+        default: return 6U; // Internal OSC20M/OSC32K restart.
+        }
+    }
+    return 6U;
+}
+
 u32 AvrCpu::get_sleep_wake_latency() const noexcept
 {
-    // Legacy mapping or Mega-0 mapping
-    // From Idle: 6 cycles. 
-    // From Power-down: 6 cycles + startup.
-    // We use 6 as a standard for now.
+    // Wake-up latency = oscillator start-up only; the 4-cycle interrupt
+    // response is charged separately by service_interrupt_if_needed().
+    // Classic: wake = start-up + 4 (datasheet §Power Management); Standby
+    // and Extended Standby keep the oscillator running and wake in 6 total.
+    // Modern AVRxt: wake = 6 + start-up (datasheet §SLPCTRL Wake-up Time).
     if (!control_regs_) return 4U;
 
+    if (slp_ctrl_ != nullptr) {
+        const u8 smode = slp_ctrl_->sleep_mode();
+        if (smode == 0U) return 2U; // Idle: main clock running, 6 total.
+        if (xmega_clk_ctrl_ != nullptr && (smode == 6U || smode == 7U)) {
+            return 2U; // XMEGA Standby/Extended Standby: oscillators running.
+        }
+        return 2U + avr8x_oscillator_startup_cycles();
+    }
+
     switch (control_regs_->current_sleep_mode()) {
-    case SleepMode::idle: return 6U;
-    case SleepMode::adc_noise_reduction: return 6U;
-    case SleepMode::power_down: return 6U;
-    case SleepMode::power_save: return 6U;
-    case SleepMode::standby: return 6U;
-    case SleepMode::extended_standby: return 6U;
+    case SleepMode::idle:
+    case SleepMode::adc_noise_reduction:
+        return 0U; // Clocks running: interrupt response only.
+    case SleepMode::power_down:
+    case SleepMode::power_save:
+        return classic_oscillator_startup_cycles();
+    case SleepMode::standby:
+    case SleepMode::extended_standby:
+        return 2U; // Oscillator running: 6 total with ISR entry.
     default: return 4U;
     }
 }

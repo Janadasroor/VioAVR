@@ -269,6 +269,8 @@ private:
     void synchronize_if_needed();
     void publish_pending_pin_changes();
     void refresh_interrupt_pending();
+    [[nodiscard]] u32 classic_oscillator_startup_cycles() const noexcept;
+    [[nodiscard]] u32 avr8x_oscillator_startup_cycles() const noexcept;
 
 
     [[nodiscard]] constexpr bool flag(SregFlag flag_bit) const noexcept

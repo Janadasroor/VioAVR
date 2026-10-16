@@ -141,6 +141,9 @@ public:
         return static_cast<ClockSource>(mclkctrla_ & CLKSEL_MASK);
     }
 
+    /// Raw XOSC32KCTRLA value (CSUT[1:0] = start-up time for the 32K crystal).
+    [[nodiscard]] u8 xosc32k_ctrl() const noexcept { return xosc32kctrla_; }
+
 private:
     /// PDIV encoding → prescaler divisor (ATmega4809 datasheet Table 10-2)
     static constexpr u32 pdiv_table[16] = {

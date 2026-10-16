@@ -92,6 +92,10 @@ public:
 
     [[nodiscard]] u32 cpu_frequency_hz() const noexcept { return effective_freq_hz_; }
 
+    [[nodiscard]] ClockSource clock_source() const noexcept {
+        return static_cast<ClockSource>(clk_ctrl_ & SCLKSEL_MASK);
+    }
+
     [[nodiscard]] u32 source_frequency_hz() const noexcept {
         switch (static_cast<ClockSource>(clk_ctrl_ & SCLKSEL_MASK)) {
             case ClockSource::rc2mhz:  return SRC_RC2MHZ;
