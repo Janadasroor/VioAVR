@@ -7,6 +7,7 @@
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/eeprom.hpp"
+#include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/spi.hpp"
 #include "vioavr/core/tcb.hpp"
 #include "vioavr/core/tcd.hpp"
@@ -436,4 +437,65 @@ TEST_CASE("Regression: EEPROM mapped write is async, no long stall")
     CHECK(bus.read_data(0x1400U) == 0xFFU); // still busy
     bus.tick_peripherals(60000U);
     CHECK(bus.read_data(0x1400U) == 0x5AU); // first value committed
+}
+
+TEST_CASE("Regression: SPI pin shaping follows CPOL/CPHA/DORD")
+{
+    // ATmega328P SPI on PORTB: SS=PB2, MOSI=PB3, MISO=PB4, SCK=PB5.
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    PinMux mux(atmega328p.port_count);
+    bus.set_pin_mux(&mux);
+    auto gpio_ptr = std::make_unique<GpioPort>(atmega328p.ports[0], mux); // PORTB
+    bus.attach_peripheral(*gpio_ptr.release());
+    auto spi_ptr = std::make_unique<Spi>("SPI0", atmega328p.spis[0], &mux);
+    Spi* spi = spi_ptr.get();
+    bus.attach_peripheral(*spi_ptr.release());
+
+    // MISO test driver: PB4 output, held high.
+    bus.write_data(0x24U, 0x10U); // DDRB bit4 out
+    bus.write_data(0x25U, 0x10U); // PORTB bit4 high
+
+    // Mode 0 (CPOL=0, CPHA=0), master, fosc/4: 2 cycles per half-bit.
+    bus.write_data(0x4CU, 0x50U); // SPE|MSTR
+    bus.write_data(0x4EU, 0x80U); // MSB first, bit7 = 1
+    CHECK(spi->busy() == true);
+    bus.tick_peripherals(1U); // no edge yet: SS fallen, MOSI set up, SCK idle
+    CHECK(mux.get_state_by_address(0x25U, 2U).owner == PinOwner::spi);
+    CHECK(mux.get_state_by_address(0x25U, 2U).drive_level == false); // SS low
+    CHECK(mux.get_state_by_address(0x25U, 3U).owner == PinOwner::spi);
+    CHECK(mux.get_state_by_address(0x25U, 3U).drive_level == true); // bit7
+    CHECK(mux.get_state_by_address(0x25U, 5U).drive_level == false); // SCK idle
+    bus.tick_peripherals(1U); // leading edge of bit 0: SCK rises
+    CHECK(mux.get_state_by_address(0x25U, 5U).drive_level == true);
+    bus.tick_peripherals(30U); // 32 cycles total: transfer done
+    CHECK(spi->busy() == false);
+    CHECK((bus.read_data(0x4DU) & 0x80U) != 0U); // SPIF
+    CHECK(bus.read_data(0x4EU) == 0xFFU); // MISO held high: all ones
+    // Pins released back to GPIO, SCK resting at idle level.
+    CHECK(mux.get_state_by_address(0x25U, 5U).owner == PinOwner::gpio);
+    CHECK(mux.get_state_by_address(0x25U, 5U).drive_level == false);
+    CHECK(mux.get_state_by_address(0x25U, 2U).owner == PinOwner::gpio);
+
+    // Mode 3 (CPOL=1, CPHA=1): SCK idles high, MOSI set up on leading edge.
+    bus.write_data(0x25U, 0x00U); // MISO driver low
+    bus.write_data(0x4CU, 0x5CU); // SPE|MSTR|CPOL|CPHA
+    bus.write_data(0x4EU, 0x80U);
+    bus.tick_peripherals(1U);
+    CHECK(mux.get_state_by_address(0x25U, 5U).drive_level == true); // idle high
+    bus.tick_peripherals(1U); // leading edge: SCK falls, MOSI bit7 driven
+    CHECK(mux.get_state_by_address(0x25U, 5U).drive_level == false);
+    CHECK(mux.get_state_by_address(0x25U, 3U).drive_level == true);
+    bus.tick_peripherals(30U);
+    CHECK((bus.read_data(0x4DU) & 0x80U) != 0U); // SPIF
+    CHECK(bus.read_data(0x4EU) == 0x00U); // MISO held low: all zeros
+
+    // DORD=1 (LSB first): first MOSI bit out is bit0.
+    bus.write_data(0x4CU, 0x70U); // SPE|MSTR|DORD
+    bus.write_data(0x4EU, 0x01U); // bit0 = 1 goes out first
+    bus.tick_peripherals(1U);
+    CHECK(mux.get_state_by_address(0x25U, 3U).owner == PinOwner::spi);
+    CHECK(mux.get_state_by_address(0x25U, 3U).drive_level == true);
+    bus.tick_peripherals(31U);
+    CHECK((bus.read_data(0x4DU) & 0x80U) != 0U); // SPIF
 }

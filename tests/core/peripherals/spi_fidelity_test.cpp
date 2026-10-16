@@ -2,6 +2,7 @@
 #include "vioavr/core/avr_cpu.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/spi.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/devices/atmega328p.hpp"
 
@@ -14,11 +15,13 @@ TEST_CASE("SPI Fidelity: Transfer Timing and Modes")
     REQUIRE(device_desc != nullptr);
     
     MemoryBus bus(*device_desc);
+    PinMux mux(device_desc->port_count);
+    bus.set_pin_mux(&mux);
     AvrCpu cpu(bus);
     cpu.reset();
-    
+
     // Attach SPI peripheral
-    auto spi_ptr = std::make_unique<Spi>("SPI0", device_desc->spis[0]);
+    auto spi_ptr = std::make_unique<Spi>("SPI0", device_desc->spis[0], &mux);
     Spi* spi = spi_ptr.get();
     bus.attach_peripheral(*spi_ptr.release());
     

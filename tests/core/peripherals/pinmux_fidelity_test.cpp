@@ -47,7 +47,7 @@ TEST_CASE("Pin Mux Fidelity: Peripheral vs GPIO Contention")
     bus.attach_peripheral(*uart_ptr.release());
     
     // Attach SPI (uses PB2-PB5)
-    auto spi_ptr = std::make_unique<Spi>("SPI0", device_desc->spis[0]);
+    auto spi_ptr = std::make_unique<Spi>("SPI0", device_desc->spis[0], &mux);
     Spi* spi = spi_ptr.get();
     bus.attach_peripheral(*spi_ptr.release());
     
