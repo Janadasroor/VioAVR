@@ -314,6 +314,7 @@ private:
     [[nodiscard]] u32 pop_pc() noexcept;
     void execute_load_indirect(u8 destination, u16 address, bool post_increment, u8 pointer_low_register) noexcept;
     void execute_store_indirect(u16 address, u8 source, bool post_increment, u8 pointer_low_register) noexcept;
+    void execute_rmw_z(u8 reg, u8 combine_op, u32 word_address) noexcept;
     void execute_nop(const DecodedInstruction& instruction);
     void execute_ldi(const DecodedInstruction& instruction);
     void execute_movw(const DecodedInstruction& instruction);
@@ -393,6 +394,11 @@ private:
     void execute_st_z_postinc(const DecodedInstruction& instruction);
     void execute_st_z_predec(const DecodedInstruction& instruction);
     void execute_std_z(const DecodedInstruction& instruction);
+    void execute_xch(const DecodedInstruction& instruction);
+    void execute_las(const DecodedInstruction& instruction);
+    void execute_lac(const DecodedInstruction& instruction);
+    void execute_lat(const DecodedInstruction& instruction);
+    void execute_des(const DecodedInstruction& instruction);
     void execute_sts(const DecodedInstruction& instruction);
     void execute_rcall(const DecodedInstruction& instruction);
     void execute_rjmp(const DecodedInstruction& instruction);

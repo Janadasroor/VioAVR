@@ -1811,6 +1811,11 @@ std::span<const AvrCpu::InstructionDescriptor> AvrCpu::instruction_table() noexc
         {0xFC07U, 0xF406U, "BRTC", &AvrCpu::execute_brbc},
         {0xFC07U, 0xF007U, "BRIE", &AvrCpu::execute_brbs},
         {0xFC07U, 0xF407U, "BRID", &AvrCpu::execute_brbc},
+        {0xFE0FU, 0x9204U, "XCH", &AvrCpu::execute_xch},
+        {0xFE0FU, 0x9205U, "LAS", &AvrCpu::execute_las},
+        {0xFE0FU, 0x9206U, "LAC", &AvrCpu::execute_lac},
+        {0xFE0FU, 0x9207U, "LAT", &AvrCpu::execute_lat},
+        {0xFF0FU, 0x940BU, "DES", &AvrCpu::execute_des},
     });
     return table;
 }
@@ -3159,6 +3164,216 @@ void AvrCpu::execute_std_z(const DecodedInstruction& instruction)
 {
     const u16 address = static_cast<u16>(z_pointer() + decode_displacement_q(instruction.opcode));
     execute_store_indirect(address, decode_destination_register(instruction.opcode), false, 30U);
+}
+
+// Read-modify-write helpers shared by XCH/LAS/LAC/LAT (ISM §5.x, AVRxm only).
+// Semantics: Rd <- DS(Z) (old value), DS(Z) <- combine(Rd, old). No flags. 2 cycles.
+void AvrCpu::execute_rmw_z(const u8 reg, const u8 combine_op, const u32 word_address) noexcept
+{
+    if (bus_ == nullptr) {
+        state_ = CpuState::halted;
+        return;
+    }
+    const u16 address = z_pointer();
+    const u8 old_value = read_data_bus(address);
+    const u8 reg_value = gpr_[reg];
+    u8 new_value = old_value;
+    switch (combine_op) {
+    case 0U: new_value = reg_value; break;                             // XCH
+    case 1U: new_value = static_cast<u8>(reg_value | old_value); break; // LAS
+    case 2U: new_value = static_cast<u8>(~reg_value & old_value); break; // LAC
+    default: new_value = static_cast<u8>(reg_value ^ old_value); break; // LAT
+    }
+    write_data_bus(address, new_value);
+    write_register(reg, old_value);
+    program_counter_ = word_address + 1U;
+    advance_cycles(2U);
+}
+
+void AvrCpu::execute_xch(const DecodedInstruction& instruction)
+{
+    execute_rmw_z(decode_destination_register(instruction.opcode), 0U, instruction.word_address);
+}
+
+void AvrCpu::execute_las(const DecodedInstruction& instruction)
+{
+    execute_rmw_z(decode_destination_register(instruction.opcode), 1U, instruction.word_address);
+}
+
+void AvrCpu::execute_lac(const DecodedInstruction& instruction)
+{
+    execute_rmw_z(decode_destination_register(instruction.opcode), 2U, instruction.word_address);
+}
+
+void AvrCpu::execute_lat(const DecodedInstruction& instruction)
+{
+    execute_rmw_z(decode_destination_register(instruction.opcode), 3U, instruction.word_address);
+}
+
+namespace {
+// FIPS-46 DES tables, entries 1-indexed with bit 1 = MSB of the field.
+constexpr u8 kDesIp[64] = {
+    58,50,42,34,26,18,10,2, 60,52,44,36,28,20,12,4,
+    62,54,46,38,30,22,14,6, 64,56,48,40,32,24,16,8,
+    57,49,41,33,25,17,9,1, 59,51,43,35,27,19,11,3,
+    61,53,45,37,29,21,13,5, 63,55,47,39,31,23,15,7,
+};
+constexpr u8 kDesFp[64] = {
+    40,8,48,16,56,24,64,32, 39,7,47,15,55,23,63,31,
+    38,6,46,14,54,22,62,30, 37,5,45,13,53,21,61,29,
+    36,4,44,12,52,20,60,28, 35,3,43,11,51,19,59,27,
+    34,2,42,10,50,18,58,26, 33,1,41,9,49,17,57,25,
+};
+constexpr u8 kDesE[48] = {
+    32,1,2,3,4,5, 4,5,6,7,8,9, 8,9,10,11,12,13,
+    12,13,14,15,16,17, 16,17,18,19,20,21, 20,21,22,23,24,25,
+    24,25,26,27,28,29, 28,29,30,31,32,1,
+};
+constexpr u8 kDesP[32] = {
+    16,7,20,21,29,12,28,17, 1,15,23,26,5,18,31,10,
+    2,8,24,14,32,27,3,9, 19,13,30,6,22,11,4,25,
+};
+constexpr u8 kDesPc1[56] = {
+    57,49,41,33,25,17,9, 1,58,50,42,34,26,18,
+    10,2,59,51,43,35,27, 19,11,3,60,52,44,36,
+    63,55,47,39,31,23,15, 7,62,54,46,38,30,22,
+    14,6,61,53,45,37,29, 21,13,5,28,20,12,4,
+};
+constexpr u8 kDesPc2[48] = {
+    14,17,11,24,1,5, 3,28,15,6,21,10,
+    23,19,12,4,26,8, 16,7,27,20,13,2,
+    41,52,31,37,47,55, 30,40,51,45,33,48,
+    44,49,39,56,34,53, 46,42,50,36,29,32,
+};
+constexpr u8 kDesRot[16] = {1,1,2,2,2,2,2,2,1,2,2,2,2,2,2,1};
+constexpr u8 kDesS[8][64] = {
+    {14,4,13,1,2,15,11,8,3,10,6,12,5,9,0,7,
+     0,15,7,4,14,2,13,1,10,6,12,11,9,5,3,8,
+     4,1,14,8,13,6,2,11,15,12,9,7,3,10,5,0,
+     15,12,8,2,4,9,1,7,5,11,3,14,10,0,6,13},
+    {15,1,8,14,6,11,3,4,9,7,2,13,12,0,5,10,
+     3,13,4,7,15,2,8,14,12,0,1,10,6,9,11,5,
+     0,14,7,11,10,4,13,1,5,8,12,6,9,3,2,15,
+     13,8,10,1,3,15,4,2,11,6,7,12,0,5,14,9},
+    {10,0,9,14,6,3,15,5,1,13,12,7,11,4,2,8,
+     13,7,0,9,3,4,6,10,2,8,5,14,12,11,15,1,
+     13,6,4,9,8,15,3,0,11,1,2,12,5,10,14,7,
+     1,10,13,0,6,9,8,7,4,15,14,3,11,5,2,12},
+    {7,13,14,3,0,6,9,10,1,2,8,5,11,12,4,15,
+     13,8,11,5,6,15,0,3,4,7,2,12,1,10,14,9,
+     10,6,9,0,12,11,7,13,15,1,3,14,5,2,8,4,
+     3,15,0,6,10,1,13,8,9,4,5,11,12,7,2,14},
+    {2,12,4,1,7,10,11,6,8,5,3,15,13,0,14,9,
+     14,11,2,12,4,7,13,1,5,0,15,10,3,9,8,6,
+     4,2,1,11,10,13,7,8,15,9,12,5,6,3,0,14,
+     11,8,12,7,1,14,2,13,6,15,0,9,10,4,5,3},
+    {12,1,10,15,9,2,6,8,0,13,3,4,14,7,5,11,
+     10,15,4,2,7,12,9,5,6,1,13,14,0,11,3,8,
+     9,14,15,5,2,8,12,3,7,0,4,10,1,13,11,6,
+     4,3,2,12,9,5,15,10,11,14,1,7,6,0,8,13},
+    {4,11,2,14,15,0,8,13,3,12,9,7,5,10,6,1,
+     13,0,11,7,4,9,1,10,14,3,5,12,2,15,8,6,
+     1,4,11,13,12,3,7,14,10,15,6,8,0,5,9,2,
+     6,11,13,8,1,4,10,7,9,5,0,15,14,2,3,12},
+    {13,2,8,4,6,15,11,1,10,9,3,14,5,0,12,7,
+     1,15,13,8,10,3,7,4,12,5,6,11,0,14,9,2,
+     7,11,4,1,9,12,14,2,0,6,10,13,15,3,5,8,
+     2,1,14,7,4,10,8,13,15,12,9,0,3,5,6,11},
+};
+
+// 64-bit permutation; values store bit63 (MSB) at table positions from MSB.
+u64 des_perm64(const u64 in_be, const u8* table)
+{
+    u64 out = 0U;
+    for (u8 i = 0U; i < 64U; ++i) {
+        out |= ((in_be >> (64U - table[i])) & 1U) << (63U - i);
+    }
+    return out;
+}
+
+// DES f-function: R is MSB-first in low 32 bits, subkey MSB-first in low 48.
+u32 des_f(const u32 r, const u64 subkey)
+{
+    u64 expanded = 0U;
+    for (u8 i = 0U; i < 48U; ++i) {
+        expanded |= (static_cast<u64>((r >> (32U - kDesE[i])) & 1U) << (47U - i));
+    }
+    expanded ^= subkey;
+    u32 sbox_out = 0U;
+    for (u8 box = 0U; box < 8U; ++box) {
+        const u8 six = static_cast<u8>((expanded >> (42U - 6U * box)) & 0x3FU);
+        const u8 row = static_cast<u8>(((six >> 4U) & 0x02U) | (six & 0x01U));
+        const u8 col = static_cast<u8>((six >> 1U) & 0x0FU);
+        sbox_out |= static_cast<u32>(kDesS[box][row * 16U + col]) << (28U - 4U * box);
+    }
+    u32 out = 0U;
+    for (u8 i = 0U; i < 32U; ++i) {
+        out |= ((sbox_out >> (32U - kDesP[i])) & 1U) << (31U - i);
+    }
+    return out;
+}
+
+void des_key_schedule(const u64 key_be, u64 subkeys[16])
+{
+    u32 halves[2] = {0U, 0U};
+    for (u8 i = 0U; i < 56U; ++i) {
+        halves[i / 28U] |= static_cast<u32>(((key_be >> (64U - kDesPc1[i])) & 1U)
+                                            << (27U - (i % 28U)));
+    }
+    u8 total_shift = 0U;
+    for (u8 round = 0U; round < 16U; ++round) {
+        total_shift = static_cast<u8>((total_shift + kDesRot[round]) % 28U);
+        u64 cd = 0U;
+        for (u8 half = 0U; half < 2U; ++half) {
+            const u32 v = halves[half];
+            const u32 rotated = (((v << total_shift) | (v >> (28U - total_shift)))
+                                 & 0x0FFFFFFFU);
+            cd |= static_cast<u64>(rotated) << (28U - 28U * half);
+        }
+        u64 subkey = 0U;
+        for (u8 i = 0U; i < 48U; ++i) {
+            subkey |= ((cd >> (56U - kDesPc2[i])) & 1U) << (47U - i);
+        }
+        subkeys[round] = subkey;
+    }
+}
+} // namespace
+
+void AvrCpu::execute_des(const DecodedInstruction& instruction)
+{
+    if (bus_ == nullptr) {
+        state_ = CpuState::halted;
+        return;
+    }
+    // ISM §5.50: data in R7:R0 (LSB in R0), key in R15:R8 (LSB in R8).
+    // H=0 encrypts round K, H=1 decrypts round K; K runs 0..15 for both per ISM.
+    const u8 round = static_cast<u8>((instruction.opcode >> 4U) & 0x0FU);
+    u64 data_be = 0U;
+    for (int reg = 7; reg >= 0; --reg) {
+        data_be = (data_be << 8U) | gpr_[reg];
+    }
+    u64 key_be = 0U;
+    for (int reg = 15; reg >= 8; --reg) {
+        key_be = (key_be << 8U) | gpr_[reg];
+    }
+    u64 subkeys[16] = {};
+    des_key_schedule(key_be, subkeys);
+    // Decryption runs K increasing per ISM, so round K uses subkey 15-K.
+    const u64 subkey = flag_h_ ? subkeys[15U - round] : subkeys[round];
+    const u64 permuted = des_perm64(data_be, kDesIp);
+    u32 left = static_cast<u32>(permuted >> 32U);
+    u32 right = static_cast<u32>(permuted & 0xFFFFFFFFU);
+    const u32 f = des_f(right, subkey);
+    // The hardware folds the final swap into round 15 (like standard DES,
+    // whose last round omits the swap); this reproduces FIPS-46 exactly.
+    const u32 new_left = (round < 15U) ? right : static_cast<u32>(left ^ f);
+    const u32 new_right = (round < 15U) ? static_cast<u32>(left ^ f) : right;
+    const u64 out_be = des_perm64((static_cast<u64>(new_left) << 32U) | new_right, kDesFp);
+    for (u8 reg = 0U; reg < 8U; ++reg) {
+        write_register(reg, static_cast<u8>((out_be >> (8U * reg)) & 0xFFU));
+    }
+    program_counter_ = instruction.word_address + 1U;
+    advance_cycles(1U);
 }
 
 void AvrCpu::execute_sts(const DecodedInstruction& instruction)
