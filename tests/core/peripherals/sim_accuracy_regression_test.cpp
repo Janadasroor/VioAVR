@@ -6,7 +6,9 @@
 #include "vioavr/core/device_catalog.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/adc.hpp"
+#include "vioavr/core/clkctrl.hpp"
 #include "vioavr/core/eeprom.hpp"
+#include "vioavr/core/slpctrl.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/spi.hpp"
 #include "vioavr/core/tcb.hpp"
@@ -523,6 +525,12 @@ constexpr u16 encode_st_z_postinc(const u8 reg) {
     return static_cast<u16>(0x9201U | (static_cast<u16>(reg) << 4U));
 }
 
+// OUT A,Rr: 1011 1AAr rrrr AAAA (A = 6-bit I/O offset)
+constexpr u16 encode_out(const u8 io_offset, const u8 reg) {
+    return static_cast<u16>(0xB800U | (static_cast<u16>(reg) << 4U)
+        | ((static_cast<u16>(io_offset & 0x30U)) << 5U) | (io_offset & 0x0FU));
+}
+
 } // namespace
 
 TEST_CASE("Regression: XCH/LAS/LAC/LAT exchange with DS(Z), Rd gets old value")
@@ -627,4 +635,111 @@ TEST_CASE("Regression: DES K encrypts FIPS-46 vector, decrypt inverts it")
     for (u8 i = 0U; i < 8U; ++i) {
         CHECK(bus.read_data(static_cast<u16>(sram_base + 8U + i)) == plaintext[i]);
     }
+}
+
+TEST_CASE("Regression: Idle wake costs start-up(0) + 4-cycle ISR entry")
+{
+    // Timer0 overflows during the SLEEP step itself; wake must then cost
+    // exactly 0 (oscillator already running) + 4 (interrupt response).
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    Timer8 timer0 {"TIMER0", atmega328p.timers8[0]};
+    bus.attach_peripheral(timer0);
+    AvrCpu cpu {bus};
+
+    const u16 timsk0 = atmega328p.timers8[0].timsk_address;
+    std::vector<u16> flash = {
+        encode_ldi(16U, 0x01U),
+        0x9200U | (16U << 4U), timsk0, // STS TIMSK0, TOIE0=1
+        encode_ldi(16U, 0x01U),
+        encode_out(0x25U, 16U), // OUT TCCR0B (0x45), CS=1 (/1)
+        0x9478U, // SEI
+        0x9588U, // SLEEP
+    };
+    flash.resize(24U, 0x0000U); // pad past the Timer0 OVF vector
+    bus.load_image(HexImage {.flash_words = flash, .entry_word = 0U});
+    cpu.reset();
+
+    bus.write_data(0x53U, 0x01U); // SMCR: SE=1, Idle
+    for (int i = 0; i < 5; ++i) cpu.step(); // LDI/STS/LDI/OUT/SEI
+    bus.write_data(0x46U, 0xFFU); // TCNT0 one tick before overflow
+    const u64 c0 = cpu.cycles();
+    cpu.step(); // SLEEP: timer wraps to 0x00, TOV0 sets
+    CHECK(cpu.state() == CpuState::sleeping);
+    int watchdog = 8;
+    while (cpu.state() == CpuState::sleeping && --watchdog > 0) cpu.step();
+    CHECK(watchdog > 0);
+    CHECK(cpu.state() == CpuState::running);
+    // 1 (SLEEP) + 0 (start-up) + 4 (ISR entry).
+    CHECK(cpu.cycles() - c0 == 5U);
+}
+
+TEST_CASE("Regression: sleep wake latency follows mode and clock fuses")
+{
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    AvrCpu cpu {bus};
+    cpu.reset();
+
+    bus.write_data(0x53U, 0x01U); // Idle
+    CHECK(cpu.get_sleep_wake_latency() == 0U);
+    bus.write_data(0x53U, 0x03U); // ADC Noise Reduction
+    CHECK(cpu.get_sleep_wake_latency() == 0U);
+    bus.write_data(0x53U, 0x05U); // Power-down, internal RC fuses
+    CHECK(cpu.get_sleep_wake_latency() == 6U);
+    bus.write_data(0x53U, 0x07U); // Power-save, internal RC fuses
+    CHECK(cpu.get_sleep_wake_latency() == 6U);
+    bus.write_data(0x53U, 0x0DU); // Standby: oscillator running
+    CHECK(cpu.get_sleep_wake_latency() == 2U);
+    bus.write_data(0x53U, 0x0FU); // Extended Standby: oscillator running
+    CHECK(cpu.get_sleep_wake_latency() == 2U);
+
+    // Crystal fuse variants (copied descriptor; MemoryBus copies it).
+    auto dev_xtal = atmega328p;
+    dev_xtal.fuses[0] = 0xFFU; // CKSEL=1111, SUT=11 -> 16K CK
+    MemoryBus bus_xtal {dev_xtal};
+    AvrCpu cpu_xtal {bus_xtal};
+    cpu_xtal.reset();
+    bus_xtal.write_data(0x53U, 0x05U);
+    CHECK(cpu_xtal.get_sleep_wake_latency() == 16384U);
+
+    auto dev_1k = atmega328p;
+    dev_1k.fuses[0] = 0x2EU; // CKSEL=1110, SUT=10 -> 1K CK
+    MemoryBus bus_1k {dev_1k};
+    AvrCpu cpu_1k {bus_1k};
+    cpu_1k.reset();
+    bus_1k.write_data(0x53U, 0x05U);
+    CHECK(cpu_1k.get_sleep_wake_latency() == 1024U);
+
+    auto dev_32k = atmega328p;
+    dev_32k.fuses[0] = 0x25U; // CKSEL=0101 (32K crystal), SUT=10 -> 32K CK
+    MemoryBus bus_32k {dev_32k};
+    AvrCpu cpu_32k {bus_32k};
+    cpu_32k.reset();
+    bus_32k.write_data(0x53U, 0x05U);
+    CHECK(cpu_32k.get_sleep_wake_latency() == 32768U);
+}
+
+TEST_CASE("Regression: AVRxt wake latency is 6 + oscillator start-up")
+{
+    // Datasheet §SLPCTRL: six CLK_PER plus OSC start-up when stopped.
+    using namespace vioavr::core::devices;
+    MemoryBus bus {avr128db32};
+    auto clk = std::make_unique<ClkCtrl>(avr128db32.clkctrl, 20'000'000U);
+    auto slp = std::make_unique<SlpCtrl>(avr128db32.slpctrl);
+    bus.attach_peripheral(*clk);
+    bus.attach_peripheral(*slp);
+    AvrCpu cpu {bus}; // ctor auto-discovers ClkCtrl/SlpCtrl
+    cpu.reset();
+
+    const u16 slpctrla = avr128db32.slpctrl.ctrla_address;
+    const u16 mclkctrla = avr128db32.clkctrl.ctrla_address;
+    bus.write_data(slpctrla, 0x01U); // SEN + Idle
+    CHECK(cpu.get_sleep_wake_latency() == 2U);
+    bus.write_data(slpctrla, 0x05U); // SEN + Power-down, OSC20M default
+    CHECK(cpu.get_sleep_wake_latency() == 8U);
+    bus.write_data(mclkctrla, 0x03U); // EXTCLK: 2-cycle start-up
+    CHECK(cpu.get_sleep_wake_latency() == 4U);
+    bus.write_data(mclkctrla, 0x02U); // XOSC32K, CSUT reset = 1K
+    CHECK(cpu.get_sleep_wake_latency() == 1026U);
 }
