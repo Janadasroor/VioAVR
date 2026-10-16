@@ -223,7 +223,15 @@ inline constexpr DeviceDescriptor atmega8 {
             .spcr_address = 0x2DU, .spsr_address = 0x2EU, .spdr_address = 0x2FU,
             .spcr_reset = 0x0U, .spsr_reset = 0x0U, .vector_index = 10U,
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
-            .pr_address = 0, .pr_bit = 255
+            .pr_address = 0, .pr_bit = 255,
+            .mosi_pin_address = 0x38U,
+            .mosi_pin_bit = 3U,
+            .miso_pin_address = 0x38U,
+            .miso_pin_bit = 4U,
+            .sck_pin_address = 0x38U,
+            .sck_pin_bit = 5U,
+            .ss_pin_address = 0x38U,
+            .ss_pin_bit = 2U,
         } }},
 
     .spi8x_count = 0U,

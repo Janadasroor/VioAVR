@@ -531,6 +531,15 @@ struct SpiDescriptor {
     u8 sp2x_mask {0x01U};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    // Classic SPI pin mapping (PORT data-register address + bit, 0 = unmapped).
+    u16 mosi_pin_address {0U};
+    u8 mosi_pin_bit {0U};
+    u16 miso_pin_address {0U};
+    u8 miso_pin_bit {0U};
+    u16 sck_pin_address {0U};
+    u8 sck_pin_bit {0U};
+    u16 ss_pin_address {0U};
+    u8 ss_pin_bit {0U};
 };
 
 struct XmemDescriptor {

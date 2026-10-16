@@ -1920,10 +1920,35 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
         out.append(f"    .spis = {{{{")
         for si, sname in enumerate(spi_instances):
             regs = extract_module_registers(root, "SPI", sname, SPI_FIELDS)
+            spi_pins = {}
+            for mod in root.findall(f".//peripherals/module[@name='SPI']"):
+                for inst in mod.findall("instance"):
+                    if inst.get("name") != sname:
+                        continue
+                    for sig in inst.findall(".//signal"):
+                        sgroup = (sig.get("group", "") or "").strip().upper()
+                        pad = sig.get("pad", "") or ""
+                        if sgroup not in ("MOSI", "MISO", "SCK", "SS") or not pad:
+                            continue
+                        pl = pad[1] if len(pad) > 1 else 'A'
+                        try:
+                            b = int(pad[2:]) if len(pad) > 2 else 0
+                        except ValueError:
+                            continue
+                        for pn, pr in ports:
+                            if len(pn) > 4 and pn[4] == pl:
+                                spi_pins[sgroup] = (pr.get("port_address", 0), b)
+                                break
             out.append(f"        {{")
             for field_name in ["spcr_address", "spsr_address", "spdr_address"]:
                 if regs.get(field_name):
                     out.append(f"            .{field_name} = 0x{regs[field_name]:02X}U,")
+            for sgroup, fname in [("MOSI", "mosi"), ("MISO", "miso"),
+                                  ("SCK", "sck"), ("SS", "ss")]:
+                if spi_pins.get(sgroup) and spi_pins[sgroup][0]:
+                    addr, bit = spi_pins[sgroup]
+                    out.append(f"            .{fname}_pin_address = 0x{addr:02X}U,")
+                    out.append(f"            .{fname}_pin_bit = {bit}U,")
             out.append(f"        }}," if si < len(spi_instances) - 1 else f"        }}")
         out.append(f"    }}}},")
     

@@ -230,7 +230,15 @@ inline constexpr DeviceDescriptor atmega64c1 {
             .spcr_address = 0x4CU, .spsr_address = 0x4DU, .spdr_address = 0x4EU,
             .spcr_reset = 0x0U, .spsr_reset = 0x0U, .vector_index = 26U,
             .spe_mask = 0x40U, .spie_mask = 0x80U, .mstr_mask = 0x10U, .spif_mask = 0x80U, .wcol_mask = 0x40U, .sp2x_mask = 0x1U,
-            .pr_address = 100, .pr_bit = 2
+            .pr_address = 100, .pr_bit = 2,
+            .mosi_pin_address = 0x2BU,
+            .mosi_pin_bit = 3U,
+            .miso_pin_address = 0x2BU,
+            .miso_pin_bit = 2U,
+            .sck_pin_address = 0x2BU,
+            .sck_pin_bit = 4U,
+            .ss_pin_address = 0x28U,
+            .ss_pin_bit = 1U,
         } }},
 
     .spi8x_count = 0U,
