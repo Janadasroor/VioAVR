@@ -832,3 +832,75 @@ TEST_CASE("Regression: NVMCTRL EEPROM write does not stall the CPU")
     CHECK(machine.cpu().program_counter() == 20U); // advanced, not stalled
     CHECK((machine.bus().read_data(0x1002U) & 0x02U) != 0U); // EEBUSY: still in flight
 }
+
+TEST_CASE("Regression: TWI slave stretches SCL until TWINT clears")
+{
+    // ATmega328P TWI on PORTC: SDA=PC4, SCL=PC5 (PORTC data = 0x28).
+    // Master + slave as separate instances; slave registers remapped to
+    // 0xE0-0xE5 so both can share the bus (same SCL/SDA pins).
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    PinMux mux(atmega328p.port_count);
+    bus.set_pin_mux(&mux);
+    auto gpio_ptr = std::make_unique<GpioPort>(atmega328p.ports[1], mux); // PORTC
+    bus.attach_peripheral(*gpio_ptr.release());
+
+    Twi master {"TWIM", atmega328p.twis[0], &mux};
+    bus.attach_peripheral(master);
+    auto slave_desc = atmega328p.twis[0];
+    slave_desc.twbr_address = 0xE0U; slave_desc.twsr_address = 0xE1U;
+    slave_desc.twar_address = 0xE2U; slave_desc.twdr_address = 0xE3U;
+    slave_desc.twcr_address = 0xE4U; slave_desc.twamr_address = 0xE5U;
+    Twi slave {"TWIS", slave_desc, &mux};
+    bus.attach_peripheral(slave);
+
+    constexpr u16 kTwcr = 0xBCU; // master TWCR
+    constexpr u16 kTwdr = 0xBBU; // master TWDR
+    constexpr u16 kTwsr = 0xB9U; // master TWSR
+    constexpr u16 kSlvTwcr = 0xE4U, kSlvTwar = 0xE2U;
+    constexpr u8 kTwint = 0x80U, kTwea = 0x40U, kSta = 0x20U, kSto = 0x10U, kTwen = 0x04U;
+    auto scl = [&mux]() { return mux.get_state_by_address(0x28U, 5U); };
+
+    CHECK(scl().owner == PinOwner::gpio); // idle: no hold
+
+    // Slave listens on SLA 0x42 with ACK enabled.
+    bus.write_data(kSlvTwar, 0x84U);
+    bus.write_data(kSlvTwcr, kTwea | kTwen);
+
+    // Master: START, then SLA+W to 0x42.
+    bus.write_data(kTwcr, kTwint | kTwea | kSta | kTwen);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(kTwsr) & 0xF8U) == 0x08U); // START sent
+    bus.write_data(kTwdr, 0x84U);
+    bus.write_data(kTwcr, kTwint | kTwen);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(kTwsr) & 0xF8U) == 0x18U); // SLA+W ACKed
+    // Addressed slave stretches: SCL held low until it clears TWINT.
+    CHECK(scl().owner == PinOwner::twi);
+    CHECK(scl().drive_level == false);
+
+    // Master queues a data byte; its bit clock must freeze while stretched.
+    bus.write_data(kTwdr, 0x55U);
+    bus.write_data(kTwcr, kTwint | kTwen);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(kTwcr) & kTwint) == 0U); // master step frozen
+    CHECK((bus.read_data(kTwsr) & 0xF8U) == 0x18U); // status unchanged
+    CHECK(scl().drive_level == false); // still stretched
+
+    // Slave services TWINT: releases SCL; master bit clock resumes.
+    bus.write_data(kSlvTwcr, kTwint | kTwea | kTwen);
+    CHECK(scl().owner == PinOwner::gpio);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(kTwcr) & kTwint) != 0U); // master step done
+    CHECK((bus.read_data(kTwsr) & 0xF8U) == 0x28U); // data ACKed
+    // Slave holds again for the received byte until serviced.
+    CHECK(scl().owner == PinOwner::twi);
+    bus.write_data(kSlvTwcr, kTwint | kTwea | kTwen);
+    CHECK(scl().owner == PinOwner::gpio);
+
+    // Master STOP frees the bus; slave reports 0xA0 without holding.
+    bus.write_data(kTwcr, kTwint | kSto | kTwen);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(0xE1U) & 0xF8U) == 0xA0U); // slave STOP status
+    CHECK(scl().owner == PinOwner::gpio);
+}
