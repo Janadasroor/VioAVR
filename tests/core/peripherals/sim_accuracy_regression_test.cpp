@@ -904,3 +904,89 @@ TEST_CASE("Regression: TWI slave stretches SCL until TWINT clears")
     CHECK((bus.read_data(0xE1U) & 0xF8U) == 0xA0U); // slave STOP status
     CHECK(scl().owner == PinOwner::gpio);
 }
+
+TEST_CASE("Regression: UART RX latches FE and mode-gated UPE")
+{
+    // ATmega328P USART0: UDR=0xC6, UCSRA=0xC0 (RXC=0x80, FE=0x10, UPE=0x04).
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    PinMux mux {3};
+    Uart uart {"USART0", atmega328p.uarts[0], mux};
+    bus.attach_peripheral(uart);
+    const auto desc = atmega328p.uarts[0];
+
+    bus.write_data(desc.ucsrb_address, 0x10U); // RXEN
+    bus.write_data(desc.ucsrc_address, 0x06U); // 8N1, parity off
+
+    // Clean frame: no flags.
+    CHECK(uart.inject_received_byte(0x55U) == true);
+    bus.tick_peripherals(200U); // 8N1 at UBRR=0: 10 bits x 16 cycles
+    CHECK((bus.read_data(desc.ucsra_address) & 0x80U) != 0U); // RXC
+    CHECK((bus.read_data(desc.ucsra_address) & 0x14U) == 0U); // no FE/UPE
+    CHECK(bus.read_data(desc.udr_address) == 0x55U);
+
+    // Bad stop bit: FE latches with RXC, clears on UDR read.
+    CHECK(uart.inject_received_byte(0xA3U, true) == true);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(desc.ucsra_address) & 0x80U) != 0U); // RXC
+    CHECK((bus.read_data(desc.ucsra_address) & 0x10U) != 0U); // FE
+    CHECK((bus.read_data(desc.ucsra_address) & 0x04U) == 0U); // no UPE (8N1)
+    CHECK(bus.read_data(desc.udr_address) == 0xA3U);
+    CHECK((bus.read_data(desc.ucsra_address) & 0x94U) == 0U); // RXC/FE cleared
+
+    // Parity error with parity disabled: UPE must NOT latch.
+    CHECK(uart.inject_received_byte(0x5AU, false, true) == true);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(desc.ucsra_address) & 0x80U) != 0U); // RXC
+    CHECK((bus.read_data(desc.ucsra_address) & 0x04U) == 0U); // no UPE
+    (void)bus.read_data(desc.udr_address);
+
+    // Even parity mode (UPM1:0=10): wrong parity bit latches UPE.
+    bus.write_data(desc.ucsrc_address, 0x26U); // 8-bit, even parity
+    CHECK(uart.inject_received_byte(0x5AU, false, true) == true);
+    bus.tick_peripherals(200U); // 8E1: 11 bits x 16 cycles
+    CHECK((bus.read_data(desc.ucsra_address) & 0x80U) != 0U); // RXC
+    CHECK((bus.read_data(desc.ucsra_address) & 0x04U) != 0U); // UPE
+    CHECK(bus.read_data(desc.udr_address) == 0x5AU);
+    CHECK((bus.read_data(desc.ucsra_address) & 0x84U) == 0U); // RXC/UPE cleared
+}
+
+TEST_CASE("Regression: USART RXDATAH carries FERR and mode-gated PERR")
+{
+    // ATmega4809 USART0: RXDATA=0x800, RXDATAH=0x801 (FERR=0x04, PERR=0x02).
+    using namespace vioavr::core::devices;
+    PinMux mux {8};
+    MemoryBus bus {atmega4809};
+    Uart8x uart {atmega4809.uarts8x[0], mux};
+    bus.attach_peripheral(uart);
+    const auto D = atmega4809.uarts8x[0];
+
+    uart.write(D.ctrlb_address, 0x80U); // RXEN
+    CHECK(D.ctrlc_address != 0U);
+
+    // Clean frame: no error bits.
+    uart.inject_received_byte(0x5AU);
+    uart.tick(500U);
+    CHECK(uart.read(D.rxdata_address) == 0x5AU);
+    CHECK((uart.read(static_cast<u16>(D.rxdata_address + 1U)) & 0x06U) == 0U);
+
+    // Bad stop bit: FERR rides with the byte (8N1 default: PMODE=0).
+    uart.inject_received_byte(0xA3U, false, true);
+    uart.tick(500U);
+    CHECK(uart.read(D.rxdata_address) == 0xA3U);
+    CHECK((uart.read(static_cast<u16>(D.rxdata_address + 1U)) & 0x04U) != 0U); // FERR
+    CHECK((uart.read(static_cast<u16>(D.rxdata_address + 1U)) & 0x02U) == 0U); // no PERR
+
+    // Parity error with parity disabled: PERR must NOT latch.
+    uart.inject_received_byte(0x3CU, false, false, true);
+    uart.tick(500U);
+    CHECK(uart.read(D.rxdata_address) == 0x3CU);
+    CHECK((uart.read(static_cast<u16>(D.rxdata_address + 1U)) & 0x06U) == 0U);
+
+    // Even parity mode (PMODE=10): wrong parity bit latches PERR.
+    uart.write(D.ctrlc_address, 0x23U); // 8-bit, even parity
+    uart.inject_received_byte(0x3CU, false, false, true);
+    uart.tick(500U);
+    CHECK(uart.read(D.rxdata_address) == 0x3CU);
+    CHECK((uart.read(static_cast<u16>(D.rxdata_address + 1U)) & 0x02U) != 0U); // PERR
+}
