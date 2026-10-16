@@ -499,3 +499,132 @@ TEST_CASE("Regression: SPI pin shaping follows CPOL/CPHA/DORD")
     bus.tick_peripherals(31U);
     CHECK((bus.read_data(0x4DU) & 0x80U) != 0U); // SPIF
 }
+
+namespace {
+
+// XCH Z,Rd = 0x9204|(d<<4); LAS = 0x9205|..; LAC = 0x9206|..; LAT = 0x9207|..
+constexpr u16 encode_rmw_z(const u8 base_low, const u8 reg) {
+    return static_cast<u16>(0x9200U | (static_cast<u16>(reg) << 4U) | base_low);
+}
+
+// MOV Rd,Rr = 0010 11rd dddd rrrr
+constexpr u16 encode_mov(const u8 dest, const u8 src) {
+    return static_cast<u16>(0x2C00U | (static_cast<u16>(dest & 0x1FU) << 4U)
+        | ((static_cast<u16>(src & 0x10U)) << 5U) | (src & 0x0FU));
+}
+
+// DES K = 1001 0100 KKKK 1011
+constexpr u16 encode_des(const u8 round) {
+    return static_cast<u16>(0x940BU | (static_cast<u16>(round & 0x0FU) << 4U));
+}
+
+// ST Z+,Rr = 1001 001r rrrr 0001
+constexpr u16 encode_st_z_postinc(const u8 reg) {
+    return static_cast<u16>(0x9201U | (static_cast<u16>(reg) << 4U));
+}
+
+} // namespace
+
+TEST_CASE("Regression: XCH/LAS/LAC/LAT exchange with DS(Z), Rd gets old value")
+{
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    AvrCpu cpu {bus};
+    const auto sram_base = atmega328p.sram_range().begin;
+
+    bus.load_image(HexImage {
+        .flash_words = {
+            encode_ldi(30U, static_cast<u8>(sram_base & 0xFFU)),
+            encode_ldi(31U, static_cast<u8>((sram_base >> 8U) & 0xFFU)),
+            encode_ldi(16U, 0x0FU), encode_rmw_z(0x04U, 16U), // XCH
+            encode_ldi(17U, 0x0FU), encode_rmw_z(0x05U, 17U), // LAS
+            encode_ldi(18U, 0x0FU), encode_rmw_z(0x06U, 18U), // LAC
+            encode_ldi(19U, 0xFFU), encode_rmw_z(0x07U, 19U), // LAT
+            0x0000U
+        },
+        .entry_word = 0U
+    });
+    cpu.reset();
+    bus.write_data(sram_base, 0xF0U); // pre-fill AFTER reset
+    cpu.step(); // LDI R30
+    cpu.step(); // LDI R31
+
+    cpu.step(); // LDI R16
+    cpu.step(); // XCH Z,R16: R16 <- 0xF0, mem <- 0x0F
+    CHECK(cpu.snapshot().gpr[16] == 0xF0U);
+    CHECK(bus.read_data(sram_base) == 0x0FU);
+
+    bus.write_data(sram_base, 0xF0U);
+    cpu.step(); // LDI R17
+    cpu.step(); // LAS Z,R17: R17 <- 0xF0, mem <- 0x0F|0xF0 = 0xFF
+    CHECK(cpu.snapshot().gpr[17] == 0xF0U);
+    CHECK(bus.read_data(sram_base) == 0xFFU);
+
+    bus.write_data(sram_base, 0xFFU);
+    cpu.step(); // LDI R18
+    cpu.step(); // LAC Z,R18: R18 <- 0xFF, mem <- ~0x0F&0xFF = 0xF0
+    CHECK(cpu.snapshot().gpr[18] == 0xFFU);
+    CHECK(bus.read_data(sram_base) == 0xF0U);
+
+    bus.write_data(sram_base, 0xF0U);
+    cpu.step(); // LDI R19
+    cpu.step(); // LAT Z,R19: R19 <- 0xF0, mem <- 0xFF^0xF0 = 0x0F
+    CHECK(cpu.snapshot().gpr[19] == 0xF0U);
+    CHECK(bus.read_data(sram_base) == 0x0FU);
+
+    // Z unchanged by all four.
+    CHECK(cpu.snapshot().gpr[30] == static_cast<u8>(sram_base & 0xFFU));
+    CHECK(cpu.snapshot().gpr[31] == static_cast<u8>((sram_base >> 8U) & 0xFFU));
+}
+
+TEST_CASE("Regression: DES K encrypts FIPS-46 vector, decrypt inverts it")
+{
+    // FIPS-46: key 0x133457799BBCDFF1, plaintext 0x0123456789ABCDEF,
+    // ciphertext 0x85E813540F0AB405. LSB of block/key in R0/R8 LSB.
+    using namespace vioavr::core::devices;
+    MemoryBus bus {atmega328p};
+    AvrCpu cpu {bus};
+    const auto sram_base = atmega328p.sram_range().begin;
+
+    const u8 plaintext[8] = {0xEFU, 0xCDU, 0xABU, 0x89U, 0x67U, 0x45U, 0x23U, 0x01U};
+    const u8 key[8] = {0xF1U, 0xDFU, 0xBCU, 0x9BU, 0x79U, 0x57U, 0x34U, 0x13U};
+    const u8 ciphertext[8] = {0x05U, 0xB4U, 0x0AU, 0x0FU, 0x54U, 0x13U, 0xE8U, 0x85U};
+
+    std::vector<u16> flash;
+    flash.push_back(encode_ldi(30U, static_cast<u8>(sram_base & 0xFFU)));
+    flash.push_back(encode_ldi(31U, static_cast<u8>((sram_base >> 8U) & 0xFFU)));
+    for (u8 i = 0U; i < 8U; ++i) {
+        flash.push_back(encode_ldi(16U, plaintext[i]));
+        flash.push_back(encode_mov(i, 16U)); // R0-R7
+    }
+    for (u8 i = 0U; i < 8U; ++i) {
+        flash.push_back(encode_ldi(16U, key[i]));
+        flash.push_back(encode_mov(static_cast<u8>(8U + i), 16U)); // R8-R15
+    }
+    for (u8 k = 0U; k < 16U; ++k) {
+        flash.push_back(encode_des(k)); // H=0: encrypt rounds 0..15
+    }
+    for (u8 i = 0U; i < 8U; ++i) {
+        flash.push_back(encode_st_z_postinc(i)); // store ciphertext
+    }
+    flash.push_back(0x9458U); // BSET 5: H=1 for decryption
+    for (u8 k = 0U; k < 16U; ++k) {
+        flash.push_back(encode_des(k)); // H=1: decrypt rounds 0..15
+    }
+    for (u8 i = 0U; i < 8U; ++i) {
+        flash.push_back(encode_st_z_postinc(i)); // store recovered plaintext
+    }
+    flash.push_back(0x0000U);
+
+    bus.load_image(HexImage {.flash_words = flash, .entry_word = 0U});
+    cpu.reset();
+    for (size_t i = 0U; i < flash.size() - 1U; ++i) {
+        cpu.step();
+    }
+    for (u8 i = 0U; i < 8U; ++i) {
+        CHECK(bus.read_data(static_cast<u16>(sram_base + i)) == ciphertext[i]);
+    }
+    for (u8 i = 0U; i < 8U; ++i) {
+        CHECK(bus.read_data(static_cast<u16>(sram_base + 8U + i)) == plaintext[i]);
+    }
+}
