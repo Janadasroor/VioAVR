@@ -63,14 +63,26 @@ public:
         return data_;
     }
 
+    // True while an in-flight CPU-blocking NVM operation targets the same
+    // flash section as word_address (RWW/NRWW; devices without sections
+    // always block). Pure EEPROM operations never block. flash_rww_end_word
+    // is the exclusive RWW end (= NRWW/boot start).
+    [[nodiscard]] inline bool nvm_operation_blocks(u32 word_address) const noexcept
+    {
+        if (spm_busy_cycles_left_ == 0U || !spm_blocks_cpu_) return false;
+        if (device_.flash_rww_end_word == 0U) return true;
+        const bool target_rww = (spm_address_ >> 1U) < device_.flash_rww_end_word;
+        return target_rww == (word_address < device_.flash_rww_end_word);
+    }
+
     [[nodiscard]] inline u16 read_program_word(u32 word_address, u32 pc_word = 0xFFFFFFFFU) const noexcept
     {
         (void)pc_word;
         if (flash_wait_states_ > 0U) request_cpu_stall(flash_wait_states_);
-        if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) {
+        if (flash_rww_busy_ && word_address < device_.flash_rww_end_word) {
             return 0xFFFFU;
         }
-        if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
+        if (nvm_operation_blocks(word_address)) {
             request_cpu_stall(spm_busy_cycles_left_);
         }
         if (word_address >= flash_.size()) return 0xFFFFU;
@@ -110,8 +122,8 @@ public:
         }
 
         const u32 word_address = byte_address >> 1U;
-        if (flash_rww_busy_ && word_address <= device_.flash_rww_end_word) return 0xFFU;
-        if (spm_busy_cycles_left_ > 0U && word_address > device_.flash_rww_end_word) {
+        if (flash_rww_busy_ && word_address < device_.flash_rww_end_word) return 0xFFU;
+        if (nvm_operation_blocks(word_address)) {
             request_cpu_stall(spm_busy_cycles_left_);
         }
         
@@ -173,12 +185,9 @@ public:
     [[nodiscard]] inline bool should_stall_cpu(u32 pc_word) const noexcept
     {
         if (io_stall_cycles_ > 0U) return true;
-        if (spm_busy_cycles_left_ == 0U) return false;
-        if (device_.flash_rww_end_word == 0U) return true;
-        const u32 program_word = spm_address_ >> 1U;
-        if (program_word > device_.flash_rww_end_word) return true;
-        if (pc_word <= device_.flash_rww_end_word) return true;
-        return false;
+        // The CPU stalls only when fetching from the section targeted by the
+        // in-flight operation; the other section stays readable/executable.
+        return nvm_operation_blocks(pc_word);
     }
     void request_cpu_stall(u32 cycles) const noexcept;
     void consume_stall_cycle() const noexcept;
@@ -267,6 +276,9 @@ private:
     // SPM timing state
     mutable u32 spm_busy_cycles_left_ {0U};
     mutable u32 io_stall_cycles_ {0U};
+    // True when the in-flight NVM operation blocks the CPU (flash
+    // erase/write). Pure EEPROM operations set EEBSY but never stall.
+    bool spm_blocks_cpu_ {true};
     u8 spm_command_ {0U};
     u32 spm_address_ {0U};
     u16 spm_data_ {0U};

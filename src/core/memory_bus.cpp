@@ -53,6 +53,7 @@ void MemoryBus::reset() noexcept
     lockbit_ = device_.lockbit_reset;
     spm_busy_cycles_left_ = 0U;
     flash_rww_busy_ = false;
+    spm_blocks_cpu_ = true;
     scheduler_.reset();
     domain_gated_cycles_.fill(0U);
     cpu_cycles_ = 0U;
@@ -490,19 +491,18 @@ void MemoryBus::consume_stall_cycle() const noexcept {
 }
 
 void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data, u32 pc_word) noexcept {
+    (void)pc_word;
+    // Access control is purely BLB/lockbit-based (datasheet §Self-Programming):
+    // SPM may execute from any section when the lockbits permit it. A CPU
+    // fetching from the targeted section stalls via should_stall_cpu().
     if (device_.boot_start_address != 0U) {
-        const u32 pc_bytes = pc_word << 1U;
         const u32 boot_start_bytes = device_.boot_start_address << 1U;
-        if (pc_bytes < boot_start_bytes) {
-            Logger::warning("MemoryBus: SPM attempt from non-bootloader section! PC=0x" + std::to_string(pc_bytes));
-            return;
-        }
         const u8 lb = lockbit_ & 0x3FU;
         if ((lb & 0x03U) != 0x03U) {
             Logger::warning("MemoryBus: SPM inhibited by lockbits! Lock=0x" + std::to_string(lockbit_));
             return;
         }
-        if (spm_address_ < boot_start_bytes) {
+        if (address < boot_start_bytes) {
             if ((lb & 0x08U) == 0U) {
                 Logger::warning("MemoryBus: SPM to Application Section inhibited by BLB0!");
                 return;
@@ -524,6 +524,13 @@ void MemoryBus::execute_spm(const u8 command, const u32 address, const u16 data,
         spm_address_ = address;
         spm_data_ = data;
         spm_busy_cycles_left_ = 64000U;
+        spm_blocks_cpu_ = true;
+        // RWWSB: an RWW-targeted operation blocks the RWW section (reads
+        // return 0xFF) until RWWSRE re-enables it. Surfaces via read_data.
+        if (device_.flash_rww_end_word != 0U &&
+            (address >> 1U) < device_.flash_rww_end_word) {
+            flash_rww_busy_ = true;
+        }
         Logger::debug("MemoryBus: SPM timed operation started at 0x" + std::to_string(address));
         return;
     }
@@ -633,6 +640,9 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
     Logger::debug(log_buf);
 
     spm_busy_cycles_left_ = cycles;
+    // Flash operations halt the CPU; pure EEPROM operations only raise
+    // EEBUSY and never stall (datasheet §NVMCTRL).
+    spm_blocks_cpu_ = flash_busy;
 
     if (nvm_ctrl_) {
         nvm_ctrl_->set_busy(flash_busy, ee_busy);
