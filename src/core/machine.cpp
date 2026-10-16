@@ -479,7 +479,7 @@ void Machine::initialize_peripherals()
 
     // 6. TWI
     for (u8 i = 0; i < device_.twi_count; ++i) {
-        auto twi = std::make_unique<Twi>("TWI", device_.twis[i]);
+        auto twi = std::make_unique<Twi>("TWI", device_.twis[i], pin_mux_.get());
         bus_->attach_peripheral(*twi);
         owned_peripherals_.push_back(std::move(twi));
     }

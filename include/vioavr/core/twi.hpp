@@ -8,9 +8,14 @@
 
 namespace vioavr::core {
 
+class PinMux;
+
 class Twi final : public IoPeripheral {
 public:
-    explicit Twi(std::string_view name, const TwiDescriptor& descriptor) noexcept;
+    explicit Twi(std::string_view name, const TwiDescriptor& descriptor,
+                 PinMux* pin_mux = nullptr) noexcept;
+
+    void set_pin_mux(PinMux* pin_mux) noexcept { pin_mux_ = pin_mux; }
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
 
@@ -42,10 +47,16 @@ private:
     void complete_step() noexcept;
     void handle_master_step() noexcept;
     void handle_slave_step() noexcept;
+    // Clock-stretch pin modeling (slave holds SCL low while stretching).
+    [[nodiscard]] bool pins_mapped() const noexcept;
+    void hold_scl() noexcept;
+    void release_scl() noexcept;
+    [[nodiscard]] bool scl_held_by_other() noexcept;
 
     std::string name_;
     TwiDescriptor desc_;
     MemoryBus* bus_ {};
+    PinMux* pin_mux_ {};
     std::array<AddressRange, 1> ranges_;
 
     enum class Mode {

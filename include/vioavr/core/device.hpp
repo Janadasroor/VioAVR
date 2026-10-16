@@ -590,6 +590,13 @@ struct TwiDescriptor {
     u8 twea_mask {0x40U};
     u16 pr_address {0U};
     u8 pr_bit {0xFFU};
+    // TWI pin mapping (PORT data-register address + bit, 0 = unmapped).
+    // Only SCL is driven (open-drain hold on clock stretch); SDA is mapped
+    // for future data-phase modeling.
+    u16 sda_pin_address {0U};
+    u8 sda_pin_bit {0U};
+    u16 scl_pin_address {0U};
+    u8 scl_pin_bit {0U};
 };
 
 struct UsiDescriptor {

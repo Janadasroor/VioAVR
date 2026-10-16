@@ -409,7 +409,7 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
     }
 
     for (u8 i = 0; i < device.twi_count; ++i) {
-        auto twi = std::make_unique<Twi>("TWI" + std::to_string(i), device.twis[i]);
+        auto twi = std::make_unique<Twi>("TWI" + std::to_string(i), device.twis[i], &pin_mux_);
         bus_.attach_peripheral(*twi);
         owned_peripherals_.push_back(std::move(twi));
     }

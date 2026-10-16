@@ -1,5 +1,6 @@
 #include "vioavr/core/twi.hpp"
 #include "vioavr/core/memory_bus.hpp"
+#include "vioavr/core/pin_mux.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
@@ -38,8 +39,8 @@ constexpr u8 kStatusNoInfo          = 0xF8U;
 constexpr u8 kStatusBusError       = 0x00U;
 }
 
-Twi::Twi(std::string_view name, const TwiDescriptor& descriptor) noexcept
-    : name_(name), desc_(descriptor)
+Twi::Twi(std::string_view name, const TwiDescriptor& descriptor, PinMux* pin_mux) noexcept
+    : name_(name), desc_(descriptor), pin_mux_(pin_mux)
 {
     const std::array<u16, 6> addrs = {
         desc_.twbr_address, desc_.twsr_address, desc_.twar_address,
@@ -62,6 +63,7 @@ void Twi::reset() noexcept
     twdr_ = 0xFFU;
     twcr_ = 0;
     twamr_ = 0;
+    release_scl();
     mode_ = Mode::idle;
     step_cycles_left_ = 0;
     interrupt_pending_ = false;
@@ -80,6 +82,14 @@ void Twi::tick(const u64 elapsed_cycles) noexcept
     if (power_reduction_enabled()) return;
 
     if (step_cycles_left_ > 0) {
+        // Clock stretching: while a slave holds SCL low, the master's bit
+        // clock freezes (the countdown resumes after the slave releases).
+        // Only master-role steps consult the pin; slave steps are self-timed.
+        // A unit never holds while counting (hold starts at step completion),
+        // so any observed hold is necessarily another unit: no self-deadlock.
+        if ((mode_ == Mode::master_tx || mode_ == Mode::master_rx) && scl_held_by_other()) {
+            return;
+        }
         if (elapsed_cycles >= step_cycles_left_) {
             step_cycles_left_ = 0;
             complete_step();
@@ -111,10 +121,18 @@ void Twi::write(const u16 address, const u8 value) noexcept
     else if (address == desc_.twar_address) twar_ = value;
     else if (address == desc_.twdr_address) twdr_ = value;
     else if (address == desc_.twcr_address) {
+        // PinMux claims are per-owner, not per-instance: only a unit in a
+        // slave role may release the shared TWI stretch hold (a master never
+        // holds, so its TWCR writes must not drop another unit's hold).
+        // Known limit: with several slaves stretching at once, the first
+        // one serviced releases the shared hold (errs toward progress).
+        const bool may_release =
+            (mode_ != Mode::master_tx && mode_ != Mode::master_rx);
         // TWINT is cleared by writing 1
         if (value & desc_.twint_mask) {
             interrupt_pending_ = false;
-            
+            if (may_release) release_scl(); // Firmware resumes: stretch over.
+
             // Trigger next step if TWEN is set
             if (value & desc_.twen_mask) {
                 // Calculate bit rate timing
@@ -123,6 +141,10 @@ void Twi::write(const u16 address, const u8 value) noexcept
                 u32 divisor = 16 + 2 * twbr_ * prescaler;
                 step_cycles_left_ = divisor * 9U; // One byte + ACK = 9 bit-times
             }
+        }
+        // TWEN 1->0 takes the unit off the bus: release any stretch hold.
+        if (may_release && (twcr_ & desc_.twen_mask) != 0U && (value & desc_.twen_mask) == 0U) {
+            release_scl();
         }
         twcr_ = value & ~desc_.twint_mask; // Clear TWINT internally
     }
@@ -152,6 +174,8 @@ void Twi::complete_step() noexcept
     
     if (twcr_ & desc_.twsta_mask) {
         // Master: Send START. A new transfer invalidates any old slave match.
+        // Becoming master also drops any stale slave stretch hold.
+        release_scl();
         sla_matched_ = false;
         general_call_matched_ = false;
         const Mode prev_mode = mode_;
@@ -161,7 +185,8 @@ void Twi::complete_step() noexcept
         // Actually, STA remains set until SLA+W/R is sent if I recall. 
         // But for simulation, we'll clear it after the start condition is recorded.
     } else if (twcr_ & desc_.twsto_mask) {
-        // Master: Send STOP
+        // Master: Send STOP. The bus goes idle: release any stretch hold.
+        release_scl();
         mode_ = Mode::idle;
         master_target_self_ = false;
         sla_matched_ = false;
@@ -256,6 +281,7 @@ void Twi::on_twi_match(u8 address) noexcept
     sla_matched_ = true;
     general_call_matched_ = (address == 0);
     interrupt_pending_ = true;
+    hold_scl(); // Addressed slave stretches SCL until TWINT is cleared.
     update_interrupt_state();
 }
 
@@ -263,7 +289,9 @@ void Twi::on_twi_stop() noexcept
 {
     // Datasheet Table 26-5: STOP received while addressed slave -> 0xA0.
     // Master instances are already idle here (complete_step ran first).
+    // The bus is free after STOP: no stretch hold despite TWINT pending.
     if (mode_ == Mode::slave_rx || mode_ == Mode::slave_tx) {
+        release_scl();
         mode_ = Mode::idle;
         twsr_ = kStatusSlaveStop;
         sla_matched_ = false;
@@ -279,6 +307,7 @@ void Twi::force_arbitration_lost() noexcept
     mode_ = Mode::idle;
     twsr_ = kStatusArbitrationLost;
     interrupt_pending_ = true;
+    hold_scl(); // Unit drops to slave role and stretches until TWINT clears.
     update_interrupt_state();
 }
 
@@ -315,6 +344,7 @@ bool Twi::on_twi_data(u8 data) noexcept
         tx_buffer_.push_back(data);
     }
     interrupt_pending_ = true;
+    hold_scl(); // Slave stretches after each ACKed byte until TWINT clears.
     update_interrupt_state();
     return (twcr_ & desc_.twea_mask) != 0;
 }
@@ -357,6 +387,35 @@ bool Twi::power_reduction_enabled() const noexcept
 void Twi::update_interrupt_state() noexcept
 {
     set_interrupt_pending(interrupt_pending_ && (twcr_ & desc_.twie_mask));
+}
+
+bool Twi::pins_mapped() const noexcept
+{
+    return pin_mux_ != nullptr && desc_.scl_pin_address != 0U;
+}
+
+void Twi::hold_scl() noexcept
+{
+    if (!pins_mapped()) return;
+    // Open-drain hold: claim the pin and drive low (wired-AND with the
+    // master's clock and any other stretcher). Released on TWINT clear.
+    pin_mux_->claim_pin_by_address(desc_.scl_pin_address, desc_.scl_pin_bit, PinOwner::twi);
+    pin_mux_->update_pin_by_address(desc_.scl_pin_address, desc_.scl_pin_bit,
+                                    PinOwner::twi, true, false, false, true);
+}
+
+void Twi::release_scl() noexcept
+{
+    if (!pins_mapped()) return;
+    pin_mux_->release_pin_by_address(desc_.scl_pin_address, desc_.scl_pin_bit, PinOwner::twi);
+}
+
+bool Twi::scl_held_by_other() noexcept
+{
+    if (!pins_mapped()) return false;
+    const PinState state =
+        pin_mux_->get_state_by_address(desc_.scl_pin_address, desc_.scl_pin_bit);
+    return state.owner == PinOwner::twi && !state.drive_level;
 }
 
 } // namespace vioavr::core
