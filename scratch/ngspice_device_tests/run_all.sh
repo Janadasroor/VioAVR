@@ -21,6 +21,26 @@ find_ngspice() {
 # Verifies PB0 toggles (both LOW and HIGH states observed)
 DIR="$(cd "$(dirname "$0")" && pwd)"
 NGSPICE="$(find_ngspice)"
+BUILD_DIR="${VIOAVR_BUILD_DIR:-$(cd "$DIR/../.." && pwd)/build}"
+REPO_ROOT="$(cd "$DIR/../.." && pwd)"
+MATRIXC_ROOT="${VioMATRIXC_ROOT:-$REPO_ROOT/../VioMATRIXC}"
+
+# Each netlist instantiates A_dac and A_AVR (d_cosim), so the code models have
+# to be loaded and the co-simulation shim has to be reachable as
+# ./cosim/libavr_cosim.so relative to the directory ngspice runs in.
+COSIM_LIB="$BUILD_DIR/cosim/libavr_cosim.so"
+if [[ ! -f "$COSIM_LIB" ]]; then
+    echo "cosim shim not built: $COSIM_LIB" >&2
+    echo "build it with: cmake --build <build> --target avr_cosim" >&2
+    exit 1
+fi
+mkdir -p "$DIR/cosim"
+ln -sf "$COSIM_LIB" "$DIR/cosim/libavr_cosim.so"
+{
+    echo "codemodel $MATRIXC_ROOT/src/xspice/icm/digital/digital.cm"
+    echo "codemodel $MATRIXC_ROOT/src/xspice/icm/analog/analog.cm"
+    echo "codemodel $BUILD_DIR/cosim/avr_adc_bridge.cm"
+} > "$DIR/.spiceinit"
 
 passed=0 failed=0
 for f in "$DIR"/*_cosim.cir; do
