@@ -993,6 +993,96 @@ TEST_CASE("Regression: EUSART Manchester 16-or-17 mode sets F1617")
     CHECK(bus.read_data(kUdr) == 0x34U);
 }
 
+TEST_CASE("Regression: TCA event control follows the EVACTA encoding")
+{
+    // Datasheet 20.5.9 (4809) / 21.5.9 (DA): CNTEI enables counting on the
+    // event; EVACT = 0 POSEDGE (events are the clock), 1 ANYEDGE,
+    // 2 HIGHLVL (clock gated while high), 3 UPDOWN (event sets direction).
+    auto device = DeviceCatalog::find("ATmega4809");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    std::vector<u16> program(2000, 0x0000);
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    const u16 kCtrla = 0x0A00U;
+    const u16 kEvctrl = 0x0A09U;
+    const u16 kCnt = 0x0A20U;
+
+    auto* tca = machine.peripherals_of_type<Tca>()[0];
+    REQUIRE(tca != nullptr);
+    // Drive the event input the way EVSYS does, through the user channel.
+    bus.write_data(0x01B4U, 0x01U); // TCA0 -> EVSYS channel 0
+    bus.write_data(0x0190U, 0x08U); // channel 0 <- generator 8 (TCA0.CMP0)
+    auto event = [&](bool level) { tca->on_event_for_test(level); };
+    auto clear_cnt = [&] { // 16-bit register: low byte then high byte
+        bus.write_data(kCnt, 0x00U);
+        bus.write_data(kCnt + 1U, 0x00U);
+    };
+    auto set_per = [&](u16 per) {
+        bus.write_data(0x0A26U, static_cast<u8>(per & 0xFFU));
+        bus.write_data(0x0A27U, static_cast<u8>(per >> 8U));
+    };
+
+    bus.write_data(kCtrla, 0x01U);        // ENABLE, DIV1
+    bus.write_data(0x0A26U, 0x3FU);      // PER = 63
+    bus.write_data(0x0A27U, 0x00U);
+    bus.tick_peripherals(5U);
+    CHECK(bus.read_data(kCnt) == 5U);    // clocked by CLK_PER
+
+    // CNTEI + EVACT=POSEDGE: the clock stops, events drive the count.
+    bus.write_data(kEvctrl, (0x00U << 1) | 0x01U);
+    bus.tick_peripherals(100U);
+    CHECK(bus.read_data(kCnt) == 5U);    // unchanged while events idle
+    event(true);
+    event(false);
+    event(true);
+    CHECK(bus.read_data(kCnt) == 7U);    // two positive edges counted
+
+    // Disabling CNTEI returns to the prescaled clock.
+    bus.write_data(kEvctrl, 0x00U);
+    bus.tick_peripherals(10U);
+    CHECK(bus.read_data(kCnt) == 17U);
+
+    // EVACT=ANYEDGE counts both edges.
+    clear_cnt();
+    set_per(0x00FFU);                   // long period so ticks keep counting
+    bus.write_data(kEvctrl, (0x01U << 1) | 0x01U);
+    event(false); event(true); event(false); event(true);
+    CHECK(bus.read_data(kCnt) == 4U);
+
+    // EVACT=HIGHLVL: the prescaled clock only counts while the event is high.
+    clear_cnt();
+    bus.write_data(kEvctrl, (0x02U << 1) | 0x01U);
+    event(false); // low: no counting
+    bus.tick_peripherals(20U);
+    CHECK(bus.read_data(kCnt) == 0U);
+    event(true);
+    bus.tick_peripherals(10U);
+    CHECK(bus.read_data(kCnt) == 10U);
+
+    // EVACT=UPDOWN: the event level selects the direction.
+    clear_cnt();
+    bus.write_data(kEvctrl, (0x03U << 1) | 0x01U);
+    event(true); event(false); // low -> count up
+    bus.tick_peripherals(4U);
+    CHECK(bus.read_data(kCnt) == 4U);
+    event(true);  // high -> count down
+    bus.tick_peripherals(3U);
+    CHECK(bus.read_data(kCnt) == 1U);
+
+    // RESTART_POSEDGE restarts the counter on the rising edge.
+    bus.write_data(kEvctrl, (0x04U << 1) | 0x01U);
+    event(false); // make sure the next true is a real rising edge
+    bus.tick_peripherals(5U);
+    const u16 before = bus.read_data(kCnt);
+    CHECK(before == 6U);
+    event(true);
+    CHECK(bus.read_data(kCnt) == 0U);
+}
+
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
 {
     auto device = DeviceCatalog::find("ATmega4809");
