@@ -8,6 +8,7 @@
 #include "vioavr/core/cpu_int.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <stdexcept>
 
@@ -25,6 +26,14 @@ MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
     }
     if (device_.nvm_ctrl_count > 0) {
         eeprom_page_buffer_.resize(device_.eeprom_bytes > 0 ? device_.eeprom_bytes : 32, 0xFFU);
+        eeprom_buffer_dirty_.assign(eeprom_page_buffer_.size(), false);
+    }
+    // Devices without an EEPOM peripheral (AVR-Dx/Ex) keep the EEPROM array
+    // in the bus so that NVM erase/write commands have observable effects.
+    if (device_.mapped_eeprom.size > 0) {
+        const u32 size = device_.eeprom_bytes > device_.mapped_eeprom.size
+            ? device_.eeprom_bytes : device_.mapped_eeprom.size;
+        eeprom_storage_.assign(size, 0xFFU);
     }
     
     reset();
@@ -558,6 +567,11 @@ void MemoryBus::set_nvm_ctrl(class NvmCtrl* nvm_ctrl) noexcept {
     if (nvm_ctrl) nvm_ctrl->set_bus(*this);
 }
 
+NvmFamily MemoryBus::nvm_family() const noexcept {
+    if (nvm_ctrl_ != nullptr) return nvm_ctrl_->family();
+    return nvm_family_for_name(device_.name);
+}
+
 void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept {
     if (spm_busy_cycles_left_ > 0U) {
         return;
@@ -567,11 +581,12 @@ void MemoryBus::execute_nvm_command(u8 command, u32 address, u16 data) noexcept 
     spm_address_ = address;
     spm_data_ = data;
     
-    // NVMCTRL commands are family-specific (see NvmFamily in device.hpp).
+    // NVMCTRL commands are family-specific (see NvmFamily in device.hpp);
+    // the family is generated into the descriptor from the ATDF command set.
     u32 cycles = 64000U; // ~4ms at 16MHz default
     bool flash_busy = true;
     bool ee_busy = false;
-    const NvmFamily family = nvm_family_for_name(device_.name);
+    const NvmFamily family = nvm_family();
 
     auto clear_flash_buf = [&] {
         Logger::debug("MemoryBus: Clearing Flash page buffer (PBC)");
@@ -698,9 +713,10 @@ IoPeripheral* MemoryBus::get_peripheral_by_name(std::string_view name) noexcept 
 }
 
 void MemoryBus::perform_deferred_nvm_dx_ex(u8 command) noexcept {
-    // AVR-Dx / AVR-Ex NVM commands. Page-erase granularity for multi-page
-    // erase; single-page EEPROM erase approximated by whole-EEPROM erase
-    // (refine with per-device EEPROM page size if needed).
+    // AVR-Dx / AVR-Ex NVM commands. EEPROM erase granularity follows the
+    // datasheets: Dx EEBER/EEMBERn erase 1/2/4/8/16/32 addressed bytes;
+    // Ex EEPER erases only the bytes loaded in the EEPROM page buffer
+    // within the 8-byte page (ATDF EEPROM pagesize 0x8 on EA/EB).
     if (device_.flash_page_size == 0U) return;
     const u32 word_addr = spm_address_ >> 1;
     const u32 page_mask = ~(static_cast<u32>(device_.flash_page_size) - 1U);
@@ -720,17 +736,59 @@ void MemoryBus::perform_deferred_nvm_dx_ex(u8 command) noexcept {
             }
         }
     };
-    auto commit_eeprom = [&] {
+    auto commit_eeprom = [&](u32 offset, u32 count) {
+        const u32 buf_size = static_cast<u32>(eeprom_page_buffer_.size());
         if (eeprom_) {
-            u32 ee_offset = spm_address_;
-            if (ee_offset >= device_.mapped_eeprom.data_start) {
-                ee_offset -= device_.mapped_eeprom.data_start;
+            eeprom_->commit_page(offset, std::span<const u8>(
+                eeprom_page_buffer_.data() + std::min(offset, buf_size),
+                std::min(count, buf_size > std::min(offset, buf_size)
+                                 ? buf_size - std::min(offset, buf_size) : 0U)));
+        } else {
+            for (u32 i = 0; i < count; ++i) {
+                const u32 src = offset + i;
+                const u32 dst = offset + i;
+                if (src < eeprom_page_buffer_.size() && dst < eeprom_storage_.size()) {
+                    eeprom_storage_[dst] = eeprom_page_buffer_[src];
+                }
             }
-            eeprom_->commit_page(ee_offset, eeprom_page_buffer_);
         }
     };
     auto erase_eeprom_all = [&] {
-        if (eeprom_) eeprom_->erase_all();
+        if (eeprom_) {
+            eeprom_->erase_all();
+        } else {
+            std::ranges::fill(eeprom_storage_, 0xFFU);
+        }
+    };
+    // EEPROM offsets are absolute from the mapped EEPROM start, matching
+    // the page-buffer indexing used by mapped writes.
+    auto ee_base_offset = [&] {
+        u32 off = spm_address_;
+        if (off >= device_.mapped_eeprom.data_start) {
+            off -= device_.mapped_eeprom.data_start;
+        }
+        return off;
+    };
+    auto erase_eeprom_bytes = [&](u32 start, u32 count) {
+        const u32 buf_size = static_cast<u32>(eeprom_page_buffer_.size());
+        if (start >= buf_size) return;
+        if (count > buf_size - start) count = buf_size - start;
+        if (eeprom_) {
+            std::array<u8, 32> ff{};
+            ff.fill(0xFFU);
+            eeprom_->commit_page(start, std::span<const u8>(ff.data(), count));
+        } else {
+            for (u32 i = 0; i < count; ++i) {
+                if (start + i < eeprom_storage_.size()) eeprom_storage_[start + i] = 0xFFU;
+            }
+        }
+    };
+    // "The page buffer used will automatically be cleared after finishing the
+    // operation." Clearing also resets the dirty flags that tell which bytes
+    // were loaded for an erase.
+    auto clear_eeprom_buffer = [&] {
+        std::ranges::fill(eeprom_page_buffer_, 0xFFU);
+        for (u8& dirty : eeprom_buffer_dirty_) dirty = 0U;
     };
 
     switch (command) {
@@ -753,17 +811,49 @@ void MemoryBus::perform_deferred_nvm_dx_ex(u8 command) noexcept {
         case 0x0F: // Ex FLPBCLR
             std::ranges::fill(flash_page_buffer_, 0xFFFFU);
             break;
-        case 0x12: // Dx EEWR
-        case 0x13: // Dx EEERWR (erase implicit in commit for the model)
-        case 0x14: // Ex EEPW
-        case 0x15: // Ex EEPERW
-            commit_eeprom();
+        case 0x12: // Dx EEWR: single byte at ADDR
+            commit_eeprom(ee_base_offset(), 1U);
+            clear_eeprom_buffer();
             break;
-        case 0x17: // Ex EEPER (single page): approximated by full erase
-        case 0x18: // Dx EEBER
-        case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D: // Dx EEMBERn
+        case 0x13: // Dx EEERWR: erase + write the byte at ADDR
+            erase_eeprom_bytes(ee_base_offset(), 1U);
+            commit_eeprom(ee_base_offset(), 1U);
+            clear_eeprom_buffer();
+            break;
+        case 0x14: // Ex EEPW: page buffer to the EEPROM page of ADDR
+        case 0x15: // Ex EEPERW
+            if (command == 0x15U) {
+                erase_eeprom_bytes(ee_base_offset() & ~0x07U, 8U);
+            }
+            commit_eeprom(ee_base_offset() & ~0x07U, 8U); // one EEPROM page
+            clear_eeprom_buffer();
+            break;
+        case 0x17: { // Ex EEPER: erase the page-buffer bytes loaded for this page
+            const u32 page = ee_base_offset() & ~0x07U; // 8-byte EEPROM page
+            const u32 buf_size = static_cast<u32>(eeprom_page_buffer_.size());
+            for (u32 i = 0U; i < 8U; ++i) {
+                const u32 idx = page + i;
+                if (idx < buf_size && idx < eeprom_buffer_dirty_.size()
+                    && eeprom_buffer_dirty_[idx]) {
+                    erase_eeprom_bytes(idx, 1U);
+                }
+            }
+            clear_eeprom_buffer();
+            break;
+        }
+        case 0x18: // Dx EEBER: erase the addressed byte
+            erase_eeprom_bytes(ee_base_offset(), 1U);
+            clear_eeprom_buffer();
+            break;
+        case 0x19: case 0x1A: case 0x1B: case 0x1C: case 0x1D: { // Dx EEMBERn
+            const u32 count = 1U << (command - 0x19U + 1U); // 2..32 bytes
+            erase_eeprom_bytes(ee_base_offset(), count);
+            clear_eeprom_buffer();
+            break;
+        }
         case 0x30: // EECHER
             erase_eeprom_all();
+            clear_eeprom_buffer();
             break;
         case 0x1F: // Ex EEPBCLR
             std::ranges::fill(eeprom_page_buffer_, 0xFFU);
@@ -787,8 +877,7 @@ void MemoryBus::perform_deferred_nvm_operation() noexcept {
     if (nvm_ctrl_ != nullptr) {
         // AVR8X. Command numbers are family-specific (see NvmFamily);
         // megaAVR-0/tiny mapping is the legacy table below.
-        const NvmFamily nvm_family = nvm_family_for_name(device_.name);
-        if (nvm_family != NvmFamily::MegaTiny) {
+        if (nvm_family() != NvmFamily::MegaTiny) {
             perform_deferred_nvm_dx_ex(spm_command_);
             return;
         }

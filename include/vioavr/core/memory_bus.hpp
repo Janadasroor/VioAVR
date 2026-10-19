@@ -218,6 +218,10 @@ public:
     [[nodiscard]] u8 lockbit() const noexcept { return lockbit_; }
     
     void execute_nvm_command(u8 command, u32 address, u16 data) noexcept;
+    // NVM family: from the attached NVMCTRL descriptor (generated from the
+    // ATDF command set). Devices without an NVMCTRL fall back to the name
+    // rule in nvm_family_for_name().
+    [[nodiscard]] NvmFamily nvm_family() const noexcept;
     void request_analysis_freeze() noexcept { analysis_freeze_requested_ = true; }
     [[nodiscard]] bool analysis_freeze_requested() const noexcept { return analysis_freeze_requested_; }
     void clear_analysis_freeze_request() noexcept { analysis_freeze_requested_ = false; }
@@ -266,6 +270,8 @@ private:
     u32 reset_word_address_ {};
     std::vector<u16> flash_page_buffer_;
     std::vector<u8> eeprom_page_buffer_;
+    std::vector<u8> eeprom_buffer_dirty_; // bytes written since last EEPROM op (0/1)
+    std::vector<u8> eeprom_storage_;
     std::vector<u8> user_row_;
     std::vector<std::unique_ptr<IoPeripheral>> managed_muxes_;
     std::array<u8, 16> fuses_ {};
@@ -324,6 +330,8 @@ inline u8 MemoryBus::read_data(const u16 address) noexcept
             return eeprom_->read(address);
         }
         const u32 offset = address - device_.mapped_eeprom.data_start;
+        // AVR-Dx/Ex have no EEPOM register: the bus keeps the array itself.
+        if (offset < eeprom_storage_.size()) return eeprom_storage_[offset];
         return (offset < eeprom_page_buffer_.size()) ? eeprom_page_buffer_[offset] : 0xFFU;
     } else if (device_.mapped_signatures.size > 0 &&
         address >= device_.mapped_signatures.data_start &&
@@ -412,6 +420,7 @@ inline void MemoryBus::write_data(const u16 address, const u8 value) noexcept
         const u32 offset = address - device_.mapped_eeprom.data_start;
         if (offset < eeprom_page_buffer_.size()) {
             eeprom_page_buffer_[offset] = value;
+            if (offset < eeprom_buffer_dirty_.size()) eeprom_buffer_dirty_[offset] = 1U;
             if (nvm_ctrl_) nvm_ctrl_->set_address(address);
         }
         return;
