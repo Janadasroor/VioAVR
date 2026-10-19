@@ -84,6 +84,26 @@ private:
     // Standard UART RX state machine
     enum class RxUartState : u8 { idle, start_bit, data_bits, stop_bit };
     RxUartState rx_uart_state_ {RxUartState::idle};
+
+    // Manchester RX phases after the start bit (datasheet 18.3.3)
+    enum class ManState : u8 { data, bit17, stop1, stop2, done };
+    ManState man_state_ {ManState::data};
+    bool rx_size_16_or_17_ {false};
+    u8 rx_stop_bits_ {1};
+    bool eus_stop1_ {true};
+    bool eus_stop2_ {true};
+
+    // Decode one Manchester symbol; sets FEM on a missing transition.
+    bool decode_symbol(bool second_half) noexcept {
+        const bool first_half = rx_temp_sampled_;
+        if (first_half == second_half) {
+            eucsrc_ |= desc_.fem_mask;
+            ++frame_error_count_;
+            return false;
+        }
+        return second_half;
+    }
+
     u16 frame_error_count_ {0};
 
     bool power_reduction_enabled() const noexcept;

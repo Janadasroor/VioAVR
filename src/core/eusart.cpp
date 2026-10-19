@@ -58,6 +58,11 @@ void Eusart::reset() noexcept {
     rx_active_ = false;
     rx_accumulator_ = 0;
     frame_error_count_ = 0;
+    man_state_ = ManState::data;
+    rx_size_16_or_17_ = false;
+    rx_stop_bits_ = 1;
+    eus_stop1_ = true;
+    eus_stop2_ = true;
 }
 
 void Eusart::tick(u64 elapsed_cycles) noexcept {
@@ -199,6 +204,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                     rx_half_bit_ = false;
                     rx_cycles_to_sample_ = cycles_per_half / 2;
                     rx_shift_reg_ = 0;
+                    rx_accumulator_ = 0; // start from a clean bit boundary
                 }
             } else {
                 rx_accumulator_ += elapsed_cycles;
@@ -220,31 +226,21 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                                 rx_waiting_for_start_ = false;
                                 rx_half_bit_ = false;
                                 rx_bit_count_ = get_char_size(false);
+                                // URxS = 1110 enables the 16-or-17 bit mode.
+                                rx_size_16_or_17_ =
+                                    ((eucsra_ & desc_.urxs_mask) == 0x0EU);
+                                rx_stop_bits_ = (eucsrb_ & desc_.eusbs_mask) ? 2U : 1U;
+                                man_state_ = ManState::data;
                                 rx_cycles_to_sample_ = cycles_per_half;
                             }
                         }
-                    } else {
+                    } else if (man_state_ == ManState::data) {
                         if (!rx_half_bit_) {
                             rx_temp_sampled_ = current_rx;
                             rx_half_bit_ = true;
                             rx_cycles_to_sample_ = cycles_per_half;
                         } else {
-                            bool first_half = rx_temp_sampled_;
-                            bool second_half = current_rx;
-                            bool bit_val;
-                            bool error = false;
-                            
-                            if (!first_half && second_half) bit_val = true;
-                            else if (first_half && !second_half) bit_val = false;
-                            else { error = true; bit_val = false; }
-                            
-                            if (error) {
-                                // FEM is set by hardware on a Manchester framing
-                                // error, together with RXC (datasheet 18.5.4).
-                                eucsrc_ |= desc_.fem_mask;
-                                ++frame_error_count_;
-                            }
-
+                            const bool bit_val = decode_symbol(current_rx);
                             u8 total_bits = get_char_size(false);
                             if (!(eucsrb_ & desc_.bodr_mask)) {
                                 if (bit_val) rx_shift_reg_ |= (1U << (total_bits - rx_bit_count_));
@@ -254,20 +250,75 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
 
                             rx_bit_count_--;
                             rx_half_bit_ = false;
-                            
+
                             if (rx_bit_count_ == 0) {
-                                rx_active_ = false;
-                                store_received_word(rx_shift_reg_);
-                                // F1617 reports a 17-bit frame in the
-                                // Manchester 16/17-bit modes (18.6.5).
-                                eucsrc_ = (total_bits == 17U)
-                                    ? (eucsrc_ | desc_.f1617_mask)
-                                    : (eucsrc_ & static_cast<u8>(~desc_.f1617_mask));
-                                rx_cycles_to_sample_ = 0;
+                                // URxS = 1110 selects the 16-or-17 bit special
+                                // mode: the next bit time decides (18.3.3).
+                                if (rx_size_16_or_17_) {
+                                    man_state_ = ManState::bit17;
+                                } else {
+                                    eucsrc_ = static_cast<u8>(eucsrc_ & ~desc_.f1617_mask);
+                                    man_state_ = ManState::stop1;
+                                }
+                            }
+                            rx_cycles_to_sample_ = cycles_per_half;
+                        }
+                    } else if (man_state_ == ManState::bit17) {
+                        // Seventeenth bit time: a Manchester transition means a
+                        // 17th data bit (F1617 = 1), otherwise it is already
+                        // the first stop bit (F1617 = 0).
+                        if (!rx_half_bit_) {
+                            rx_temp_sampled_ = current_rx;
+                            rx_half_bit_ = true;
+                            rx_cycles_to_sample_ = cycles_per_half;
+                        } else {
+                            const bool transition = (rx_temp_sampled_ != current_rx);
+                            rx_half_bit_ = false;
+                            if (transition) {
+                                if (current_rx) rx_shift_reg_ |= (1U << 16U);
+                                eucsrc_ |= desc_.f1617_mask;
+                                man_state_ = ManState::stop1;
                             } else {
+                                eucsrc_ = static_cast<u8>(eucsrc_ & ~desc_.f1617_mask);
+                                eus_stop1_ = current_rx;
+                                man_state_ = (rx_stop_bits_ > 1U) ? ManState::stop2 : ManState::done;
+                            }
+                            rx_cycles_to_sample_ = cycles_per_half;
+                        }
+                    } else if (man_state_ == ManState::stop1 || man_state_ == ManState::stop2) {
+                        if (!rx_half_bit_) {
+                            rx_temp_sampled_ = current_rx;
+                            rx_half_bit_ = true;
+                            rx_cycles_to_sample_ = cycles_per_half;
+                        } else {
+                            rx_half_bit_ = false;
+                            // A stop bit carries no Manchester transition; its
+                            // value is the level of the bit time.
+                            const bool stop_value = current_rx;
+                            if (man_state_ == ManState::stop1) {
+                                eus_stop1_ = stop_value;
+                                if (rx_stop_bits_ > 1U) {
+                                    man_state_ = ManState::stop2;
+                                    rx_cycles_to_sample_ = cycles_per_half;
+                                } else {
+                                    man_state_ = ManState::done;
+                                    rx_cycles_to_sample_ = cycles_per_half;
+                                }
+                            } else {
+                                eus_stop2_ = stop_value;
+                                man_state_ = ManState::done;
                                 rx_cycles_to_sample_ = cycles_per_half;
                             }
                         }
+                    } else { // ManState::done
+                        // EUCSRC.STP[1:0] reports the stop bits of the frame
+                        // (datasheet 18.6.5); Manchester frames only.
+                        u8 stp = static_cast<u8>(eus_stop2_ ? 0x02U : 0x00U);
+                        if (eus_stop1_) stp |= 0x01U;
+                        eucsrc_ = static_cast<u8>((eucsrc_ & ~desc_.stp_mask) | stp);
+                        store_received_word(rx_shift_reg_);
+                        rx_active_ = false;
+                        rx_cycles_to_sample_ = 0;
                     }
                 }
             }
