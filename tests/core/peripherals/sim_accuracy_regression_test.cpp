@@ -22,6 +22,7 @@
 #include "vioavr/core/devices/atmega328p.hpp"
 #include "vioavr/core/devices/atmega4809.hpp"
 #include "vioavr/core/devices/avr128db32.hpp"
+#include "vioavr/core/eusart.hpp"
 
 using namespace vioavr::core;
 
@@ -529,6 +530,73 @@ TEST_CASE("Regression: AVR-Dx EEBER/EEMBERn erase only the addressed bytes")
     bus.tick_peripherals(65000U);
     CHECK(bus.read_data(kMapped + 0U) == 0xFFU);
     CHECK(bus.read_data(kMapped + 3U) == 0xFFU);
+}
+
+TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
+{
+    // AT90PWM316 EUSART (ATDF + avr-libc/avrasm agree): EUCSRA = UTxS/URxS
+    // character size, EUCSRB = control, EUCSRC = STP[1:0]/F1617/FEM. There is
+    // no framing-error bit, so a bad stop bit must not corrupt F1617.
+    auto device = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    auto* eusart = machine.peripherals_of_type<Eusart>()[0];
+    REQUIRE(eusart != nullptr);
+
+    const u16 kEucsrb = 0xC9U;
+    const u16 kEucsrc = 0xCAU;
+    const u16 kEudr = 0xCEU;
+    const u16 kRxd = 0x29U; // PD1
+
+    bus.write_data(kEucsrb, 0x10U); // EUSART enable
+    bus.write_data(0xCCU, 0x00U);   // MUBRR = 0 (16 cycles per bit)
+    bus.write_data(0xC8U, 0x03U);   // EUCSRA: URxS = 3 (8 data bits)
+    bus.write_data(kEucsrc, 0x14U); // F1617 set (16/17-bit frames)
+
+    auto drive = [&](bool level) {
+        bus.pin_mux()->update_pin_by_address(kRxd, 1U, PinOwner::external, true, level);
+    };
+    bus.pin_mux()->claim_pin_by_address(kRxd, 1U, PinOwner::external);
+    drive(true);
+    bus.tick_peripherals(2);
+
+    // Frame: start(0) + 0x5A LSB-first + stop. Levels are held for one bit
+    // time and ticked in half-bit steps so the mid-bit samples land inside
+    // each bit.
+    auto send_frame = [&](bool stop_bit) {
+        const u64 bit = 16; // MUBRR = 0 -> 16 cycles per bit
+        auto hold = [&](u64 cycles) {
+            while (cycles > 0) {
+                const u64 step = cycles > (bit / 2) ? (bit / 2) : cycles;
+                bus.tick_peripherals(step);
+                cycles -= step;
+            }
+        };
+        drive(false); hold(bit); // start
+        const u8 data = 0x5AU;
+        for (int i = 0; i < 8; ++i) {
+            drive((data >> i) & 1U);
+            hold(bit);
+        }
+        drive(stop_bit);
+        hold(bit + (bit / 2));
+    };
+
+    send_frame(true);
+    CHECK(bus.read_data(kEudr) == 0x5AU);
+    CHECK(eusart->frame_error_count() == 0);
+
+    // Same byte with a LOW stop bit: framing error.
+    send_frame(false);
+    CHECK(eusart->frame_error_count() == 1);
+
+    // The byte is still delivered and the configuration is intact.
+    CHECK(bus.read_data(kEudr) == 0x5AU);
+    CHECK((bus.read_data(kEucsrc) & 0x04U) != 0U); // F1617 untouched
+    CHECK((bus.read_data(kEucsrb) & 0x10U) != 0U); // still enabled
 }
 
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
