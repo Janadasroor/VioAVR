@@ -3,8 +3,11 @@
 
 import re
 import sys
+from pathlib import Path
 import subprocess
 import json
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 def parse_iom_header(header_path):
     """Parse _SFR_MEM8 / _SFR_IO8 defines from iom*.h header file."""
@@ -128,7 +131,7 @@ def compare_device(device_name):
         print(f"  Unknown iom header for {device_name}")
         return
 
-    header_path = f"/home/jnd/cpp_projects/VioAVR/avr-pack/atmega/include/avr/{header_name}"
+    header_path = str(REPO_ROOT / "avr-pack/atmega/include/avr" / header_name)
     try:
         iom_regs = parse_iom_header(header_path)
     except FileNotFoundError:

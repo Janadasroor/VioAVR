@@ -44,14 +44,14 @@ D_d7 pd7_led 0 led_model
 * We map the 24 digital pins of the MCU in order (PORTB0-7, PORTC0-7, PORTD0-7).
 * We pass a dummy node [nc_an] for the analog inputs vector to satisfy the XSpice parser.
 A_AVR [pb0_dig pb1_dig pb2_dig pb3_dig pb4_dig pb5_dig pb6_dig pb7_dig pc0_dig pc1_dig pc2_dig pc3_dig pc4_dig pc5_dig pc6_dig pc7_dig pd0_dig pd1_dig pd2_dig pd3_dig pd4_dig pd5_dig pd6_dig pd7_dig] [nc_an] mcu_model
-.model mcu_model d_vioavr(mcu_type="atmega2560" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/atmega2560_matrix_demo/led_matrix.hex")
+.model mcu_model d_vioavr(mcu_type="atmega2560" frequency=16e6 quantum_cycles=16 hex_file="led_matrix.hex")
 
 * 4. SPICE Solver Options and Simulation Controls
 .options reltol=0.005 method=gear trtol=7 chgtol=1e-13
 .tran 2us 2.5ms
 
 .control
-codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+codemodel ../../build/viospice.cm
 run
 * Save simulated LED voltage nodes to output log
 print v(pb0_an) v(pb1_an) v(pd0_an) v(pd1_an) v(pd2_an) v(pd3_an) v(pd4_an) v(pd5_an) v(pd6_an) v(pd7_an)

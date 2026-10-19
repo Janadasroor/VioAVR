@@ -1,7 +1,7 @@
 import os
 import glob
 
-files = glob.glob('/home/jnd/cpp_projects/VioAVR/tests/core/*.cpp')
+files = glob.glob(str(Path(__file__).resolve().parent.parent / 'tests/core/*.cpp'))
 
 def add_include(filepath, include_line, trigger_word):
     with open(filepath, 'r') as f:

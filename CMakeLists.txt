@@ -191,6 +191,55 @@ if(MINGW)
     message(STATUS "MinGW: static runtime linkage enabled (self-contained exe)")
 endif()
 
+# ── Build-time locations, injected into targets that need them ────
+# Source/build dirs and the ngspice binary used by the co-simulation
+# tests are passed down as compile definitions so no source file has to
+# carry an absolute path from the machine it was written on.
+set(VIOAVR_ROOT_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "VioAVR source tree")
+set(VIOAVR_BUILD_DIR "${PROJECT_BINARY_DIR}" CACHE INTERNAL "VioAVR build tree")
+
+# ngspice discovery order: an explicit cache value, the VioMATRIXC sibling
+# checkout (either build layout), whatever is on PATH.
+set(VIOAVR_NGSPICE "" CACHE FILEPATH "Path to the ngspice binary used for co-simulation")
+if(NOT VIOAVR_NGSPICE)
+    set(_viomatrixc_root "$ENV{VioMATRIXC_ROOT}")
+    if(NOT _viomatrixc_root AND EXISTS "${PROJECT_SOURCE_DIR}/../VioMATRIXC")
+        set(_viomatrixc_root "${PROJECT_SOURCE_DIR}/../VioMATRIXC")
+    endif()
+    foreach(_layout "release/src" "build/src")
+        if(_viomatrixc_root AND EXISTS "${_viomatrixc_root}/${_layout}/ngspice")
+            set(VIOAVR_NGSPICE "${_viomatrixc_root}/${_layout}/ngspice")
+            break()
+        endif()
+    endforeach()
+endif()
+if(NOT VIOAVR_NGSPICE)
+    find_program(VIOAVR_NGSPICE NAMES ngspice)
+endif()
+if(VIOAVR_NGSPICE)
+    message(STATUS "Co-simulation ngspice: ${VIOAVR_NGSPICE}")
+else()
+    message(STATUS "Co-simulation ngspice: not found (co-simulation tests will be skipped)")
+endif()
+
+if(APPLE)
+    set(VIOAVR_COSIM_LIB_NAME "libavr_cosim.dylib")
+elseif(WIN32)
+    set(VIOAVR_COSIM_LIB_NAME "avr_cosim.dll")
+else()
+    set(VIOAVR_COSIM_LIB_NAME "libavr_cosim.so")
+endif()
+
+# Carries the build-time locations so no target has to hardcode them.
+add_library(vioavr_paths INTERFACE)
+target_compile_definitions(vioavr_paths INTERFACE
+    VIOAVR_ROOT_DIR="${VIOAVR_ROOT_DIR}"
+    VIOAVR_BUILD_DIR="${VIOAVR_BUILD_DIR}"
+    VIOAVR_NGSPICE_BIN="$<IF:$<BOOL:${VIOAVR_NGSPICE}>,${VIOAVR_NGSPICE},ngspice>"
+    VIOAVR_COSIM_LIB_NAME="${VIOAVR_COSIM_LIB_NAME}"
+)
+add_library(VioAVR::paths ALIAS vioavr_paths)
+
 # ── Detect POSIX shared memory (shm_open) for the SHM bridge ──────
 # Available on Linux/macOS; not available on Windows (even with MinGW).
 # Must be before add_subdirectory() calls so subdirectories see the variable.

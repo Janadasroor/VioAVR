@@ -74,7 +74,12 @@ private:
     static constexpr const char *kSettingsRecent = "recentFiles";
     static constexpr const char *kSettingsLastDir = "lastDir";
     static constexpr const char *kSettingsNgspice = "ngspiceBinary";
-    static constexpr const char *kDefaultNgspice = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice";
+#ifndef VIOAVR_NGSPICE_BIN
+#define VIOAVR_NGSPICE_BIN "ngspice"
+#endif
+    // Configured by CMake (or overridden with the NGSPICE environment
+    // variable / the oscilloscope's own setting).
+    static constexpr const char *kDefaultNgspice = VIOAVR_NGSPICE_BIN;
     static constexpr const char *kOrgName = "VioAVR";
     static constexpr const char *kAppName = "VioAVR Oscilloscope";
 

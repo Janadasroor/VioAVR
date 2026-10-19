@@ -90,7 +90,7 @@ tests/custom_chip/
 
 ### Build the Test
 ```bash
-cd /home/jnd/cpp_projects/VioAVR/build
+cd build
 cmake ..
 make vioavr_custom_avr_test
 ```
@@ -114,7 +114,7 @@ ctest -R custom_timing -V
 
 ### Run Python Pin Validator
 ```bash
-cd /home/jnd/cpp_projects/VioAVR/build/tests/custom_chip
+cd build/tests/custom_chip
 python3 ../../../tests/custom_chip/pin_accuracy_validator.py
 ```
 

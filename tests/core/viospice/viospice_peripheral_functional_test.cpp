@@ -1,3 +1,4 @@
+#include "vioavr/core/paths.hpp"
 #include "doctest.h"
 #include <cstdio>
 #include <cstdlib>
@@ -25,22 +26,22 @@ static fs::path find_build_dir() {
     std::vector<fs::path> candidates = {
         fs::current_path(),
         fs::current_path() / "build",
-        "/home/jnd/cpp_projects/VioAVR",
-        "/home/jnd/cpp_projects/VioAVR/build",
+        std::string(VIOAVR_ROOT_DIR),
+        std::string(VIOAVR_BUILD_DIR),
     };
     for (const auto& base : candidates) {
-        if (fs::exists(base / "cosim" / "libavr_cosim.so"))
+        if (fs::exists(base / "cosim" / VIOAVR_COSIM_LIB_NAME))
             return base;
-        if (fs::exists(base / "build" / "cosim" / "libavr_cosim.so"))
+        if (fs::exists(base / "build" / "cosim" / VIOAVR_COSIM_LIB_NAME))
             return base / "build";
     }
     return {};
 }
 
-static std::string ngspice_binary() {
+static std::string vioavr::core::ngspice_binary() {
     const char* env = getenv("NGSPICE");
     if (env && env[0]) return env;
-    return "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice";
+    return std::string(vioavr::core::ngspice_binary());
 }
 
 static bool compile_firmware(const std::string& src, const std::string& mcu,
@@ -64,7 +65,7 @@ static bool compile_firmware(const std::string& src, const std::string& mcu,
 
 static int run_ngspice(const fs::path& cir_file, const fs::path& test_dir,
                        const fs::path& log_file) {
-    std::string ngspice = ngspice_binary();
+    std::string ngspice = vioavr::core::ngspice_binary();
     std::string cmd = "cd " + test_dir.string() + " && " + ngspice + " -b "
         + cir_file.filename().string() + " > " + log_file.string() + " 2>/dev/null";
     return system(cmd.c_str());
@@ -94,9 +95,9 @@ static bool setup_cosim_links(const fs::path& test_dir,
                               const fs::path& build_dir,
                               const fs::path& hex_file) {
     fs::create_directories(test_dir / "cosim");
-    fs::path cosim_so = build_dir / "cosim" / "libavr_cosim.so";
+    fs::path cosim_so = build_dir / "cosim" / VIOAVR_COSIM_LIB_NAME;
     if (!fs::exists(cosim_so)) return false;
-    fs::path link = test_dir / "cosim" / "libavr_cosim.so";
+    fs::path link = test_dir / "cosim" / VIOAVR_COSIM_LIB_NAME;
     if (!fs::exists(link))
         fs::create_symlink(cosim_so, link);
     if (!fs::exists(test_dir / "firmware.hex")) {

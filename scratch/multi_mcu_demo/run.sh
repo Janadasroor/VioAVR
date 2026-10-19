@@ -1,12 +1,30 @@
 #!/usr/bin/env bash
+# Resolve locations without hardcoding anyone's home directory:
+#   BUILD_DIR  = $VIOAVR_BUILD_DIR, else <repo>/build
+#   NGSPICE    = $NGSPICE, else $VioMATRIXC_ROOT/{release,build}/src/ngspice,
+#                else <sibling checkout>/../VioMATRIXC/..., else PATH
+find_ngspice() {
+    if [[ -n "${NGSPICE:-}" ]]; then echo "$NGSPICE"; return; fi
+    local roots=()
+    [[ -n "${VioMATRIXC_ROOT:-}" ]] && roots+=("$VioMATRIXC_ROOT")
+    [[ -n "${VIOAVR_ROOT:-}" ]] && roots+=("$VIOAVR_ROOT/../VioMATRIXC")
+    roots+=("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../VioMATRIXC")
+    for r in "${roots[@]}"; do
+        for layout in release build; do
+            [[ -x "$r/$layout/src/ngspice" ]] && { echo "$r/$layout/src/ngspice"; return; }
+        done
+    done
+    command -v ngspice 2>/dev/null || echo ngspice
+}
+
 # Multi-MCU Co-Simulation Demo — Build and Run
 # 2026-06-03
 
 set -euo pipefail
 
 DEMO_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="/home/jnd/cpp_projects/VioAVR/build"
-NGSPICE="/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice"
+BUILD_DIR="${VIOAVR_BUILD_DIR:-../../build}"
+NGSPICE="$(find_ngspice)"
 
 echo "=== Step 1: Build firmware ==="
 make -C "$DEMO_DIR" clean all

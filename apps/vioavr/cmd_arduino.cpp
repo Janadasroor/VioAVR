@@ -1,3 +1,4 @@
+#include "vioavr/core/paths.hpp"
 #include "vioavr/core/arduino_board.hpp"
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/device_catalog.hpp"
@@ -51,12 +52,18 @@ enum class SerialMode { none, stdio, pty };
 // ---------------------------------------------------------------------------
 
 std::string find_arduino_cli() {
-    static const char* candidates[] = {
-        "/home/jnd/cpp_projects/VioAVR/bin/arduino-cli",
-        "/usr/local/bin/arduino-cli",
-        "/usr/bin/arduino-cli",
-    };
-    for (auto* path : candidates) {
+    // $ARDUINO_CLI first, then the checkout-local copy, then PATH installs.
+    static const std::vector<std::string> candidates = [] {
+        std::vector<std::string> list;
+        if (const char* env = std::getenv("ARDUINO_CLI"); env != nullptr && *env != '\0') {
+            list.emplace_back(env);
+        }
+        list.emplace_back(std::string(VIOAVR_ROOT_DIR) + "/bin/arduino-cli");
+        list.emplace_back("/usr/local/bin/arduino-cli");
+        list.emplace_back("/usr/bin/arduino-cli");
+        return list;
+    }();
+    for (const auto& path : candidates) {
         if (fs::exists(path)) return path;
     }
     // Also check via `which arduino-cli` for globally installed versions

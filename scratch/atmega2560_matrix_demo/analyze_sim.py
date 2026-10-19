@@ -1,8 +1,9 @@
 import sys
+from pathlib import Path
 import os
 
 def analyze():
-    log_path = "/home/jnd/cpp_projects/VioAVR/scratch/atmega2560_matrix_demo/sim_matrix.log"
+    log_path = (Path(__file__).resolve().parent / "sim_matrix.log")
     
     if not os.path.exists(log_path):
         print(f"Error: Log file not found at {log_path}")

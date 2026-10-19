@@ -1,7 +1,8 @@
 import sys
+from pathlib import Path
 
 def analyze():
-    log_path = "/home/jnd/cpp_projects/VioAVR/scratch/pwm_vdmos_demo/sim.log"
+    log_path = (Path(__file__).resolve().parent / "sim.log")
     
     times = []
     v_drains = []

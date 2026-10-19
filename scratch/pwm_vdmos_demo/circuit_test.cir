@@ -25,7 +25,7 @@ R_load v24 drain_vdmos 10
 * VioAVR MCU Block
 * Vector pins: index 0 is PORTB Pin 0, index 1 is PORTB Pin 1 (OC1A)
 A_AVR [nc pb1_dig] mcu_model
-.model mcu_model d_non_existent(mcu_type="atmega328" frequency=16e6 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/pwm_vdmos_demo/pwm_driver.hex")
+.model mcu_model d_non_existent(mcu_type="atmega328" frequency=16e6 hex_file="pwm_driver.hex")
 
 * Transistor Models
 .model Q2N2222 NPN(Is=14.34f Xti=3 Eg=1.11 Vaf=74.03 Bf=255.9 Ne=1.307

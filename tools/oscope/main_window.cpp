@@ -349,7 +349,7 @@ void MainWindow::scanCirFiles()
     m_cirList->clear();
     m_logList->clear();
 
-    QDir scratchDir("/home/jnd/cpp_projects/VioAVR/scratch");
+    QDir scratchDir(QStringLiteral(VIOAVR_ROOT_DIR) + "/scratch");
     if (!scratchDir.exists()) return;
 
     for (const QFileInfo &info : scratchDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
@@ -464,10 +464,12 @@ void MainWindow::updateRecentMenu()
     }
 }
 
+static QString buildCosimLib() {
+    return QStringLiteral(VIOAVR_BUILD_DIR) + "/cosim/" + QStringLiteral(VIOAVR_COSIM_LIB_NAME);
+}
+
 static bool findBuildCosim() {
-    QStringList candidates = {
-        "/home/jnd/cpp_projects/VioAVR/build/cosim/libavr_cosim.so",
-    };
+    QStringList candidates = { buildCosimLib() };
     for (const auto &p : candidates)
         if (QFileInfo::exists(p)) return true;
     return false;
@@ -494,7 +496,7 @@ void MainWindow::runNgspiceFor(const QString &cirPath)
         QString cosimSo = cirDir + "/cosim/libavr_cosim.so";
         if (!QFileInfo::exists(cosimSo) && findBuildCosim()) {
             QDir().mkpath(cirDir + "/cosim");
-            QString buildCosim = "/home/jnd/cpp_projects/VioAVR/build/cosim/libavr_cosim.so";
+            const QString buildCosim = buildCosimLib();
             QFile::link(buildCosim, cosimSo);
         }
         // Verify it was created

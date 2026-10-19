@@ -30,12 +30,33 @@ WORKSPACE_DIR = Path(os.environ.get("VIOAVR_WORKSPACE", str(BASE_DIR.parent.pare
 SCRATCH_DIR = WORKSPACE_DIR / "scratch"
 BUILD_DIR = WORKSPACE_DIR / "build"
 
+def find_ngspice() -> Path:
+    """ngspice for co-simulation: $NGSPICE, then $VioMATRIXC_ROOT, then the
+    sibling VioMATRIXC checkout, then whatever is on PATH."""
+    env = os.environ.get("NGSPICE")
+    if env:
+        return Path(env).expanduser().resolve()
+    roots = []
+    if os.environ.get("VioMATRIXC_ROOT"):
+        roots.append(Path(os.environ["VioMATRIXC_ROOT"]))
+    roots.append(WORKSPACE_DIR.parent / "VioMATRIXC")
+    for root in roots:
+        for layout in ("release", "build"):
+            candidate = root / layout / "src" / "ngspice"
+            if candidate.exists():
+                return candidate.resolve()
+    found = shutil.which("ngspice")
+    return Path(found).resolve() if found else Path("ngspice")
+
 DAEMON_PATH = Path(os.environ.get("VIOAVR_DAEMON", str(BUILD_DIR / "vioavr-bridge-daemon"))).expanduser().resolve()
-NGSPICE_PATH = Path(os.environ.get("NGSPICE_PATH", "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice")).expanduser().resolve()
-COSIM_SO = Path(os.environ.get("VIOAVR_COSIM_SO", str(BUILD_DIR / "cosim/libavr_cosim.so"))).expanduser().resolve()
+NGSPICE_PATH = find_ngspice()
+COSIM_SO = Path(os.environ.get("VIOAVR_COSIM_SO", str(BUILD_DIR / "cosim" / COSIM_LIB_NAME))).expanduser().resolve()
 OSCOPE_PATH = Path(os.environ.get("VIOAVR_OSCOPE", str(BUILD_DIR / "oscope/vioavr_oscope"))).expanduser().resolve()
 
 STATIC_DIR = BASE_DIR / "static"
+COSIM_LIB_NAME = ("libavr_cosim.dylib" if sys.platform == "darwin"
+                  else "avr_cosim.dll" if os.name == "nt"
+                  else "libavr_cosim.so")
 PORT = int(os.environ.get("VIOAVR_GUI_PORT", "8080"))
 
 MAX_BODY_BYTES = 1 * 1024 * 1024
@@ -64,12 +85,12 @@ def apply_config(workspace=None, ngspice=None, daemon=None, cosim=None, oscope=N
     if ngspice:
         NGSPICE_PATH = Path(ngspice).expanduser().resolve()
     else:
-        NGSPICE_PATH = Path(os.environ.get("NGSPICE_PATH", "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice")).expanduser().resolve()
+        NGSPICE_PATH = find_ngspice()
 
     if cosim:
         COSIM_SO = Path(cosim).expanduser().resolve()
     else:
-        COSIM_SO = Path(os.environ.get("VIOAVR_COSIM_SO", str(BUILD_DIR / "cosim/libavr_cosim.so"))).expanduser().resolve()
+        COSIM_SO = Path(os.environ.get("VIOAVR_COSIM_SO", str(BUILD_DIR / "cosim" / COSIM_LIB_NAME))).expanduser().resolve()
 
     if oscope:
         OSCOPE_PATH = Path(oscope).expanduser().resolve()

@@ -27,7 +27,7 @@ This test kit validates that a custom AVR chip simulation behaves exactly like r
 
 ### Build the Test
 ```bash
-cd /home/jnd/cpp_projects/VioAVR/build
+cd build
 cmake ..
 make vioavr_custom_avr_test
 ```
@@ -124,7 +124,7 @@ ctest -R custom_avr
 The Python script `pin_accuracy_validator.py` provides detailed validation:
 
 ```bash
-cd /home/jnd/cpp_projects/VioAVR/build/tests/custom_chip
+cd build/tests/custom_chip
 python3 ../../../tests/custom_chip/pin_accuracy_validator.py
 ```
 

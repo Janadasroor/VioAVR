@@ -1,3 +1,4 @@
+#include "vioavr/core/paths.hpp"
 #include "doctest.h"
 #include "vioavr/core/machine.hpp"
 #include "vioavr/core/uart.hpp"
@@ -15,7 +16,7 @@ TEST_CASE("System Integration Stress Test") {
     auto& machine = *machine_ptr;
 
     // Load integration_stress.hex
-    std::string hex_path = "/home/jnd/cpp_projects/VioAVR/integration_stress.hex";
+    std::string hex_path = std::string(VIOAVR_ROOT_DIR) + "/integration_stress.hex";
     if (!std::filesystem::exists(hex_path)) {
         hex_path = "tests/integration_stress.hex";
     }

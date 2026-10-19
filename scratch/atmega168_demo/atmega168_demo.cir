@@ -19,14 +19,14 @@ A_dac_out [pb0_dig] [pb0_an] dac_model
 * digital_pins: [pb0_dig pb1_dig] (PB0 is output at external ID 0, PB1 is input at external ID 1)
 * analog_pins: [adc_in_an] (dummy mapping to satisfy XSpice)
 A_AVR [pb0_dig pb1_dig] [adc_in_an] mcu_model
-.model mcu_model d_vioavr(mcu_type="atmega168" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/atmega168_demo/atmega168_demo.hex")
+.model mcu_model d_vioavr(mcu_type="atmega168" frequency=16e6 quantum_cycles=16 hex_file="atmega168_demo.hex")
 
 * 5. SPICE Solver Options and Simulation Controls
 .options reltol=0.005 method=gear trtol=7 chgtol=1e-13
 .tran 2us 2.0ms
 
 .control
-codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+codemodel ../../build/viospice.cm
 run
 * Save simulated nodes to output log for Chart.js
 print v(adc_in_an) v(pb0_an)

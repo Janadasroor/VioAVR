@@ -50,4 +50,5 @@ target_link_libraries(vioavr_oscope PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Charts
+    VioAVR::paths
 )

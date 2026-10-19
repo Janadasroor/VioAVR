@@ -1,2 +1,2 @@
-codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+codemodel ../../build/viospice.cm
 set num_threads=1

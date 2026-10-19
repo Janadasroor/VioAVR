@@ -1,3 +1,4 @@
+#include "vioavr/core/paths.hpp"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFileInfo>
@@ -10,8 +11,8 @@
 
 static QString findBuildCosim() {
     QStringList candidates = {
-        "/home/jnd/cpp_projects/VioAVR/build/cosim/libavr_cosim.so",
-        QDir::currentPath() + "/../build/cosim/libavr_cosim.so",
+        QStringLiteral(VIOAVR_BUILD_DIR) + "/cosim/" + QStringLiteral(VIOAVR_COSIM_LIB_NAME),
+        QDir::currentPath() + "/../build/cosim/" + QStringLiteral(VIOAVR_COSIM_LIB_NAME),
     };
     for (const auto &p : candidates)
         if (QFileInfo::exists(p)) return p;
@@ -96,9 +97,10 @@ int main(int argc, char *argv[])
             setupCosimLinks(cirDir);
 
         // Run ngspice synchronously
-        QSettings s("VioAVR", "VioAVR Oscilloscope");
-        QString ngspice = s.value("ngspiceBinary",
-            "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice").toString();
+        // Honour $NGSPICE, then the saved setting, then the configured one.
+        QString ngspice = qEnvironmentVariable("NGSPICE");
+        if (ngspice.isEmpty())
+            ngspice = MainWindow::ngspicePath();
         if (!QFileInfo::exists(ngspice)) {
             QMessageBox::critical(nullptr, "ngspice Not Found",
                 QString("ngspice binary not found at:\n%1").arg(ngspice));

@@ -11,6 +11,10 @@ import sys
 import json
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+BUILD_TESTS_DIR = str(Path(os.environ.get("VIOAVR_BUILD_DIR", REPO_ROOT / "build")) / "tests/custom_chip")
 
 @dataclass
 class PinMapping:
@@ -174,7 +178,7 @@ def generate_pinout_report():
 
 if __name__ == "__main__":
     import os
-    os.chdir("/home/jnd/cpp_projects/VioAVR/build/tests/custom_chip")
+    os.chdir(BUILD_TESTS_DIR)
     
     if len(sys.argv) > 1 and sys.argv[1] == "--generate-report":
         generate_pinout_report()

@@ -1,2 +1,2 @@
 * VioSpice local init configuration
-codemodel /home/jnd/cpp_projects/VioAVR/build/viospice.cm
+codemodel ../../build/viospice.cm

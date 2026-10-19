@@ -29,7 +29,7 @@ C_filter v_sense 0 10n
 
 * VioAVR MCU Block
 A_AVR [nc pb1_dig] [v_sense] mcu_model
-.model mcu_model d_vioavr(mcu_type="atmega328" frequency=16e6 quantum_cycles=16 hex_file="/home/jnd/cpp_projects/VioAVR/scratch/pwm_vdmos_demo/pwm_driver.hex")
+.model mcu_model d_vioavr(mcu_type="atmega328" frequency=16e6 quantum_cycles=16 hex_file="pwm_driver.hex")
 
 * Transistor Models
 .model Q2N2222 NPN(Is=14.34f Xti=3 Eg=1.11 Vaf=74.03 Bf=255.9 Ne=1.307
@@ -44,7 +44,7 @@ A_AVR [nc pb1_dig] [v_sense] mcu_model
 .options reltol=0.005 method=gear trtol=7 chgtol=1e-13
 .tran 1us 1.5ms
 .control
-codemodel /home/jnd/cpp_projects/VioAVR/build_release/viospice.cm
+codemodel ../../build_release/viospice.cm
 run
 print v(pb1_an) v(gate_vdmos) v(drain_vdmos)
 .endc

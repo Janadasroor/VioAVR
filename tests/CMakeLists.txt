@@ -86,7 +86,15 @@ endif()
 add_subdirectory(custom_chip)
 
 # Host  and comparison tests
-set(_ROOT "/home/jnd/cpp_projects/" CACHE PATH "Path to  root directory")
+# Optional: the  comparison tests are only built when a  checkout
+# is available. Point -D_ROOT=... at it, or set $_ROOT.
+if(NOT _ROOT AND DEFINED ENV{_ROOT})
+    set(_ROOT "$ENV{_ROOT}")
+endif()
+if(NOT _ROOT AND EXISTS "${PROJECT_SOURCE_DIR}/../")
+    set(_ROOT "${PROJECT_SOURCE_DIR}/../")
+endif()
+set(_ROOT "${_ROOT}" CACHE PATH "Path to  root directory")
 find_path(_INCLUDE_DIR NAMES sim_avr.h HINTS "${_ROOT}//sim")
 find_library(_LIBRARY NAMES  HINTS "${_ROOT}//obj-x86_64-linux-gnu")
 

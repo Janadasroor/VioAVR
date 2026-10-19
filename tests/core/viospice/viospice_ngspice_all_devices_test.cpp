@@ -1,3 +1,4 @@
+#include "vioavr/core/paths.hpp"
 #include "doctest.h"
 #include "vioavr/core/device_catalog.hpp"
 #include <cstdio>
@@ -176,12 +177,12 @@ static NgspiceResult test_chip(const std::string& chip, const fs::path& build_di
     fs::create_directories(test_dir);
     fs::create_directories(test_dir / "cosim");
 
-    fs::path cosim_so = build_dir / "cosim" / "libavr_cosim.so";
+    fs::path cosim_so = build_dir / "cosim" / VIOAVR_COSIM_LIB_NAME;
     if (!fs::exists(cosim_so)) {
         result.error = "libavr_cosim.so not found";
         return result;
     }
-    fs::create_symlink(cosim_so, test_dir / "cosim" / "libavr_cosim.so");
+    fs::create_symlink(cosim_so, test_dir / "cosim" / VIOAVR_COSIM_LIB_NAME);
 
     fs::path hex_file = test_dir / (chip_lower + "_fw.hex");
     if (!fs::exists(hex_file)) {
@@ -223,7 +224,7 @@ static NgspiceResult test_chip(const std::string& chip, const fs::path& build_di
 
 
     double start = clock();
-    std::string ngspice = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice";
+    std::string ngspice = std::string(vioavr::core::ngspice_binary());
     std::string log_file = (test_dir / "sim_matrix.log").string();
     std::string cmd = "cd " + test_dir.string() + " && " + ngspice + " -b " +
                       cir_file.filename().string() + " > " + log_file + " 2>/dev/null";
@@ -280,12 +281,12 @@ TEST_CASE("ngspice co-simulation for all supported devices") {
         std::vector<fs::path> candidates = {
             fs::current_path(),
             fs::current_path() / "build",
-            "/home/jnd/cpp_projects/VioAVR",
-            "/home/jnd/cpp_projects/VioAVR/build",
+            std::string(VIOAVR_ROOT_DIR),
+            std::string(VIOAVR_BUILD_DIR),
         };
         for (const auto& base : candidates) {
-            fs::path probe = fs::exists(base / "cosim" / "libavr_cosim.so")
-                ? base : (fs::exists(base / "build" / "cosim" / "libavr_cosim.so")
+            fs::path probe = fs::exists(base / "cosim" / VIOAVR_COSIM_LIB_NAME)
+                ? base : (fs::exists(base / "build" / "cosim" / VIOAVR_COSIM_LIB_NAME)
                     ? base / "build" : fs::path{});
             if (!probe.empty()) return probe;
         }

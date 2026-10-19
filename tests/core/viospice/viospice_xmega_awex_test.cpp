@@ -1,3 +1,4 @@
+#include "vioavr/core/paths.hpp"
 #include "doctest.h"
 #include <cstdio>
 #include <cstdlib>
@@ -109,12 +110,12 @@ TEST_CASE("XMEGA AWEX co-simulation") {
         std::vector<fs::path> candidates = {
             fs::current_path(),
             fs::current_path() / "build",
-            "/home/jnd/cpp_projects/VioAVR",
-            "/home/jnd/cpp_projects/VioAVR/build",
+            std::string(VIOAVR_ROOT_DIR),
+            std::string(VIOAVR_BUILD_DIR),
         };
         for (const auto& base : candidates) {
-            fs::path probe = fs::exists(base / "cosim" / "libavr_cosim.so")
-                ? base : (fs::exists(base / "build" / "cosim" / "libavr_cosim.so")
+            fs::path probe = fs::exists(base / "cosim" / VIOAVR_COSIM_LIB_NAME)
+                ? base : (fs::exists(base / "build" / "cosim" / VIOAVR_COSIM_LIB_NAME)
                     ? base / "build" : fs::path{});
             if (!probe.empty()) return probe;
         }
@@ -129,9 +130,9 @@ TEST_CASE("XMEGA AWEX co-simulation") {
     fs::create_directories(test_dir);
     fs::create_directories(test_dir / "cosim");
 
-    fs::path cosim_so = build_dir / "cosim" / "libavr_cosim.so";
+    fs::path cosim_so = build_dir / "cosim" / VIOAVR_COSIM_LIB_NAME;
     REQUIRE_MESSAGE(fs::exists(cosim_so), "libavr_cosim.so not found");
-    fs::create_symlink(cosim_so, test_dir / "cosim" / "libavr_cosim.so");
+    fs::create_symlink(cosim_so, test_dir / "cosim" / VIOAVR_COSIM_LIB_NAME);
 
     fs::path hex_file = test_dir / "awex.hex";
     bool compiled = compile_firmware(hex_file);
@@ -149,7 +150,7 @@ TEST_CASE("XMEGA AWEX co-simulation") {
     generate_circuit(cir_file, hex_file);
 
     double start = clock();
-    std::string ngspice = "/home/jnd/cpp_projects/VioMATRIXC/release/src/ngspice";
+    std::string ngspice = std::string(vioavr::core::ngspice_binary());
     std::string log_file = (test_dir / "sim_matrix.log").string();
     std::string debug_file_str = (test_dir / "awex_debug.log").string();
     std::string cmd = "cd " + test_dir.string() + " && " + ngspice + " -b "
