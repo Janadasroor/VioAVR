@@ -46,7 +46,12 @@ passed=0 failed=0
 for f in "$DIR"/*_cosim.cir; do
     chip=$(basename "$f" _cosim.cir)
     echo -n "$chip ... "
-    output=$("$NGSPICE" -b "$f" 2>/dev/null)
+    # The netlists reference ./cosim/libavr_cosim.so and the firmware hex
+    # relative to the working directory, so run them from the test directory.
+    output=$(cd "$DIR" && "$NGSPICE" -b "$(basename "$f")" 2>/dev/null)
+    # The netlist prints the pin the firmware toggles; take it from there.
+    node=$(grep -oE 'print v\([a-z0-9_]+\)' "$f" | head -1 | sed 's/print v(\([^)]*\))/\1/')
+    [ -n "$node" ] || node="pb0_an"
     # Scan all data rows for LOW (< 0.1V) and HIGH (> 4.0V)
     read low high <<<$(echo "$output" | grep -E '^[0-9]' | awk '
         { if ($3+0 < 0.1) l=1; if ($3+0 > 4.0) h=1 }
@@ -54,13 +59,13 @@ for f in "$DIR"/*_cosim.cir; do
     ')
     last=$(echo "$output" | grep -E '^[0-9]' | tail -1 | awk '{print $3}')
     if [ "$low" = "1" ] && [ "$high" = "1" ]; then
-        echo "PASS (pb0_an=$last, saw both LOW and HIGH)"
+        echo "PASS ($node=$last, saw both LOW and HIGH)"
         passed=$((passed + 1))
     elif [ "$low" = "1" ]; then
-        echo "FAIL (stuck LOW, pb0_an=$last)"
+        echo "FAIL (stuck LOW, $node=$last)"
         failed=$((failed + 1))
     else
-        echo "FAIL (stuck HIGH, pb0_an=$last)"
+        echo "FAIL (stuck HIGH, $node=$last)"
         failed=$((failed + 1))
     fi
 done

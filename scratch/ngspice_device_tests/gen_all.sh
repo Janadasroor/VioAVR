@@ -21,9 +21,14 @@ count=0
 for d in "$COSIM_DIR"/*/; do
     chip="$(basename "$d")"
     cir="$d/${chip}_cosim.cir"
+    hex="$d/${chip}_fw.hex"
     if [ -f "$cir" ]; then
         cp "$cir" "$DIR/${chip}_cosim.cir"
-        ((count++))
+        count=$((count + 1))
+    fi
+    # The netlist loads the firmware by name, so it has to travel with it.
+    if [ -f "$hex" ]; then
+        cp "$hex" "$DIR/${chip}_fw.hex"
     fi
 done
 
