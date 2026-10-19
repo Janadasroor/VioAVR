@@ -101,6 +101,14 @@ void Tca::update_direction_from_events() noexcept {
     }
 }
 
+void Tca::perform_event_clock() noexcept {
+    perform_tick();
+    // A TCB cascaded from this timer is clocked by the same events.
+    for (auto& consumer : event_clock_consumers_) {
+        if (consumer) consumer();
+    }
+}
+
 void Tca::on_event(bool level) noexcept {
     // EVCTRL decoding is shared by ATmega4809 (EVACT[2:0] + CNTEI) and
     // AVR DA/DB (EVACTA[2:0] + CNTAEI); both number the actions the same
@@ -118,10 +126,10 @@ void Tca::on_event(bool level) noexcept {
     if (is_enabled() && cnte) {
         switch (action) {
         case 0: // CNT_POSEDGE: each positive edge is one counter clock
-            if (rising) perform_tick();
+            if (rising) perform_event_clock();
             break;
         case 1: // CNT_ANYEDGE
-            if (rising || falling) perform_tick();
+            if (rising || falling) perform_event_clock();
             break;
         case 2: // CNT_HIGHLVL: counting is gated in tick()
             break;

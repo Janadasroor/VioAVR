@@ -1,8 +1,10 @@
 #pragma once
 #include "vioavr/core/port_mux.hpp"
 #include <array>
+#include <functional>
 #include <string>
 #include <span>
+#include <vector>
 
 
 namespace vioavr::core {
@@ -49,6 +51,12 @@ public:
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
+    // Consumers that are clocked by this TCA (a cascaded TCB). Each is
+    // notified on every event that clocks this counter, so a cascaded TCB
+    // does not have to guess an event rate in its own tick().
+    void add_event_clock_consumer(std::function<void()> consumer) {
+        event_clock_consumers_.push_back(std::move(consumer));
+    }
     void set_port_mux(PortMux* pm) noexcept { port_mux_ = pm; }
 
 private:
@@ -57,6 +65,7 @@ private:
     std::array<AddressRange, 8> ranges_ {};
     MemoryBus* bus_ {nullptr};
     EventSystem* evsys_ {nullptr};
+    std::vector<std::function<void()>> event_clock_consumers_ {};
     PortMux* port_mux_ {nullptr};
 
     // Registers
@@ -134,6 +143,7 @@ private:
     void handle_split_cmd(u8 cmd) noexcept;
     void on_event(bool level) noexcept;
     void on_event_b(bool level) noexcept;
+    void perform_event_clock() noexcept;
     void update_direction_from_events() noexcept;
 
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }

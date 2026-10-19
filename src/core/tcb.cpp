@@ -25,10 +25,10 @@ u32 Tcb::sibling_tca_divisor(const char* name) const noexcept {
     if (p == nullptr) return 0U;
     if (auto* tca = dynamic_cast<Tca*>(p)) {
         if (tca->is_event_clocked()) {
-            // CLK_TCA then follows the event rate, not the prescaled clock.
-            // The TCB cannot see event edges from tick(), so it runs at the
-            // peripheral clock instead: one count per prescaler period.
-            return 1U;
+            // CLK_TCA follows the event rate rather than the prescaled
+            // clock, so this counter is clocked by on_cascade_clock()
+            // instead of by tick(); the caller must not run the loop.
+            return 0U;
         }
         const u64 d = tca->cascade_divisor();
         return (d > 0xFFFFFFFFULL) ? 0U : static_cast<u32>(d);
@@ -38,6 +38,32 @@ u32 Tcb::sibling_tca_divisor(const char* name) const noexcept {
         return (d > 0xFFFFFFFFULL) ? 0U : static_cast<u32>(d);
     }
     return 0U;
+}
+
+bool Tcb::is_event_cascaded(const char* name) const noexcept {
+    if (bus_ == nullptr || name == nullptr) return false;
+    if (effective_clksel() != 2U) {
+        // AVR-Dx/Ex only: CLKSEL = 3 selects TCA1 instead of TCA0/TCE0.
+        if (!(clksel_width() == 3U && effective_clksel() == 3U)) return false;
+    }
+    IoPeripheral* p = bus_->get_peripheral_by_name(name);
+    if (p == nullptr) return false;
+    auto* tca = dynamic_cast<Tca*>(p);
+    return tca != nullptr && tca->is_event_clocked();
+}
+
+void Tcb::on_cascade_clock() noexcept {
+    if (!is_enabled()) return;
+    const bool is_ex = bus_ != nullptr
+        && nvm_family_for_name(bus_->device().name) == NvmFamily::Ex;
+    const char* name = effective_clksel() == 3U ? "TCA1" : (is_ex ? "TCE0" : "TCA0");
+    if (!is_event_cascaded(name)) return;
+    // The TCA's own prescaler is bypassed in event-clock mode, so one
+    // event is one counter clock here as well.
+    event_prescaler_ = 0U;
+    perform_tick(true);
+    update_interrupt_state();
+    update_outputs();
 }
 
 Tcb::Tcb(std::string name, const TcbDescriptor& desc) 

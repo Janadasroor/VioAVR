@@ -315,6 +315,7 @@ void Machine::initialize_peripherals()
     }
 
     // Modern TCA
+    std::vector<Tca*> tcas;
     for (u8 i = 0; i < device_.tca_count; ++i) {
         auto timer = std::make_unique<Tca>("TCA" + std::to_string(i), device_.timers_tca[i]);
         timer->set_memory_bus(bus_.get());
@@ -324,6 +325,7 @@ void Machine::initialize_peripherals()
             port_mux_->add_observer(timer.get());
         }
         bus_->attach_peripheral(*timer);
+        tcas.push_back(timer.get());
         owned_peripherals_.push_back(std::move(timer));
     }
 
@@ -332,6 +334,14 @@ void Machine::initialize_peripherals()
         auto timer = std::make_unique<Tcb>("TCB" + std::to_string(i), device_.timers_tcb[i]);
         timer->set_memory_bus(bus_.get());
         timer->set_event_system(evsys);
+        // A TCB cascaded from an event-clocked TCA counts from the TCA's
+        // events, which it cannot derive from its own tick().
+        if (tcas.size() >= 2) {
+            for (auto* tca : {tcas[0], tcas[1]}) {
+                if (tca == nullptr) continue;
+                tca->add_event_clock_consumer([t = timer.get()] { t->on_cascade_clock(); });
+            }
+        }
         if (port_mux_) {
             timer->set_port_mux(port_mux_);
             port_mux_->add_observer(timer.get());

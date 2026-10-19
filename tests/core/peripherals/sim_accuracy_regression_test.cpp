@@ -1184,6 +1184,66 @@ TEST_CASE("Regression: TCA event input B is wired through EVSYS")
     CHECK(bus.read_data(kCnt) == 0x0010U);
 }
 
+TEST_CASE("Regression: a TCB cascaded from an event-clocked TCA counts events")
+{
+    // With EVACTA = CNT_POSEDGE the TCA's clock follows the event rate, so a
+    // TCB with CLKSEL = CLKTCA has to count the events themselves. It must
+    // not run off CLK_PER and it must not sit still either.
+    auto device = DeviceCatalog::find("AVR64DA64");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    std::vector<u16> program(2000, 0x0000);
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    const u16 kUserA  = 0x023BU; // USERTC0CNTA
+    const u16 kTcaCtrla = 0x0A00U;
+    const u16 kTcaEvctrl = 0x0A09U;
+    const u16 kTcaPer  = 0x0A26U;
+    const u16 kTcbCtrla = 0x0B00U;
+    const u16 kTcbCcnt = 0x0B0AU;
+    const u16 kTcbCcmp = 0x0B0CU;
+    constexpr u8 kGen = 0x08U;
+
+    auto* evsys = machine.peripherals_of_type<EventSystem>()[0];
+    REQUIRE(evsys != nullptr);
+
+    bus.write_data(kUserA, 0x01U);       // TCA0 CNTA <- channel 0
+    bus.write_data(0x0210U, kGen);      // channel 0 <- generator 8
+    bus.write_data(kTcaPer, 0xFFU);     // long TCA period
+    bus.write_data(kTcaPer + 1U, 0xFFU);
+
+    // TCB0: ENABLE with CLKSEL = CLKTCA (CLKSEL[2:0] = 010).
+    bus.write_data(kTcbCtrla, 0x01U | (0x02U << 1));
+    bus.write_data(kTcbCcmp, 0xFFU);    // CCMP = 0x00FF
+    bus.write_data(kTcbCcmp + 1U, 0x00U);
+
+    // While the TCA is clocked from CLK_PER the cascaded TCB follows the
+    // TCA prescaler (DIV1 here): one count per cycle.
+    bus.write_data(kTcaCtrla, 0x01U);
+    bus.tick_peripherals(6U);
+    const u16 free_run = bus.read_data(kTcbCcnt);
+    CHECK(free_run == 6U);
+
+    // Switch the TCA to the event clock: CLK_TCA now follows the events, so
+    // no amount of CLK_PER time may advance the TCB any further.
+    bus.write_data(kTcaEvctrl, (0x00U << 1) | 0x01U); // EVACTA=POSEDGE, CNTAEI
+    bus.write_data(kTcbCcnt, 0x00U);
+    bus.write_data(kTcbCcnt + 1U, 0x00U);
+    bus.tick_peripherals(50U);
+    CHECK(bus.read_data(kTcbCcnt) == 0x0000U); // frozen between events
+
+    // Three positive edges: three counts, not fifty.
+    for (int i = 0; i < 3; ++i) {
+        evsys->trigger_event(kGen, true);
+        evsys->trigger_event(kGen, false);
+    }
+    bus.tick_peripherals(10U);
+    CHECK(bus.read_data(kTcbCcnt) == 0x0003U);
+}
+
 TEST_CASE("Regression: SPI slave shifts on real SCK edges")
 {
     // The slave is clocked by SCK: MOSI is sampled on the data-sampling edge

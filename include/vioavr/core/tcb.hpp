@@ -15,6 +15,9 @@ class MemoryBus;
  */
 class Tcb : public IoPeripheral, public IRoutingObserver {
 public:
+    // Called by an event-clocked TCA for every counter clock it performs
+    // while this TCB is cascaded from it (CLKSEL = CLKTCA).
+    void on_cascade_clock() noexcept;
     explicit Tcb(std::string name, const TcbDescriptor& desc);
 
     void reset() noexcept override;
@@ -78,6 +81,11 @@ private:
     // Prescaler divisor of a sibling TCA/TCE clock source ("TCA0", "TCA1",
     // "TCE0"), or 0 when the source is missing or stopped.
     u32 sibling_tca_divisor(const char* name) const noexcept;
+    // True when this counter runs from an event-clocked sibling TCA: the
+    // TCA then follows the event rate, so the TCB has to count from the
+    // event edges it cannot see in tick().
+    [[nodiscard]] bool is_event_cascaded(const char* name) const noexcept;
+    u32 event_prescaler_ {0};
 
     u32 prescaler_counter_ {0};
     void update_interrupt_state() noexcept;
