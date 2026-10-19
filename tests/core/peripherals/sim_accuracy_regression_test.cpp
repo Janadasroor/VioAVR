@@ -1083,6 +1083,84 @@ TEST_CASE("Regression: TCA event control follows the EVACTA encoding")
     CHECK(bus.read_data(kCnt) == 0U);
 }
 
+TEST_CASE("Regression: SPI slave shifts on real SCK edges")
+{
+    // The slave is clocked by SCK: MOSI is sampled on the data-sampling edge
+    // and MISO is driven from SPDR, so an external master can talk to it.
+    auto device = DeviceCatalog::find("ATmega328P");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    const auto D = device->spis[0];
+    auto& mux = *bus.pin_mux();
+    auto* spi = machine.peripherals_of_type<Spi>()[0];
+    REQUIRE(spi != nullptr);
+
+    const u16 kSck = D.sck_pin_address;
+    const u8 kSckBit = D.sck_pin_bit;
+    const u16 kMosi = D.mosi_pin_address;
+    const u8 kMosiBit = D.mosi_pin_bit;
+    const u16 kMiso = D.miso_pin_address;
+    const u8 kMisoBit = D.miso_pin_bit;
+
+    // The master side has to own the bus pins before driving them.
+    mux.claim_pin_by_address(kSck, kSckBit, PinOwner::external);
+    mux.claim_pin_by_address(kMosi, kMosiBit, PinOwner::external);
+    auto drive_sck = [&](bool level) {
+        mux.update_pin_by_address(kSck, kSckBit, PinOwner::external, true, level);
+    };
+    auto drive_mosi = [&](bool level) {
+        mux.update_pin_by_address(kMosi, kMosiBit, PinOwner::external, true, level);
+    };
+
+    // SPE = 1, MSTR = 0 -> slave. SPI mode 0 (CPOL = 0, CPHA = 0).
+    spi->write(D.spcr_address, D.spe_mask);
+    spi->write(D.spdr_address, 0xB6U); // byte to shift out
+
+    // Idle low; the slave claims MISO and presents the first bit (1).
+    drive_sck(false);
+    bus.tick_peripherals(1U);
+    CHECK(mux.get_state_by_address(kMiso, kMisoBit).drive_level == true);
+
+    // Shift 0xA5 in, MSB first, sampling on rising edges.
+    const u8 sent = 0xA5U;
+    u8 miso_trace = 0U;
+    for (int i = 0; i < 8; ++i) {
+        drive_mosi((sent >> (7 - i)) & 1U);
+        bus.tick_peripherals(1U);
+        // Sample MISO on the rising edge (mode 0).
+        drive_sck(true);
+        bus.tick_peripherals(1U);
+        miso_trace = static_cast<u8>((miso_trace << 1) |
+            (mux.get_state_by_address(kMiso, kMisoBit).drive_level ? 1U : 0U));
+        drive_sck(false);
+        bus.tick_peripherals(1U);
+    }
+
+    CHECK(miso_trace == 0xB6U);              // SPDR shifted out MSB first
+    CHECK((spi->read(D.spsr_address) & D.spif_mask) != 0U); // SPIF set
+    CHECK(spi->read(D.spdr_address) == 0xA5U);              // MOSI shifted in
+
+    // DORD reverses the bit order in both directions.
+    spi->write(D.spcr_address, D.spe_mask | 0x20U); // DORD
+    spi->write(D.spdr_address, 0x01U);
+    drive_sck(false);
+    bus.tick_peripherals(1U);
+    u8 miso_dord = 0U;
+    for (int i = 0; i < 8; ++i) {
+        drive_mosi(false);
+        bus.tick_peripherals(1U);
+        drive_sck(true);
+        bus.tick_peripherals(1U);
+        miso_dord = static_cast<u8>((miso_dord << 1) |
+            (mux.get_state_by_address(kMiso, kMisoBit).drive_level ? 1U : 0U));
+        drive_sck(false);
+        bus.tick_peripherals(1U);
+    }
+    CHECK(miso_dord == 0x80U); // LSB of SPDR first
+}
+
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
 {
     auto device = DeviceCatalog::find("ATmega4809");
