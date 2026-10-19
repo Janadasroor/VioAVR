@@ -776,6 +776,93 @@ TEST_CASE("Regression: TCA CTRLE command encoding and split-mode commands")
     }
 }
 
+TEST_CASE("Regression: classic UART receives frames from the RXD pin")
+{
+    // ATmega328P USART0: UBRR=0 gives 16 cycles per bit; RXD is PD0. A
+    // Machine is needed so the port pins are registered with the PinMux.
+    auto device = DeviceCatalog::find("ATmega328P");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    const auto D = device->uarts[0];
+    const u16 kRxd = 0x29U; // PD0
+
+    bus.pin_mux()->claim_pin_by_address(kRxd, 0U, PinOwner::external);
+    auto drive = [&](bool level) {
+        bus.pin_mux()->update_pin_by_address(kRxd, 0U, PinOwner::external, true, level);
+    };
+    // Hold each level for one bit time, ticking in half-bit steps so the
+    // mid-bit samples land inside the bit.
+    auto send_frame = [&](u8 value, bool stop_bit) {
+        const u64 bit = 16;
+        auto hold = [&](u64 cycles) {
+            while (cycles > 0) {
+                const u64 step = cycles > (bit / 2) ? (bit / 2) : cycles;
+                bus.tick_peripherals(step);
+                cycles -= step;
+            }
+        };
+        drive(true); hold(4);
+        drive(false); hold(bit);        // start
+        for (int i = 0; i < 8; ++i) {   // LSB first
+            drive((value >> i) & 1U);
+            hold(bit);
+        }
+        drive(stop_bit); hold(bit + (bit / 2));
+    };
+
+    bus.write_data(D.ubrrl_address, 0x00U);
+    bus.write_data(D.ubrrh_address, 0x00U);
+    bus.write_data(D.ucsrc_address, 0x06U); // 8N1
+    bus.write_data(D.ucsrb_address, D.rxen_mask);
+
+    // A good frame.
+    send_frame(0x5AU, true);
+    CHECK((bus.read_data(D.ucsra_address) & 0x80U) != 0U); // RXC
+    CHECK((bus.read_data(D.ucsra_address) & 0x1CU) == 0U); // no FE/DOR/UPE
+    CHECK(bus.read_data(D.udr_address) == 0x5AU);
+    CHECK((bus.read_data(D.ucsra_address) & 0x80U) == 0U); // cleared by UDR read
+
+    // Bad stop bit sets FE with RXC.
+    send_frame(0xA3U, false);
+    CHECK((bus.read_data(D.ucsra_address) & 0x90U) == 0x90U); // RXC | FE
+    CHECK(bus.read_data(D.udr_address) == 0xA3U);
+    CHECK((bus.read_data(D.ucsra_address) & 0x90U) == 0U);
+
+    // A second frame while RXC is still set loses data: DOR.
+    send_frame(0x11U, true);
+    CHECK((bus.read_data(D.ucsra_address) & 0x80U) != 0U);
+    send_frame(0x22U, true);
+    CHECK((bus.read_data(D.ucsra_address) & 0x88U) == 0x88U); // RXC | DOR
+    CHECK(bus.read_data(D.udr_address) == 0x11U); // first byte kept
+    CHECK((bus.read_data(D.ucsra_address) & 0x8CU) == 0U);
+
+    // Even parity: a wrong parity bit sets UPE.
+    bus.write_data(D.ucsrc_address, 0x26U); // 8-bit, even parity
+    const u64 bit = 16;
+    auto hold = [&](u64 cycles) {
+        while (cycles > 0) {
+            const u64 step = cycles > (bit / 2) ? (bit / 2) : cycles;
+            bus.tick_peripherals(step);
+            cycles -= step;
+        }
+    };
+    drive(true); hold(4);
+    drive(false); hold(bit);
+    const bool parity_bit = false; // 0x01 has one set bit: 0 makes the count odd
+    for (int i = 0; i < 8; ++i) { drive((0x01U >> i) & 1U); hold(bit); }
+    drive(parity_bit); hold(bit);
+    drive(true); hold(bit + (bit / 2));
+    CHECK((bus.read_data(D.ucsra_address) & 0x84U) == 0x84U); // RXC | UPE
+    CHECK(bus.read_data(D.udr_address) == 0x01U);
+
+    // Disabling RXEN stops reception.
+    bus.write_data(D.ucsrb_address, 0x00U);
+    send_frame(0x77U, true);
+    CHECK((bus.read_data(D.ucsra_address) & 0x80U) == 0U);
+}
+
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
 {
     auto device = DeviceCatalog::find("ATmega4809");
