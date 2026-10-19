@@ -170,7 +170,10 @@ jobs:
       uses: msys2/setup-msys2@v2
       with:
         msystem: MINGW64
-        update: false
+        # The package database has to be refreshed: with a stale one the
+        # avr-gcc packages cannot be found any more and the whole Windows
+        # job fails before it builds anything.
+        update: true
         install: >-
           mingw-w64-x86_64-toolchain
           mingw-w64-x86_64-cmake
