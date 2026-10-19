@@ -68,7 +68,117 @@ void Spi::reset() noexcept
 void Spi::tick(const u64 elapsed_cycles) noexcept
 {
     (void)elapsed_cycles;
-    // Handled by scheduler
+    // Master transfers are stepped by the scheduler; a slave is clocked by
+    // SCK edges coming from the pin, so it is serviced here.
+    slave_service_pins();
+}
+
+void Spi::slave_drive_miso() noexcept {
+    if (pin_mux_ == nullptr || desc_.miso_pin_address == 0U) return;
+    if (!slave_miso_claimed_) {
+        pin_mux_->claim_pin_by_address(desc_.miso_pin_address, desc_.miso_pin_bit,
+                                       PinOwner::spi);
+        slave_miso_claimed_ = true;
+    }
+    pin_mux_->update_pin_by_address(desc_.miso_pin_address, desc_.miso_pin_bit,
+                                    PinOwner::spi, true, slave_miso_);
+}
+
+void Spi::slave_release_miso() noexcept {
+    if (!slave_miso_claimed_ || pin_mux_ == nullptr || desc_.miso_pin_address == 0U) return;
+    pin_mux_->update_pin_by_address(desc_.miso_pin_address, desc_.miso_pin_bit,
+                                    PinOwner::spi, true, true); // idle high
+    pin_mux_->release_pin_by_address(desc_.miso_pin_address, desc_.miso_pin_bit,
+                                     PinOwner::spi);
+    slave_miso_claimed_ = false;
+}
+
+void Spi::update_active_state() noexcept {
+    if (bus_ == nullptr) return;
+    const bool active = (spcr_ & desc_.spe_mask) != 0U &&
+                        (spcr_ & desc_.mstr_mask) == 0U;
+    bus_->set_peripheral_active(this, active);
+}
+
+void Spi::slave_service_pins() noexcept {
+    const bool slave_mode = (spcr_ & desc_.spe_mask) != 0U &&
+                            (spcr_ & desc_.mstr_mask) == 0U;
+    if (!slave_mode) {
+        slave_release_miso();
+        slave_active_ = false;
+        return;
+    }
+    if (pin_mux_ == nullptr || desc_.sck_pin_address == 0U ||
+        desc_.mosi_pin_address == 0U) {
+        return;
+    }
+
+    const PinState sck = pin_mux_->get_state_by_address(desc_.sck_pin_address,
+                                                        desc_.sck_pin_bit);
+    if (!slave_active_) {
+        // Claim MISO and present the first bit while the bus is idle.
+        const bool idle = (spcr_ & kSpiCpol) != 0U;
+        slave_sck_last_ = sck.drive_level;
+        if (sck.is_output && sck.drive_level == idle) {
+            // shift_register_ holds the byte written to SPDR (slave path).
+            const u8 first = (spcr_ & kSpiDord) != 0U
+                ? static_cast<u8>(shift_register_ & 0x01U)
+                : static_cast<u8>((shift_register_ & 0x80U) >> 7U);
+            slave_miso_ = first != 0U;
+            slave_active_ = true;
+            slave_bits_ = 0U;
+            slave_rx_ = 0U;
+            slave_drive_miso();
+        } else {
+            slave_release_miso();
+        }
+    }
+
+    if (!slave_active_ || !sck.is_output) return;
+
+    const bool mosi = pin_mux_->get_state_by_address(desc_.mosi_pin_address,
+                                                     desc_.mosi_pin_bit).drive_level;
+    const bool cpol = (spcr_ & kSpiCpol) != 0U;
+    const bool cpha = (spcr_ & kSpiCpha) != 0U;
+    const bool level = sck.drive_level;
+    if (level == slave_sck_last_) return;
+
+    // CPOL=0 samples on the rising edge, CPOL=1 on the falling edge.
+    const bool sample_edge = cpol ? !level : level;
+    slave_sck_last_ = level;
+
+    if (sample_edge) {
+        // MOSI is shifted in MSB first, or LSB first with DORD.
+        if ((spcr_ & kSpiDord) != 0U) {
+            slave_rx_ = static_cast<u8>((slave_rx_ >> 1) | (mosi ? 0x80U : 0x00U));
+        } else {
+            slave_rx_ = static_cast<u8>((slave_rx_ << 1) | (mosi ? 1U : 0U));
+        }
+        ++slave_bits_;
+    }
+
+    // Present the next bit: CPHA=0 changes on the trailing edge (so it is
+    // stable before the next sample), CPHA=1 on the leading edge.
+    const bool output_edge = cpha ? sample_edge : !sample_edge;
+    if (output_edge) {
+        const u8 bit_index = static_cast<u8>(slave_bits_ % 8U);
+        const u8 next = (spcr_ & kSpiDord) != 0U
+            ? static_cast<u8>((shift_register_ >> bit_index) & 0x01U)
+            : static_cast<u8>((shift_register_ >> (7U - bit_index)) & 0x01U);
+        slave_miso_ = next != 0U;
+        slave_drive_miso();
+    }
+
+    if (slave_bits_ >= 8U) {
+        rx_byte_ = slave_rx_;
+        spdr_ = rx_byte_;
+        spsr_ |= desc_.spif_mask;
+        interrupt_pending_ = true;
+        update_interrupt_pending();
+        slave_active_ = false;
+        slave_bits_ = 0U;
+        slave_rx_ = 0U;
+    }
 }
 
 void Spi::on_event(u64 cycle) noexcept {
@@ -114,6 +224,9 @@ void Spi::write(const u16 address, const u8 value) noexcept
             // Disabling mid-transfer (or dropping out of master mode) aborts it.
             abort_transfer();
         }
+        // A slave is clocked by SCK edges from the pin, so it has to be in
+        // the bus ticking list (which is built at attach time).
+        update_active_state();
         return;
     }
     if (address == desc_.spsr_address) {

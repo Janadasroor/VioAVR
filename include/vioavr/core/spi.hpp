@@ -23,7 +23,10 @@ public:
 
     void reset() noexcept override;
     void tick(u64 elapsed_cycles) noexcept override;
-    [[nodiscard]] bool wants_tick() const noexcept override { return false; }
+    // A slave is clocked by SCK edges from the pin, so tick() must run.
+    [[nodiscard]] bool wants_tick() const noexcept override {
+        return (spcr_ & desc_.spe_mask) != 0U && (spcr_ & desc_.mstr_mask) == 0U;
+    }
     [[nodiscard]] u8 read(u16 address) noexcept override;
     void write(u16 address, u8 value) noexcept override;
     [[nodiscard]] bool pending_interrupt_request(InterruptRequest& request) const noexcept override;
@@ -76,8 +79,22 @@ public:
     u8 edges_done_ {};
     u8 rx_byte_ {};
     u32 half_bit_cycles_ {};
+
+    // Functional slave: shifted on real SCK edges from the pin.
+    bool slave_active_ {};
+    bool slave_sck_last_ {};
+    u8 slave_bits_ {};
+    u8 slave_rx_ {};
+    u8 slave_tx_ {};
+    bool slave_miso_ {true};
+    bool slave_miso_claimed_ {};
     bool interrupt_pending_ {};
     bool spsr_read_since_spif_ {};
+
+    void slave_service_pins() noexcept;
+    void update_active_state() noexcept;
+    void slave_drive_miso() noexcept;
+    void slave_release_miso() noexcept;
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
 };
 
