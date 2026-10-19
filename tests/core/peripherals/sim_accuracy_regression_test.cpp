@@ -1932,47 +1932,58 @@ TEST_CASE("Regression: Idle wake costs start-up(0) + 4-cycle ISR entry")
 TEST_CASE("Regression: sleep wake latency follows mode and clock fuses")
 {
     using namespace vioavr::core::devices;
-    MemoryBus bus {atmega328p};
-    AvrCpu cpu {bus};
-    cpu.reset();
 
-    bus.write_data(0x53U, 0x01U); // Idle
-    CHECK(cpu.get_sleep_wake_latency() == 0U);
-    bus.write_data(0x53U, 0x03U); // ADC Noise Reduction
-    CHECK(cpu.get_sleep_wake_latency() == 0U);
-    bus.write_data(0x53U, 0x05U); // Power-down, internal RC fuses
-    CHECK(cpu.get_sleep_wake_latency() == 6U);
-    bus.write_data(0x53U, 0x07U); // Power-save, internal RC fuses
-    CHECK(cpu.get_sleep_wake_latency() == 6U);
-    bus.write_data(0x53U, 0x0DU); // Standby: oscillator running
-    CHECK(cpu.get_sleep_wake_latency() == 2U);
-    bus.write_data(0x53U, 0x0FU); // Extended Standby: oscillator running
-    CHECK(cpu.get_sleep_wake_latency() == 2U);
+    // MemoryBus (~526 KiB) and AvrCpu (~128 KiB) are large. Keep each fuse
+    // variant on the heap so the test fits a 1 MiB Windows thread stack.
+    {
+        auto bus = std::make_unique<MemoryBus>(atmega328p);
+        auto cpu = std::make_unique<AvrCpu>(*bus);
+        cpu->reset();
+
+        bus->write_data(0x53U, 0x01U); // Idle
+        CHECK(cpu->get_sleep_wake_latency() == 0U);
+        bus->write_data(0x53U, 0x03U); // ADC Noise Reduction
+        CHECK(cpu->get_sleep_wake_latency() == 0U);
+        bus->write_data(0x53U, 0x05U); // Power-down, internal RC fuses
+        CHECK(cpu->get_sleep_wake_latency() == 6U);
+        bus->write_data(0x53U, 0x07U); // Power-save, internal RC fuses
+        CHECK(cpu->get_sleep_wake_latency() == 6U);
+        bus->write_data(0x53U, 0x0DU); // Standby: oscillator running
+        CHECK(cpu->get_sleep_wake_latency() == 2U);
+        bus->write_data(0x53U, 0x0FU); // Extended Standby: oscillator running
+        CHECK(cpu->get_sleep_wake_latency() == 2U);
+    }
 
     // Crystal fuse variants (copied descriptor; MemoryBus copies it).
-    auto dev_xtal = atmega328p;
-    dev_xtal.fuses[0] = 0xFFU; // CKSEL=1111, SUT=11 -> 16K CK
-    MemoryBus bus_xtal {dev_xtal};
-    AvrCpu cpu_xtal {bus_xtal};
-    cpu_xtal.reset();
-    bus_xtal.write_data(0x53U, 0x05U);
-    CHECK(cpu_xtal.get_sleep_wake_latency() == 16384U);
+    {
+        auto dev = atmega328p;
+        dev.fuses[0] = 0xFFU; // CKSEL=1111, SUT=11 -> 16K CK
+        auto bus = std::make_unique<MemoryBus>(dev);
+        auto cpu = std::make_unique<AvrCpu>(*bus);
+        cpu->reset();
+        bus->write_data(0x53U, 0x05U);
+        CHECK(cpu->get_sleep_wake_latency() == 16384U);
+    }
 
-    auto dev_1k = atmega328p;
-    dev_1k.fuses[0] = 0x2EU; // CKSEL=1110, SUT=10 -> 1K CK
-    MemoryBus bus_1k {dev_1k};
-    AvrCpu cpu_1k {bus_1k};
-    cpu_1k.reset();
-    bus_1k.write_data(0x53U, 0x05U);
-    CHECK(cpu_1k.get_sleep_wake_latency() == 1024U);
+    {
+        auto dev = atmega328p;
+        dev.fuses[0] = 0x2EU; // CKSEL=1110, SUT=10 -> 1K CK
+        auto bus = std::make_unique<MemoryBus>(dev);
+        auto cpu = std::make_unique<AvrCpu>(*bus);
+        cpu->reset();
+        bus->write_data(0x53U, 0x05U);
+        CHECK(cpu->get_sleep_wake_latency() == 1024U);
+    }
 
-    auto dev_32k = atmega328p;
-    dev_32k.fuses[0] = 0x25U; // CKSEL=0101 (32K crystal), SUT=10 -> 32K CK
-    MemoryBus bus_32k {dev_32k};
-    AvrCpu cpu_32k {bus_32k};
-    cpu_32k.reset();
-    bus_32k.write_data(0x53U, 0x05U);
-    CHECK(cpu_32k.get_sleep_wake_latency() == 32768U);
+    {
+        auto dev = atmega328p;
+        dev.fuses[0] = 0x25U; // CKSEL=0101 (32K crystal), SUT=10 -> 32K CK
+        auto bus = std::make_unique<MemoryBus>(dev);
+        auto cpu = std::make_unique<AvrCpu>(*bus);
+        cpu->reset();
+        bus->write_data(0x53U, 0x05U);
+        CHECK(cpu->get_sleep_wake_latency() == 32768U);
+    }
 }
 
 TEST_CASE("Regression: AVRxt wake latency is 6 + oscillator start-up")

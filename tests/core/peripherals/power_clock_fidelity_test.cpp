@@ -5,6 +5,7 @@
 #include "vioavr/core/timer16.hpp"
 #include "vioavr/core/ext_interrupt.hpp"
 #include "vioavr/core/pin_mux.hpp"
+#include <memory>
 
 using namespace vioavr::core;
 
@@ -33,8 +34,12 @@ TEST_CASE("Power & Clock Management Fidelity") {
     t16_desc.pr_bit = 3; // PRTIM1
     t16_desc.cs_mask = 0x07;
 
-    MemoryBus bus(desc);
-    AvrCpu cpu(bus);
+    // Keep the large (~526 KiB) bus and (~128 KiB) CPU off the stack so the
+    // test fits a 1 MiB Windows thread stack.
+    auto bus_owner = std::make_unique<MemoryBus>(desc);
+    auto& bus = *bus_owner;
+    auto cpu_owner = std::make_unique<AvrCpu>(bus);
+    auto& cpu = *cpu_owner;
     Timer16 t16("Timer1", t16_desc, nullptr);
     bus.attach_peripheral(t16);
 
@@ -65,8 +70,10 @@ TEST_CASE("Power & Clock Management Fidelity") {
         
         // 2. Re-initialize with internal RC active
         desc.internal_rc_active = true;
-        MemoryBus rc_bus(desc);
-        AvrCpu rc_cpu(rc_bus);
+        auto rc_bus_owner = std::make_unique<MemoryBus>(desc);
+        auto& rc_bus = *rc_bus_owner;
+        auto rc_cpu_owner = std::make_unique<AvrCpu>(rc_bus);
+        auto& rc_cpu = *rc_cpu_owner;
         rc_cpu.reset();
         
         // Default OSCCAL is 0x80 -> 100%
