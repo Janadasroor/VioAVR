@@ -198,32 +198,36 @@ endif()
 set(VIOAVR_ROOT_DIR "${PROJECT_SOURCE_DIR}" CACHE INTERNAL "VioAVR source tree")
 set(VIOAVR_BUILD_DIR "${PROJECT_BINARY_DIR}" CACHE INTERNAL "VioAVR build tree")
 
-# ngspice discovery order: an explicit cache value, the VioMATRIXC sibling
-# checkout (either build layout), whatever is on PATH.
+# ngspice discovery order: an explicit -DVIOAVR_NGSPICE=..., then the
+# VioMATRIXC checkout (its own build is required: the code models are
+# compiled against its headers), then whatever is on PATH. An explicit
+# setting is the only thing kept in the cache, so re-running cmake picks
+# up a newly built VioMATRIXC instead of freezing the first result.
 set(VIOAVR_NGSPICE "" CACHE FILEPATH "Path to the ngspice binary used for co-simulation")
-if(NOT VIOAVR_NGSPICE)
+set(_ngspice "${VIOAVR_NGSPICE}")
+if(NOT _ngspice)
     set(_viomatrixc_root "$ENV{VioMATRIXC_ROOT}")
     if(NOT _viomatrixc_root AND EXISTS "${PROJECT_SOURCE_DIR}/../VioMATRIXC")
         set(_viomatrixc_root "${PROJECT_SOURCE_DIR}/../VioMATRIXC")
     endif()
-    foreach(_layout "release/src" "build/src")
+    # In-tree builds drop the binary in src/, out-of-tree in build/ or release/.
+    foreach(_layout "release/bin" "build/bin" "release/src" "build/src" "src")
         if(_viomatrixc_root AND EXISTS "${_viomatrixc_root}/${_layout}/ngspice")
-            set(VIOAVR_NGSPICE "${_viomatrixc_root}/${_layout}/ngspice")
+            set(_ngspice "${_viomatrixc_root}/${_layout}/ngspice")
             break()
         endif()
     endforeach()
 endif()
-if(NOT VIOAVR_NGSPICE)
+if(NOT _ngspice)
     # find_program() is a no-op once the cache entry exists, so probe with a
-    # separate variable and only then publish it.
+    # separate variable.
     find_program(VIOAVR_NGSPICE_FOUND NAMES ngspice)
     if(VIOAVR_NGSPICE_FOUND)
-        set(VIOAVR_NGSPICE "${VIOAVR_NGSPICE_FOUND}" CACHE FILEPATH
-            "Path to the ngspice binary used for co-simulation" FORCE)
+        set(_ngspice "${VIOAVR_NGSPICE_FOUND}")
     endif()
 endif()
-if(VIOAVR_NGSPICE)
-    message(STATUS "Co-simulation ngspice: ${VIOAVR_NGSPICE}")
+if(_ngspice)
+    message(STATUS "Co-simulation ngspice: ${_ngspice}")
 else()
     message(STATUS "Co-simulation ngspice: not found (co-simulation tests will be skipped)")
 endif()
@@ -241,7 +245,7 @@ add_library(vioavr_paths INTERFACE)
 target_compile_definitions(vioavr_paths INTERFACE
     VIOAVR_ROOT_DIR="${VIOAVR_ROOT_DIR}"
     VIOAVR_BUILD_DIR="${VIOAVR_BUILD_DIR}"
-    VIOAVR_NGSPICE_BIN="$<IF:$<BOOL:${VIOAVR_NGSPICE}>,${VIOAVR_NGSPICE},ngspice>"
+    VIOAVR_NGSPICE_BIN="$<IF:$<BOOL:${_ngspice}>,${_ngspice},ngspice>"
     VIOAVR_COSIM_LIB_NAME="${VIOAVR_COSIM_LIB_NAME}"
 )
 add_library(VioAVR::paths ALIAS vioavr_paths)
