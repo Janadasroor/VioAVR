@@ -34,6 +34,11 @@ public:
     [[nodiscard]] bool supports_interrupt_mask() const noexcept override { return true; }
 
     [[nodiscard]] bool get_wo_level(u8 index) const noexcept;
+    // CLKTCA divisor for a cascaded TCB (TCB CLKSEL = TCA0/TCA1), or 0 when
+    // this timer is stopped (the source clock is then frozen too).
+    [[nodiscard]] u32 cascade_divisor() const noexcept {
+        return is_enabled() ? prescaler_limit_ : 0U;
+    }
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;

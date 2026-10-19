@@ -370,15 +370,9 @@ void Tca::handle_matches() {
              if (evsys_ && desc_.cmp2_generator_id != 0) evsys_->trigger_event(desc_.cmp2_generator_id);
         }
         
-        // H-Matches
-        const u8 h_cnt = cnt_h();
-        if (h_cnt == cmp0_h()) {
-             intflags_ |= 0x80; // HCMP0
-        }
-        // HCMP1 and HCMP2 exist but share flags/vectors with L-ports or are not fully used for interrupts in split-mode?
-        // Actually, HCMPn bits are 7,6,5? No.
-        // TCA.INTFLAGS Split Mode: 0:LUNF, 1:HUNF, 4:LCMP0, 5:LCMP1, 6:LCMP2.
-        // HCMPn do not have dedicated bits in INTFLAGS in most cases or are used for other means.
+        // HCMPn have NO interrupt flags in split mode (INTFLAGS bit 7 is
+        // reserved; INTFLAGS = LCMP2/LCMP1/LCMP0/HUNF/LUNF). A match only
+        // drives WO[n+3] via get_wo_level(), which is level-based.
         return;
     }
 
@@ -590,8 +584,11 @@ bool Tca::get_wo_level(u8 index) const noexcept {
         if (index == 5) return cnt_h() < cmp2_h();
     } else {
         u8 wgmode = ctrlb_ & 0x07;
-        if (wgmode == 0x01 && index == 0) {
-            return wo_states_[0];
+        if (wgmode == 0x01) {
+            // FRQ mode: waveform output exists only on WO0 (TOP = CMP0);
+            // WO1/WO2 carry no waveform (CTRLC override above still applies).
+            if (index == 0) return wo_states_[0];
+            return false;
         }
         if (index == 0) return norm_.tcnt < norm_.cmp0;
         if (index == 1) return norm_.tcnt < norm_.cmp1;
@@ -613,9 +610,10 @@ void Tca::update_outputs() {
             port_mux_->drive_tca0_wo(u8(3 + i), get_wo_level(u8(3 + i)), en_h);
         }
     } else {
+        const bool frq = (ctrlb_ & 0x07) == 0x01; // FRQ drives WO0 only
         for (u8 i = 0; i < 3; ++i) {
             bool en = ctrlb_ & (1U << (4 + i));        // CMPxEN (CTRLB bits 4-6)
-            port_mux_->drive_tca0_wo(i, get_wo_level(i), en);
+            port_mux_->drive_tca0_wo(i, get_wo_level(i), en && (!frq || i == 0));
         }
         for (u8 i = 3; i < 6; ++i) port_mux_->drive_tca0_wo(i, false, false);
     }
