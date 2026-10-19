@@ -551,7 +551,9 @@ TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
 
     const u16 kEucsrb = 0xC9U;
     const u16 kEucsrc = 0xCAU;
-    const u16 kEudr = 0xCEU;
+    const u16 kEudr = 0xCEU;     // high byte of the character
+    const u16 kUdr = 0xC6U;      // low byte; reading it clears RXC
+    const u16 kUcsra = 0xC0U;    // shared status register
     const u16 kRxd = 0x29U; // PD1
 
     bus.write_data(kEucsrb, 0x10U); // EUSART enable
@@ -588,7 +590,12 @@ TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
     };
 
     send_frame(true);
-    CHECK(bus.read_data(kEudr) == 0x5AU);
+    // RXC is reported in the shared UCSRA, and the character is read as
+    // EUDR (high) + UDR (low) per datasheet 18.6.2.
+    CHECK((bus.read_data(kUcsra) & 0x80U) != 0U);
+    CHECK(bus.read_data(kEudr) == 0x00U); // high byte
+    CHECK(bus.read_data(kUdr) == 0x5AU);  // low byte, clears RXC
+    CHECK((bus.read_data(kUcsra) & 0x80U) == 0U);
     CHECK(eusart->frame_error_count() == 0);
 
     // Same byte with a LOW stop bit: framing error.
@@ -598,7 +605,7 @@ TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
     // The byte is still delivered; FEM is the Manchester-only flag, so a
     // level-encoded framing error must not set it.
     CHECK((bus.read_data(kEucsrc) & 0x08U) == 0U);
-    CHECK(bus.read_data(kEudr) == 0x5AU);
+    CHECK(bus.read_data(kUdr) == 0x5AU);
     // Reading the buffer clears the EUCSRC status flags (F1617 included).
     CHECK((bus.read_data(kEucsrc) & 0x0CU) == 0U);
     CHECK((bus.read_data(kEucsrb) & 0x10U) != 0U); // still enabled
@@ -616,7 +623,7 @@ TEST_CASE("Regression: EUSART Manchester framing error sets FEM with RXC")
 
     const u16 kEucsrb = 0xC9U;
     const u16 kEucsrc = 0xCAU;
-    const u16 kEudr = 0xCEU;
+    const u16 kUdr = 0xC6U;
     const u16 kEucsra = 0xC8U;
     const u16 kRxd = 0x29U; // PD1
 
@@ -659,9 +666,58 @@ TEST_CASE("Regression: EUSART Manchester framing error sets FEM with RXC")
     bus.tick_peripherals(24);
 
     CHECK((bus.read_data(kEucsrc) & 0x08U) != 0U); // FEM set with RXC
-    // Reading the receive buffer clears it.
-    (void)bus.read_data(kEudr);
+    // Reading the shared data register clears it.
+    (void)bus.read_data(kUdr);
     CHECK((bus.read_data(kEucsrc) & 0x08U) == 0U);
+}
+
+TEST_CASE("Regression: EUSART shares UCSRA status and UDR with the USART")
+{
+    // Datasheet 18.6.2/18.6.4: the EUSART and the USART are one peripheral.
+    // RXC lives in UCSRA (0xC0) and the character is read as EUDR (high)
+    // plus UDR (low) - the example in 18.5.3 polls `sbis UCSRA, RXC`.
+    auto device = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 kUcsra = 0xC0U;
+    const u16 kUcsrb = 0xC1U;
+    const u16 kUdr = 0xC6U;
+    const u16 kEucsrb = 0xC9U;
+    const u16 kEudr = 0xCEU;
+
+    bus.write_data(kEucsrb, 0x10U); // EUSART enable
+
+    // 16-bit receive character size
+    bus.write_data(0xC8U, 0x3BU); // UTxS = 3 (8-bit TX), URxS = 0xB (16-bit RX)
+    bus.write_data(0xCCU, 0x00U);   // MUBRR = 0
+
+    machine.peripherals_of_type<Eusart>()[0]->inject_received_byte(0x1234U);
+
+    // RXC is visible in the shared UCSRA, not in EUCSRA (character size).
+    CHECK((bus.read_data(kUcsra) & 0x80U) != 0U);
+    CHECK(bus.read_data(0xC8U) == 0x3BU); // EUCSRA untouched by the status
+
+    CHECK(bus.read_data(kEudr) == 0x12U); // high byte
+    CHECK(bus.read_data(kUdr) == 0x34U);  // low byte clears RXC
+    CHECK((bus.read_data(kUcsra) & 0x80U) == 0U);
+
+    // Transmit: EUDR high byte, UDR low byte triggers the frame.
+    bus.write_data(kEudr, 0x00U);
+    bus.write_data(kUdr, 0x5AU);
+    bus.tick_peripherals(200U);
+    CHECK((bus.read_data(kUcsra) & 0x40U) != 0U); // TXC in the shared UCSRA
+
+    u32 tx_word{};
+    auto* eusart = machine.peripherals_of_type<Eusart>()[0];
+    // The engine consumed the frame from its queue.
+    CHECK(eusart->consume_transmitted_byte(tx_word) == false);
+
+    // The classic USART registers stay writable alongside.
+    bus.write_data(kUcsrb, 0x98U); // RXEN | TXEN | RXCIE
+    CHECK((bus.read_data(kUcsrb) & 0x90U) == 0x90U);
 }
 
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")

@@ -79,9 +79,11 @@ TEST_CASE("AT90PWM316 - EUSART Timing") {
     auto machine = std::make_unique<Machine>(devices::at90pwm316);
     auto& bus = machine->bus();
     
+    const u16 ucsra = 0xC0; // shared status register
     const u16 eucsra = 0xC8;
     const u16 eucsrb = 0xC9;
     const u16 eudr = 0xCE;
+    const u16 udr = 0xC6;
     const u16 mubrrl = 0xCC;
     
     // Enable EUSART (EUSART=1)
@@ -89,26 +91,30 @@ TEST_CASE("AT90PWM316 - EUSART Timing") {
     // MUBRR = 0 (fastest) -> 16 cycles per bit
     bus.write_data(mubrrl, 0);
     
-    // Write byte to EUDR
-    bus.write_data(eudr, 0x55);
+    // TX character: EUDR carries the high byte, UDR the low byte and
+    // triggers transmission (datasheet 18.6.2).
+    bus.write_data(eudr, 0x00);
+    bus.write_data(udr, 0x55);
     
-    // Check EOT (bit 7) is not set yet
-    CHECK((bus.read_data(eucsra) & 0x80) == 0);
+    // TX Complete lives in the shared UCSRA (bit 6).
+    CHECK((bus.read_data(ucsra) & 0x40) == 0);
     
     // Run for 160 cycles (10 bits * 16 cycles)
     bus.tick_peripherals(160);
     
-    // Check EOT is now set
-    CHECK((bus.read_data(eucsra) & 0x80) != 0);
+    // Check TX Complete is now set
+    CHECK((bus.read_data(ucsra) & 0x40) != 0);
 }
 
 TEST_CASE("AT90PWM316 - EUSART Manchester Encoding") {
     auto machine = std::make_unique<Machine>(devices::at90pwm316);
     auto& bus = machine->bus();
     
+    const u16 ucsra = 0xC0; // shared status register
     const u16 eucsra = 0xC8;
     const u16 eucsrb = 0xC9;
     const u16 eudr = 0xCE;
+    const u16 udr = 0xC6;
     const u16 mubrrl = 0xCC;
     
     // Enable EUSART, Manchester mode, LSB first
@@ -117,8 +123,9 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Encoding") {
     // MUBRR = 0 -> 16 cycles per bit (8 cycles per half)
     bus.write_data(mubrrl, 0);
     
-    // Write 0x01 (LSB is 1)
-    bus.write_data(eudr, 0x01);
+    // Write 0x01 (LSB is 1): EUDR high byte, UDR low byte triggers TX
+    bus.write_data(eudr, 0x00);
+    bus.write_data(udr, 0x01);
     
     // Tick 4 cycles
     bus.tick_peripherals(4);
@@ -254,9 +261,10 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Decoding") {
     // Final ticks to process the last bit and push to queue
     bus.tick_peripherals(32);
     
-    // Read EUDR (16-bit)
-    u8 low = bus.read_data(0xCE);
-    u8 high = bus.read_data(0xCF);
+    // Read the character: EUDR is the high byte, UDR the low byte
+    // (datasheet 18.6.2). Reading UDR clears RXC and the EUCSRC flags.
+    u8 high = bus.read_data(0xCE);
+    u8 low = bus.read_data(0xC6);
     u16 received = (static_cast<u16>(high) << 8) | low;
     
     CHECK(received == 0x1234);
@@ -458,7 +466,9 @@ TEST_CASE("AT90PWM316 - EUSART Manchester Fidelity") {
     bus.write_data(eucsrb, 0x12);
     
     // 2. Transmit 0xA5 (10100101). LSB first: 1, 0, 1, 0, 0, 1, 0, 1
-    bus.write_data(eudr, 0xA5);
+    // EUDR = high byte, UDR = low byte (datasheet 18.6.2)
+    bus.write_data(eudr, 0x00);
+    bus.write_data(0xC6, 0xA5);
     
     // Start bit (1): LOW (8 cycles) then HIGH (8 cycles)
     bus.tick_peripherals(4); // Mid of first half
