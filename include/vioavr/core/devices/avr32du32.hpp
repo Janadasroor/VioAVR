@@ -298,6 +298,7 @@ inline constexpr DeviceDescriptor avr32du32 {
             .intflags_address = 0x1005U,
             .addr_address = 0x100CU,
             .data_address = 0x1008U,
+            .family = NvmFamily::Dx,
         }
     }},
 

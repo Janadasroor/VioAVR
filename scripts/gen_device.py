@@ -1033,6 +1033,17 @@ def generate_header(data, header_path):
 
     def gen_nvm_ctrl(p_name, p_data):
         r = lambda n: get_reg(p_data, n) or {'offset': 0, 'initval': 0}
+        # NVM family from the ATDF command set: Ex has EEPER, Dx has EEBER
+        # (MegaTiny keeps the struct default).
+        cmds = set()
+        for reg_def in p_data.get('registers', {}).values():
+            for bf in reg_def.get('bitfields', {}).values():
+                cmds.update(v.get('name') for v in bf.get('values', {}).values() if v.get('name'))
+        family = ''
+        if 'EEPER' in cmds:
+            family = '            .family = NvmFamily::Ex,\n'
+        elif 'EEBER' in cmds:
+            family = '            .family = NvmFamily::Dx,\n'
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])},
             .ctrlb_address = {hx(r('CTRLB')['offset'])},
@@ -1041,7 +1052,7 @@ def generate_header(data, header_path):
             .intflags_address = {hx(r('INTFLAGS')['offset'])},
             .addr_address = {hx(r('ADDR')['offset'])},
             .data_address = {hx(r('DATA')['offset'])},
-            .vector_index = {p_data.get('interrupts', {}).get('EEREADY', {}).get('index', next((i['index'] for i in data.get('interrupts', []) if 'EEREADY' in (i.get('name') or '').upper() or 'NVM' in (i.get('name') or '').upper()), 0))}U
+{family}            .vector_index = {p_data.get('interrupts', {}).get('EEREADY', {}).get('index', next((i['index'] for i in data.get('interrupts', []) if 'EEREADY' in (i.get('name') or '').upper() or 'NVM' in (i.get('name') or '').upper()), 0))}U
         }}"""
 
     def gen_cpu_int(p_name, p_data):

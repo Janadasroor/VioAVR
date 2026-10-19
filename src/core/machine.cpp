@@ -569,10 +569,9 @@ void Machine::initialize_peripherals()
         owned_peripherals_.push_back(std::move(ac));
     }
 
-    // 12. NVM Controller
+    // 12. NVM Controller (family comes from the generated descriptor)
     for (u8 i = 0; i < device_.nvm_ctrl_count; ++i) {
-        auto desc = device_.nvm_ctrls[i];
-        desc.family = nvm_family_for_name(device_.name);
+        const auto& desc = device_.nvm_ctrls[i];
         auto nvm = std::make_unique<NvmCtrl>(desc);
         nvm->set_bus(*bus_);
         if (i == 0) bus_->set_nvm_ctrl(nvm.get());

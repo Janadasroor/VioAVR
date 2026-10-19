@@ -382,6 +382,7 @@ inline constexpr DeviceDescriptor avr128db32 {
             .addr_address = 0x1008U,
             .data_address = 0x1006U,
             .vector_index = 36U,
+            .family = NvmFamily::Dx,
         }
     }},
 

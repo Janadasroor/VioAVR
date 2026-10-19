@@ -1894,6 +1894,17 @@ def generate(root, output_file=sys.stdout, atdf_path=None):
                 out.append(f"            .{fn} = 0x{nvm_regs[fn]:02X}U,")
         if nvm_idx != 0xFF:
             out.append(f"            .vector_index = {nvm_idx}U,")
+        # NVM family from the ATDF command set: Ex has EEPER, Dx has EEBER
+        # (MegaTiny needs no explicit field — it is the struct default).
+        nvm_cmds = set()
+        for vg in root.iter("value-group"):
+            if vg.get("name") == "NVMCTRL_CMD":
+                nvm_cmds = {val.get("name", "") for val in vg}
+                break
+        if "EEPER" in nvm_cmds:
+            out.append(f"            .family = NvmFamily::Ex,")
+        elif "EEBER" in nvm_cmds:
+            out.append(f"            .family = NvmFamily::Dx,")
         out.append(f"        }}")
         out.append(f"    }}}},")
     

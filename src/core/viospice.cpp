@@ -482,10 +482,9 @@ VioSpice::VioSpice(const DeviceDescriptor& device)
         owned_peripherals_.push_back(std::move(wdt));
     }
 
-    // 7. NVM Controller
+    // 7. NVM Controller (family comes from the generated descriptor)
     for (u8 i = 0; i < device.nvm_ctrl_count; ++i) {
-        auto desc = device.nvm_ctrls[i];
-        desc.family = nvm_family_for_name(device.name);
+        const auto& desc = device.nvm_ctrls[i];
         auto nvm = std::make_unique<NvmCtrl>(desc);
         nvm->set_bus(bus_);
         if (i == 0) bus_.set_nvm_ctrl(nvm.get());
