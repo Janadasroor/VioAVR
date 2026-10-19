@@ -38,12 +38,6 @@ static fs::path find_build_dir() {
     return {};
 }
 
-static std::string vioavr::core::ngspice_binary() {
-    const char* env = getenv("NGSPICE");
-    if (env && env[0]) return env;
-    return std::string(vioavr::core::ngspice_binary());
-}
-
 static bool compile_firmware(const std::string& src, const std::string& mcu,
                              const fs::path& hex_out) {
     fs::path dir = fs::temp_directory_path() / "vioavr_periph_test";

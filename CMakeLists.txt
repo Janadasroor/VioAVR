@@ -214,7 +214,13 @@ if(NOT VIOAVR_NGSPICE)
     endforeach()
 endif()
 if(NOT VIOAVR_NGSPICE)
-    find_program(VIOAVR_NGSPICE NAMES ngspice)
+    # find_program() is a no-op once the cache entry exists, so probe with a
+    # separate variable and only then publish it.
+    find_program(VIOAVR_NGSPICE_FOUND NAMES ngspice)
+    if(VIOAVR_NGSPICE_FOUND)
+        set(VIOAVR_NGSPICE "${VIOAVR_NGSPICE_FOUND}" CACHE FILEPATH
+            "Path to the ngspice binary used for co-simulation" FORCE)
+    endif()
 endif()
 if(VIOAVR_NGSPICE)
     message(STATUS "Co-simulation ngspice: ${VIOAVR_NGSPICE}")
