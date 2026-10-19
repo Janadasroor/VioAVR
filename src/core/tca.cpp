@@ -144,7 +144,9 @@ u8 Tca::read(u16 address) noexcept {
     if (address == desc_.dbgctrl_address) return dbgctrl_;
     if (address == desc_.temp_address) return temp_;
     if (address == desc_.ctrleclr_address || address == desc_.ctrleset_address) {
-        return ctrle_ & 0x18U; // DIR and LUPD only; CMD reads as 0
+        // Normal mode holds DIR and LUPD; CMD always reads as 0. Split mode
+        // has CMD/CMDEN only, and both are write-only.
+        return is_split_mode() ? 0U : (ctrle_ & 0x03U);
     }
     if (address == desc_.ctrlfclr_address || address == desc_.ctrlfset_address) {
         return ctrlf_;
@@ -254,14 +256,24 @@ void Tca::write(u16 address, u8 value) noexcept {
         update_interrupt_state();
     } else if (address == desc_.temp_address) {
         temp_ = value;
-    } else if (address == desc_.ctrleclr_address) {
-        if (value & 0x08U) ctrle_ &= 0xF7U; // Clear DIR
-        if (value & 0x10U) ctrle_ &= 0xEFU; // Clear LUPD
-        handle_cmd(value & 0x07U);
-    } else if (address == desc_.ctrleset_address) {
-        if (value & 0x08U) ctrle_ |= 0x08U; // Set DIR
-        if (value & 0x10U) ctrle_ |= 0x10U; // Set LUPD
-        handle_cmd(value & 0x07U);
+    } else if (address == desc_.ctrleclr_address || address == desc_.ctrleset_address) {
+        // Bit layout (ATDF NVMCTRL-independent: TCA CTRLE, datasheet
+        // 21.5.5 normal / 21.7.5 split): CMD = bits 3:2. Normal mode has
+        // DIR = bit 0 and LUPD = bit 1, split mode has CMDEN = bits 1:0.
+        const bool set = address == desc_.ctrleset_address;
+        const u8 cmd = static_cast<u8>((value & 0x0CU) >> 2U);
+        if (is_split_mode()) {
+            const u8 cmden = value & 0x03U;
+            if (cmden == 0x03U) handle_split_cmd(cmd); // CMDEN = BOTH
+        } else {
+            if (value & 0x01U) {
+                if (set) ctrle_ |= 0x01U; else ctrle_ &= 0xFEU; // DIR
+            }
+            if (value & 0x02U) {
+                if (set) ctrle_ |= 0x02U; else ctrle_ &= 0xFDU; // LUPD
+            }
+            handle_cmd(cmd);
+        }
     } else if (address == desc_.ctrlfclr_address) {
         ctrlf_ &= static_cast<u8>(~value);
     } else if (address == desc_.ctrlfset_address) {
@@ -443,31 +455,53 @@ bool Tca::consume_interrupt_request(InterruptRequest& request) noexcept {
     return false;
 }
 
+void Tca::handle_split_cmd(u8 cmd) noexcept {
+    // Split mode (datasheet 21.7.5): CMDEN = BOTH, so RESTART/RESET apply to
+    // both 8-bit timers. RESET is ignored while the timer is enabled, and
+    // split mode has no double buffering.
+    switch (cmd) {
+    case 2: // RESTART
+        cnt_l() = 0;
+        cnt_h() = 0;
+        intflags_ = 0;
+        update_interrupt_state();
+        update_outputs();
+        break;
+    case 3: // RESET
+        if (!is_enabled()) reset();
+        break;
+    default: // NONE / reserved
+        break;
+    }
+}
+
 void Tca::handle_cmd(u8 cmd) noexcept {
+    // Datasheet 21.5.5: CMD = bits 3:2; 0=NONE, 1=UPDATE, 2=RESTART,
+    // 3=RESET (ignored while the timer is enabled). LUPD = bit 1.
+    auto apply_buffers = [&] {
+        if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= 0xFEU; }
+        if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= 0xFDU; }
+        if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= 0xFBU; }
+        if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= 0xF7U; }
+    };
+    const bool lupd = (ctrle_ & 0x02U) != 0U;
+
     switch (cmd) {
     case 1: // UPDATE
-        if (!(ctrle_ & 0x10U)) { // LUPD not set
-            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= 0xFEU; }
-            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= 0xFDU; }
-            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= 0xFBU; }
-            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= 0xF7U; }
-        }
+        if (!lupd) apply_buffers();
         break;
-    case 2: // RESET
-        reset();
-        break;
-    case 3: // RESTART
+    case 2: // RESTART
         norm_.tcnt = 0;
         counting_up_ = true;
         intflags_ = 0;
-        if (!(ctrle_ & 0x10U)) {
-            if (buf_.per_valid) { norm_.per = buf_.per; buf_.per_valid = false; ctrlf_ &= 0xFEU; }
-            if (buf_.cmp0_valid) { norm_.cmp0 = buf_.cmp0; buf_.cmp0_valid = false; ctrlf_ &= 0xFDU; }
-            if (buf_.cmp1_valid) { norm_.cmp1 = buf_.cmp1; buf_.cmp1_valid = false; ctrlf_ &= 0xFBU; }
-            if (buf_.cmp2_valid) { norm_.cmp2 = buf_.cmp2; buf_.cmp2_valid = false; ctrlf_ &= 0xF7U; }
-        }
+        if (!lupd) apply_buffers();
         update_interrupt_state();
         update_outputs();
+        break;
+    case 3: // RESET (ignored when enabled)
+        if (!is_enabled()) reset();
+        break;
+    default: // NONE / reserved
         break;
     }
 }

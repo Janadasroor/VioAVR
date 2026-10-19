@@ -123,6 +123,7 @@ private:
     void perform_tick_split();
     void update_outputs();
     void handle_cmd(u8 cmd) noexcept;
+    void handle_split_cmd(u8 cmd) noexcept;
     void on_event(bool level) noexcept;
     
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
