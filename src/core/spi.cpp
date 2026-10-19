@@ -143,8 +143,9 @@ void Spi::slave_service_pins() noexcept {
     const bool level = sck.drive_level;
     if (level == slave_sck_last_) return;
 
-    // CPOL=0 samples on the rising edge, CPOL=1 on the falling edge.
-    const bool sample_edge = cpol ? !level : level;
+    // CPHA=0 samples on the leading edge (rising when CPOL=0), CPHA=1 on the
+    // trailing one (falling when CPOL=0, rising when CPOL=1).
+    const bool sample_edge = cpha ? (level == (cpol != 0U)) : (level != (cpol != 0U));
     slave_sck_last_ = level;
 
     if (sample_edge) {

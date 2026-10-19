@@ -1244,6 +1244,76 @@ TEST_CASE("Regression: a TCB cascaded from an event-clocked TCA counts events")
     CHECK(bus.read_data(kTcbCcnt) == 0x0003U);
 }
 
+TEST_CASE("Regression: SPI slave honours CPOL and CPHA in every mode")
+{
+    // Modes 1-3 shift the sampling and output edges: with CPHA = 1 the first
+    // bit is presented on the first edge and data is sampled on the other
+    // one; with CPOL = 1 the idle level is high instead.
+    auto device = DeviceCatalog::find("ATmega328P");
+    REQUIRE(device != nullptr);
+
+    const auto D = device->spis[0];
+    const u16 kSck = D.sck_pin_address;
+    const u8 kSckBit = D.sck_pin_bit;
+    const u16 kMosi = D.mosi_pin_address;
+    const u8 kMosiBit = D.mosi_pin_bit;
+    const u16 kMiso = D.miso_pin_address;
+    const u8 kMisoBit = D.miso_pin_bit;
+
+    struct Case { u8 cpol; u8 cpha; };
+    const Case cases[] = {{0, 1}, {1, 0}, {1, 1}};
+
+    for (const auto& c : cases) {
+        Machine machine(*device);
+        auto& bus = machine.bus();
+        machine.reset();
+        auto& mux = *bus.pin_mux();
+        auto* spi = machine.peripherals_of_type<Spi>()[0];
+        REQUIRE(spi != nullptr);
+        mux.claim_pin_by_address(kSck, kSckBit, PinOwner::external);
+        mux.claim_pin_by_address(kMosi, kMosiBit, PinOwner::external);
+
+        auto drive_sck = [&](bool level) {
+            mux.update_pin_by_address(kSck, kSckBit, PinOwner::external, true, level);
+        };
+        auto drive_mosi = [&](bool level) {
+            mux.update_pin_by_address(kMosi, kMosiBit, PinOwner::external, true, level);
+        };
+        auto miso = [&] {
+            return mux.get_state_by_address(kMiso, kMisoBit).drive_level;
+        };
+
+        const bool idle = c.cpol != 0U;
+
+        // SPE = 1, MSTR = 0, plus CPOL/CPHA (SPCR bits 3 and 2).
+        spi->write(D.spcr_address, static_cast<u8>(D.spe_mask | (c.cpol << 3) | (c.cpha << 2)));
+        spi->write(D.spdr_address, 0x3CU); // 0011 1100, differs from 0xA5
+
+        drive_sck(idle);
+        bus.tick_peripherals(1U); // engage on the idle level
+
+        const u8 sent = 0xA5U;
+        u8 trace = 0U;
+        for (int i = 0; i < 8; ++i) {
+            // The master sets MOSI before the leading edge of the bit.
+            drive_mosi((sent >> (7 - i)) & 1U);
+            bus.tick_peripherals(1U);
+            // Leading edge: CPHA=0 samples here, CPHA=1 presents the next bit.
+            drive_sck(!idle);
+            bus.tick_peripherals(1U);
+            trace = static_cast<u8>((trace << 1) | (miso() ? 1U : 0U));
+            // Trailing edge: CPHA=0 presents the next bit, CPHA=1 samples.
+            drive_sck(idle);
+            bus.tick_peripherals(1U);
+        }
+
+        INFO("CPOL=" << static_cast<int>(c.cpol) << " CPHA=" << static_cast<int>(c.cpha));
+        CHECK(trace == 0x3CU);
+        CHECK((spi->read(D.spsr_address) & D.spif_mask) != 0U);
+        CHECK(spi->read(D.spdr_address) == 0xA5U);
+    }
+}
+
 TEST_CASE("Regression: SPI slave shifts on real SCK edges")
 {
     // The slave is clocked by SCK: MOSI is sampled on the data-sampling edge
