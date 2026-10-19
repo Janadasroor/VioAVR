@@ -64,6 +64,12 @@ void Uart::reset() noexcept
     ubrrl_ = 0U;
     tx_active_ = false;
     rx_active_ = false;
+    rx_pin_state_ = RxPinState::idle;
+    rx_bit_index_ = 0;
+    rx_parity_bits_ = 0;
+    rx_stop_bits_ = 1;
+    rx_sample_in_ = 0;
+    rx_pin_last_ = true;
     tx_cycle_accumulator_ = 0;
     rx_cycle_accumulator_ = 0;
     tx_bit_duration_ = 160U;
@@ -151,7 +157,96 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
     }
 
     // Abort RX if receiver disabled mid-reception
-    if ((ucsrb_ & desc_.rxen_mask) == 0U) rx_active_ = false;
+    if ((ucsrb_ & desc_.rxen_mask) == 0U) { rx_active_ = false; rx_pin_state_ = RxPinState::idle; }
+
+    // RX pin sampling: start bit, data bits (LSB first), optional parity,
+    // then one or two stop bits (datasheet USART "Receiver" sections).
+    if ((ucsrb_ & desc_.rxen_mask) != 0U && desc_.rxd_pin_address != 0U) {
+        const PinState rx_pin =
+            pin_mux_->get_state_by_address(desc_.rxd_pin_address, desc_.rxd_pin_bit);
+        // An undriven input is idle-high: only a pin somebody actually drives
+        // carries a serial line (otherwise a floating pin reads as a start
+        // bit and the receiver would decode noise).
+        const bool line_driven = rx_pin.is_output;
+        const bool level = line_driven ? rx_pin.drive_level : true;
+        u16 ubrr = static_cast<u16>((ubrrh_ << 8) | ubrrl_);
+        const u32 bit_cycles =
+            static_cast<u32>((ucsra_ & desc_.u2x_mask) ? 8U : 16U) * (ubrr + 1U);
+        const u8 data_bits = (ucsrb_ & 0x04U) ? 9U : static_cast<u8>(((ucsrc_ >> 1) & 0x03U) + 5U);
+        const u8 parity_bits = (ucsrc_ & 0x30U) != 0U ? 1U : 0U;
+        const u8 stop_bits = (ucsrc_ & 0x08U) ? 2U : 1U;
+
+        switch (rx_pin_state_) {
+        case RxPinState::idle:
+            // A high-to-low transition is the start bit.
+            if (!level && rx_pin_last_) {
+                rx_pin_state_ = RxPinState::start;
+                rx_shift_reg_ = 0;
+                rx_bit_index_ = 0;
+                rx_parity_bits_ = parity_bits;
+                rx_stop_bits_ = stop_bits;
+                // Sample the first data bit at 1.5 bit times.
+                rx_sample_in_ = bit_cycles + (bit_cycles / 2U);
+            }
+            break;
+
+        case RxPinState::start:
+        case RxPinState::data:
+        case RxPinState::parity:
+        case RxPinState::stop:
+            rx_sample_in_ -= (rx_sample_in_ > elapsed_cycles) ? elapsed_cycles : rx_sample_in_;
+            while (rx_pin_state_ != RxPinState::idle && rx_sample_in_ == 0U) {
+                if (rx_pin_state_ == RxPinState::start ||
+                    rx_pin_state_ == RxPinState::data) {
+                    if (level && rx_bit_index_ < 16U) {
+                        rx_shift_reg_ |= static_cast<u16>(1U << rx_bit_index_);
+                    }
+                    ++rx_bit_index_;
+                    if (rx_bit_index_ >= data_bits) {
+                        if (rx_parity_bits_ != 0U) {
+                            rx_pin_state_ = RxPinState::parity;
+                        } else {
+                            rx_pin_state_ = RxPinState::stop;
+                        }
+                    } else {
+                        rx_pin_state_ = RxPinState::data;
+                    }
+                    rx_sample_in_ = bit_cycles;
+                } else if (rx_pin_state_ == RxPinState::parity) {
+                    u8 ones = 0;
+                    for (u8 i = 0; i < data_bits && i < 16U; ++i) {
+                        ones = static_cast<u8>(ones + ((rx_shift_reg_ >> i) & 1U));
+                    }
+                    const bool parity_bit = level;
+                    const bool even = (ucsrc_ & 0x30U) == 0x20U; // UPM = 10
+                    const u8 total = static_cast<u8>(ones + (parity_bit ? 1U : 0U));
+                    // Even parity: the count must be even; odd: odd.
+                    const bool wrong = even ? ((total % 2U) != 0U) : ((total % 2U) == 0U);
+                    if (wrong) ucsra_ |= kUpeMask;
+                    rx_pin_state_ = RxPinState::stop;
+                    rx_sample_in_ = bit_cycles;
+                } else { // stop bit(s)
+                    if (!level) ucsra_ |= kFeMask;
+                    if (rx_stop_bits_ > 1U) {
+                        rx_stop_bits_--;
+                        rx_sample_in_ = bit_cycles;
+                    } else {
+                        // A second byte while RXC is still set loses data.
+                        if ((ucsra_ & desc_.rxc_mask) != 0U) {
+                            ucsra_ |= kDorMask;
+                        } else {
+                            udr_rx_ = rx_shift_reg_;
+                            ucsra_ |= desc_.rxc_mask;
+                        }
+                        rx_pin_state_ = RxPinState::idle;
+                        rx_sample_in_ = 0;
+                    }
+                }
+            }
+            break;
+        }
+        rx_pin_last_ = level;
+    }
 
     // RX timing
     if (rx_active_) {

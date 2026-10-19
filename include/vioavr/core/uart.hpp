@@ -112,6 +112,16 @@ private:
     bool rx_parity_error_ {};
     bool tx_buffer_full_ {};
 
+    // RXD pin sampling (RXEN active). The pin is read, never driven: the
+    // USART owns no output on RXD.
+    enum class RxPinState : u8 { idle, start, data, parity, stop };
+    RxPinState rx_pin_state_ {RxPinState::idle};
+    u8 rx_bit_index_ {0};
+    u8 rx_parity_bits_ {0};
+    u8 rx_stop_bits_ {1};
+    u64 rx_sample_in_ {0};
+    bool rx_pin_last_ {true};
+
     std::deque<u16> tx_output_queue_;
 
     [[nodiscard]] bool power_reduction_enabled() const noexcept;
