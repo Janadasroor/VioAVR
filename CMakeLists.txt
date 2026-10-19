@@ -370,6 +370,21 @@ else()
     message(STATUS "Pack header check skipped (no Python 3 or no avr-pack)")
 endif()
 
+# ──  differential cross-check ───────────────────────────────
+# Random straight-line programs are compared instruction by instruction
+# against  (the GNU binutils AVR core). Skipped cleanly with exit
+# code 77 when , the AVR toolchain or Python 3 is not available.
+if(VIOAVR_BUILD_TESTS AND Python3_Interpreter_FOUND AND TARGET trace_runner)
+    add_test(NAME vioavr__differential
+             COMMAND ${Python3_EXECUTABLE}
+                     "${PROJECT_SOURCE_DIR}/tests/programs/diff__random.py"
+                     --programs 12 --steps 60)
+    set_tests_properties(vioavr__differential PROPERTIES
+        TIMEOUT 600
+        SKIP_RETURN_CODE 77
+    )
+endif()
+
 # Version file
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/VioAVRConfigVersion.cmake"

@@ -512,6 +512,14 @@ foreach(src ${NON_DOCTEST_TESTS})
     endif()
 endforeach()
 
+# ---- Trace runner for the  comparison ----
+# Dumps the architectural state after every step so the core can be
+# compared against  instruction by instruction.
+add_executable(trace_runner ${CMAKE_SOURCE_DIR}/tests/programs/trace_runner.cpp)
+target_link_libraries(trace_runner PRIVATE VioAVR::core)
+set_target_properties(trace_runner PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/programs)
+
 # ---- Utility targets (not CTest tests) ----
 foreach(src ${UTILITY_SOURCES})
     get_filename_component(test_name ${src} NAME_WE)
