@@ -140,15 +140,15 @@ TEST_CASE("AVR8X TCA Fidelity: Software CMD UPDATE via CTRLECLR") {
     CHECK(tca.read(devices::atmega4809.timers_tca[0].period_address) == 10);
     CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrlfclr_address) & 0x01) != 0);
 
-    // Software CMD UPDATE via CTRLECLR (bits 0-2 = 0x01)
-    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x01);
+    // Software CMD UPDATE via CTRLECLR (CMD = bits 3:2 = 0x01 -> 0x04)
+    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x04);
 
     // PER should now be 20, PERBV cleared
     CHECK(tca.read(devices::atmega4809.timers_tca[0].period_address) == 20);
     CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrlfclr_address) & 0x01) == 0);
 
     // CMD bits read as 0
-    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x07) == 0);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x0CU) == 0);
 }
 
 TEST_CASE("AVR8X TCA Fidelity: Software CMD RESET via CTRLESET") {
@@ -162,10 +162,15 @@ TEST_CASE("AVR8X TCA Fidelity: Software CMD RESET via CTRLESET") {
     tca.tick(5);
     CHECK(tca.read(devices::atmega4809.timers_tca[0].tcnt_address) == 5);
 
-    // Software CMD RESET via CTRLESET (bits 0-2 = 0x02)
-    tca.write(devices::atmega4809.timers_tca[0].ctrleset_address, 0x02);
+    // RESET is ignored while the timer is enabled (datasheet 21.5.5):
+    // the counter keeps running.
+    tca.write(devices::atmega4809.timers_tca[0].ctrleset_address, 0x0C);
+    CHECK(tca.read(devices::atmega4809.timers_tca[0].tcnt_address) == 5);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrla_address) & 0x01) != 0);
 
-    // TCNT should be 0, CTRLA cleared
+    // Disabling first lets the hard reset through: TCNT 0, CTRLA cleared.
+    tca.write(devices::atmega4809.timers_tca[0].ctrla_address, 0x00);
+    tca.write(devices::atmega4809.timers_tca[0].ctrleset_address, 0x0C);
     CHECK(tca.read(devices::atmega4809.timers_tca[0].tcnt_address) == 0);
     CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrla_address) & 0x01) == 0);
 }
@@ -181,13 +186,13 @@ TEST_CASE("AVR8X TCA Fidelity: Software CMD RESTART via CTRLECLR") {
     tca.tick(5);
     CHECK(tca.read(devices::atmega4809.timers_tca[0].tcnt_address) == 5);
 
-    // Software CMD RESTART via CTRLECLR (bits 0-2 = 0x03)
-    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x03);
+    // Software CMD RESTART via CTRLECLR (CMD = bits 3:2 = 0x02 -> 0x08)
+    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x08);
 
     // TCNT should be 0, timer still enabled
     CHECK(tca.read(devices::atmega4809.timers_tca[0].tcnt_address) == 0);
     CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrla_address) & 0x01) != 0);
-    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x07) == 0);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x0CU) == 0);
 }
 
 TEST_CASE("AVR8X TCA Fidelity: LUPD blocks software UPDATE") {
@@ -199,26 +204,26 @@ TEST_CASE("AVR8X TCA Fidelity: LUPD blocks software UPDATE") {
     tca.write(devices::atmega4809.timers_tca[0].period_address, 10);
     tca.write(devices::atmega4809.timers_tca[0].period_address + 1, 0x00);
 
-    // Set LUPD via CTRLESET (bit 4)
-    tca.write(devices::atmega4809.timers_tca[0].ctrleset_address, 0x10);
-    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x10) != 0);
+    // Set LUPD via CTRLESET (LUPD = bit 1)
+    tca.write(devices::atmega4809.timers_tca[0].ctrleset_address, 0x02);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x02) != 0);
 
     // Write PERBUF = 20
     tca.write(devices::atmega4809.timers_tca[0].perbuf_address, 20);
     tca.write(devices::atmega4809.timers_tca[0].perbuf_address + 1, 0x00);
 
     // Software CMD UPDATE via CTRLECLR — should be blocked by LUPD
-    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x01);
+    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x04);
 
     // PER should still be 10 (UPDATE blocked)
     CHECK(tca.read(devices::atmega4809.timers_tca[0].period_address) == 10);
 
-    // Clear LUPD via CTRLECLR (bit 4)
-    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x10);
-    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x10) == 0);
+    // Clear LUPD via CTRLECLR (LUPD = bit 1)
+    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x02);
+    CHECK((tca.read(devices::atmega4809.timers_tca[0].ctrleclr_address) & 0x02) == 0);
 
     // Software CMD UPDATE again — should work now
-    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x01);
+    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address, 0x04);
     CHECK(tca.read(devices::atmega4809.timers_tca[0].period_address) == 20);
 }
 

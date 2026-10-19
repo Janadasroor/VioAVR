@@ -85,8 +85,8 @@ TEST_CASE("AVR8X TCA - Software CMD (UPDATE via CTRLESET)") {
 
     CHECK(tca.read(devices::atmega4809.timers_tca[0].period_address) == 100);
 
-    // Software UPDATE via CTRLESET: CMD=0x01
-    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address + 1, 0x01);
+    // Software UPDATE via CTRLESET: CMD = bits 3:2 = 0x01 -> 0x04
+    tca.write(devices::atmega4809.timers_tca[0].ctrleclr_address + 1, 0x04);
 
     CHECK(tca.read(devices::atmega4809.timers_tca[0].period_address) == 200);
 }

@@ -720,6 +720,62 @@ TEST_CASE("Regression: EUSART shares UCSRA status and UDR with the USART")
     CHECK((bus.read_data(kUcsrb) & 0x90U) == 0x90U);
 }
 
+TEST_CASE("Regression: TCA CTRLE command encoding and split-mode commands")
+{
+    // Datasheet 21.5.5/21.7.5 and the ATDF agree: CMD is bits 3:2 in both
+    // modes. Normal mode adds DIR (bit 0) and LUPD (bit 1); split mode
+    // replaces them with CMDEN (bits 1:0), where 3 = BOTH.
+    using namespace vioavr::core::devices;
+    const auto& D = atmega4809.timers_tca[0];
+
+    // Normal mode: UPDATE applies the buffers, DIR/LUPD live in bits 0:1.
+    {
+        Tca tca("TCA0", D);
+        tca.reset();
+        tca.write(D.ctrla_address, 0x01U);
+        // 16-bit registers take the low byte first, then the high byte.
+        tca.write(D.period_address, 10U);
+        tca.write(D.period_address + 1U, 0U);
+        tca.write(D.perbuf_address, 30U);
+        tca.write(D.perbuf_address + 1U, 0U);
+        CHECK(tca.read(D.period_address) == 10U);
+        tca.write(D.ctrleset_address, 0x04U); // CMD = UPDATE
+        CHECK(tca.read(D.period_address) == 30U);
+
+        tca.write(D.ctrleset_address, 0x01U); // DIR
+        CHECK((tca.read(D.ctrleclr_address) & 0x01U) != 0U);
+        tca.write(D.ctrleclr_address, 0x01U);
+        CHECK((tca.read(D.ctrleclr_address) & 0x01U) == 0U);
+        tca.write(D.ctrleset_address, 0x02U); // LUPD
+        CHECK((tca.read(D.ctrleclr_address) & 0x02U) != 0U);
+        CHECK((tca.read(D.ctrleclr_address) & 0x0CU) == 0U); // CMD reads 0
+    }
+
+    // Split mode: CMDEN = BOTH restarts both counters; CMD reads as 0.
+    {
+        Tca tca("TCA0", D);
+        tca.reset();
+        tca.write(D.ctrla_address, 0x01U);
+        tca.write(D.ctrld_address, 0x01U); // SPLITM
+        tca.write(D.period_address, 20U);     // LPER
+        tca.write(D.period_address + 1U, 20U); // HPER
+        tca.tick(5U);
+        CHECK(tca.read(D.tcnt_address) == 5U);
+        CHECK(tca.read(D.tcnt_address + 1U) == 5U);
+
+        tca.write(D.ctrleset_address, 0x08U | 0x03U); // CMD=RESTART, CMDEN=BOTH
+        CHECK(tca.read(D.tcnt_address) == 0U);
+        CHECK(tca.read(D.tcnt_address + 1U) == 0U);
+        CHECK(tca.read(D.ctrleclr_address) == 0U); // CMD/CMDEN are write-only
+
+        // CMDEN = 0 means no timer/counter is selected: nothing happens.
+        tca.tick(3U);
+        CHECK(tca.read(D.tcnt_address) == 3U);
+        tca.write(D.ctrleset_address, 0x08U); // RESTART without CMDEN
+        CHECK(tca.read(D.tcnt_address) == 3U);
+    }
+}
+
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
 {
     auto device = DeviceCatalog::find("ATmega4809");
