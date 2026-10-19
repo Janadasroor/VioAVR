@@ -24,6 +24,9 @@ public:
     // External interaction
     void inject_received_byte(u32 data) noexcept;
     bool consume_transmitted_byte(u32& data) noexcept;
+    // Bad stop bits seen on the RXD pin. The registers expose no framing
+    // error bit, so software can only observe the count.
+    [[nodiscard]] u16 frame_error_count() const noexcept { return frame_error_count_; }
 
 private:
     std::string name_;
@@ -67,6 +70,7 @@ private:
     // Standard UART RX state machine
     enum class RxUartState : u8 { idle, start_bit, data_bits, stop_bit };
     RxUartState rx_uart_state_ {RxUartState::idle};
+    u16 frame_error_count_ {0};
 
     bool power_reduction_enabled() const noexcept;
 };

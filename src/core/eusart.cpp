@@ -48,6 +48,7 @@ void Eusart::reset() noexcept {
     rx_uart_state_ = RxUartState::idle;
     rx_active_ = false;
     rx_accumulator_ = 0;
+    frame_error_count_ = 0;
 }
 
 void Eusart::tick(u64 elapsed_cycles) noexcept {
@@ -310,7 +311,12 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                         rx_accumulator_ = 0;
                         bool stop_valid = current_rx;
                         if (!stop_valid) {
-                            eucsrc_ |= 0x04; // FE (Framing Error)
+                            // The EUSART registers of this family carry no
+                            // framing-error bit (EUCSRA = UTxS/URxS char size,
+                            // EUCSRB = ctrl, EUCSRC = STP/F1617/FEM), so the
+                            // error is counted instead of being written into a
+                            // configuration bit.
+                            ++frame_error_count_;
                         }
                         rx_uart_state_ = RxUartState::idle;
                         rx_queue_.push_back(rx_shift_reg_);
