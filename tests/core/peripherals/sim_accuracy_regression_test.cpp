@@ -8,6 +8,7 @@
 #include "vioavr/core/adc.hpp"
 #include "vioavr/core/clkctrl.hpp"
 #include "vioavr/core/eeprom.hpp"
+#include "vioavr/core/tca.hpp"
 #include "vioavr/core/slpctrl.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/spi.hpp"
@@ -310,29 +311,224 @@ TEST_CASE("Regression: TWI NACK without TWEA, arbitration/bus-error codes")
     CHECK(twi.read(0xB9U) == 0x00U);
 }
 
-TEST_CASE("Regression: TCB async RTC ratio and sync counting")
+TEST_CASE("Regression: TCB ASYNC is output-only, CLKSEL width and reserved values")
+{
+    // AVR DA datasheet 22.5.2 / EB datasheet: ASYNC only selects
+    // asynchronous output updates in Single-Shot mode - it never changes the
+    // counter clock. CLKSEL alone does (4809: CLKSEL[1:0], 3 = reserved).
+    auto device = DeviceCatalog::find("ATmega4809");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    std::vector<u16> program(2000, 0x0000);
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    const u16 kCtrla = 0x0A80U;
+    const u16 kCtrlb = 0x0A81U;
+    const u16 kCcmpL = 0x0A8CU;
+    const u16 kCcmpH = 0x0A8DU;
+    const u16 kCnt = 0x0A8AU;
+
+    bus.write_data(kCcmpL, 0xFFU);
+    bus.write_data(kCcmpH, 0xFFU); // CCMP = 0xFFFF (never reaches TOP)
+    bus.write_data(kCnt, 0x00U);   // phases below check a fresh counter
+
+    // ASYNC=1 with CLK_PER: counting is unaffected (1 tick/cycle).
+    bus.write_data(kCtrlb, 0x40U);
+    bus.write_data(kCtrla, (0x00U << 1) | 0x01U);
+    bus.tick_peripherals(10U);
+    CHECK(bus.read_data(kCnt) == 10U);
+
+    // Reserved CLKSEL (3 on a 2-bit field) freezes the counter.
+    bus.write_data(kCtrla, 0x00U); // disable
+    bus.write_data(kCnt, 0x00U);
+    bus.write_data(kCtrla, (0x03U << 1) | 0x01U);
+    bus.tick_peripherals(100U);
+    CHECK(bus.read_data(kCnt) == 0U);
+
+    // CLKSEL = CLKTCA with TCA0 stopped freezes the counter too.
+    bus.write_data(kCtrla, 0x00U);
+    bus.write_data(kCnt, 0x00U);
+    bus.write_data(kCtrla, (0x02U << 1) | 0x01U);
+    bus.tick_peripherals(50U);
+    CHECK(bus.read_data(kCnt) == 0U);
+
+    // Running TCA0 (DIV1) supplies CLK_TCA at the CLK_PER rate.
+    bus.write_data(kCtrla, 0x00U);
+    bus.write_data(kCnt, 0x00U);
+    bus.write_data(0x0A26U, 0x09U); // PER = 9
+    bus.write_data(0x0A00U, 0x01U); // TCA0 ENABLE
+    bus.write_data(kCtrla, (0x02U << 1) | 0x01U);
+    bus.tick_peripherals(10U);
+    CHECK(bus.read_data(kCnt) == 10U);
+}
+
+TEST_CASE("Regression: AVR-Dx TCB CLKSEL is 3 bits wide")
+{
+    // AVR128DB32 (Dx): CLKSEL[2:0]. Value 4 is reserved; value 7 is the
+    // event clock. On a 2-bit device both would read as DIV1/reserved.
+    auto device = DeviceCatalog::find("AVR128DB32");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    std::vector<u16> program(2000, 0x0000);
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    const u16 kCtrla = 0x0B00U;
+    const u16 kCcmpL = 0x0B0CU;
+    const u16 kCcmpH = 0x0B0DU;
+    const u16 kCnt = 0x0B0AU;
+    bus.write_data(kCcmpL, 0xFFU);
+    bus.write_data(kCcmpH, 0xFFU);
+
+    // Reserved CLKSEL=4: with a 3-bit field it stays reserved (frozen).
+    bus.write_data(kCtrla, (0x04U << 1) | 0x01U);
+    bus.tick_peripherals(50U);
+    CHECK(bus.read_data(kCnt) == 0U);
+
+    // EVENT clock (7) with no event activity: frozen.
+    bus.write_data(kCtrla, (0x07U << 1) | 0x01U);
+    bus.tick_peripherals(50U);
+    CHECK(bus.read_data(kCnt) == 0U);
+
+    // DIV1 still counts every cycle.
+    bus.write_data(kCtrla, (0x00U << 1) | 0x01U);
+    bus.tick_peripherals(10U);
+    CHECK(bus.read_data(kCnt) == 10U);
+}
+
+TEST_CASE("Regression: TCA split mode has no HCMP flags; FRQ drives WO0 only")
 {
     using namespace vioavr::core::devices;
-    // Sync: CLK_PER counts every cycle.
-    Tcb sync("TCB0", avr128db32.timers_tcb[0]);
-    sync.reset();
-    sync.write(0xB0CU, 0xFFU);
-    sync.write(0xB0DU, 0xFFU); // CCMP=0xFFFF
-    sync.write(0xB00U, 0x01U); // enable, CLK_PER
-    sync.tick(10U);
-    CHECK(sync.read(0xB0AU) == 10U);
+    const auto& D = atmega4809.timers_tca[0];
 
-    // Async RTC @16MHz: 16000000/32768 = 488 cycles per tick.
-    Tcb async("TCB0", avr128db32.timers_tcb[0]);
-    async.reset();
-    async.write(0xB0CU, 0xFFU);
-    async.write(0xB0DU, 0xFFU);
-    async.write(0xB01U, 0x40U); // ASYNC
-    async.write(0xB00U, 0x01U); // enable
-    async.tick(487U);
-    CHECK(async.read(0xB0AU) == 0U);
-    async.tick(1U);
-    CHECK(async.read(0xB0AU) == 1U);
+    // Split mode: HCMPn matches only drive WO[n+3]; INTFLAGS is
+    // LCMP2/LCMP1/LCMP0/HUNF/LUNF and bit 7 is reserved.
+    {
+        Tca tca("TCA0", D);
+        tca.reset();
+        tca.write(D.ctrla_address, 0x01U); // ENABLE, DIV1
+        tca.write(D.ctrld_address, 0x01U); // SPLITM
+        tca.write(D.period_address, 0x20U);     // PERL
+        tca.write(D.period_address + 1U, 0x20U); // PERH
+        tca.write(D.cmp0_address, 0x05U);     // CMP0L
+        tca.write(D.cmp0_address + 1U, 0x05U); // HCMP0 = 5
+
+        // Run until the high counter matches HCMP0.
+        tca.tick(4U);
+        CHECK((tca.read(D.intflags_address) & 0x80U) == 0U); // no HCMP flag
+        CHECK((tca.read(D.intflags_address) & 0x02U) == 0U); // no premature HUNF
+    }
+
+    // FRQ mode: waveform exists on WO0 only (TOP = CMP0).
+    {
+        Tca tca("TCA0", D);
+        tca.reset();
+        tca.write(D.ctrla_address, 0x01U);   // ENABLE
+        tca.write(D.ctrlb_address, 0x01U);    // WGMODE=FRQ
+        tca.write(D.cmp0_address, 4U);
+        tca.write(D.cmp0_address + 1U, 0U);
+        tca.write(D.period_address, 10U);    // ignored as TOP in FRQ
+        tca.write(D.period_address + 1U, 0U);
+
+        CHECK(tca.get_wo_level(0) == false);
+        CHECK(tca.get_wo_level(1) == false);
+        CHECK(tca.get_wo_level(2) == false);
+        tca.tick(5U); // CMP0 match toggles WO0
+        CHECK(tca.get_wo_level(0) == true);
+        CHECK(tca.get_wo_level(1) == false); // no FRQ waveform on WO1
+        CHECK(tca.get_wo_level(2) == false); // no FRQ waveform on WO2
+    }
+}
+
+TEST_CASE("Regression: AVR-Ex EEPER erases only buffered bytes of one page")
+{
+    // Ex datasheet: "only the bytes written in the page buffer will be
+    // erased. To erase a specific byte, write to its corresponding address."
+    auto device = DeviceCatalog::find("AVR16EB32");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 kMapped = device->mapped_eeprom.data_start; // 0x1400
+    const u16 kCtrla = device->nvm_ctrls[0].ctrla_address;
+    REQUIRE(bus.nvm_ctrl() != nullptr);
+    CHECK(bus.nvm_ctrl()->family() == NvmFamily::Ex);
+
+    auto commit = [&](u8 lo, u8 l1, u8 l2, u8 l3) {
+        bus.write_data(kMapped + 0U, lo);
+        bus.write_data(kMapped + 1U, l1);
+        bus.write_data(kMapped + 2U, l2);
+        bus.write_data(kMapped + 3U, l3);
+        bus.write_data(kCtrla, 0x14U); // EEPW
+        bus.tick_peripherals(65000U);
+    };
+
+    commit(0x11U, 0x22U, 0x33U, 0x44U);
+    CHECK(bus.read_data(kMapped + 0U) == 0x11U);
+    CHECK(bus.read_data(kMapped + 3U) == 0x44U);
+
+    // Load only byte 1 in the page buffer, then EEPER.
+    bus.write_data(kMapped + 1U, 0xFFU);
+    bus.write_data(kCtrla, 0x17U); // EEPER
+    bus.tick_peripherals(65000U);
+
+    CHECK(bus.read_data(kMapped + 1U) == 0xFFU); // erased
+    CHECK(bus.read_data(kMapped + 0U) == 0x11U); // untouched
+    CHECK(bus.read_data(kMapped + 2U) == 0x33U); // untouched
+    CHECK(bus.read_data(kMapped + 3U) == 0x44U); // untouched
+
+    // EECHER still wipes the whole array.
+    bus.write_data(kCtrla, 0x30U); // EECHER
+    bus.tick_peripherals(1600000U);
+    CHECK(bus.read_data(kMapped + 0U) == 0xFFU);
+    CHECK(bus.read_data(kMapped + 3U) == 0xFFU);
+}
+
+TEST_CASE("Regression: AVR-Dx EEBER/EEMBERn erase only the addressed bytes")
+{
+    // Dx datasheet Table 11-3: EEPROM erase granularity is byte-based.
+    auto device = DeviceCatalog::find("AVR128DB32");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 kMapped = device->mapped_eeprom.data_start;
+    const u16 kCtrla = device->nvm_ctrls[0].ctrla_address;
+    REQUIRE(bus.nvm_ctrl() != nullptr);
+    CHECK(bus.nvm_ctrl()->family() == NvmFamily::Dx);
+
+    bus.write_data(kMapped + 0U, 0x11U);
+    bus.write_data(kCtrla, 0x12U); bus.tick_peripherals(65000U); // EEWR: 1 byte
+    bus.write_data(kMapped + 1U, 0x22U);
+    bus.write_data(kCtrla, 0x12U); bus.tick_peripherals(65000U);
+    bus.write_data(kMapped + 2U, 0x33U);
+    bus.write_data(kCtrla, 0x12U); bus.tick_peripherals(65000U);
+    bus.write_data(kMapped + 3U, 0x44U);
+    bus.write_data(kCtrla, 0x12U); bus.tick_peripherals(65000U);
+    CHECK(bus.read_data(kMapped + 0U) == 0x11U);
+    CHECK(bus.read_data(kMapped + 2U) == 0x33U);
+
+    // EEBER at ADDR = mapped+2 erases that byte only.
+    bus.write_data(kMapped + 2U, 0x33U); // refresh buffer + set ADDR
+    bus.write_data(kCtrla, 0x18U);       // EEBER
+    bus.tick_peripherals(65000U);
+    CHECK(bus.read_data(kMapped + 2U) == 0xFFU);
+    CHECK(bus.read_data(kMapped + 0U) == 0x11U);
+    CHECK(bus.read_data(kMapped + 3U) == 0x44U);
+
+    // EEMBER4 at ADDR = mapped+0 erases bytes 0..3.
+    bus.write_data(kMapped + 0U, 0x11U);
+    bus.write_data(kCtrla, 0x1AU); // EEMBER4
+    bus.tick_peripherals(65000U);
+    CHECK(bus.read_data(kMapped + 0U) == 0xFFU);
+    CHECK(bus.read_data(kMapped + 3U) == 0xFFU);
 }
 
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
