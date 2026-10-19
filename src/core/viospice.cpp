@@ -86,6 +86,15 @@ static u8 compute_pin_mux_port_count_viospice(const DeviceDescriptor& device) no
     return (needed > device.port_count) ? needed : device.port_count;
 }
 
+VioSpice::~VioSpice() {
+    // Mirror Machine's teardown: destroy peripherals in reverse creation order
+    // so that CCL (and any future peripheral that unregisters from the Event
+    // System) is destroyed before the EventSystem it holds a raw pointer to.
+    while (!owned_peripherals_.empty()) {
+        owned_peripherals_.pop_back();
+    }
+}
+
 VioSpice::VioSpice(const DeviceDescriptor& device)
     : pin_mux_(compute_pin_mux_port_count_viospice(device)), bus_(device), cpu_(bus_)
 {

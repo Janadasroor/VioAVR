@@ -97,7 +97,15 @@ Machine::Machine(const DeviceDescriptor& device)
     wire_peripherals();
 }
 
-Machine::~Machine() = default;
+Machine::~Machine() {
+    // Tear down peripherals in reverse creation order. Peripherals created
+    // later (e.g. CCL) may hold raw pointers to earlier ones (e.g. the Event
+    // System) and unregister themselves in their destructors; forward-order
+    // destruction would leave those pointers dangling.
+    while (!owned_peripherals_.empty()) {
+        owned_peripherals_.pop_back();
+    }
+}
 
 std::unique_ptr<Machine> Machine::create_for_device(std::string_view name)
 {

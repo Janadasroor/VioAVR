@@ -40,7 +40,7 @@ class Uart8x;
 class VioSpice {
 public:
     VioSpice(const DeviceDescriptor& device);
-    ~VioSpice() = default;
+    ~VioSpice();
 
     void set_pin_map(std::unique_ptr<PinMap> pin_map);
     void add_pin_mapping(std::string_view port_name, u8 bit_index, u32 external_id, std::string_view label = "");
