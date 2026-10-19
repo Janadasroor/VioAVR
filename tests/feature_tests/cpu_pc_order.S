@@ -20,7 +20,7 @@ loop:
     ; 2. execute_rjmp sets PC = 0x06 (the jump target).
     ; 3. Final PC seen in trace is 0x06.
     
-    ; In /VioAVR (FIXED):
+    ; Correct order:
     ; 1. execute_rjmp sets PC = 0x06.
     ; 2. advance_cycles(2) calls reset(). PC = 0.
     ; 3. Final PC seen in trace is 0x00.

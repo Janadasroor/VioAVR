@@ -50,5 +50,4 @@ datasheets in `docs/datasheets/`.
   the CPU instruction set.
 - The behaviour above is compared against the datasheets in
   `docs/datasheets/`, not against silicon. A cross-check against a real
-  part (or against  for the CPU core only) is still missing — see
-  `docs/HARDWARE_ACCURACY.md`.
+  part is still missing — see `docs/HARDWARE_ACCURACY.md`.

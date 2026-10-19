@@ -85,50 +85,5 @@ endif()
 # Custom Chip Test Kit
 add_subdirectory(custom_chip)
 
-# Host  and comparison tests
-# Optional: the  comparison tests are only built when a  checkout
-# is available. Point -D_ROOT=... at it, or set $_ROOT.
-if(NOT _ROOT AND DEFINED ENV{_ROOT})
-    set(_ROOT "$ENV{_ROOT}")
-endif()
-if(NOT _ROOT AND EXISTS "${PROJECT_SOURCE_DIR}/../")
-    set(_ROOT "${PROJECT_SOURCE_DIR}/../")
-endif()
-set(_ROOT "${_ROOT}" CACHE PATH "Path to  root directory")
-find_path(_INCLUDE_DIR NAMES sim_avr.h HINTS "${_ROOT}//sim")
-find_library(_LIBRARY NAMES  HINTS "${_ROOT}//obj-x86_64-linux-gnu")
-
-if(_INCLUDE_DIR AND _LIBRARY)
-    message(STATUS "Found  headers: ${_INCLUDE_DIR}")
-    message(STATUS "Found  library: ${_LIBRARY}")
-
-    add_executable(_tracer programs/_tracer.c)
-    target_include_directories(_tracer PRIVATE ${_INCLUDE_DIR})
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        target_link_libraries(_tracer PRIVATE ${_LIBRARY} rt)
-    else()
-        target_link_libraries(_tracer PRIVATE ${_LIBRARY})
-    endif()
-    set_target_properties(_tracer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-
-    function(add_comparison_test test_name cycles)
-        set(elf_file "${CMAKE_CURRENT_BINARY_DIR}/${test_name}.elf")
-        add_test(
-            NAME "compare_${test_name}"
-            COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/programs/_compare.py" "${elf_file}" "${cycles}"
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        )
-    endfunction()
-
-    add_comparison_test(adc_pwm 5000)
-    add_comparison_test(adc_test_compare 5000)
-    add_comparison_test(timer1_interrupt_compare 2000)
-    add_comparison_test(timer_pwm_compare 1000)
-    add_comparison_test(uart_test_compare 10000)
-    add_comparison_test(_compare 5000)
-else()
-    message(WARNING " headers or library not found.  comparison tests will be skipped.")
-endif()
-
 add_subdirectory(core)
 

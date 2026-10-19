@@ -61,10 +61,10 @@ When adding support for a new AVR chip (e.g., `ATmega2560`):
     - For each peripheral (Timer, UART, etc.), ensure bitmasks in `src/core/` match the audit file.
     - Check that `initval` in ATDF matches the `reset()` state in C++.
 5.  **Behavioral Validation**:
-    - Run `scripts/verify_against_.py` with test programs to ensure cycle-accurate behavior.
+    - Run the firmware tests under `ctest` and compare the traced architectural state against the datasheets.
 
 ## Verification Sources
 - **Primary**: Downloaded `.atdf` files in `avr-pack/atmega/atdf/`.
 - **Secondary**: Official Microchip datasheets.
-- **Validation**: `` trace comparisons (using `scripts/verify_against_.py`).
+- **Validation**: The firmware/unit tests under `tests/`, checked against the datasheets.
 - **Hardware**: Logic analyzer traces from physical MCUs (when available).

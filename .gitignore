@@ -72,7 +72,6 @@ scratch/test_dlopen.c
 scratch/view_shm
 scratch/view_shm.cpp
 scratch/test_shm.py
-tests/programs/_tracer
 TODO.md
 *_TODO.md
 AGENTS.md

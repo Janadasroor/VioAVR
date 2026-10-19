@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     MemoryBus& bus = machine.bus();
     cpu.reset();
 
-    // Print Header matching _tracer.c
+    // Print the trace header
     std::cout << "Cycle,PC,SREG,SP";
     for (int i = 0; i < 32; ++i) std::cout << ",R" << i;
     std::cout << ",PORTB,DDRB,PORTD,DDRD,TCNT1L,TCNT1H,TCNT0,ADCSRA,ACSR,State" << std::endl;
