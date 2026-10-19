@@ -103,6 +103,7 @@ inline constexpr DeviceDescriptor avr32db28 {
             .cmp1_vector_index = 12U,
             .cmp2_vector_index = 13U,
             .hunf_vector_index = 10U,
+            .user_event_address = 0x23aU, .user_event_b_address = 0x23bU,
         }
     }},
 
@@ -120,6 +121,7 @@ inline constexpr DeviceDescriptor avr32db28 {
             .cnt_address = 0xB0AU,
             .ccmp_address = 0xB0CU,
             .vector_index = 14U,
+            .user_event_address = 0x23eU, .count_user_event_address = 0x23fU,
         },
         {
             .ctrla_address = 0xB10U,
@@ -133,6 +135,7 @@ inline constexpr DeviceDescriptor avr32db28 {
             .cnt_address = 0xB1AU,
             .ccmp_address = 0xB1CU,
             .vector_index = 15U,
+            .user_event_address = 0x240U, .count_user_event_address = 0x241U,
         },
         {
             .ctrla_address = 0xB20U,
@@ -146,6 +149,7 @@ inline constexpr DeviceDescriptor avr32db28 {
             .cnt_address = 0xB2AU,
             .ccmp_address = 0xB2CU,
             .vector_index = 31U,
+            .user_event_address = 0x242U, .count_user_event_address = 0x243U,
         }
     }},
 
@@ -205,7 +209,15 @@ inline constexpr DeviceDescriptor avr32db28 {
     }},
 
     .evsys = {
-    },
+            .strobe_address = 0x200U,
+            .channels_address = 0x210U,
+            .users_address = 0x220U,
+            .channel_count = 10U,
+            .user_count = 54U,
+            .evout_user_start = 13U,
+            .evout_user_count = 7U,
+        },
+
 
     .ccl = {
         .ctrla_address = 0x1C0U,
@@ -217,6 +229,7 @@ inline constexpr DeviceDescriptor avr32db28 {
             .ctrlb_address = 0x1C9U,
             .ctrlc_address = 0x1CAU,
             .truth_address = 0x1CBU,
+            .user_event_a_address = 0x220U, .user_event_b_address = 0x221U,
             .generator_id = 0U,
             .output_pin_address = 0x404U,
             .output_bit_index = 3U,

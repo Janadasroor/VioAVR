@@ -742,6 +742,7 @@ struct TcaDescriptor {
     u8 lcmp2_vector_index {};
 
     u16 user_event_address {};
+    u16 user_event_b_address {};
     u8 ovf_generator_id {};
     u8 cmp0_generator_id {};
     u8 cmp1_generator_id {};
@@ -762,6 +763,7 @@ struct TcbDescriptor {
 
     u8 vector_index {};
     u16 user_event_address {};
+    u16 count_user_event_address {};
     u8 capt_generator_id {};
 };
 

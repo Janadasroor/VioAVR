@@ -9,6 +9,7 @@
 #include "vioavr/core/clkctrl.hpp"
 #include "vioavr/core/eeprom.hpp"
 #include "vioavr/core/tca.hpp"
+#include "vioavr/core/evsys.hpp"
 #include "vioavr/core/slpctrl.hpp"
 #include "vioavr/core/gpio_port.hpp"
 #include "vioavr/core/spi.hpp"
@@ -1081,6 +1082,106 @@ TEST_CASE("Regression: TCA event control follows the EVACTA encoding")
     CHECK(before == 6U);
     event(true);
     CHECK(bus.read_data(kCnt) == 0U);
+}
+
+TEST_CASE("Regression: TCA event input B is wired through EVSYS")
+{
+    // AVR DA/DB TCA EVCTRL is EVACTB[2:0] (7:5) + CNTBEI (4) + EVACTA[2:0]
+    // (3:1) + CNTAEI (0), and each input has its own EVSYS USER register
+    // (USERTC0CNTA / USERTC0CNTB). Input B only offers UPDOWN (0x3) and
+    // RESTART_* (0x4-0x6); 0x0 is NONE and 0x1/0x2 are reserved.
+    // DS40002233A 21.3.4 and 21.5.4.
+    auto device = DeviceCatalog::find("AVR64DA64");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    std::vector<u16> program(2000, 0x0000);
+    bus.load_flash(program);
+    machine.cpu().reset();
+
+    const u16 kSweventa = 0x0200U;
+    const u16 kChannel0 = 0x0210U;
+    const u16 kChannel1 = 0x0211U;
+    const u16 kUserA    = 0x023BU; // USERTC0CNTA
+    const u16 kUserB    = 0x023CU; // USERTC0CNTB
+    const u16 kCtrla    = 0x0A00U; // TCA0
+    const u16 kEvctrl   = 0x0A09U;
+    const u16 kCnt      = 0x0A20U;
+    const u16 kPer      = 0x0A26U;
+    constexpr u8 kGen = 0x08U;
+
+    auto* tca = machine.peripherals_of_type<Tca>()[0];
+    REQUIRE(tca != nullptr);
+    auto* evsys = machine.peripherals_of_type<EventSystem>()[0];
+    REQUIRE(evsys != nullptr);
+
+    bus.write_data(kUserA, 0x01U);       // TCA0 CNTA <- channel 0
+    bus.write_data(kUserB, 0x02U);       // TCA0 CNTB <- channel 1
+    bus.write_data(kChannel0, kGen);     // channel 0 <- generator 8
+    bus.write_data(kChannel1, kGen);     // channel 1 <- the same generator
+    bus.write_data(kCtrla, 0x01U);       // ENABLE, DIV1
+    bus.write_data(kPer, 0x00U);         // PER = 0x00FF
+    bus.write_data(kPer + 1U, 0xFFU);
+
+    auto set_cnt = [&](u16 value) {
+        bus.write_data(kCnt, static_cast<u8>(value & 0xFFU));
+        bus.write_data(kCnt + 1U, static_cast<u8>(value >> 8U));
+    };
+
+    // A software event on channel 1 (SWEVENTA bit 1) reaches input B.
+    bus.write_data(kEvctrl, (0x04U << 5) | 0x10U); // EVACTB=RESTART_POSEDGE, CNTBEI
+    set_cnt(0x002AU);
+    bus.write_data(kSweventa, 0x02U);
+    CHECK(bus.read_data(kCnt) == 0x0000U); // restarted from B
+
+    // RESTART_ANYEDGE (EVACTB = 5) restarts on the falling edge too.
+    bus.write_data(kEvctrl, (0x05U << 5) | 0x10U);
+    set_cnt(0x0010U);
+    evsys->trigger_event(kGen, true);   // rising edge
+    CHECK(bus.read_data(kCnt) == 0x0000U);
+    set_cnt(0x0010U);
+    evsys->trigger_event(kGen, false);  // falling edge
+    CHECK(bus.read_data(kCnt) == 0x0000U);
+
+    // EVACTB = 0 is NONE and EVACTB without CNTBEI is disabled: no restart.
+    bus.write_data(kEvctrl, (0x04U << 5));
+    set_cnt(0x0010U);
+    evsys->trigger_event(kGen, true);
+    evsys->trigger_event(kGen, false);
+    CHECK(bus.read_data(kCnt) == 0x0010U);
+    bus.write_data(kEvctrl, (0x00U << 5) | 0x10U); // NONE + CNTBEI
+    set_cnt(0x0010U);
+    evsys->trigger_event(kGen, true);
+    evsys->trigger_event(kGen, false);
+    CHECK(bus.read_data(kCnt) == 0x0010U);
+
+    // EVACTB = UPDOWN: input B low counts up, high counts down.
+    bus.write_data(kEvctrl, (0x03U << 5) | 0x10U);
+    set_cnt(0x0010U);
+    evsys->trigger_event(kGen, false); // low
+    bus.tick_peripherals(4U);
+    CHECK(bus.read_data(kCnt) == 0x0014U);
+    evsys->trigger_event(kGen, true);  // high
+    bus.tick_peripherals(3U);
+    CHECK(bus.read_data(kCnt) == 0x0011U);
+
+    // When both inputs are UPDOWN the levels are OR'ed: input A high is
+    // enough to count down even with input B low.
+    bus.write_data(kEvctrl, (0x03U << 5) | (0x03U << 1) | 0x11U); // both = UPDOWN
+    evsys->trigger_event(kGen, false); // both inputs low -> count up
+    bus.tick_peripherals(2U);
+    CHECK(bus.read_data(kCnt) == 0x0013U);
+    evsys->trigger_event(kGen, true);  // both high -> count down
+    bus.tick_peripherals(3U);
+    CHECK(bus.read_data(kCnt) == 0x0010U);
+
+    // Event inputs are not used in Split mode (21.3.4).
+    bus.write_data(0x0A03U, 0x01U); // TCA0 CTRLD.SPLITM
+    bus.write_data(kEvctrl, (0x04U << 5) | 0x10U);
+    set_cnt(0x0010U);
+    evsys->trigger_event(kGen, true);
+    CHECK(bus.read_data(kCnt) == 0x0010U);
 }
 
 TEST_CASE("Regression: SPI slave shifts on real SCK edges")

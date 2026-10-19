@@ -104,6 +104,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .cmp1_vector_index = 10U,
             .cmp2_vector_index = 11U,
             .hunf_vector_index = 8U,
+            .user_event_address = 0x23bU, .user_event_b_address = 0x23cU,
         },
         {
             .ctrla_address = 0xA40U,
@@ -133,6 +134,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .cmp1_vector_index = 49U,
             .cmp2_vector_index = 50U,
             .hunf_vector_index = 47U,
+            .user_event_address = 0x23dU, .user_event_b_address = 0x23eU,
         }
     }},
 
@@ -150,6 +152,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .cnt_address = 0xB0AU,
             .ccmp_address = 0xB0CU,
             .vector_index = 12U,
+            .user_event_address = 0x23fU, .count_user_event_address = 0x240U,
         },
         {
             .ctrla_address = 0xB10U,
@@ -163,6 +166,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .cnt_address = 0xB1AU,
             .ccmp_address = 0xB1CU,
             .vector_index = 13U,
+            .user_event_address = 0x241U, .count_user_event_address = 0x242U,
         },
         {
             .ctrla_address = 0xB20U,
@@ -176,6 +180,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .cnt_address = 0xB2AU,
             .ccmp_address = 0xB2CU,
             .vector_index = 30U,
+            .user_event_address = 0x243U, .count_user_event_address = 0x244U,
         },
         {
             .ctrla_address = 0xB30U,
@@ -189,6 +194,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .cnt_address = 0xB3AU,
             .ccmp_address = 0xB3CU,
             .vector_index = 41U,
+            .user_event_address = 0x245U, .count_user_event_address = 0x246U,
         },
         {
             .ctrla_address = 0xB40U,
@@ -202,6 +208,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .cnt_address = 0xB4AU,
             .ccmp_address = 0xB4CU,
             .vector_index = 60U,
+            .user_event_address = 0x247U, .count_user_event_address = 0x248U,
         }
     }},
 
@@ -261,7 +268,15 @@ inline constexpr DeviceDescriptor avr128da64s {
     }},
 
     .evsys = {
-    },
+            .strobe_address = 0x200U,
+            .channels_address = 0x210U,
+            .users_address = 0x220U,
+            .channel_count = 10U,
+            .user_count = 43U,
+            .evout_user_start = 14U,
+            .evout_user_count = 7U,
+        },
+
 
     .ccl = {
         .ctrla_address = 0x1C0U,
@@ -273,6 +288,7 @@ inline constexpr DeviceDescriptor avr128da64s {
             .ctrlb_address = 0x1C9U,
             .ctrlc_address = 0x1CAU,
             .truth_address = 0x1CBU,
+            .user_event_a_address = 0x220U, .user_event_b_address = 0x221U,
             .generator_id = 0U,
             .output_pin_address = 0x404U,
             .output_bit_index = 3U,

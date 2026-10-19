@@ -52,7 +52,8 @@ void Tca::reset() noexcept {
     norm_ = { .tcnt = 0x0000, .per = 0xFFFF, .cmp0 = 0, .cmp1 = 0, .cmp2 = 0 };
     buf_ = { .per = 0xFFFF, .cmp0 = 0, .cmp1 = 0, .cmp2 = 0, .per_valid = false, .cmp0_valid = false, .cmp1_valid = false, .cmp2_valid = false };
     counting_up_ = true;
-    last_event_level_ = false;
+    last_event_level_a_ = false;
+    last_event_level_b_ = false;
     prescaler_counter_ = 0;
     prescaler_limit_ = 1;
     wo_states_.fill(false);
@@ -68,14 +69,35 @@ std::span<const AddressRange> Tca::mapped_ranges() const noexcept {
 
 void Tca::set_event_system(EventSystem* evsys) noexcept {
     evsys_ = evsys;
-    if (evsys_ && desc_.user_event_address != 0) {
-        u16 base = evsys_->users_base();
-        if (desc_.user_event_address >= base) {
-            u8 idx = static_cast<u8>(desc_.user_event_address - base);
-            evsys_->register_user_callback(idx, [this](bool level) {
-                this->on_event(level);
-            });
-        }
+    if (evsys_ == nullptr) return;
+    const u16 base = evsys_->users_base();
+    if (desc_.user_event_address >= base && desc_.user_event_address != 0U) {
+        const u8 idx = static_cast<u8>(desc_.user_event_address - base);
+        evsys_->register_user_callback(idx, [this](bool level) {
+            this->on_event(level);
+        });
+    }
+    // AVR DA/DB drive a second event user (CNTB) from its own USER register.
+    if (desc_.user_event_b_address >= base && desc_.user_event_b_address != 0U) {
+        const u8 idx = static_cast<u8>(desc_.user_event_b_address - base);
+        evsys_->register_user_callback(idx, [this](bool level) {
+            this->on_event_b(level);
+        });
+    }
+}
+
+void Tca::update_direction_from_events() noexcept {
+    // EVACTA == UPDOWN and/or EVACTB == UPDOWN. When both inputs drive the
+    // direction the event levels are OR'ed and the counter counts up only
+    // while both are low (DS40002233A 21.3.4).
+    const bool a_dir = evact_a() == 3U && (evctrl_ & 0x01U) != 0U;
+    const bool b_dir = evact_b() == 3U && (evctrl_ & 0x10U) != 0U;
+    if (a_dir && b_dir) {
+        counting_up_ = !(last_event_level_a_ || last_event_level_b_);
+    } else if (a_dir) {
+        counting_up_ = !last_event_level_a_;
+    } else if (b_dir) {
+        counting_up_ = !last_event_level_b_;
     }
 }
 
@@ -83,10 +105,15 @@ void Tca::on_event(bool level) noexcept {
     // EVCTRL decoding is shared by ATmega4809 (EVACT[2:0] + CNTEI) and
     // AVR DA/DB (EVACTA[2:0] + CNTAEI); both number the actions the same
     // way: 0 POSEDGE, 1 ANYEDGE, 2 HIGHLVL, 3 UPDOWN, 4-6 RESTART_*.
+    const bool rising = level && !last_event_level_a_;
+    const bool falling = !level && last_event_level_a_;
+    last_event_level_a_ = level;
+
+    // "Event inputs are not used in Split mode" (DS40002233A 21.3.4).
+    if (is_split_mode()) return;
+
     const u8 action = evact_a();
     const bool cnte = (evctrl_ & 0x01U) != 0U;
-    const bool rising = level && !last_event_level_;
-    const bool falling = !level && last_event_level_;
 
     if (is_enabled() && cnte) {
         switch (action) {
@@ -98,8 +125,8 @@ void Tca::on_event(bool level) noexcept {
             break;
         case 2: // CNT_HIGHLVL: counting is gated in tick()
             break;
-        case 3: // UPDOWN: count direction follows the event level
-            counting_up_ = !level;
+        case 3: // UPDOWN: count direction follows the event level(s)
+            update_direction_from_events();
             break;
         case 4: // RESTART_POSEDGE
         case 6: // RESTART_HIGHLVL
@@ -112,8 +139,35 @@ void Tca::on_event(bool level) noexcept {
             break;
         }
     }
-    last_event_level_ = level;
     if (is_enabled() && cnte) update_interrupt_state();
+}
+
+void Tca::on_event_b(bool level) noexcept {
+    // AVR DA/DB input B: EVACTB[2:0] (bits 7:5) + CNTBEI (bit 4). Only
+    // UPDOWN (0x3) and the restart actions (0x4-0x6) exist for input B;
+    // 0x0 is NONE and 0x1/0x2 are reserved (DS40002233A 21.5.4).
+    const bool rising = level && !last_event_level_b_;
+    const bool falling = !level && last_event_level_b_;
+    last_event_level_b_ = level;
+
+    if (is_split_mode()) return;
+    if (!is_enabled() || (evctrl_ & 0x10U) == 0U) return;
+
+    switch (evact_b()) {
+    case 3: // UPDOWN: the event level controls the count direction
+        update_direction_from_events();
+        break;
+    case 4: // RESTART_POSEDGE
+    case 6: // RESTART_HIGHLVL
+        if (rising) handle_cmd(2);
+        break;
+    case 5: // RESTART_ANYEDGE
+        if (rising || falling) handle_cmd(2);
+        break;
+    default:
+        break;
+    }
+    update_interrupt_state();
 }
 
 u8 Tca::read(u16 address) noexcept {
@@ -327,11 +381,14 @@ void Tca::tick(u64 elapsed_cycles) noexcept {
     if (!is_enabled()) return;
     
     // CNT_POSEDGE / CNT_ANYEDGE: the events ARE the clock, driven from
-    // on_event(); the prescaler path must not run.
+    // on_event(); the prescaler path must not run. In Split mode the event
+    // inputs are not used at all, so only ignore this in Normal mode.
     const u8 action = evact_a();
-    if ((evctrl_ & 0x01U) != 0U && (action == 0U || action == 1U)) return;
+    if (!is_split_mode() && (evctrl_ & 0x01U) != 0U &&
+        (action == 0U || action == 1U)) return;
     // CNT_HIGHLVL: count prescaled cycles only while the event is high.
-    if ((evctrl_ & 0x01U) != 0U && action == 2U && !last_event_level_) return;
+    if (!is_split_mode() && (evctrl_ & 0x01U) != 0U && action == 2U &&
+        !last_event_level_a_) return;
     
     bool ticked = false;
     for (u64 i = 0; i < elapsed_cycles; ++i) {
@@ -524,9 +581,12 @@ void Tca::perform_tick() {
             }
         }
     } else { // Normal / Single Slope
-        // EVACTA = UPDOWN: the event level selects the count direction,
-        // counting down while the event is high (datasheet 20.5.9/21.5.9).
-        const bool updown = (evctrl_ & 0x01U) != 0U && evact_a() == 3U;
+        // EVACTA/EVACTB = UPDOWN: the event level(s) select the count
+        // direction, counting down while an enabled event input is high
+        // (DS40002036 20.5.9, DS40002233A 21.5.9).
+        const bool updown = !is_split_mode() &&
+                            (((evctrl_ & 0x01U) != 0U && evact_a() == 3U) ||
+                             ((evctrl_ & 0x10U) != 0U && evact_b() == 3U));
         if (updown && !counting_up_) {
             if (norm_.tcnt == 0U) {
                 norm_.tcnt = norm_.per;

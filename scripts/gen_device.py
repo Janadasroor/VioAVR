@@ -1075,10 +1075,16 @@ def generate_header(data, header_path):
                 if key in k.upper(): return v['index']
             return 0
             
+        # AVR DA/DB give TCA two event users (CNTA and CNTB); the classic
+        # ATmega4809 TCA has a single one named after the peripheral.
         user_addr = 0
+        user_b_addr = 0
         if groups['EVSYS']:
-            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            evsys = groups['EVSYS'][0][1]
+            user_reg = (get_reg(evsys, f'USER{p_name}CNTA') or get_reg(evsys, f'USER{p_name}'))
             if user_reg: user_addr = user_reg['offset']
+            user_b_reg = get_reg(evsys, f'USER{p_name}CNTB')
+            if user_b_reg: user_b_addr = user_b_reg['offset']
 
         def get_gen(sig):
             return event_generators.get(f"{p_name}_{sig}", 0)
@@ -1095,7 +1101,7 @@ def generate_header(data, header_path):
             .cmp1_vector_index = {get_int('CMP1')}U, .cmp2_vector_index = {get_int('CMP2')}U,
             .hunf_vector_index = {get_int('HUNF')}U, .lcmp0_vector_index = {get_int('LCMP0')}U,
             .lcmp1_vector_index = {get_int('LCMP1')}U, .lcmp2_vector_index = {get_int('LCMP2')}U,
-            .user_event_address = {hx(user_addr)},
+            .user_event_address = {hx(user_addr)}, .user_event_b_address = {hx(user_b_addr)},
             .ovf_generator_id = {get_gen('OVF_LUNF') or get_gen('OVF')}U,
             .cmp0_generator_id = {get_gen('CMP0')}U, .cmp1_generator_id = {get_gen('CMP1')}U, .cmp2_generator_id = {get_gen('CMP2')}U
         }}"""
@@ -1113,17 +1119,23 @@ def generate_header(data, header_path):
                     return item['index']
             return 0
             
+        # AVR DA/DB give TCB two event users (CAPT and COUNT); the classic
+        # ATmega4809 TCB has a single one named after the peripheral.
         user_addr = 0
+        count_addr = 0
         if groups['EVSYS']:
-            user_reg = get_reg(groups['EVSYS'][0][1], f'USER{p_name}')
+            evsys = groups['EVSYS'][0][1]
+            user_reg = (get_reg(evsys, f'USER{p_name}CAPT') or get_reg(evsys, f'USER{p_name}'))
             if user_reg: user_addr = user_reg['offset']
+            count_reg = get_reg(evsys, f'USER{p_name}COUNT')
+            if count_reg: count_addr = count_reg['offset']
 
         return f"""{{
             .ctrla_address = {hx(r('CTRLA')['offset'])}, .ctrlb_address = {hx(r('CTRLB')['offset'])}, .evctrl_address = {hx(r('EVCTRL')['offset'])},
             .intctrl_address = {hx(r('INTCTRL')['offset'])}, .intflags_address = {hx(r('INTFLAGS')['offset'])}, .status_address = {hx(r('STATUS')['offset'])},
             .dbgctrl_address = {hx(r('DBGCTRL')['offset'])}, .temp_address = {hx(r('TEMP')['offset'])}, .cnt_address = {hx(r('CNT')['offset'])},
             .ccmp_address = {hx(r('CCMP')['offset'])}, .vector_index = {get_int('CAPT') or get_int('INT')}U,
-            .user_event_address = {hx(user_addr)},
+            .user_event_address = {hx(user_addr)}, .count_user_event_address = {hx(count_addr)},
             .capt_generator_id = {event_generators.get(f"{p_name}_CAPT", 0)}U
         }}"""
 

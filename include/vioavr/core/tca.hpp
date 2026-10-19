@@ -122,7 +122,8 @@ private:
 
     // Buffers and Status
     bool counting_up_ {true};
-    bool last_event_level_ {false};
+    bool last_event_level_a_ {false};
+    bool last_event_level_b_ {false};
 
     // Internal logic
     void handle_matches();
@@ -132,14 +133,19 @@ private:
     void handle_cmd(u8 cmd) noexcept;
     void handle_split_cmd(u8 cmd) noexcept;
     void on_event(bool level) noexcept;
-    
+    void on_event_b(bool level) noexcept;
+    void update_direction_from_events() noexcept;
+
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     [[nodiscard]] bool is_split_mode() const noexcept { return ctrld_ & 0x01; }
     // EVACTA[2:0] (bits 3:1); the same numbering on ATmega4809 and DA/DB.
     [[nodiscard]] u8 evact_a() const noexcept { return static_cast<u8>((evctrl_ >> 1) & 0x07U); }
+    // EVACTB[2:0] (bits 7:5), AVR DA/DB only.
+    [[nodiscard]] u8 evact_b() const noexcept { return static_cast<u8>((evctrl_ >> 5) & 0x07U); }
 public:
     // Event input stimulus, used by the EVSYS wiring and by tests.
     void on_event_for_test(bool level) noexcept { on_event(level); }
+    void on_event_b_for_test(bool level) noexcept { on_event_b(level); }
 private:
     void update_prescaler() noexcept;
     void update_active_state() noexcept;
