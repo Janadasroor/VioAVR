@@ -7,3 +7,5 @@ target_link_libraries(vioavr_cli
 
 target_compile_features(vioavr_cli PRIVATE cxx_std_20)
 enable_lto(vioavr_cli)
+
+vioavr_static_windows_runtime(vioavr_cli)

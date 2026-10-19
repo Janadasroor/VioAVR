@@ -191,6 +191,17 @@ if(MINGW)
     message(STATUS "MinGW: static runtime linkage enabled (self-contained exe)")
 endif()
 
+# The executables that are shipped to Windows users must not need any MinGW
+# runtime DLL. -static-libgcc/-static-libstdc++ do not cover libwinpthread,
+# which every use of std::thread pulls in, so those targets link the whole
+# runtime statically. The Qt oscilloscope is left dynamic: a static Qt build
+# does not work, and its DLLs are shipped next to the executable instead.
+function(vioavr_static_windows_runtime target)
+    if(MINGW)
+        target_link_options(${target} PRIVATE -static)
+    endif()
+endfunction()
+
 # ── Build-time locations, injected into targets that need them ────
 # Source/build dirs and the ngspice binary used by the co-simulation
 # tests are passed down as compile definitions so no source file has to
@@ -293,6 +304,7 @@ endif()
 if(HAVE_SHM_OPEN)
     add_executable(vioavr-bridge-daemon apps/vioavr-bridge-daemon/main.cpp)
     target_link_libraries(vioavr-bridge-daemon PRIVATE VioAVR::core)
+    vioavr_static_windows_runtime(vioavr-bridge-daemon)
     enable_lto(vioavr-bridge-daemon)
 else()
     message(STATUS "vioavr-bridge-daemon: disabled (shm_open not available on this platform)")

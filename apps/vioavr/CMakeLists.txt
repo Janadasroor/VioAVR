@@ -8,3 +8,5 @@ target_link_libraries(vioavr
 
 target_compile_features(vioavr PRIVATE cxx_std_20)
 enable_lto(vioavr)
+
+vioavr_static_windows_runtime(vioavr)

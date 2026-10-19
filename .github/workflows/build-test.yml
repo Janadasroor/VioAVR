@@ -207,20 +207,31 @@ jobs:
         ctest --output-on-failure -j4 \
           --exclude-regex "vioavr_viospice_group|vioavr_bridge_shm_test"
 
-    # Verify the exe is self-contained (no external MinGW DLL required at runtime)
-    - name: Verify exe is self-contained
-      run: |
-        echo "Checking that vioavr.exe has no missing MinGW runtime dependencies..."
-        objdump -p build/apps/vioavr/vioavr.exe | grep "DLL Name" | \
-          grep -vEi "KERNEL32|msvcrt|ntdll|USER32|ADVAPI32|SHELL32|ole32|WS2_32|BCRYPT" || \
-          echo "All non-system DLLs appear statically linked."
-
-    - name: Install & Package SDK
+    - name: Install SDK
       run: |
         VERSION=${{ github.ref_name }}
         VERSION=$(echo "$VERSION" | tr '/' '-')
         cmake --install build --prefix vioavr-windows-x64
         mv vioavr-windows-x64 vioavr-$VERSION-windows-x64
+
+    # The released zip used to miss libwinpthread-1.dll, so vioavr.exe
+    # failed to start with 0xC0000135. Every shipped executable now has to
+    # be self-contained: the CLI and the daemon link the MinGW runtime
+    # statically, and anything else that still needs a DLL gets it copied
+    # next to the executable. A missing dependency fails the build here.
+    - name: Bundle runtime DLLs and verify the package
+      run: |
+        bash tools/package_windows.sh "vioavr-${{ github.ref_name }}-windows-x64" /mingw64/bin
+        echo "--- dependency report ---"
+        for exe in $(find "vioavr-${{ github.ref_name }}-windows-x64" -name '*.exe'); do
+          echo "== $exe"
+          objdump -p "$exe" | grep "DLL Name" || true
+        done
+
+    - name: Package SDK
+      run: |
+        VERSION=${{ github.ref_name }}
+        VERSION=$(echo "$VERSION" | tr '/' '-')
         zip -r vioavr-$VERSION-windows-x64.zip vioavr-$VERSION-windows-x64/
 
     - name: Upload Artifact
