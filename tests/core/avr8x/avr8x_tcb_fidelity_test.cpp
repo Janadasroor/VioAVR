@@ -82,21 +82,22 @@ TEST_CASE("AVR8X TCB - Cascaded Mode Fidelity") {
     bus.write_data(0xA27, 0); // High byte
     bus.write_data(0xA00, 0x01); // ENABLE
 
-    // 2. Configure TCB0 for Cascaded Mode (CLKSEL=7 = CLK_TCA)
+    // 2. Configure TCB0 for Cascaded Mode (CLKSEL=2 = CLK_TCA from TCA0).
+    // CLKTCA is TCA0's clock (DIV1 here), so TCB counts 1:1 with TCA0.
     bus.write_data(0xA8C, 0xFF); // CCMPL
     bus.write_data(0xA8D, 0xFF); // CCMPH
-    bus.write_data(0xA80, (0x07 << 1) | 0x01);
+    bus.write_data(0xA80, (0x02 << 1) | 0x01);
 
     // 3. Tick 5 cycles
     machine.run(5);
     CHECK(bus.read_data(0xA20) == 5);
-    CHECK(bus.read_data(0xA8A) == 0);
+    CHECK(bus.read_data(0xA8A) == 5);
 
     // 4. Tick 5 more cycles (Total 10)
     machine.run(5);
-    // TCA just reached 0 (overflowed on 10th cycle)
+    // TCA just reached 0 (overflowed on 10th cycle); TCB kept counting.
     CHECK(bus.read_data(0xA20) == 0);
-    CHECK(bus.read_data(0xA8A) == 1);
+    CHECK(bus.read_data(0xA8A) == 10);
 }
 TEST_CASE("AVR8X TCB - Single Shot Mode 6") {
     Tcb tcb("TCB0", devices::atmega4809.timers_tcb[0]);
@@ -130,8 +131,8 @@ TEST_CASE("AVR8X TCB - 8-bit PWM (PWM8) Fidelity") {
     bus.load_flash(program);
     machine.cpu().reset();
 
-    // Configure TCB0 for PWM8 (Mode 1)
-    bus.write_data(0xA81, 0x01); // PWM8
+    // Configure TCB0 for PWM8 (Mode 7 per datasheet CNTMODE)
+    bus.write_data(0xA81, 0x07); // PWM8
     bus.write_data(0xA8C, 10);   // CCMPL = 10
     bus.write_data(0xA80, 0x01); // ENABLE
 

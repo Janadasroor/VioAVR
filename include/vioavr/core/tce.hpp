@@ -35,6 +35,12 @@ public:
 
     [[nodiscard]] ClockDomain clock_domain() const noexcept override { return ClockDomain::io; }
 
+    // CLKTCA divisor for a cascaded TCB (TCB CLKSEL = TCE0), or 0 when this
+    // timer is stopped (the source clock is then frozen too).
+    [[nodiscard]] u64 cascade_divisor() const noexcept {
+        return is_enabled() ? prescaler_limit_ : 0U;
+    }
+
 private:
     [[nodiscard]] u8 reg_offset(u16 address) const noexcept;
     [[nodiscard]] bool is_enabled() const noexcept;

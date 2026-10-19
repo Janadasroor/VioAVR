@@ -64,11 +64,11 @@ TEST_CASE("AVR8X CCL Sequential Logic Fidelity") {
     bus.write_data(TCA0_BASE + 0x29, 0); bus.write_data(TCA0_BASE + 0x28, 100);
 
     bus.write_data(TCB0_BASE, 0x01);
-    bus.write_data(TCB0_BASE + 0x01, 0x11);
+    bus.write_data(TCB0_BASE + 0x01, 0x17); // CCMPEN | CNTMODE=7 (PWM8)
     bus.write_data(TCB0_BASE + 0x0D, 5); bus.write_data(TCB0_BASE + 0x0C, 10);
 
     bus.write_data(TCB2_BASE, 0x01);
-    bus.write_data(TCB2_BASE + 0x01, 0x11);
+    bus.write_data(TCB2_BASE + 0x01, 0x17); // CCMPEN | CNTMODE=7 (PWM8)
     bus.write_data(TCB2_BASE + 0x0D, 5); bus.write_data(TCB2_BASE + 0x0C, 10);
 
     auto ccls = machine.peripherals_of_type<Ccl>();

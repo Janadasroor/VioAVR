@@ -2,9 +2,37 @@
 #include "vioavr/core/port_mux.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/evsys.hpp"
+#include "vioavr/core/tca.hpp"
+#include "vioavr/core/tce.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
+
+u8 Tcb::clksel_width() const noexcept {
+    if (bus_ == nullptr) return 2U; // standalone unit tests use megaAVR-0 parts
+    const NvmFamily family = nvm_family_for_name(bus_->device().name);
+    return (family == NvmFamily::Dx || family == NvmFamily::Ex) ? 3U : 2U;
+}
+
+u8 Tcb::effective_clksel() const noexcept {
+    const u8 mask = (clksel_width() == 3U) ? 0x07U : 0x03U;
+    return (ctrla_ >> 1) & mask;
+}
+
+u32 Tcb::sibling_tca_divisor(const char* name) const noexcept {
+    if (bus_ == nullptr || name == nullptr) return 0U;
+    IoPeripheral* p = bus_->get_peripheral_by_name(name);
+    if (p == nullptr) return 0U;
+    if (auto* tca = dynamic_cast<Tca*>(p)) {
+        const u64 d = tca->cascade_divisor();
+        return (d > 0xFFFFFFFFULL) ? 0U : static_cast<u32>(d);
+    }
+    if (auto* tce = dynamic_cast<Tce*>(p)) {
+        const u64 d = tce->cascade_divisor();
+        return (d > 0xFFFFFFFFULL) ? 0U : static_cast<u32>(d);
+    }
+    return 0U;
+}
 
 Tcb::Tcb(std::string name, const TcbDescriptor& desc) 
     : name_(std::move(name)), desc_(desc) {
@@ -45,7 +73,6 @@ void Tcb::reset() noexcept {
     temp_ = 0;
     cnt_ = 0;
     ccmp_ = 0;
-    async_cycle_accum_ = 0;
     prescaler_counter_ = 0;
     update_interrupt_state();
     update_active_state();
@@ -116,52 +143,33 @@ void Tcb::write(u16 address, u8 value) noexcept {
 void Tcb::tick(u64 elapsed_cycles) noexcept {
     if (!is_enabled()) return;
 
-    bool async = (ctrlb_ >> 6) & 0x01;
-    u8 clksel = get_clksel();
+    // NOTE: the ASYNC bit (CTRLB bit 6) only selects asynchronous output
+    // updates in Single-Shot mode; it is NOT a clock source, so it plays no
+    // role here. All counting derives from CLKSEL below.
+    const u8 width = clksel_width();
+    const u8 clksel = effective_clksel();
     bool ticked = false;
 
-    if (async) {
-        // ASYNC mode: clocked from RTC (32.768 kHz) instead of CLK_PER.
-        // Derive the CPU-to-RTC ratio from the device frequency.
-        u32 clk_div = (clksel == 0) ? 1 : (clksel == 1) ? 2 : (clksel == 2) ? 4 : 1;
-        u64 cpu_hz = 16000000U;
-        if (bus_) cpu_hz = bus_->device().cpu_frequency_hz;
-        u64 cycles_per_tick = (cpu_hz * clk_div) / 32768U;
-        if (cycles_per_tick == 0U) cycles_per_tick = 1U;
-        async_cycle_accum_ += elapsed_cycles;
-        u64 rtc_ticks = async_cycle_accum_ / cycles_per_tick;
-        async_cycle_accum_ -= rtc_ticks * cycles_per_tick;
-        for (u64 i = 0; i < rtc_ticks; ++i) {
-            perform_tick(true);
-            ticked = true;
-        }
-    } else if (clksel == 0) { // CLK_PER
-        for (u64 i = 0; i < elapsed_cycles; ++i) {
-            perform_tick(true);
-        }
-        ticked = true;
-    } else if (clksel == 1) { // CLK_PER / 2
-        for (u64 i = 0; i < elapsed_cycles; ++i) {
-            bool fire = false;
-            if (++prescaler_counter_ >= 2) {
-                prescaler_counter_ = 0;
-                fire = true;
-            }
-            perform_tick(fire);
-            if (fire) ticked = true;
-        }
-    } else if (clksel == 2) { // CLK_PER / 4
-        for (u64 i = 0; i < elapsed_cycles; ++i) {
-            bool fire = false;
-            if (++prescaler_counter_ >= 4) {
-                prescaler_counter_ = 0;
-                fire = true;
-            }
-            perform_tick(fire);
-            if (fire) ticked = true;
-        }
-    } else if (clksel >= 3 && clksel <= 6) { // CLK_PER /8/16/32/64
-        u8 divisor = 1U << clksel; // 8, 16, 32, 64
+    // Resolve the CLK_PER-derived divisor. Zero means "no clock here":
+    // EVENT (handled in on_event), reserved selections, or a stopped or
+    // missing sibling TCA/TCE all freeze the counter.
+    u32 divisor = 0U;
+    if (clksel == 0) {
+        divisor = 1U; // CLK_PER
+    } else if (clksel == 1) {
+        divisor = 2U; // CLK_PER / 2
+    } else if (clksel == 2) {
+        // CLKTCA from TCA0 (TCE0 on AVR-Ex).
+        const bool is_ex = bus_ != nullptr
+            && nvm_family_for_name(bus_->device().name) == NvmFamily::Ex;
+        divisor = sibling_tca_divisor(is_ex ? "TCE0" : "TCA0");
+    } else if (clksel == 3 && width == 3U && bus_ != nullptr
+               && nvm_family_for_name(bus_->device().name) == NvmFamily::Dx) {
+        // AVR-Dx only: CLKTCA from TCA1.
+        divisor = sibling_tca_divisor("TCA1");
+    }
+
+    if (divisor != 0U) {
         for (u64 i = 0; i < elapsed_cycles; ++i) {
             bool fire = false;
             if (++prescaler_counter_ >= divisor) {
@@ -171,8 +179,6 @@ void Tcb::tick(u64 elapsed_cycles) noexcept {
             perform_tick(fire);
             if (fire) ticked = true;
         }
-    } else { // clksel == 7: Event system — handled via event callback
-        // Do not tick here; event callbacks trigger perform_tick
     }
 
     if (ticked) {
@@ -191,8 +197,11 @@ void Tcb::handle_matches() {
 void Tcb::perform_tick(bool clock_event) {
     if (!clock_event) return;
 
+    // CNTMODE encoding (megaAVR-0 and AVR-Dx/Ex agree): 0=INT periodic,
+    // 1=TIMEOUT check, 2=CAPT capture, 3=FRQ, 4=PW, 5=FRQPW, 6=SINGLE
+    // single-shot, 7=PWM8 8-bit PWM.
     u8 mode = get_mode();
-    
+
     // Periodic Interrupt / PWM
     if (mode == 0) { // Periodic Interrupt
         if (cnt_ >= ccmp_) {
@@ -201,8 +210,16 @@ void Tcb::perform_tick(bool clock_event) {
         } else {
             cnt_++;
         }
-    } else if (mode == 1) { // 8-bit PWM
-        // Low byte counts to CCMP-L, High byte is Compare Value
+    } else if (mode == 1) { // Time-Out Check: counts only between edges
+        if (status_ & 0x01) { // RUN: started by a start edge in on_event
+            cnt_++;
+            if (cnt_ >= ccmp_) {
+                intflags_ |= 0x01; // CAPT: TOP reached before the stop edge
+                status_ &= ~0x01U; // stop; CNT holds TOP until restarted
+            }
+        }
+    } else if (mode == 7) { // 8-bit PWM
+        // TOP = CCMPL (period CCMPL+1); output clears at CCMPH (duty).
         u8 per = static_cast<u8>(ccmp_ & 0xFFU);
         u8 cnt_l = static_cast<u8>(cnt_ & 0xFFU);
         if (cnt_l >= per) {
@@ -244,29 +261,45 @@ void Tcb::set_event_system(EventSystem* evsys) noexcept {
             evsys_->register_user_callback(user_index, [this](bool level) { on_event(level); });
         }
         
-        // 2. Cascaded Clock (Listen to TCA0 OVF - Generator 128)
-        // Note: Generator ID 128 is a common constant for TCA0.OVF in AVR8X.
-        // We should ideally use desc_.tca_ovf_generator_id if added to descriptor.
-        // For now, assume 128 as per most ATDFs for TCA0.
-        evsys_->register_generator_callback(128, [this](bool) {
-            if (is_enabled() && get_clksel() == 7) {
-                perform_tick(true);
-                update_interrupt_state();
-            }
-        });
+        // NOTE: no generator callback here. A cascaded TCB (CLKSEL = TCA0/TCE0/
+    // TCA1) derives its rate from the sibling timer in tick(); an
+    // EVENT-clocked TCB (CLKSEL=7) advances in on_event() via the EVSYS user
+    // channel above.
     }
 }
 
 void Tcb::on_event(bool level) noexcept {
     if (!is_enabled()) return;
-    if (!(evctrl_ & 0x01)) return; // CAPTEI
- 
+
     u8 mode = get_mode();
     bool edge_select = (evctrl_ & 0x10) != 0; // bit 4: 0=Rising, 1=Falling
     bool match_edge = (level != edge_select);
+
+    // EVENT clock select (CLKSEL=7, 3-bit families only): the event input is
+    // the counter clock, so it ticks regardless of CAPTEI. Capture below
+    // still applies when enabled.
+    if (clksel_width() == 3U && effective_clksel() == 7U && match_edge) {
+        perform_tick(true);
+        update_interrupt_state();
+    }
+
+    if (!(evctrl_ & 0x01)) return; // CAPTEI
+
     bool updated = false;
- 
-    if (mode == 2 || mode == 0 || mode == 1) { // Input Capture or Periodic/TEP
+
+    if (mode == 1) { // Time-Out Check: matching edges alternate start/stop
+        if (match_edge) {
+            if (status_ & 0x01) {
+                status_ &= ~0x01U; // stop edge: freeze, CNT holds elapsed
+            } else {
+                cnt_ = 0U; // start edge: restart from BOTTOM
+                status_ |= 0x01U;
+            }
+        }
+        return;
+    }
+
+    if (mode == 2 || mode == 0) { // Input Capture or Periodic/TEP
         if (match_edge) {
             ccmp_ = cnt_;
             intflags_ |= 0x01; // CAPT
@@ -317,8 +350,8 @@ bool Tcb::get_wo_level() const noexcept {
     if (!is_enabled()) return false;
     u8 mode = get_mode();
     bool wo = false;
-    if (mode == 0) wo = cnt_ < ccmp_; 
-    else if (mode == 1) wo = (cnt_ & 0xFF) < (ccmp_ >> 8); // CCMPH is duty
+    if (mode == 0) wo = cnt_ < ccmp_;
+    else if (mode == 7) wo = (cnt_ & 0xFF) < (ccmp_ >> 8); // CCMPH is duty
     else if (mode == 2) wo = cnt_ < ccmp_;
     
     return wo;

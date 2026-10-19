@@ -133,9 +133,9 @@ TEST_CASE("AVR8X Timer Cascade: TCA0 OVF -> TCB0 Clock") {
     bus.write_data(0xA26, 0x09);
     bus.write_data(0xA27, 0x00);
     
-    // 2. Configure TCB0
-    // ENABLE=1, CLKSEL=CLK_TCA (Cascaded from TCA, Value 7 in bits 3:1 => 0x0E)
-    bus.write_data(0xA80, 0x0F);
+// 2. Configure TCB0
+    // ENABLE=1, CLKSEL[1:0]=10 = CLK_TCA (cascaded from TCA0 => 0x05)
+    bus.write_data(0xA80, 0x05);
     // MODE=Periodic Interrupt (0)
     bus.write_data(0xA81, 0x00);
     // CCMP = 0xFFFF (Don't reset early)
@@ -143,12 +143,12 @@ TEST_CASE("AVR8X Timer Cascade: TCA0 OVF -> TCB0 Clock") {
     bus.write_data(0xA8D, 0xFF);
     
     // 3. Tick 50 cycles
-    // TCA0 should overflow 5 times.
-    // TCB0 should reach 5.
+    // TCA0 (DIV1) overflows 5 times; TCB0 is clocked by CLK_TCA (1:1 with
+    // CLK_PER), so its counter advances once per cycle.
     bus.tick_peripherals(50);
-    
+
     u16 tcb0_cnt = bus.read_data(0xA8A) | (bus.read_data(0xA8B) << 8);
     printf("Timer Cascade Test: TCB0 CNT=%d\n", tcb0_cnt);
-    
-    CHECK(tcb0_cnt == 5);
+
+    CHECK(tcb0_cnt == 50);
 }

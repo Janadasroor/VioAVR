@@ -69,10 +69,17 @@ private:
     void perform_tick(bool clock_event = true);
     bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     u8 get_mode() const noexcept { return ctrlb_ & 0x07; }
-    u8 get_clksel() const noexcept { return (ctrla_ >> 1) & 0x07; }
+    // CLKSEL width follows the device: megaAVR-0/tiny have CLKSEL[1:0]
+    // (0=DIV1, 1=DIV2, 2=CLKTCA, 3=reserved; bit 3 is SYNCUPD), AVR-Dx/Ex
+    // have CLKSEL[2:0] (0=DIV1, 1=DIV2, 2=TCA0/TCE0, 3=TCA1/reserved,
+    // 4-6=reserved, 7=EVENT).
+    u8 clksel_width() const noexcept;
+    u8 effective_clksel() const noexcept;
+    // Prescaler divisor of a sibling TCA/TCE clock source ("TCA0", "TCA1",
+    // "TCE0"), or 0 when the source is missing or stopped.
+    u32 sibling_tca_divisor(const char* name) const noexcept;
 
-    u8 prescaler_counter_ {0};
-    u64 async_cycle_accum_ {0}; // For ASYNC mode RTC clock conversion
+    u32 prescaler_counter_ {0};
     void update_interrupt_state() noexcept;
     void update_active_state() noexcept;
 };
