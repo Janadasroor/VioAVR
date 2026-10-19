@@ -169,17 +169,17 @@ jobs:
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
-        msystem: MINGW64
-        # The package database has to be refreshed: with a stale one the
-        # avr-gcc packages cannot be found any more and the whole Windows
-        # job fails before it builds anything.
+        # The AVR toolchain is only published for the UCRT64 (and CLANG64)
+        # variants; the old mingw-w64-x86_64-avr-* packages no longer exist.
+        msystem: UCRT64
+        # Refresh the package database so the package set is current.
         update: true
         install: >-
-          mingw-w64-x86_64-toolchain
-          mingw-w64-x86_64-cmake
-          mingw-w64-x86_64-ninja
-          mingw-w64-x86_64-avr-gcc
-          mingw-w64-x86_64-avr-libc
+          mingw-w64-ucrt-x86_64-toolchain
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-ninja
+          mingw-w64-ucrt-x86_64-avr-gcc
+          mingw-w64-ucrt-x86_64-avr-libc
           zip
 
     - name: Cache Microchip DFP packs
@@ -224,7 +224,7 @@ jobs:
     # next to the executable. A missing dependency fails the build here.
     - name: Bundle runtime DLLs and verify the package
       run: |
-        bash tools/package_windows.sh "vioavr-${{ github.ref_name }}-windows-x64" /mingw64/bin
+        bash tools/package_windows.sh "vioavr-${{ github.ref_name }}-windows-x64" /ucrt64/bin
         echo "--- dependency report ---"
         for exe in $(find "vioavr-${{ github.ref_name }}-windows-x64" -name '*.exe'); do
           echo "== $exe"
