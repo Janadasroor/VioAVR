@@ -76,6 +76,7 @@ tests/programs/_tracer
 TODO.md
 *_TODO.md
 AGENTS.md
+AGENT.md
 
 *_output_*.txt
 
@@ -127,6 +128,8 @@ gmon.out
 # Scratch demo build artifacts (not source)
 scratch/**/*.elf
 scratch/**/*.o
+# written by the co-simulation scripts at run time
+scratch/ngspice_device_tests/.spiceinit
 scratch/**/sim_matrix.log
 scratch/**/ngspice.log
 scratch/**/*_sim
