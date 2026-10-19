@@ -546,6 +546,9 @@ TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
     auto* eusart = machine.peripherals_of_type<Eusart>()[0];
     REQUIRE(eusart != nullptr);
 
+    // EUCSRA resets to 8-bit transmit and 8-bit receive character size.
+    CHECK(bus.read_data(0xC8U) == 0x33U);
+
     const u16 kEucsrb = 0xC9U;
     const u16 kEucsrc = 0xCAU;
     const u16 kEudr = 0xCEU;
@@ -553,8 +556,7 @@ TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
 
     bus.write_data(kEucsrb, 0x10U); // EUSART enable
     bus.write_data(0xCCU, 0x00U);   // MUBRR = 0 (16 cycles per bit)
-    bus.write_data(0xC8U, 0x03U);   // EUCSRA: URxS = 3 (8 data bits)
-    bus.write_data(kEucsrc, 0x14U); // F1617 set (16/17-bit frames)
+    bus.write_data(kEucsrc, 0x04U); // F1617: status of a previous 17-bit frame
 
     auto drive = [&](bool level) {
         bus.pin_mux()->update_pin_by_address(kRxd, 1U, PinOwner::external, true, level);
@@ -593,10 +595,73 @@ TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
     send_frame(false);
     CHECK(eusart->frame_error_count() == 1);
 
-    // The byte is still delivered and the configuration is intact.
+    // The byte is still delivered; FEM is the Manchester-only flag, so a
+    // level-encoded framing error must not set it.
+    CHECK((bus.read_data(kEucsrc) & 0x08U) == 0U);
     CHECK(bus.read_data(kEudr) == 0x5AU);
-    CHECK((bus.read_data(kEucsrc) & 0x04U) != 0U); // F1617 untouched
+    // Reading the buffer clears the EUCSRC status flags (F1617 included).
+    CHECK((bus.read_data(kEucsrc) & 0x0CU) == 0U);
     CHECK((bus.read_data(kEucsrb) & 0x10U) != 0U); // still enabled
+}
+
+TEST_CASE("Regression: EUSART Manchester framing error sets FEM with RXC")
+{
+    // Datasheet 18.5.4/18.6.5: on a Manchester framing error the hardware
+    // sets FEM and RXC together; FEM stays valid until the buffer is read.
+    auto device = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 kEucsrb = 0xC9U;
+    const u16 kEucsrc = 0xCAU;
+    const u16 kEudr = 0xCEU;
+    const u16 kEucsra = 0xC8U;
+    const u16 kRxd = 0x29U; // PD1
+
+    bus.write_data(kEucsrb, 0x12U); // EUSART enable + Manchester
+    bus.write_data(0xCCU, 0x00U);   // MUBRR = 0 -> 8 cycles per half bit
+    bus.write_data(kEucsra, 0x33U); // 8-bit TX/RX character size
+
+    bus.pin_mux()->claim_pin_by_address(kRxd, 1U, PinOwner::external);
+    auto drive = [&](bool level) {
+        bus.pin_mux()->update_pin_by_address(kRxd, 1U, PinOwner::external, true, level);
+    };
+    drive(true);
+    bus.tick_peripherals(4);
+
+    // Manchester: '1' = LOW then HIGH, '0' = HIGH then LOW (datasheet 18.4).
+    // MUBRR = 0 gives 8 cycles per half bit, and the decoder samples at
+    // 4 cycles, so levels are ticked in 2-cycle steps.
+    auto hold = [&](u64 cycles) {
+        while (cycles > 0) {
+            const u64 step = cycles > 2U ? 2U : cycles;
+            bus.tick_peripherals(step);
+            cycles -= step;
+        }
+    };
+    auto send_bit = [&](bool bit, bool corrupt = false) {
+        if (corrupt) {
+            drive(true); hold(8); // equal halves: no transition, framing error
+            drive(true); hold(8);
+            return;
+        }
+        drive(!bit); hold(8);
+        drive(bit);  hold(8);
+    };
+
+    send_bit(true); // start bit
+    const u8 data = 0x3CU;
+    for (int i = 0; i < 8; ++i) {
+        send_bit((data >> i) & 1U, i == 3); // 4th symbol is corrupt
+    }
+    bus.tick_peripherals(24);
+
+    CHECK((bus.read_data(kEucsrc) & 0x08U) != 0U); // FEM set with RXC
+    // Reading the receive buffer clears it.
+    (void)bus.read_data(kEudr);
+    CHECK((bus.read_data(kEucsrc) & 0x08U) == 0U);
 }
 
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
