@@ -39,6 +39,13 @@ public:
     [[nodiscard]] u32 cascade_divisor() const noexcept {
         return is_enabled() ? prescaler_limit_ : 0U;
     }
+    // True when the counter is clocked by EVSYS events rather than the
+    // prescaled peripheral clock (EVACTA = CNT_POSEDGE/CNT_ANYEDGE).
+    [[nodiscard]] bool is_event_clocked() const noexcept {
+        if (!is_enabled() || (evctrl_ & 0x01U) == 0U) return false;
+        const u8 action = evact_a();
+        return action == 0U || action == 1U;
+    }
 
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
     void set_event_system(EventSystem* evsys) noexcept override;
@@ -128,6 +135,12 @@ private:
     
     [[nodiscard]] bool is_enabled() const noexcept { return ctrla_ & 0x01; }
     [[nodiscard]] bool is_split_mode() const noexcept { return ctrld_ & 0x01; }
+    // EVACTA[2:0] (bits 3:1); the same numbering on ATmega4809 and DA/DB.
+    [[nodiscard]] u8 evact_a() const noexcept { return static_cast<u8>((evctrl_ >> 1) & 0x07U); }
+public:
+    // Event input stimulus, used by the EVSYS wiring and by tests.
+    void on_event_for_test(bool level) noexcept { on_event(level); }
+private:
     void update_prescaler() noexcept;
     void update_active_state() noexcept;
 

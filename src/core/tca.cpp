@@ -80,57 +80,40 @@ void Tca::set_event_system(EventSystem* evsys) noexcept {
 }
 
 void Tca::on_event(bool level) noexcept {
-    if (level && !last_event_level_) {
-        if (!is_enabled() || !(evctrl_ & 0x01)) return;
-        u8 evact = (evctrl_ >> 1) & 0x03;
-        switch (evact) {
-        case 0: // COUNTER: event = clock tick
-            perform_tick();
+    // EVCTRL decoding is shared by ATmega4809 (EVACT[2:0] + CNTEI) and
+    // AVR DA/DB (EVACTA[2:0] + CNTAEI); both number the actions the same
+    // way: 0 POSEDGE, 1 ANYEDGE, 2 HIGHLVL, 3 UPDOWN, 4-6 RESTART_*.
+    const u8 action = evact_a();
+    const bool cnte = (evctrl_ & 0x01U) != 0U;
+    const bool rising = level && !last_event_level_;
+    const bool falling = !level && last_event_level_;
+
+    if (is_enabled() && cnte) {
+        switch (action) {
+        case 0: // CNT_POSEDGE: each positive edge is one counter clock
+            if (rising) perform_tick();
             break;
-        case 1: // ONESHOT: count on event, stop at CMP0
-            if (is_split_mode()) {
-                if (cnt_l() < cmp0_l()) {
-                    cnt_l()++;
-                    if (cnt_l() >= cmp0_l()) {
-                        intflags_ |= 0x01; // LUNF/OVF
-                    }
-                }
-                if (cnt_h() < cmp0_h()) {
-                    cnt_h()++;
-                    if (cnt_h() >= cmp0_h()) {
-                        intflags_ |= 0x02; // HUNF
-                    }
-                }
-                handle_matches();
-                update_outputs();
-            } else {
-                if (norm_.tcnt < norm_.cmp0) {
-                    norm_.tcnt++;
-                    if (norm_.tcnt >= norm_.cmp0) {
-                        intflags_ |= 0x01; // OVF
-                        if (evsys_ && desc_.ovf_generator_id != 0) {
-                            evsys_->trigger_event(desc_.ovf_generator_id);
-                        }
-                    }
-                }
-                handle_matches();
-                update_outputs();
-            }
-            update_interrupt_state();
+        case 1: // CNT_ANYEDGE
+            if (rising || falling) perform_tick();
             break;
-        case 2: // OFF: ignore events
+        case 2: // CNT_HIGHLVL: counting is gated in tick()
             break;
-        case 3: // CAPTURE: copy CNT to CMP0
-            if (is_split_mode()) {
-                cmp0_l() = cnt_l();
-                cmp0_h() = cnt_h();
-            } else {
-                norm_.cmp0 = norm_.tcnt;
-            }
+        case 3: // UPDOWN: count direction follows the event level
+            counting_up_ = !level;
+            break;
+        case 4: // RESTART_POSEDGE
+        case 6: // RESTART_HIGHLVL
+            if (rising) handle_cmd(2);
+            break;
+        case 5: // RESTART_ANYEDGE
+            if (rising || falling) handle_cmd(2);
+            break;
+        default:
             break;
         }
     }
     last_event_level_ = level;
+    if (is_enabled() && cnte) update_interrupt_state();
 }
 
 u8 Tca::read(u16 address) noexcept {
@@ -343,10 +326,12 @@ void Tca::tick(u64 elapsed_cycles) noexcept {
     if (elapsed_cycles == 0) return;
     if (!is_enabled()) return;
     
-    u8 evact = (evctrl_ >> 1) & 0x03;
-    // In COUNTER or ONESHOT event modes, events ARE the clock (prescaler bypassed)
-    // Only skip prescaler when event counting is explicitly enabled (CNTEI bit)
-    if ((evctrl_ & 0x01) && (evact == 0 || evact == 1)) return;
+    // CNT_POSEDGE / CNT_ANYEDGE: the events ARE the clock, driven from
+    // on_event(); the prescaler path must not run.
+    const u8 action = evact_a();
+    if ((evctrl_ & 0x01U) != 0U && (action == 0U || action == 1U)) return;
+    // CNT_HIGHLVL: count prescaled cycles only while the event is high.
+    if ((evctrl_ & 0x01U) != 0U && action == 2U && !last_event_level_) return;
     
     bool ticked = false;
     for (u64 i = 0; i < elapsed_cycles; ++i) {
@@ -539,7 +524,18 @@ void Tca::perform_tick() {
             }
         }
     } else { // Normal / Single Slope
-        if (norm_.tcnt >= norm_.per) {
+        // EVACTA = UPDOWN: the event level selects the count direction,
+        // counting down while the event is high (datasheet 20.5.9/21.5.9).
+        const bool updown = (evctrl_ & 0x01U) != 0U && evact_a() == 3U;
+        if (updown && !counting_up_) {
+            if (norm_.tcnt == 0U) {
+                norm_.tcnt = norm_.per;
+                update_cond = true;
+                ovf_at_bottom = true;
+            } else {
+                norm_.tcnt--;
+            }
+        } else if (norm_.tcnt >= norm_.per) {
             norm_.tcnt = 0;
             update_cond = true;
             ovf_at_bottom = true;

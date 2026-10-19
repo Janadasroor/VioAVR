@@ -24,6 +24,12 @@ u32 Tcb::sibling_tca_divisor(const char* name) const noexcept {
     IoPeripheral* p = bus_->get_peripheral_by_name(name);
     if (p == nullptr) return 0U;
     if (auto* tca = dynamic_cast<Tca*>(p)) {
+        if (tca->is_event_clocked()) {
+            // CLK_TCA then follows the event rate, not the prescaled clock.
+            // The TCB cannot see event edges from tick(), so it runs at the
+            // peripheral clock instead: one count per prescaler period.
+            return 1U;
+        }
         const u64 d = tca->cascade_divisor();
         return (d > 0xFFFFFFFFULL) ? 0U : static_cast<u32>(d);
     }
