@@ -36,6 +36,8 @@ public:
     // UartModePartner: the shared UDR was read / written.
     void on_receive_buffer_read() noexcept override;
     bool on_transmit_data(u8 low_byte) noexcept override;
+    // The EUSART mode takes over the peripheral from the classic USART.
+    [[nodiscard]] bool owns_peripheral() const noexcept override;
 
 private:
     void store_received_word(u32 word) noexcept;

@@ -339,6 +339,25 @@ configure_package_config_file(
     PATH_VARS INCLUDE_INSTALL_DIR
 )
 
+# ── Pack header cross-check ───────────────────────────────────────
+# Compares the generated device descriptors against the Microchip DFP
+# headers in avr-pack/, so a register address cannot drift away from the
+# pack without the test suite noticing.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/avr-pack")
+    add_executable(vioavr_dump_device tools/dump_device_descriptor.cpp)
+    target_link_libraries(vioavr_dump_device PRIVATE VioAVR::core)
+    add_test(NAME vioavr_pack_header_check
+             COMMAND ${Python3_EXECUTABLE}
+                     "${PROJECT_SOURCE_DIR}/tools/compare_io_header.py")
+    set_tests_properties(vioavr_pack_header_check PROPERTIES
+        ENVIRONMENT "VIOAVR_DUMP_TOOL=$<TARGET_FILE:vioavr_dump_device>"
+        TIMEOUT 120
+    )
+else()
+    message(STATUS "Pack header check skipped (no Python 3 or no avr-pack)")
+endif()
+
 # Version file
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/VioAVRConfigVersion.cmake"

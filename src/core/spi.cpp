@@ -106,6 +106,7 @@ void Spi::slave_service_pins() noexcept {
     if (!slave_mode) {
         slave_release_miso();
         slave_active_ = false;
+        slave_transfer_started_ = false;
         return;
     }
     if (pin_mux_ == nullptr || desc_.sck_pin_address == 0U ||
@@ -142,6 +143,9 @@ void Spi::slave_service_pins() noexcept {
     const bool cpha = (spcr_ & kSpiCpha) != 0U;
     const bool level = sck.drive_level;
     if (level == slave_sck_last_) return;
+    // The first edge starts the transfer; from then on a write to SPDR is a
+    // write collision (datasheet 16.2.5).
+    slave_transfer_started_ = true;
 
     // CPHA=0 samples on the leading edge (rising when CPOL=0), CPHA=1 on the
     // trailing one (falling when CPOL=0, rising when CPOL=1).
@@ -177,6 +181,7 @@ void Spi::slave_service_pins() noexcept {
         interrupt_pending_ = true;
         update_interrupt_pending();
         slave_active_ = false;
+        slave_transfer_started_ = false;
         slave_bits_ = 0U;
         slave_rx_ = 0U;
     }
@@ -200,6 +205,9 @@ u8 Spi::read(const u16 address) noexcept
         if ((spsr_ & desc_.spif_mask) != 0U) {
             spsr_read_since_spif_ = true;
         }
+        if ((spsr_ & desc_.wcol_mask) != 0U) {
+            spsr_read_since_wcol_ = true;
+        }
         return spsr_;
     }
     if (address == desc_.spdr_address) {
@@ -208,7 +216,14 @@ u8 Spi::read(const u16 address) noexcept
             interrupt_pending_ = false;
             update_interrupt_pending();
         }
+        // "The WCOL bit (and the SPIF bit) are cleared by first reading the
+        // SPI Status Register with WCOL set, and then accessing the SPI Data
+        // Register" (datasheet 16.2.5).
+        if ((spsr_ & desc_.wcol_mask) != 0U && spsr_read_since_wcol_) {
+            spsr_ &= static_cast<u8>(~desc_.wcol_mask);
+        }
         spsr_read_since_spif_ = false;
+        spsr_read_since_wcol_ = false;
         return spdr_;
     }
     return 0U;
@@ -270,7 +285,14 @@ void Spi::write(const u16 address, const u8 value) noexcept
                 }
             }
         } else {
-            shift_register_ = value;
+            // Slave: a write during a transfer is a write collision - the
+            // shift register is busy, so the data is dropped and WCOL is set
+            // (datasheet 16.2.5).
+            if (slave_transfer_started_) {
+                spsr_ |= desc_.wcol_mask;
+            } else {
+                shift_register_ = value;
+            }
         }
     }
     update_interrupt_pending();
@@ -303,19 +325,6 @@ void Spi::update_interrupt_pending() noexcept {
 void Spi::inject_miso_byte(const u8 value) noexcept
 {
     miso_buffer_ = value;
-}
-
-void Spi::trigger_slave_transfer(const u32 sck_bit_cycles) noexcept
-{
-    if ((spcr_ & kSpiEnable) != 0U && (spcr_ & kSpiMaster) == 0U) {
-        // Slave transfer: 8 SCK cycles, each sck_bit_cycles CPU cycles long
-        const u32 total_cycles = 8U * sck_bit_cycles;
-        transfer_cycles_left_ = total_cycles;
-        if (bus_) {
-            bus_->scheduler().cancel(spi_callback, this);
-            bus_->scheduler().schedule(total_cycles, spi_callback, this);
-        }
-    }
 }
 
 void Spi::on_ss_asserted() noexcept

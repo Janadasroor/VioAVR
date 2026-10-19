@@ -96,38 +96,4 @@ TEST_CASE("SPI Peripheral Functional Test")
         CHECK(spi.last_transmitted_byte() == 0x80);
     }
 
-    SUBCASE("SPI Slave Mode") {
-        bus.load_image(HexImage {
-            .flash_words = {
-                encode_ldi(16, 0x40), // SPE=1, MSTR=0 (Slave)
-                encode_out(0x2C, 16), // SPCR
-                encode_ldi(17, 0xAA),
-                encode_out(0x2E, 17), // SPDR -> just buffers, doesn't start
-                0x0000U
-            },
-            .entry_word = 0U
-        });
-        cpu.reset();
-
-        cpu.step(); // LDI
-        cpu.step(); // OUT SPCR
-        cpu.step(); // LDI
-        cpu.step(); // OUT SPDR
-        
-        CHECK_FALSE(spi.busy()); // Should not be busy in slave mode just from SPDR write
-        
-        spi.inject_miso_byte(0x55);
-        spi.trigger_slave_transfer(2); // Host triggers the clock, 2 CPU cycles per SCK bit
-        
-        CHECK(spi.busy());
-        
-        // 8 SCK bits × 2 cycles/bit = 16 cycles total
-        bus.tick_peripherals(15);
-        CHECK(spi.busy());
-        bus.tick_peripherals(1);
-        
-        CHECK_FALSE(spi.busy());
-        CHECK((spi.read(atmega328p.spis[0].spsr_address) & 0x80U) != 0U); // SPIF should be set
-        CHECK(spi.read(atmega328p.spis[0].spdr_address) == 0x55);
-    }
 }

@@ -88,6 +88,17 @@ void Uart::tick(const u64 elapsed_cycles) noexcept
 {
     if (power_reduction_enabled()) return;
 
+    // In EUSART mode the partner engine runs the peripheral: this USART
+    // must not decode the pin or drive it as well (AT90PWM216/316 datasheet
+    // 18.6.4 - the two are one peripheral in two modes).
+    if (partner_ != nullptr && partner_->owns_peripheral()) {
+        tx_active_ = false;
+        tx_buffer_full_ = false;
+        rx_active_ = false;
+        rx_pin_state_ = RxPinState::idle;
+        return;
+    }
+
     const u8 old_ucsra = ucsra_;
 
     // Start transmission if buffer is full and shift register is idle

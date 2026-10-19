@@ -23,6 +23,11 @@ public:
     // A byte was written to the shared data register. Returns true when the
     // partner consumed it (EUSART mode), false to use the classic path.
     virtual bool on_transmit_data(u8 low_byte) noexcept = 0;
+    // True when the partner runs the peripheral instead of this USART: the
+    // two are one peripheral in two modes (AT90PWM216/316 datasheet 18.6.4,
+    // "Set to enable the EUSART mode, clear to operate as standard USART"),
+    // so only one of the two engines may touch the pins and the buffer.
+    [[nodiscard]] virtual bool owns_peripheral() const noexcept { return false; }
 };
 
 class Uart final : public IoPeripheral {

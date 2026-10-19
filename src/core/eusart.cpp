@@ -178,8 +178,6 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                     // TX Complete lives in the shared UCSRA (18.6.4).
                     if (shared_usart_ != nullptr) {
                         shared_usart_->set_status_bits(kUcsraTxc, true);
-                    } else {
-                        eucsra_ |= desc_.txc_mask;
                     }
                     cycles_to_next_bit_ = 0;
                 } else {
@@ -256,6 +254,11 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                                 // mode: the next bit time decides (18.3.3).
                                 if (rx_size_16_or_17_) {
                                     man_state_ = ManState::bit17;
+                                } else if (get_char_size(false) == 17U) {
+                                    // URxS = 1111 is a plain 17-bit frame, so
+                                    // F1617 reports a 17-bit length (18.6.5).
+                                    eucsrc_ = static_cast<u8>(eucsrc_ | desc_.f1617_mask);
+                                    man_state_ = ManState::stop1;
                                 } else {
                                     eucsrc_ = static_cast<u8>(eucsrc_ & ~desc_.f1617_mask);
                                     man_state_ = ManState::stop1;
@@ -393,6 +396,10 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                             ++frame_error_count_;
                         }
                         rx_uart_state_ = RxUartState::idle;
+                        // F1617 belongs to the Manchester decoder only
+                        // (datasheet 18.6.5), so a level encoded frame
+                        // leaves it cleared.
+                        eucsrc_ = static_cast<u8>(eucsrc_ & ~desc_.f1617_mask);
                         store_received_word(rx_shift_reg_);
                     }
                     break;
@@ -408,9 +415,10 @@ void Eusart::store_received_word(u32 word) noexcept {
         shared_usart_->set_rx_word(static_cast<u16>(word));
         rx_temp_ = static_cast<u8>((word >> 8U) & 0xFFU);
     } else {
+        // Without a paired USART there is no UCSRA to hold RXC. EUCSRA is
+        // UTxS/URxS only (datasheet 18.6.3), so there is no bit to set.
         if (rx_queue_.size() >= 64U) return;
         rx_queue_.push_back(word);
-        eucsra_ |= desc_.rxc_mask;
     }
 }
 
@@ -424,8 +432,6 @@ u8 Eusart::read(u16 address) noexcept {
         if (rx_queue_.empty()) return 0;
         u32 val = rx_queue_.front();
         rx_queue_.pop_front();
-        eucsra_ &= ~desc_.rxc_mask;
-        if (!rx_queue_.empty()) eucsra_ |= desc_.rxc_mask;
         // FEM and F1617 stay valid only until the receive buffer is read
         // (datasheet 18.6.5).
         eucsrc_ &= static_cast<u8>(~(desc_.fem_mask | desc_.f1617_mask));
@@ -452,6 +458,12 @@ void Eusart::on_receive_buffer_read() noexcept {
     eucsrc_ &= static_cast<u8>(~(desc_.fem_mask | desc_.f1617_mask));
 }
 
+bool Eusart::owns_peripheral() const noexcept {
+    // EUCSRB bit 4: "Set to enable the EUSART mode, clear to operate as
+    // standard USART" (AT90PWM216/316 datasheet 18.6.4).
+    return (eucsrb_ & desc_.eus_en_mask) != 0U;
+}
+
 bool Eusart::on_transmit_data(u8 low_byte) noexcept {
     if (!is_extended_mode()) return false;
     const u32 full = (static_cast<u32>(tx_temp_) << 8U) | low_byte;
@@ -472,8 +484,9 @@ void Eusart::write(u16 address, u8 value) noexcept {
     } else if (shared_usart_ == nullptr && address == desc_.eudr_address + 1) {
         tx_temp_ = value;
     } else if (address == desc_.eucsra_address) {
-        // TXC is write-1-to-clear; other bits are writable
-        eucsra_ = (value & ~desc_.txc_mask) | (eucsra_ & desc_.txc_mask & ~value);
+        // EUCSRA is UTxS3:0 and URxS3:0 - the transmit and receive character
+        // sizes (datasheet 18.6.3). There is no status bit in it.
+        eucsra_ = value;
     } else if (address == desc_.eucsrb_address) {
         eucsrb_ = value;
         if ((eucsrb_ & desc_.eus_en_mask) && bus_ && bus_->pin_mux()) {

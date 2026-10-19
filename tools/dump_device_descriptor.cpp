@@ -19,10 +19,16 @@
 #include "vioavr/core/devices/atmega168pb.hpp"
 #include "vioavr/core/devices/atmega88pb.hpp"
 #include "vioavr/core/devices/atmega328pb.hpp"
+#include "vioavr/core/devices/at90pwm316.hpp"
+#include "vioavr/core/devices/at90pwm216.hpp"
+#include "vioavr/core/devices/at90pwm3.hpp"
 
 using namespace vioavr::core::devices;
 
 static constexpr struct { const char* name; const vioavr::core::DeviceDescriptor* desc; } devices[] = {
+    {"at90pwm316", &at90pwm316},
+    {"at90pwm216", &at90pwm216},
+    {"at90pwm3", &at90pwm3},
     {"atmega328p", &atmega328p},
     {"atmega4809", &atmega4809},
     {"atmega2560", &atmega2560},
@@ -241,6 +247,36 @@ static void print_bod(const DeviceDescriptor* d) {
            (unsigned)d->bod.vlm_vector_index);
 }
 
+static void print_eusart(const DeviceDescriptor* d) {
+    for (u8 i = 0; i < d->eusart_count; ++i) {
+        auto& e = d->eusarts[i];
+        printf("  eusart[%u]: eucsra=0x%04x eucsrb=0x%04x eucsrc=0x%04x eudr=0x%04x"
+               " mubrrl=0x%04x mubrrh=0x%04x\n",
+               (unsigned)i,
+               e.eucsra_address, e.eucsrb_address, e.eucsrc_address, e.eudr_address,
+               e.mubrrl_address, e.mubrrh_address);
+    }
+}
+
+static void print_uart(const DeviceDescriptor* d) {
+    for (u8 i = 0; i < d->uart_count; ++i) {
+        auto& u = d->uarts[i];
+        printf("  uart[%u]: ucsra=0x%04x ucsrb=0x%04x ucsrc=0x%04x ubrrl=0x%04x"
+               " ubrrh=0x%04x udr=0x%04x\n",
+               (unsigned)i,
+               u.ucsra_address, u.ucsrb_address, u.ucsrc_address,
+               u.ubrrl_address, u.ubrrh_address, u.udr_address);
+    }
+}
+
+static void print_spi(const DeviceDescriptor* d) {
+    for (u8 i = 0; i < d->spi_count; ++i) {
+        auto& s = d->spis[i];
+        printf("  spi[%u]: spcr=0x%04x spsr=0x%04x spdr=0x%04x\n",
+               (unsigned)i, s.spcr_address, s.spsr_address, s.spdr_address);
+    }
+}
+
 static void print_spi8x(const DeviceDescriptor* d) {
     for (u8 i = 0; i < d->spi8x_count; ++i) {
         auto& s = d->spis8x[i];
@@ -344,6 +380,15 @@ int main(int argc, char** argv) {
 
     printf("\n=== UART8X ===\n");
     print_uart8x(target);
+
+    printf("\n=== EUSART ===\n");
+    print_eusart(target);
+
+    printf("\n=== UART ===\n");
+    print_uart(target);
+
+    printf("\n=== SPI ===\n");
+    print_spi(target);
 
     printf("\n=== SPI8X ===\n");
     print_spi8x(target);

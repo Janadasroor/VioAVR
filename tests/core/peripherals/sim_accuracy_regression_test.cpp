@@ -533,6 +533,135 @@ TEST_CASE("Regression: AVR-Dx EEBER/EEMBERn erase only the addressed bytes")
     CHECK(bus.read_data(kMapped + 3U) == 0xFFU);
 }
 
+TEST_CASE("Regression: EUSART F1617 reports the decoded frame length")
+{
+    // F1617 is a Manchester decoder status: "When the receiver is configured
+    // for 16 or 17 bits in Manchester encoded mode, this bit indicates if the
+    // received frame is 16 or 17 bits length" (AT90PWM216/316 datasheet
+    // 18.6.5). With URxS = 1111 the frame is always 17 bits, with
+    // URxS = 1110 the seventeenth bit time is probed, and in level encoded
+    // mode the bit stays clear.
+    auto device = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device != nullptr);
+
+    const u16 kEucsrb = 0xC9U;
+    const u16 kEucsra = 0xC8U;
+    const u16 kEucsrc = 0xCAU;
+    const u16 kEudr = 0xCEU;
+    const u16 kUdr = 0xC6U;
+    const u16 kRxd = 0x29U;
+
+    // Sends a Manchester frame with `bits` data bits and returns the
+    // F1617 state afterwards.
+    auto run_frame = [&](u8 urxs, u8 bits, u32 data) -> bool {
+        Machine machine(*device);
+        auto& bus = machine.bus();
+        machine.reset();
+        bus.write_data(kEucsrb, 0x12U); // EUSART=1, EMCH=1
+        bus.write_data(kEucsra, static_cast<u8>((0x03U << 4) | urxs));
+        bus.write_data(0xCCU, 0x00U);   // MUBRR = 0 -> 16 cycles per bit
+        bus.pin_mux()->claim_pin_by_address(kRxd, 1U, PinOwner::external);
+        auto drive = [&](bool level) {
+            bus.pin_mux()->update_pin_by_address(kRxd, 1U, PinOwner::external, true, level);
+        };
+        drive(true);
+        bus.tick_peripherals(2);
+
+        const u64 bit = 16;
+        // The receiver samples the pin, so the level has to change between
+        // single cycles: the sample phase locks to the detected edge.
+        auto hold = [&](u64 cycles) {
+            for (u64 i = 0; i < cycles; ++i) bus.tick_peripherals(1);
+        };
+        // Manchester '1' is low then high, '0' is high then low.
+        auto send_bit = [&](bool value) {
+            drive(!value); hold(bit / 2);
+            drive(value);  hold(bit / 2);
+        };
+        send_bit(true); // start bit
+        for (u8 i = 0; i < bits; ++i) {
+            send_bit((data >> i) & 1U); // LSB first
+        }
+        // The stop bits carry no transition; in the 16-or-17 mode the
+        // seventeenth bit time decides whether it is data or the first stop.
+        hold(bit);
+        bus.tick_peripherals(32);
+        const bool f1617 = (bus.read_data(kEucsrc) & 0x04U) != 0U;
+        const u16 received = static_cast<u16>((bus.read_data(kEudr) << 8) |
+                                                bus.read_data(kUdr));
+        REQUIRE(received == (data & 0xFFFFU));
+        return f1617;
+    };
+
+    // URxS = 1111: a plain 17-bit frame, so F1617 reports 17 bits.
+    CHECK(run_frame(0x0FU, 17U, 0x1234U) == true);
+    // URxS = 1110 with 17 data bits: the probe finds the transition.
+    CHECK(run_frame(0x0EU, 17U, 0x1234U) == true);
+    // URxS = 1110 with 16 data bits: no transition in the seventeenth bit
+    // time, so the frame is 16 bits long.
+    CHECK(run_frame(0x0EU, 16U, 0x1234U) == false);
+}
+
+TEST_CASE("Regression: EUSART mode takes the peripheral from the classic USART")
+{
+    // EUCSRB bit 4: "Set to enable the EUSART mode, clear to operate as
+    // standard USART" (datasheet 18.6.4). The classic USART engine must
+    // stand down, or both engines decode the same pin.
+    auto device = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 kEucsrb = 0xC9U;
+    const u16 kEucsra = 0xC8U;
+    const u16 kUcsra = 0xC0U;
+    const u16 kUcsrb = 0xC1U;
+    const u16 kUdr = 0xC6U;
+    const u16 kEudr = 0xCEU;
+    const u16 kRxd = 0x29U;
+
+    // EUCSRA is the character size register only: writing it must not lose
+    // a size bit (URxS = 1000 is 13 bits).
+    bus.write_data(kEucsra, 0x08U);
+    CHECK(bus.read_data(kEucsra) == 0x08U);
+    bus.write_data(kEucsra, 0x33U); // back to 8/8
+
+    // EUSART mode, level encoded, 8-bit frames.
+    bus.write_data(kEucsrb, 0x10U); // EUSART=1
+    bus.write_data(0xCCU, 0x00U);   // MUBRR = 0
+    bus.write_data(kUcsrb, 0x90U);  // classic USART: RXEN + RXCIE
+    bus.pin_mux()->claim_pin_by_address(kRxd, 1U, PinOwner::external);
+    auto drive = [&](bool level) {
+        bus.pin_mux()->update_pin_by_address(kRxd, 1U, PinOwner::external, true, level);
+    };
+    drive(true);
+    bus.tick_peripherals(2);
+
+    // A start bit and one data byte, level encoded.
+    const u64 bit = 16;
+    auto hold = [&](u64 cycles) {
+        while (cycles > 0) {
+            const u64 step = cycles > (bit / 2) ? (bit / 2) : cycles;
+            bus.tick_peripherals(step);
+            cycles -= step;
+        }
+    };
+    drive(false); hold(bit);       // start bit
+    for (int i = 0; i < 8; ++i) {
+        drive(((0x5AU >> i) & 1U) != 0U);
+        hold(bit);
+    }
+    drive(true); hold(bit);        // stop bit
+    bus.tick_peripherals(32);
+
+    // The shared UCSRA reports the reception, and the character is in the
+    // shared data register.
+    CHECK((bus.read_data(kUcsra) & 0x80U) != 0U); // RXC
+    CHECK(bus.read_data(kUdr) == 0x5AU);
+    CHECK(bus.read_data(kEudr) == 0x00U);
+}
+
 TEST_CASE("Regression: EUSART framing error leaves its configuration intact")
 {
     // AT90PWM316 EUSART (ATDF + avr-libc/avrasm agree): EUCSRA = UTxS/URxS
@@ -1242,6 +1371,70 @@ TEST_CASE("Regression: a TCB cascaded from an event-clocked TCA counts events")
     }
     bus.tick_peripherals(10U);
     CHECK(bus.read_data(kTcbCcnt) == 0x0003U);
+}
+
+TEST_CASE("Regression: the CPU and the pin-clocked SPI slave work together")
+{
+    // The CPU configures the SPI as a slave and buffers a byte; an external
+    // master then clocks the byte in. A write to SPDR while that transfer is
+    // running is a write collision (datasheet 16.2.5).
+    auto device = DeviceCatalog::find("ATmega328P");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+    const auto D = device->spis[0];
+    auto& mux = *bus.pin_mux();
+    auto* spi = machine.peripherals_of_type<Spi>()[0];
+    REQUIRE(spi != nullptr);
+
+    const u16 kSck = D.sck_pin_address;
+    const u8 kSckBit = D.sck_pin_bit;
+    const u16 kMosi = D.mosi_pin_address;
+    const u8 kMosiBit = D.mosi_pin_bit;
+
+    mux.claim_pin_by_address(kSck, kSckBit, PinOwner::external);
+    mux.claim_pin_by_address(kMosi, kMosiBit, PinOwner::external);
+    auto drive_sck = [&](bool level) {
+        mux.update_pin_by_address(kSck, kSckBit, PinOwner::external, true, level);
+    };
+    auto drive_mosi = [&](bool level) {
+        mux.update_pin_by_address(kMosi, kMosiBit, PinOwner::external, true, level);
+    };
+
+    // The CPU writes SPCR and SPDR.
+    bus.write_data(D.spcr_address, D.spe_mask);        // SPE=1, MSTR=0
+    bus.write_data(D.spdr_address, 0x5AU);              // byte to shift out
+    drive_sck(false);
+    bus.tick_peripherals(1U);
+
+    // The master shifts 0xC3 in.
+    const u8 sent = 0xC3U;
+    for (int i = 0; i < 8; ++i) {
+        drive_mosi((sent >> (7 - i)) & 1U);
+        bus.tick_peripherals(1U);
+        drive_sck(true);
+        bus.tick_peripherals(1U);
+        if (i == 2) {
+            // Writing SPDR mid-transfer is a write collision; the byte in
+            // the shift register must not change.
+            bus.write_data(D.spdr_address, 0xFFU);
+        }
+        drive_sck(false);
+        bus.tick_peripherals(1U);
+    }
+
+    // The received byte first: without a preceding SPSR read the data
+    // register access does not clear any flag.
+    CHECK(spi->read(D.spdr_address) == sent);
+    CHECK((spi->read(D.spsr_address) & D.spif_mask) != 0U);   // SPIF set
+    CHECK((spi->read(D.spsr_address) & D.wcol_mask) != 0U);   // WCOL set
+
+    // WCOL (and SPIF) are cleared by reading SPSR with the flag set and
+    // then accessing SPDR.
+    spi->read(D.spdr_address);
+    CHECK((spi->read(D.spsr_address) & D.wcol_mask) == 0U);
+    CHECK((spi->read(D.spsr_address) & D.spif_mask) == 0U);
 }
 
 TEST_CASE("Regression: SPI slave honours CPOL and CPHA in every mode")

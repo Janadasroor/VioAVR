@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
 """Compare VioAVR device descriptor against Microchip DFP iom*.h header."""
 
+import os
 import re
 import sys
 from pathlib import Path
 import subprocess
 import json
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def parse_iom_header(header_path):
-    """Parse _SFR_MEM8 / _SFR_IO8 defines from iom*.h header file."""
+    """Parse _SFR_MEM8 / _SFR_IO8 defines from iom*.h header file.
+
+    Returns the register addresses and the address space each one was
+    declared in: the pack writes the classic register file as _SFR_IO8
+    (I/O space) and the extended registers as _SFR_MEM8 (data space). The
+    simulator always uses data addresses, so the caller has to know which
+    space a register came from.
+    """
     regs = {}
+    kinds = {}
     with open(header_path) as f:
         for line in f:
             line = line.strip()
@@ -21,15 +30,19 @@ def parse_iom_header(header_path):
                 name = m.group(1)
                 addr = int(m.group(4), 16)
                 regs[name] = addr
+                kinds[name] = m.group(2)
             # Also match _SFR_MEM32
             m = re.match(r'#define\s+(\w+)\s+_SFR_MEM32\(0x([0-9a-fA-F]+)\)', line)
             if m:
                 regs[m.group(1)] = int(m.group(2), 16)
-    return regs
+                kinds[m.group(1)] = 'MEM'
+    return regs, kinds
 
 
-def get_vioavr_dump(device_name, dump_tool="/tmp/dump_dev"):
+def get_vioavr_dump(device_name, dump_tool=None):
     """Run the C++ dumper and parse output."""
+    if dump_tool is None:
+        dump_tool = os.environ.get("VIOAVR_DUMP_TOOL", "/tmp/dump_dev")
     result = subprocess.run([dump_tool, device_name], capture_output=True, text=True)
     if result.returncode != 0:
         print(f"ERROR running dumper for {device_name}: {result.stderr}")
@@ -37,12 +50,19 @@ def get_vioavr_dump(device_name, dump_tool="/tmp/dump_dev"):
     return result.stdout
 
 
-def check_field(dump_lines, label, ref_name, ref_addr, iom_regs, errors):
+def check_field(dump_lines, label, ref_name, ref_addr, iom_regs, errors,
+                iom_kinds=None, io_offset=0):
     """Check a VioAVR field against a reference from the iom header."""
     ref_val = iom_regs.get(ref_name)
     if ref_val is None:
         errors.append(f"  MISSING REF: {ref_name} not found in iom header")
         return
+
+    # A register the pack declares in I/O space is at I/O + 0x20 in the data
+    # space when it is in the 0x20-0x3F range (the classic register file
+    # mapping); I/O 0x00-0x1F keeps its address.
+    if iom_kinds and iom_kinds.get(ref_name) == 'IO' and 0x20 <= ref_val < 0x40:
+        ref_val += io_offset if io_offset else 0x20
 
     for line in dump_lines:
         if f"{label}" in line:
@@ -110,6 +130,11 @@ def compare_device(device_name):
 
     # Determine the iom header path
     # Map device names to header names
+    # The pack declares the classic register file in I/O space while the
+    # simulator uses data addresses: I/O 0x00-0x1F is the register file at
+    # the same address, I/O 0x20-0x3F is at data 0x40-0x5F.
+    io_offsets = {}
+
     name_map = {
         "atmega328p": "iom328p.h",
         "atmega4809": "iom4809.h",
@@ -124,6 +149,9 @@ def compare_device(device_name):
         "atmega1609": "iom1609.h",
         "atmega3209": "iom3209.h",
         "atmega809": "iom809.h",
+        "at90pwm316": "io90pwm316.h",
+        "at90pwm216": "io90pwm216.h",
+        "at90pwm3": "io90pwm3.h",
     }
 
     header_name = name_map.get(device_name)
@@ -133,7 +161,7 @@ def compare_device(device_name):
 
     header_path = str(REPO_ROOT / "avr-pack/atmega/include/avr" / header_name)
     try:
-        iom_regs = parse_iom_header(header_path)
+        iom_regs, iom_kinds = parse_iom_header(header_path)
     except FileNotFoundError:
         print(f"  Header not found: {header_path}")
         return
@@ -148,6 +176,7 @@ def compare_device(device_name):
     data_lines = [l for l in lines if l and not l.startswith('===')]
 
     errors = []
+    io_offset = io_offsets.get(device_name, 0)
 
     # --- System registers (these are on one line in the dump: "spl=0x... sph=0x... sreg=0x...")
     # Parse the system registers line
@@ -374,6 +403,79 @@ def compare_device(device_name):
                 if ref_val is not None and vio_val != ref_val:
                     errors.append(f"  CPUINT.{label}: vio=0x{vio_val:04x} ref={ref_name}=0x{ref_val:04x}")
 
+    # --- EUSART (AT90PWM216/316) ---
+    for line in data_lines:
+        if re.match(r'  eusart\[\d+\]:', line):
+            fields = {}
+            for part in line.split():
+                if '=' in part:
+                    k, v = part.split('=', 1)
+                    fields[k] = v
+            eusart_checks = [
+                ("eucsra", "EUCSRA"),
+                ("eucsrb", "EUCSRB"),
+                ("eucsrc", "EUCSRC"),
+                ("eudr", "EUDR"),
+                ("mubrrl", "MUBRRL"),
+                ("mubrrh", "MUBRRH"),
+            ]
+            for label, ref_name in eusart_checks:
+                vio_val = int(fields.get(label, '0x0'), 16)
+                ref_val = iom_regs.get(ref_name)
+                if ref_val is None:
+                    continue
+                if iom_kinds.get(ref_name) == 'IO' and 0x20 <= ref_val < 0x40:
+                    ref_val += io_offset if io_offset else 0x20
+                if vio_val != ref_val:
+                    errors.append(f"  EUSART.{label}: vio=0x{vio_val:04x} ref={ref_name}=0x{ref_val:04x}")
+
+    # --- classic UART ---
+    for line in data_lines:
+        if re.match(r'  uart\[\d+\]:', line):
+            fields = {}
+            for part in line.split():
+                if '=' in part:
+                    k, v = part.split('=', 1)
+                    fields[k] = v
+            uart_checks = [
+                ("ucsra", "UCSRA"),
+                ("ucsrb", "UCSRB"),
+                ("ucsrc", "UCSRC"),
+                ("udr", "UDR"),
+            ]
+            for label, ref_name in uart_checks:
+                vio_val = int(fields.get(label, '0x0'), 16)
+                ref_val = iom_regs.get(ref_name)
+                if ref_val is None:
+                    continue
+                if iom_kinds.get(ref_name) == 'IO' and 0x20 <= ref_val < 0x40:
+                    ref_val += io_offset if io_offset else 0x20
+                if vio_val != ref_val:
+                    errors.append(f"  UART.{label}: vio=0x{vio_val:04x} ref={ref_name}=0x{ref_val:04x}")
+
+    # --- classic SPI ---
+    for line in data_lines:
+        if re.match(r'  spi\[\d+\]:', line):
+            fields = {}
+            for part in line.split():
+                if '=' in part:
+                    k, v = part.split('=', 1)
+                    fields[k] = v
+            spi_checks = [
+                ("spcr", "SPCR"),
+                ("spsr", "SPSR"),
+                ("spdr", "SPDR"),
+            ]
+            for label, ref_name in spi_checks:
+                vio_val = int(fields.get(label, '0x0'), 16)
+                ref_val = iom_regs.get(ref_name)
+                if ref_val is None:
+                    continue
+                if iom_kinds.get(ref_name) == 'IO' and 0x20 <= ref_val < 0x40:
+                    ref_val += io_offset if io_offset else 0x20
+                if vio_val != ref_val:
+                    errors.append(f"  SPI.{label}: vio=0x{vio_val:04x} ref={ref_name}=0x{ref_val:04x}")
+
     # --- NVMCTRL ---
     for line in data_lines:
         if 'nvmctrl[0]:' in line:
@@ -538,15 +640,20 @@ def compare_device(device_name):
         print(f"  DISCREPANCIES FOUND ({len(errors)}):")
         for e in errors:
             print(e)
-    else:
-        print(f"  ALL REGISTERS MATCH - no discrepancies found")
+        return False
+    print(f"  ALL REGISTERS MATCH - no discrepancies found")
+    return True
 
 
 if __name__ == "__main__":
     devices = sys.argv[1:] if len(sys.argv) > 1 else [
         "atmega4809", "atmega4808", "atmega3209", "atmega3208",
         "atmega1609", "atmega1608", "atmega809", "atmega808",
-        "atmega328p", "atmega2560", "atmega32u4"
+        "atmega328p", "atmega2560", "atmega32u4",
+        "at90pwm316", "at90pwm216", "at90pwm3"
     ]
-    for dev in devices:
-        compare_device(dev)
+    failed = [dev for dev in devices if not compare_device(dev)]
+    if failed:
+        print(f"\n{len(failed)} device(s) disagree with the pack: {', '.join(failed)}")
+        sys.exit(1)
+    print(f"\nAll {len(devices)} devices match the pack headers.")
