@@ -331,7 +331,8 @@ inline constexpr DeviceDescriptor at90pwm316 {
     .eusart_count = 1U,
     .eusarts = {{ {
             .eudr_address = 0xCEU, .eucsra_address = 0xC8U, .eucsrb_address = 0xC9U, .eucsrc_address = 0xCAU, .mubrrl_address = 0xCCU, .mubrrh_address = 0xCDU,
-            .emch_mask = 0x2U, .eus_en_mask = 0x10U, .bodr_mask = 0x1U, .f1617_mask = 0x4U, .utxs_mask = 0xF0U, .urxs_mask = 0xFU, .txc_mask = 0x80U, .rxc_mask = 0x40U,
+            .emch_mask = 0x2U, .eus_en_mask = 0x10U, .bodr_mask = 0x1U, .eusbs_mask = 0x8U, .f1617_mask = 0x4U, .fem_mask = 0x8U, .stp_mask = 0x3U, .utxs_mask = 0xF0U, .urxs_mask = 0xFU, .txc_mask = 0x80U, .rxc_mask = 0x40U,
+            .eucsra_reset = 0x33U, .eucsrb_reset = 0x0U, .eucsrc_reset = 0x0U,
             .txd_pin_address = 0x2BU, .txd_pin_bit = 0U, .rxd_pin_address = 0x29U, .rxd_pin_bit = 1U,
             .pr_address = 0, .pr_bit = 255
         } }},

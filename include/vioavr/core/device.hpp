@@ -331,11 +331,20 @@ struct EusartDescriptor {
     u8 emch_mask {0x02U}; // EUCSRB
     u8 eus_en_mask {0x10U}; // EUCSRB
     u8 bodr_mask {0x01U}; // EUCSRB
-    u8 f1617_mask {0x04U}; // EUCSRC
+    u8 eusbs_mask {0x08U}; // EUCSRB: receiver stop bits (0 = 1 bit, 1 = 2 bits)
+    u8 f1617_mask {0x04U}; // EUCSRC: received frame was 17 bits (Manchester)
+    u8 fem_mask {0x08U}; // EUCSRC: Manchester framing error
+    u8 stp_mask {0x03U}; // EUCSRC: stop bits value of previous frame
     u8 utxs_mask {0xF0U}; // EUCSRA
     u8 urxs_mask {0x0FU}; // EUCSRA
     u8 txc_mask {0x40U};  // TX complete bit position (AT90PWM: EOT=0x80, megaAVR0: TXCIF=0x40)
     u8 rxc_mask {0x80U};  // RX complete bit position (AT90PWM: RXCIF=0x40, megaAVR0: RXCIF=0x80)
+
+    // Register reset values (datasheet 18.6.3-18.6.5). EUCSRA resets to
+    // 8-bit transmit and 8-bit receive character size.
+    u8 eucsra_reset {0x33U};
+    u8 eucsrb_reset {0x00U};
+    u8 eucsrc_reset {0x00U};
 
     u16 txd_pin_address {0U};
     u8 txd_pin_bit {0xFFU};

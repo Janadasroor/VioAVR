@@ -38,9 +38,9 @@ ClockDomain Eusart::clock_domain() const noexcept { return ClockDomain::io; }
 
 void Eusart::reset() noexcept {
     eudr_ = 0;
-    eucsra_ = 0;
-    eucsrb_ = 0;
-    eucsrc_ = 0;
+    eucsra_ = desc_.eucsra_reset;
+    eucsrb_ = desc_.eucsrb_reset;
+    eucsrc_ = desc_.eucsrc_reset;
     mubrrl_ = 0;
     mubrrh_ = 0;
     tx_queue_.clear();
@@ -72,7 +72,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
             bus_->pin_mux()->claim_pin_by_address(desc_.txd_pin_address, desc_.txd_pin_bit, PinOwner::uart);
             
             bool current_bit_val;
-            if (eucsrb_ & 0x01) { // BODR: MSB first
+            if (eucsrb_ & desc_.bodr_mask) { // BODR: MSB first
                 current_bit_val = (tx_shift_reg_ >> (tx_bit_count_ - 1)) & 1;
             } else { // LSB first
                 current_bit_val = tx_shift_reg_ & 1;
@@ -97,8 +97,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
     };
 
     auto get_char_size = [&](bool tx) -> u8 {
-        u8 val = tx ? ((eucsra_ & desc_.utxs_mask) >> 4) : (eucsra_ & 0x0F);
-        bool f1617 = (eucsrc_ & desc_.f1617_mask);
+        u8 val = tx ? ((eucsra_ & desc_.utxs_mask) >> 4) : (eucsra_ & desc_.urxs_mask);
         switch (val) {
             case 0x00: return 5;
             case 0x01: return 6;
@@ -109,7 +108,10 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
             case 0x09: return 14;
             case 0x0A: return 15;
             case 0x0B: return 16;
-            case 0x0F: return f1617 ? 17 : 8; // 17 if F1617 set
+            // URxS/UTxS = 1110 selects 16 bits (16 or 17 in Manchester only,
+            // where F1617 reports the actual length); = 1111 selects 17 bits.
+            case 0x0E: return 16;
+            case 0x0F: return 17;
             default: return 8;
         }
     };
@@ -152,7 +154,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                 cycles_to_next_bit_ = cycles_per_half;
             } else {
                 tx_half_bit_ = false;
-                if (!(eucsrb_ & 0x01)) tx_shift_reg_ >>= 1; // LSB first
+                if (!(eucsrb_ & desc_.bodr_mask)) tx_shift_reg_ >>= 1; // LSB first
                 else tx_shift_reg_ <<= 1; // MSB first
                 
                 tx_bit_count_--;
@@ -223,11 +225,14 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                             else { error = true; bit_val = false; }
                             
                             if (error) {
-                                eucsrc_ |= 0x08; // FEM (Frame Error Manchester)
+                                // FEM is set by hardware on a Manchester framing
+                                // error, together with RXC (datasheet 18.5.4).
+                                eucsrc_ |= desc_.fem_mask;
+                                ++frame_error_count_;
                             }
 
                             u8 total_bits = get_char_size(false);
-                            if (!(eucsrb_ & 0x01)) {
+                            if (!(eucsrb_ & desc_.bodr_mask)) {
                                 if (bit_val) rx_shift_reg_ |= (1U << (total_bits - rx_bit_count_));
                             } else {
                                 rx_shift_reg_ = (rx_shift_reg_ << 1) | (bit_val ? 1 : 0);
@@ -240,6 +245,11 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                                 rx_active_ = false;
                                 rx_queue_.push_back(rx_shift_reg_);
                                 eucsra_ |= desc_.rxc_mask;
+                                // F1617 reports a 17-bit frame in the
+                                // Manchester 16/17-bit modes (18.6.5).
+                                eucsrc_ = (total_bits == 17U)
+                                    ? (eucsrc_ | desc_.f1617_mask)
+                                    : (eucsrc_ & static_cast<u8>(~desc_.f1617_mask));
                                 rx_cycles_to_sample_ = 0;
                             } else {
                                 rx_cycles_to_sample_ = cycles_per_half;
@@ -269,7 +279,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                         // Sample first data bit
                         bool bit_val = current_rx;
                         u8 total_bits = rx_bit_count_;
-                        if (!(eucsrb_ & 0x01)) { // LSB first
+                        if (!(eucsrb_ & desc_.bodr_mask)) { // LSB first
                             if (bit_val) rx_shift_reg_ |= (1U << (total_bits - 1));
                         } else { // MSB first
                             rx_shift_reg_ = (rx_shift_reg_ << 1) | (bit_val ? 1 : 0);
@@ -292,7 +302,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                         rx_accumulator_ -= rx_cycles_to_sample_;
                         bool bit_val = current_rx;
                         u8 total_bits = get_char_size(false);
-                        if (!(eucsrb_ & 0x01)) { // LSB first
+                        if (!(eucsrb_ & desc_.bodr_mask)) { // LSB first
                             if (bit_val) rx_shift_reg_ |= (1U << (rx_bit_count_ - 1));
                         } else { // MSB first
                             rx_shift_reg_ = (rx_shift_reg_ << 1) | (bit_val ? 1 : 0);
@@ -336,6 +346,9 @@ u8 Eusart::read(u16 address) noexcept {
         rx_queue_.pop_front();
         eucsra_ &= ~desc_.rxc_mask;
         if (!rx_queue_.empty()) eucsra_ |= desc_.rxc_mask;
+        // FEM and F1617 stay valid only until the receive buffer is read
+        // (datasheet 18.6.5).
+        eucsrc_ &= static_cast<u8>(~(desc_.fem_mask | desc_.f1617_mask));
         
         rx_temp_ = (val >> 8);
         return static_cast<u8>(val & 0xFF);

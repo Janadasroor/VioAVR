@@ -668,7 +668,8 @@ def generate_header(data, header_path):
 
         return f"""{{
             .eudr_address = {hx(r('EUDR')['offset'])}, .eucsra_address = {hx(r('EUCSRA')['offset'])}, .eucsrb_address = {hx(r('EUCSRB')['offset'])}, .eucsrc_address = {hx(r('EUCSRC')['offset'])}, .mubrrl_address = {hx(r('MUBRRL')['offset'])}, .mubrrh_address = {hx(r('MUBRRH')['offset'])},
-            .emch_mask = {hx(get_bit(r('EUCSRB'), 'EMCH'))}, .eus_en_mask = {hx(get_bit(r('EUCSRB'), 'EUSART'))}, .bodr_mask = {hx(get_bit(r('EUCSRB'), 'BODR'))}, .f1617_mask = {hx(get_bit(r('EUCSRC'), 'F1617'))}, .utxs_mask = {hx(get_bit(r('EUCSRA'), 'UTxS'))}, .urxs_mask = {hx(get_bit(r('EUCSRA'), 'URxS'))},
+            .emch_mask = {hx(get_bit(r('EUCSRB'), 'EMCH'))}, .eus_en_mask = {hx(get_bit(r('EUCSRB'), 'EUSART'))}, .bodr_mask = {hx(get_bit(r('EUCSRB'), 'BODR'))}, .eusbs_mask = {hx(get_bit(r('EUCSRB'), 'EUSBS'))}, .f1617_mask = {hx(get_bit(r('EUCSRC'), 'F1617'))}, .fem_mask = {hx(get_bit(r('EUCSRC'), 'FEM'))}, .stp_mask = {hx(get_bit(r('EUCSRC'), 'STP'))}, .utxs_mask = {hx(get_bit(r('EUCSRA'), 'UTxS'))}, .urxs_mask = {hx(get_bit(r('EUCSRA'), 'URxS'))},
+            .eucsra_reset = {hx(r('EUCSRA')['initval'] or 0x33)}, .eucsrb_reset = {hx(r('EUCSRB')['initval'] or 0)}, .eucsrc_reset = {hx(r('EUCSRC')['initval'] or 0)},
             .txd_pin_address = {txd_addr}, .txd_pin_bit = {txd_bit}U, .rxd_pin_address = {rxd_addr}, .rxd_pin_bit = {rxd_bit}U,
             .pr_address = {get_pr_info(data, 'PREUSART')[0]}, .pr_bit = {get_pr_info(data, 'PREUSART')[1]}
         }}"""
