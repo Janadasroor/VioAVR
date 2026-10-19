@@ -863,6 +863,136 @@ TEST_CASE("Regression: classic UART receives frames from the RXD pin")
     CHECK((bus.read_data(D.ucsra_address) & 0x80U) == 0U);
 }
 
+TEST_CASE("Regression: EUSART Manchester reports stop bits in EUCSRC.STP")
+{
+    // Datasheet 18.3.1/18.6.5: in Manchester mode the receiver stores the
+    // two stop bit values in EUCSRC.STP1:0 (STP0 = first, STP1 = second);
+    // level-encoded frames do not update them.
+    auto device = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 kEucsrc = 0xCAU;
+    const u16 kUdr = 0xC6U;
+    const u16 kRxd = 0x29U;
+
+    bus.write_data(0xC9U, 0x1AU); // EUSART + Manchester + EUSBS (2 stop bits)
+    bus.write_data(0xC8U, 0x33U); // 8-bit TX/RX
+    bus.write_data(0xCCU, 0x00U);  // MUBRR = 0
+
+    bus.pin_mux()->claim_pin_by_address(kRxd, 1U, PinOwner::external);
+    auto drive = [&](bool level) {
+        bus.pin_mux()->update_pin_by_address(kRxd, 1U, PinOwner::external, true, level);
+    };
+    drive(true);
+    bus.tick_peripherals(4);
+
+    auto hold = [&](u64 cycles) {
+        while (cycles > 0) {
+            const u64 step = cycles > 2U ? 2U : cycles;
+            bus.tick_peripherals(step);
+            cycles -= step;
+        }
+    };
+    // Manchester symbol: '1' = LOW/HIGH, '0' = HIGH/LOW.
+    auto symbol = [&](bool bit) {
+        drive(!bit); hold(8);
+        drive(bit);  hold(8);
+    };
+    // A stop bit carries no transition: the same level for both halves.
+    auto stop_bit = [&](bool level) {
+        drive(level); hold(8);
+        drive(level); hold(8);
+    };
+
+    symbol(true); // start bit
+    for (int i = 0; i < 8; ++i) symbol((0xA5U >> i) & 1U);
+    stop_bit(true);  // first stop bit  -> STP0 = 1
+    stop_bit(false); // second stop bit -> STP1 = 0
+    bus.tick_peripherals(16);
+
+    CHECK(bus.read_data(kUdr) == 0xA5U); // RXC in UCSRA, cleared by the read
+    CHECK((bus.read_data(kEucsrc) & 0x03U) == 0x01U); // STP0=1, STP1=0
+
+    // A level-encoded frame does not touch STP.
+    bus.write_data(0xC9U, 0x10U); // EUSART, Manchester off
+    const u64 bit = 16;
+    drive(true); hold(4);
+    drive(false); hold(bit);
+    for (int i = 0; i < 8; ++i) { drive((0x3CU >> i) & 1U); hold(bit); }
+    drive(true); hold(bit + 8);
+    CHECK(bus.read_data(kUdr) == 0x3CU);
+    CHECK((bus.read_data(kEucsrc) & 0x03U) == 0x01U); // unchanged
+}
+
+TEST_CASE("Regression: EUSART Manchester 16-or-17 mode sets F1617")
+{
+    // Datasheet 18.3.3: with URxS = 1110 the receiver probes the 17th bit
+    // time; a Manchester transition there is a 17th data bit and sets
+    // F1617, otherwise that bit time is the first stop bit.
+    auto device = DeviceCatalog::find("AT90PWM316");
+    REQUIRE(device != nullptr);
+    Machine machine(*device);
+    auto& bus = machine.bus();
+    machine.reset();
+
+    const u16 kEucsrc = 0xCAU;
+    const u16 kEudr = 0xCEU;
+    const u16 kUdr = 0xC6U;
+    const u16 kRxd = 0x29U;
+
+    bus.write_data(0xC9U, 0x12U); // EUSART + Manchester
+    bus.write_data(0xC8U, 0x0EU); // URxS = 1110: 16 or 17 bits (Manchester)
+    bus.write_data(0xCCU, 0x00U);  // MUBRR = 0
+
+    bus.pin_mux()->claim_pin_by_address(kRxd, 1U, PinOwner::external);
+    auto drive = [&](bool level) {
+        bus.pin_mux()->update_pin_by_address(kRxd, 1U, PinOwner::external, true, level);
+    };
+    drive(true);
+    bus.tick_peripherals(4);
+    auto hold = [&](u64 cycles) {
+        while (cycles > 0) {
+            const u64 step = cycles > 2U ? 2U : cycles;
+            bus.tick_peripherals(step);
+            cycles -= step;
+        }
+    };
+    auto symbol = [&](bool bit) {
+        drive(!bit); hold(8);
+        drive(bit);  hold(8);
+    };
+    auto flat = [&](bool level) {
+        drive(level); hold(8);
+        drive(level); hold(8);
+    };
+
+    // Frame with 17 data bits: the 17th bit time has a transition.
+    symbol(true); // start
+    for (int i = 0; i < 16; ++i) symbol((0x1234U >> i) & 1U);
+    symbol(true);  // 17th bit = 1 (reported through F1617, not the buffer)
+    flat(true);    // stop
+    bus.tick_peripherals(16);
+    CHECK((bus.read_data(kEucsrc) & 0x04U) != 0U); // F1617 set
+    CHECK(bus.read_data(kEudr) == 0x12U);           // UDR+EUDR hold 16 bits
+    CHECK(bus.read_data(kUdr) == 0x34U);
+    CHECK((bus.read_data(kEucsrc) & 0x04U) == 0U); // cleared on buffer read
+
+    // Same 16 bits but a flat 17th bit time: that is the first stop bit.
+    drive(true);
+    bus.tick_peripherals(4);
+    symbol(true);
+    for (int i = 0; i < 16; ++i) symbol((0x1234U >> i) & 1U);
+    flat(true);    // 17th bit time is the first stop bit, F1617 stays 0
+    flat(true);    // second stop bit (EUSBS = 0, extra level is ignored)
+    bus.tick_peripherals(16);
+    CHECK((bus.read_data(kEucsrc) & 0x04U) == 0U); // F1617 clear
+    CHECK(bus.read_data(kEudr) == 0x12U);
+    CHECK(bus.read_data(kUdr) == 0x34U);
+}
+
 TEST_CASE("Regression: RTC prescaler reaches DIV32768, PIT saturates safely")
 {
     auto device = DeviceCatalog::find("ATmega4809");
