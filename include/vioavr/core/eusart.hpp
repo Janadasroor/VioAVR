@@ -1,13 +1,14 @@
 #pragma once
 #include "vioavr/core/io_peripheral.hpp"
 #include "vioavr/core/device.hpp"
+#include "vioavr/core/uart.hpp"
 #include <deque>
 #include <string>
 #include <vector>
 
 namespace vioavr::core {
 
-class Eusart : public IoPeripheral {
+class Eusart : public IoPeripheral, public UartModePartner {
 public:
     Eusart(std::string_view name, const EusartDescriptor& desc) noexcept;
     void set_memory_bus(MemoryBus* bus) noexcept override { bus_ = bus; }
@@ -24,11 +25,23 @@ public:
     // External interaction
     void inject_received_byte(u32 data) noexcept;
     bool consume_transmitted_byte(u32& data) noexcept;
-    // Bad stop bits seen on the RXD pin. The registers expose no framing
-    // error bit, so software can only observe the count.
+    // Bad stop bits seen on the RXD pin. The shared UCSRA reports level
+    // encoded errors; the count is here for tests and analysis.
     [[nodiscard]] u16 frame_error_count() const noexcept { return frame_error_count_; }
+    // Devices where this EUSART and a USART are one peripheral in two modes
+    // (AT90PWM216/316 datasheet 18.6.4): status flags and the low data byte
+    // belong to that USART.
+    void set_shared_usart(class Uart* usart) noexcept { shared_usart_ = usart; }
+
+    // UartModePartner: the shared UDR was read / written.
+    void on_receive_buffer_read() noexcept override;
+    bool on_transmit_data(u8 low_byte) noexcept override;
 
 private:
+    void store_received_word(u32 word) noexcept;
+    [[nodiscard]] bool is_extended_mode() const noexcept {
+        return shared_usart_ != nullptr && (eucsrb_ & desc_.eus_en_mask);
+    }
     std::string name_;
     EusartDescriptor desc_;
     MemoryBus* bus_ {nullptr};
@@ -36,6 +49,7 @@ private:
 
     u8 eudr_{};
     u8 eucsra_{};
+    class Uart* shared_usart_ {nullptr};
 
     // EUSART Timing
     u64 cycles_to_next_bit_ {0};

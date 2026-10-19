@@ -185,7 +185,8 @@ u8 Uart::read(const u16 address) noexcept
     if (address == desc_.udr_address) {
         ucsra_ &= ~(desc_.rxc_mask | kDorMask | kFeMask | kUpeMask);
         update_interrupt_state();
-        return udr_rx_;
+        if (partner_ != nullptr) partner_->on_receive_buffer_read();
+        return static_cast<u8>(udr_rx_ & 0xFFU);
     }
     if (address == desc_.ucsra_address) return ucsra_;
     if (address == desc_.ucsrb_address) return ucsrb_;
@@ -199,6 +200,7 @@ void Uart::write(const u16 address, const u8 value) noexcept
 {
     const u8 old_ucsra = ucsra_;
     if (address == desc_.udr_address) {
+        if (partner_ != nullptr && partner_->on_transmit_data(value)) return;
         udr_tx_ = value;
         tx_buffer_full_ = true;
         ucsra_ &= ~desc_.udre_mask; // Buffer full
@@ -280,7 +282,7 @@ bool Uart::inject_received_byte(const u16 data, const bool frame_error,
     }
 
     rx_shift_reg_ = data;
-    udr_rx_ = static_cast<u8>(data & 0xFFU);
+    udr_rx_ = data & 0xFFU;
     ucsrb_ = static_cast<u8>((ucsrb_ & ~0x02U) | ((data >> 7) & 0x02U));
     rx_frame_error_ = frame_error;
     rx_parity_error_ = parity_error;

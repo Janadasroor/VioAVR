@@ -447,8 +447,21 @@ void Machine::initialize_peripherals()
     }
 
     // 6.5 EUSART
+    // On devices where the EUSART and the USART are two modes of one
+    // peripheral (AT90PWM216/316 datasheet 18.6.4), link them: the USART
+    // keeps owning UCSRA and the data register, the EUSART owns EUDR and
+    // the extended control registers.
     for (u8 i = 0; i < device_.eusart_count; ++i) {
         auto eusart = std::make_unique<Eusart>("EUSART", device_.eusarts[i]);
+        if (i == 0) {
+            for (auto& p : owned_peripherals_) {
+                if (auto* uart = dynamic_cast<Uart*>(p.get())) {
+                    eusart->set_shared_usart(uart);
+                    uart->set_mode_partner(eusart.get());
+                    break;
+                }
+            }
+        }
         bus_->attach_peripheral(*eusart);
         owned_peripherals_.push_back(std::move(eusart));
     }

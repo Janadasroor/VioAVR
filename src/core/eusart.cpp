@@ -1,9 +1,18 @@
 #include "vioavr/core/eusart.hpp"
 #include "vioavr/core/memory_bus.hpp"
 #include "vioavr/core/pin_mux.hpp"
+#include "vioavr/core/uart.hpp"
 #include <algorithm>
 
 namespace vioavr::core {
+
+namespace {
+// Datasheet 18.6.4: the EUSART and the standard USART are one peripheral.
+// RXC/TXC/UDRE/FE/DOR/UPE are the classic UCSRA bits (0xC0) regardless of
+// mode; EUCSRA only carries the character size.
+constexpr u8 kUcsraRxc = 0x80U;
+constexpr u8 kUcsraTxc = 0x40U;
+} // namespace
 
 Eusart::Eusart(std::string_view name, const EusartDescriptor& desc) noexcept
     : name_(name), desc_(desc)
@@ -161,7 +170,12 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                 
                 if (tx_bit_count_ == 0) {
                     tx_active_ = false;
-                    eucsra_ |= desc_.txc_mask; // TX Complete
+                    // TX Complete lives in the shared UCSRA (18.6.4).
+                    if (shared_usart_ != nullptr) {
+                        shared_usart_->set_status_bits(kUcsraTxc, true);
+                    } else {
+                        eucsra_ |= desc_.txc_mask;
+                    }
                     cycles_to_next_bit_ = 0;
                 } else {
                     cycles_to_next_bit_ = manchester ? cycles_per_half : cycles_per_bit;
@@ -243,8 +257,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                             
                             if (rx_bit_count_ == 0) {
                                 rx_active_ = false;
-                                rx_queue_.push_back(rx_shift_reg_);
-                                eucsra_ |= desc_.rxc_mask;
+                                store_received_word(rx_shift_reg_);
                                 // F1617 reports a 17-bit frame in the
                                 // Manchester 16/17-bit modes (18.6.5).
                                 eucsrc_ = (total_bits == 17U)
@@ -329,8 +342,7 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
                             ++frame_error_count_;
                         }
                         rx_uart_state_ = RxUartState::idle;
-                        rx_queue_.push_back(rx_shift_reg_);
-                        eucsra_ |= desc_.rxc_mask;
+                        store_received_word(rx_shift_reg_);
                     }
                     break;
             }
@@ -339,8 +351,25 @@ void Eusart::tick(u64 elapsed_cycles) noexcept {
     }
 }
 
+void Eusart::store_received_word(u32 word) noexcept {
+    if (shared_usart_ != nullptr) {
+        // UDR holds the low byte, EUDR the high byte; RXC goes to UCSRA.
+        shared_usart_->set_rx_word(static_cast<u16>(word));
+        rx_temp_ = static_cast<u8>((word >> 8U) & 0xFFU);
+    } else {
+        if (rx_queue_.size() >= 64U) return;
+        rx_queue_.push_back(word);
+        eucsra_ |= desc_.rxc_mask;
+    }
+}
+
 u8 Eusart::read(u16 address) noexcept {
-    if (address == desc_.eudr_address) { // Low byte
+    if (address == desc_.eudr_address) {
+        // EUDR is the HIGH byte of the received character (datasheet
+        // 18.6.2); reading it does not consume the buffer.
+        if (shared_usart_ != nullptr) {
+            return static_cast<u8>((shared_usart_->rx_word() >> 8U) & 0xFFU);
+        }
         if (rx_queue_.empty()) return 0;
         u32 val = rx_queue_.front();
         rx_queue_.pop_front();
@@ -353,7 +382,9 @@ u8 Eusart::read(u16 address) noexcept {
         rx_temp_ = (val >> 8);
         return static_cast<u8>(val & 0xFF);
     }
-    if (address == desc_.eudr_address + 1) { // High byte
+    if (shared_usart_ == nullptr && address == desc_.eudr_address + 1) {
+        // Legacy path for devices whose data register really is 16 bits
+        // wide; the AT90PWM216/316 EUSART has no register at EUDR+1.
         return static_cast<u8>(rx_temp_);
     }
     if (address == desc_.eucsra_address) return eucsra_;
@@ -364,13 +395,31 @@ u8 Eusart::read(u16 address) noexcept {
     return 0;
 }
 
+void Eusart::on_receive_buffer_read() noexcept {
+    // EUCSRC status bits are valid only until the shared data register is
+    // read (datasheet 18.6.5).
+    eucsrc_ &= static_cast<u8>(~(desc_.fem_mask | desc_.f1617_mask));
+}
+
+bool Eusart::on_transmit_data(u8 low_byte) noexcept {
+    if (!is_extended_mode()) return false;
+    const u32 full = (static_cast<u32>(tx_temp_) << 8U) | low_byte;
+    tx_queue_.push_back(full);
+    tx_temp_ = 0U;
+    return true;
+}
+
 void Eusart::write(u16 address, u8 value) noexcept {
-    if (address == desc_.eudr_address + 1) { // High byte first
+    if (address == desc_.eudr_address) { // High byte of the TX character
+        if (shared_usart_ != nullptr) {
+            // The low byte goes to the shared UDR and triggers transmission
+            // (datasheet 18.6.2).
+            tx_temp_ = value;
+        } else {
+            tx_temp_ = value;
+        }
+    } else if (shared_usart_ == nullptr && address == desc_.eudr_address + 1) {
         tx_temp_ = value;
-    } else if (address == desc_.eudr_address) { // Low byte triggers
-        u32 full = (static_cast<u32>(tx_temp_) << 8) | value;
-        tx_queue_.push_back(full);
-        tx_temp_ = 0; // Reset for next use
     } else if (address == desc_.eucsra_address) {
         // TXC is write-1-to-clear; other bits are writable
         eucsra_ = (value & ~desc_.txc_mask) | (eucsra_ & desc_.txc_mask & ~value);
@@ -393,6 +442,11 @@ void Eusart::write(u16 address, u8 value) noexcept {
 }
 
 void Eusart::inject_received_byte(u32 data) noexcept {
+    if (shared_usart_ != nullptr) {
+        shared_usart_->set_rx_word(static_cast<u16>(data));
+        rx_temp_ = static_cast<u8>((data >> 8U) & 0xFFU);
+        return;
+    }
     if (rx_queue_.size() >= 64) return;
     rx_queue_.push_back(data);
 }
