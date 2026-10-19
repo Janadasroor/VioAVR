@@ -1,6 +1,25 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/eeprom.h>
+
+/* The EEPROM helpers of avr-libc take a pointer into the EEPROM data space
+   (0x8100 on this part). The command interface works with plain byte
+   offsets, so the registers are used directly. */
+static uint8_t eeprom_read_at(uint8_t addr) {
+    EEARL = addr;
+    EEARH = 0;
+    EECR |= (1 << EERE);
+    return EEDR;
+}
+
+static void eeprom_write_at(uint8_t addr, uint8_t value) {
+    EEARL = addr;
+    EEARH = 0;
+    EEDR = value;
+    EECR |= (1 << EEMPE);
+    EECR |= (1 << EEPE);
+    while (EECR & (1 << EEPE));
+}
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -130,7 +149,7 @@ static void cmd_blink(char* arg) {
 static void cmd_eeprom(char* arg) {
     if (arg[0] == 'r' && arg[1] == ' ') {
         uint16_t addr = atoi(arg + 2);
-        uint8_t v = eeprom_read_byte((uint8_t*)addr);
+        uint8_t v = eeprom_read_at((uint8_t)addr);
         uart_puts("EEPROM[");
         uart_putdec16(addr);
         uart_puts("] = ");
@@ -142,7 +161,7 @@ static void cmd_eeprom(char* arg) {
         while (*p && *p != ' ') p++;
         if (*p == ' ') {
             uint8_t v = atoi(p + 1);
-            eeprom_write_byte((uint8_t*)addr, v);
+            eeprom_write_at((uint8_t)addr, v);
             uart_puts("EEPROM[");
             uart_putdec16(addr);
             uart_puts("] := ");

@@ -29,6 +29,40 @@ TEST_CASE("Intel HEX Image Loader Test")
         CHECK(bus.flash_words().size() == atmega8.flash_words);
     }
 
+    SUBCASE("Trailing zero data is preserved") {
+        const std::string_view hex_with_zero_tail =
+            ":04000000AABB000097\n"
+            ":00000001FF\n";
+
+        const auto image = HexImageLoader::load_text(hex_with_zero_tail, atmega8);
+
+        REQUIRE(image.flash_words.size() == 2U);
+        CHECK(image.flash_words[0] == 0xBBAAU);
+        CHECK(image.flash_words[1] == 0x0000U);
+
+        MemoryBus bus {atmega8};
+        bus.load_flash(image.flash_words);
+        CHECK(bus.read_program_word(1U) == 0x0000U);
+    }
+
+    SUBCASE("Unprogrammed gap bytes read as erased flash") {
+        const std::string_view hex_with_gap =
+            ":02000000AABB99\n"
+            ":02000400CCDD51\n"
+            ":00000001FF\n";
+
+        const auto image = HexImageLoader::load_text(hex_with_gap, atmega8);
+
+        REQUIRE(image.flash_words.size() == 3U);
+        CHECK(image.flash_words[0] == 0xBBAAU);
+        CHECK(image.flash_words[1] == 0xFFFFU);
+        CHECK(image.flash_words[2] == 0xDDCCU);
+
+        MemoryBus bus {atmega8};
+        bus.load_flash(image.flash_words);
+        CHECK(bus.read_program_word(1U) == 0xFFFFU);
+    }
+
     SUBCASE("Invalid checksum throws") {
         // Last byte '01' instead of '00' for checksum
         const std::string_view invalid_checksum = ":040000000C945C0001\n:00000001FF\n";

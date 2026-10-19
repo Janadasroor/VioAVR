@@ -338,12 +338,12 @@ void AvrCpu::run(const u64 cycle_budget)
                 const bool carry_in = flag_c_;
                 const u8 res = static_cast<u8>(lhs + rhs + (carry_in ? 1U : 0U));
                 regs[dest] = res;
-                const bool prev_zero = flag_z_;
                 flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
                 flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
                 flag_n_ = (res & 0x80);
                 flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
-                flag_z_ = prev_zero && (res == 0);
+                // ADC sets Z when the result is zero (manual 5.1).
+                flag_z_ = (res == 0);
                 flag_s_ = flag_n_ ^ flag_v_;
                 pc += 1U;
                 pending_cycles += 1;
@@ -935,12 +935,12 @@ bool AvrCpu::handle_slow_path(const u16 opcode, u32& pending_cycles, u8* regs, c
                     const bool carry_in = flag_c_;
                     const u8 res = static_cast<u8>(lhs + rhs + (carry_in ? 1U : 0U));
                     regs[dest] = res;
-                    const bool prev_zero = flag_z_;
                     flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
                     flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
                     flag_n_ = (res & 0x80);
                     flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
-                    flag_z_ = prev_zero && (res == 0);
+                    // ADC sets Z when the result is zero (manual 5.1).
+                    flag_z_ = (res == 0);
                     flag_s_ = flag_n_ ^ flag_v_;
                     program_counter_ += 1U;
                     pending_cycles += 1;
@@ -1336,12 +1336,13 @@ void AvrCpu::step()
             const bool carry_in = flag_c_;
             const u8 res = static_cast<u8>(lhs + rhs + (carry_in ? 1U : 0U));
             regs[dest] = res;
-            const bool prev_zero = flag_z_;
             flag_h_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x08;
             flag_v_ = ((lhs & rhs & ~res) | (~lhs & ~rhs & res)) & 0x80;
             flag_n_ = (res & 0x80);
             flag_c_ = ((lhs & rhs) | (rhs & ~res) | (~res & lhs)) & 0x80;
-            flag_z_ = prev_zero && (res == 0);
+            // ADC sets Z when the result is zero (instruction set manual
+            // 5.1); keeping the old Z is the rule of SBC and CPC.
+            flag_z_ = (res == 0);
             flag_s_ = flag_n_ ^ flag_v_;
             program_counter_ += 1U; advance_cycles(1U); return;
         }
@@ -2073,11 +2074,6 @@ bool AvrCpu::service_interrupt_if_needed()
 {
     refresh_interrupt_pending();
     if (!interrupt_pending_ || !flag(SregFlag::interrupt) || bus_ == nullptr) {
-        if (interrupt_pending_) {
-            static int dbg_block = 0;
-            if (dbg_block++ < 20)
-                std::fprintf(stderr, "[INT-BLOCK] I-flag=%d\n", (int)flag(SregFlag::interrupt));
-        }
         return false;
     }
 
@@ -2085,9 +2081,6 @@ bool AvrCpu::service_interrupt_if_needed()
     if (!bus_->consume_interrupt_request(request, active_clock_domains())) {
         interrupt_pending_ = false;
         return false;
-    }
-    { static int dbg_svc = 0; if (dbg_svc++ < 20)
-        std::fprintf(stderr, "[INT-SVC] vector=%d PC=0x%04X\n", request.vector_index, program_counter_);
     }
     if (trace_hook_ != nullptr) {
         trace_hook_->on_interrupt(request.vector_index);
@@ -2268,6 +2261,7 @@ u8 AvrCpu::pop_byte() noexcept
 
 void AvrCpu::push_word(const u16 value) noexcept
 {
+    // A word is stored low byte first, at the lower address.
     push_byte(static_cast<u8>(value & 0xFFU));
     push_byte(static_cast<u8>((value >> 8U) & 0xFFU));
 }
@@ -2530,9 +2524,10 @@ void AvrCpu::execute_adc(const DecodedInstruction& instruction)
     const u8 rhs = gpr_[source];
     const u8 result = static_cast<u8>(lhs + rhs + (carry_in ? 1U : 0U));
     write_register(destination, result);
-    const bool prev_zero = flag(SregFlag::zero);
+    // ADC sets Z when the result is zero, it does not keep the old value
+    // (that is the rule of SBC/CPC): "Z  R7 ... R0 - Set if the result is
+    // 0x00; cleared otherwise" (instruction set manual 5.1).
     update_add_flags(lhs, rhs, result, carry_in);
-    set_flag(SregFlag::zero, prev_zero && result == 0U);
     program_counter_ = instruction.word_address + 1U;
     advance_cycles(1U);
 }
@@ -3661,9 +3656,6 @@ void AvrCpu::execute_wdr(const DecodedInstruction& instruction)
 void AvrCpu::execute_cli(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    static int dbg_cli = 0;
-    if (dbg_cli++ < 20)
-        std::fprintf(stderr, "[CLI-EXEC] PC=0x%04X cycles=%lu\n", program_counter_, cycles_);
     set_flag(SregFlag::interrupt, false);
     ++program_counter_;
     advance_cycles(1U);
@@ -3672,9 +3664,6 @@ void AvrCpu::execute_cli(const DecodedInstruction& instruction)
 void AvrCpu::execute_sei(const DecodedInstruction& instruction)
 {
     (void)instruction;
-    static int dbg_sei = 0;
-    if (dbg_sei++ < 20)
-        std::fprintf(stderr, "[SEI-EXEC] PC=0x%04X cycles=%lu\n", program_counter_, cycles_);
     set_flag(SregFlag::interrupt, true);
     ++program_counter_;
     interrupt_delay_ = 1U;

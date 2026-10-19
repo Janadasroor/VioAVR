@@ -1,56 +1,54 @@
-# VioAVR Memory & EEPROM Gap Analysis
+# VioAVR Memory & EEPROM Accuracy
 
-This document outlines the current state of memory and EEPROM emulation in VioAVR and identifies missing features or inaccuracies when compared to Microchip ATDF specifications and hardware datasheets.
+This document lists what the memory system does today, what was closed
+recently, and what is still open. The previous version of this file
+predated a large amount of work and listed features as missing that are
+implemented — always check the code before trusting a gap list here.
 
-## 1. NVMCTRL (AVR8X / megaAVR-0) Gaps
+Status is verified against the code, the Microchip DFP pack
+(`avr-pack/`, checked by the `vioavr_pack_header_check` test) and the
+datasheets in `docs/datasheets/`.
 
-| Feature | Status | Impact |
-| --- | --- | --- |
-| **Flash Wait States** | Missing | High frequency performance tests will be over-optimistic. Needs `NVMCTRL.CTRLB` support. |
-| **EEPROM Page Writing** | Partial | `EEWP` commands are supported but the hardware page-buffer clear/load cycle is simplified. |
-| **Boot Row Protection** | Missing | Lack of enforcement for `BOOTRST` and boot section lockbits. |
-| **User Row Access** | Partial | Simulated as data but lacks NVM-specific erase/write protection enforcement. |
-
-## 2. Legacy SPM / EEPROM (AVR Series) Gaps
-
-| Feature | Status | Impact |
-| --- | --- | --- |
-| **LPM Signature Read** | Missing | Code using `LPM` with `SIGRD` (SPMCSR bit 5) will read flash instead of signature. |
-| **LPM Fuse Read** | Missing | Sequence involving `BLBSET` to read fuses via `LPM` is not implemented in `AvrCpu`. |
-| **EEPROM Wait states** | Missing | Lack of CPU stalling (4 cycles for read, 2 cycles for write start) as required by datasheet. |
-| **EEPROM Protection** | Missing | Support for `EESAVE` fuse (keeping EEPROM after Chip Erase) is not enforced. |
-
-### CPU Stalling during Access (Legacy)
-According to the ATmega328P datasheet (and similar legacy models):
-- **EEPROM Read**: When the `EERE` bit is set, the CPU is halted for **4 clock cycles** before the next instruction is executed.
-- **EEPROM Write**: When the `EEPE` bit is set, the CPU is halted for **2 clock cycles**.
-
-Implementing this requires a feedback mechanism from the `Eeprom` peripheral to the `AvrCpu` to inject wait states via the `MemoryBus`.
-
-## 3. High-Fidelity Memory Bus Accuracy
-
-### Cycle-Locked Access
-Newer AVRs (e.g. ATmega4809) have a "Wait State" mechanism for Flash access. When running at 20MHz (5V), 1 wait state might be required.
-- **Current implementation**: Always 1-cycle access.
-- **Requirement**: `MemoryBus` must check `NVMCTRL.CTRLB` and stall the CPU for the requested number of cycles.
-
-### SPM Section Stalling
-- **RWW (Read-While-Write)**: The CPU should be able to execute code from the NRWW section while writing to the RWW section.
-- **Stall Logic**: If the CPU attempts to fetch from the RWW section while it is busy, the hardware should stall until the operation completes. VioAVR currently lacks this "Section Stalling" logic.
-
-## 4. External Memory (XMEM) Support
+## 1. NVMCTRL (AVR8X / megaAVR-0)
 
 | Feature | Status | Notes |
 | --- | --- | --- |
-| **Wait State (XMCRA/B)** | Missing | Any configuration of wait states for external SRAM is ignored. |
-| **Pin Multiplexing** | Partial | Address/Data bus pins are claimed via `PinMux` but not high-impedance handled correctly. |
+| **Flash wait states** | Done | `NVMCTRL.CTRLB` bits 1:0 feed `MemoryBus::set_flash_wait_states()`; a flash access then requests that many stall cycles. |
+| **EEPROM page writing** | Done | The page buffer tracks dirty bytes, clears on command and writes back only what was loaded (Ex `EEPER`, Dx `EEBER`/`EEMBERn`). |
+| **User row access** | Done | `mapped_user_signatures` is backed by a real user row, so the signature bytes read back as the device reports them. |
+| **Boot row** | Open | The DA/DB boot row is not modelled: no `NVMCTRL` boot-row commands, no write protection for it. Only matters for firmware that writes the boot row. |
+| **Fuse/lockbit read** | Done | `LPM` with `SIGRD` returns the signature bytes, the `BLBSET` sequence returns the fuse bytes, and the lock bits are enforced for `LPM` across the boot/application boundary. |
+| **Boot row protection** | Open | `BOOTRST` and the boot section lock bits are not enforced on *writes*; reads are enforced. |
 
-## 5. Summary of Needed Modifications
+## 2. Legacy SPM / EEPROM (ATmega/ATtiny)
 
-1. **`AvrCpu::lpm()`**: Add check for `SIGRD` bit in the device-specific `SPMCSR` address.
-2. **`MemoryBus::tick()`**: Implement wait-state stalling for CPU fetches.
-3. **`MemoryBus::execute_nvm_command()`**: Add more granular support for page-buffer interactions (PBC, EEPBC).
-4. **`NvmCtrl`**: Implement `CTRLB` register and its influence on the bus.
+| Feature | Status | Notes |
+| --- | --- | --- |
+| **SPM section stalling** | Done | A write to the RWW section stalls the CPU when it fetches from that section (commits `26ec773`, `e439fed`); the scope is the targeted section only. |
+| **EEPROM read stall** | Done | 4 cycles, as the datasheet asks. |
+| **EEPROM write stall** | Done | 2 cycles at the start of the write; the long write itself no longer stalls the CPU (the value is committed asynchronously, the way the mapped write behaves). |
+| **EEPROM protection (EESAVE)** | Open | The `EESAVE` fuse is not honoured: a chip erase clears the EEPROM even when the fuse says it should be kept. |
+| **LPM signature / fuse read** | Done | See above. |
 
-> [!NOTE]
-> High-priority: LPM Signature/Fuse reading as it is commonly used in RTOS and initial startup code to identify the chip.
+## 3. External memory (XMEM)
+
+| Feature | Status | Notes |
+| --- | --- | --- |
+| **Wait states (XMCRA/B)** | Done | `MemoryBus::get_wait_states()` asks the XMEM peripheral for the configured wait states. |
+| **Pin multiplexing** | Partial | The address/data pins are claimed through the `PinMux`, but the high-impedance behaviour of the bus pins is not modelled in detail. |
+
+## 4. What is verified, and how
+
+- `vioavr_pack_header_check` compares every generated device descriptor
+  against the Microchip DFP headers in `avr-pack/` (14 devices: the
+  classic ATmega/ATtiny parts and the AT90PWM3 family). It runs as part of
+  the test suite, so a register address cannot drift away from the pack
+  unnoticed.
+- The `sim_accuracy_regression_test` group covers the memory behaviour
+  that the datasheets pin down: NVMCTRL Dx command timing, Ex/Dx erase
+  granularity, the asynchronous mapped EEPROM write, the SPM RWW stall and
+  the CPU instruction set.
+- The behaviour above is compared against the datasheets in
+  `docs/datasheets/`, not against silicon. A cross-check against a real
+  part (or against  for the CPU core only) is still missing — see
+  `docs/HARDWARE_ACCURACY.md`.

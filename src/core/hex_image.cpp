@@ -63,9 +63,10 @@ HexImage HexImageLoader::load_file(const std::string_view path, const DeviceDesc
 
 HexImage HexImageLoader::load_text(const std::string_view text, const DeviceDescriptor& device)
 {
-    std::vector<u8> flash_bytes(device.flash_words * 2U, 0U);
+    std::vector<u8> flash_bytes(device.flash_words * 2U, 0xFFU);
     bool eof_seen = false;
     u32 upper_linear_base = 0U;
+    u32 image_end = 0U;
 
     std::size_t cursor = 0U;
     while (cursor <= text.size()) {
@@ -127,6 +128,7 @@ HexImage HexImageLoader::load_text(const std::string_view text, const DeviceDesc
                 throw std::out_of_range("HEX image exceeds configured flash capacity");
             }
             std::ranges::copy(record_bytes, flash_bytes.begin() + static_cast<std::ptrdiff_t>(absolute_address));
+            image_end = std::max(image_end, record_end);
             break;
         }
         case 0x01:
@@ -165,11 +167,10 @@ HexImage HexImageLoader::load_text(const std::string_view text, const DeviceDesc
         throw std::runtime_error("HEX image missing EOF record");
     }
 
+    flash_bytes.resize(image_end);
+
     HexImage image;
     image.flash_words = bytes_to_words(flash_bytes);
-    while (!image.flash_words.empty() && image.flash_words.back() == 0U) {
-        image.flash_words.pop_back();
-    }
     image.entry_word = 0U;
     return image;
 }

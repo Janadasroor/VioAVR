@@ -2051,7 +2051,9 @@ TEST_CASE("Regression: SPM NRWW erase does not stall RWW execution")
         encode_ldi(16U, 0x03U), // PGERS|SPMEN
         encode_sts(16U), spmcsr,
         0x95E8U, // SPM (erase)
-        0x0000U, 0x0000U, 0x0000U, 0x0000U, 0x0000U, 0x0000U,
+        // End with an endless loop: the flash behind the program reads as
+        // 0xFFFF (erased), which is not a valid instruction.
+        0xCFFFU, 0xCFFFU, 0xCFFFU, 0xCFFFU, 0xCFFFU, 0xCFFFU,
     }, .entry_word = 0U});
     bus.write_program_word(0x3800U, 0x1234U); // pre-fill target page
     cpu.reset();
@@ -2060,7 +2062,8 @@ TEST_CASE("Regression: SPM NRWW erase does not stall RWW execution")
     CHECK(cpu.program_counter() == 6U);
     CHECK((bus.read_data(spmcsr) & 0x01U) != 0U); // SPMEN: op in flight
     for (int i = 0; i < 5; ++i) cpu.step();
-    CHECK(cpu.program_counter() == 11U); // kept running, not stuck at 6
+    // The endless loop keeps the CPU running instead of stalling on the SPM.
+    CHECK(cpu.program_counter() == 6U);
     cpu.run(70000U);
     CHECK(bus.flash_words()[0x3800U] == 0xFFFFU); // op really ran
 }

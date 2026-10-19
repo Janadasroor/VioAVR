@@ -1,4 +1,5 @@
 #include "vioavr/core/memory_bus.hpp"
+#include <cstdio>
 #include "vioavr/core/io_multiplexer.hpp"
 #include "vioavr/core/logger.hpp"
 #include "vioavr/core/xmem.hpp"
@@ -16,7 +17,9 @@ namespace vioavr::core {
 
 MemoryBus::MemoryBus(const DeviceDescriptor& device) : device_(device)
 {
-    flash_.resize(device_.flash_words, 0U);
+    // Erased flash reads as 0xFF, not 0x00: the flash ships unprogrammed
+    // and reads 0xFFFF (datasheet).
+    flash_.resize(device_.flash_words, 0xFFFFU);
     data_.resize(static_cast<std::size_t>(device_.data_end_address()) + 1U, 0U);
     dispatch_table_.fill(nullptr);
     flash_page_buffer_.resize(device_.flash_page_size, 0xFFFFU);
